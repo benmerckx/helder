@@ -25,6 +25,8 @@ typedef SurfaceProps = {
 	?dark:helder.view.graph.Read<Bool>,
 	// the window closed by its user (default: closed)
 	?onClose:Void->Void,
+	// files dropped on the window (helder.os's Drop: their paths, where, in points)
+	?onDrop:(files:Array<String>, x:Float, y:Float) -> Void,
 	// the UiWindow, once made
 	?ref:UiWindow->Void,
 	// its frames multisampled, 4 samples a pixel (default true; false: one)
@@ -61,6 +63,8 @@ class UiWindow {
 	public final ui:Ui;
 	public var background:Color = Color.rgb(0xF4F4F5);
 	public var onClose:Null<Void->Void>;
+	// files dropped on the window: their paths, where (points)
+	public var onDrop:Null<(files:Array<String>, x:Float, y:Float) -> Void>;
 	// after each frame is drawn
 	public var onFrame:Null<Void->Void>;
 	// when set, the next frame's pixels are read into it before they are
@@ -312,6 +316,11 @@ class UiWindow {
 				ui.composition(e.text, e.x);
 			case Resize | Redraw:
 				redraw = true;
+			case Drop:
+				if (onDrop != null) {
+					onDrop(e.files.copy(), e.x / k, e.y / k);
+					Graph.flush();
+				}
 			case _:
 		}
 		updateCursor();
@@ -384,6 +393,7 @@ class UiWindow {
 		});
 		if (props.dark != null) Graph.renderEffect(() -> Render.read(props.dark), v -> w.ui.dark = v);
 		if (props.onClose != null) w.onClose = props.onClose;
+		if (props.onDrop != null) w.onDrop = props.onDrop;
 		// (in this owner: what is above the root, contexts, seen inside)
 		Render.insert(props.children, w.root, null);
 		Graph.onCleanup(w.close);

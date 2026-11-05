@@ -168,6 +168,37 @@ class Window {
 			(cast native : X11Window).setMinSize(width, height);
 	}
 
+	// the window on the whole screen, without its frame: X11's
+	// _NET_WM_STATE_FULLSCREEN (asked of the window manager: a Resize when
+	// it does), Windows' a borderless window over the monitor (its frame and
+	// place given back after), macOS's full-screen space (toggleFullScreen:);
+	// in the browser, on Android and iOS nothing (see immersive)
+	public var fullscreen(get, set):Bool;
+
+	function get_fullscreen():Bool
+		return closed ? false : Mem.platform() >= 1 ? false : Mem.os() == 1 ? (cast native : CocoaWindow).isFullscreen() : Mem.os() == 2 ? (cast native : Win32Window).fullscreen : Mem.os() == 3 ? false : Mem.target() >= 9 ? false : (cast native : X11Window).fullscreen;
+
+	function set_fullscreen(on:Bool):Bool {
+		if (closed || on == fullscreen) return on;
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setFullscreen(on) else if (Mem.os() == 2) (cast native : Win32Window).setFullscreen(on) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+			(cast native : X11Window).setFullscreen(on);
+		return on;
+	}
+
+	// where its content's top left is on the screen, in points from the
+	// screen's top left (pixels on X11; macOS: the main screen's); null where
+	// a window has no place of its own (the browser, phones)
+	public function position():Null<{x:Int, y:Int}>
+		return closed ? null : Mem.platform() >= 1 ? null : Mem.os() == 1 ? (cast native : CocoaWindow).position() : Mem.os() == 2 ? (cast native : Win32Window).position() : Mem.os() == 3 ? null : Mem.target() >= 9 ? null : (cast native : X11Window).position();
+
+	// its content's top left moved to x, y (as position: a place it had, kept
+	// across runs)
+	public function moveTo(x:Int, y:Int) {
+		if (closed) return;
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).moveTo(x, y) else if (Mem.os() == 2) (cast native : Win32Window).moveTo(x, y) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+			(cast native : X11Window).moveTo(x, y);
+	}
+
 	public function close() {
 		if (closed) return;
 		closed = true;

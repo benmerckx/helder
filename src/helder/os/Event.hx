@@ -48,6 +48,11 @@ enum abstract EventKind(Int) {
 	var PointerMove;
 	var PointerUp;
 	var PointerCancel;
+	// files dragged onto the window and dropped there: Event.files, their
+	// paths, at x, y (pixels from the top left). Windows' WM_DROPFILES,
+	// macOS's dragging destination (file URLs), X11's XDND (text/uri-list);
+	// not in the browser, on Android or iOS yet
+	var Drop;
 }
 
 // Event.mods bits
@@ -86,6 +91,8 @@ class Event {
 	// Pointer*: the pointer, already updated (its slot: copy what must
 	// outlive the callback); button: the mouse's button that changed
 	public var pointer:Null<Pointer> = null;
+	// Drop: the files' paths (absolute, the system's separators)
+	public var files:Array<String> = [];
 
 	public function new() {}
 }

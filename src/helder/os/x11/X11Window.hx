@@ -40,12 +40,36 @@ class X11Window {
 	static final clipboardReads:Array<{window:X11Window, callback:Null<String>->Void}> = [];
 	// the cursors made (by Cursor; 0: not yet)
 	static final cursors:Array<Int64> = [];
+	// XDND's atoms (drops: Event.Drop), the window manager's states
+	static var XdndAware:Int64 = 0;
+	static var XdndEnter:Int64 = 0;
+	static var XdndPosition:Int64 = 0;
+	static var XdndStatus:Int64 = 0;
+	static var XdndLeave:Int64 = 0;
+	static var XdndDrop:Int64 = 0;
+	static var XdndFinished:Int64 = 0;
+	static var XdndSelection:Int64 = 0;
+	static var XdndTypeList:Int64 = 0;
+	static var XdndActionCopy:Int64 = 0;
+	static var URI_LIST:Int64 = 0;
+	static var HXMC_DND:Int64 = 0;
+	static var NET_WM_STATE:Int64 = 0;
+	static var NET_WM_STATE_FULLSCREEN:Int64 = 0;
+	static var NET_FRAME_EXTENTS:Int64 = 0;
 
 	final owner:Window;
 	final id:Int64;
 	final surface:Surface;
 	// this window's input context (nil: none)
 	var ic = Ptr.nil();
+	// a drag over it (XDND): its source (0: none), whether it carries files,
+	// where the pointer is (the root's pixels), the drop's time
+	var dndSource:Int64 = 0;
+	var dndFiles = false;
+	var dndX = 0;
+	var dndY = 0;
+	// asked of the window manager (_NET_WM_STATE)
+	var fullscreen = false;
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		this.owner = owner;
@@ -83,6 +107,12 @@ class X11Window {
 		});
 		Xlib.XSelectInput(display, id, (X.KeyPressMask | X.KeyReleaseMask | X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask
 			| X.StructureNotifyMask | X.ExposureMask | X.PropertyChangeMask : Int64));
+		// (XDND version 5: drops of files)
+		Arena.scoped(a -> {
+			var v:Ptr<Int64> = a.alloc(8);
+			v.value = 5;
+			Xlib.XChangeProperty(display, id, XdndAware, X.XA_ATOM, 32, X.PropModeReplace, v, 1);
+		});
 		Xlib.XMapWindow(display, id);
 		if (!im.isNull()) {
 			// (XIMPreeditNothing | XIMStatusNothing: the input method draws its own)
@@ -135,6 +165,21 @@ class X11Window {
 		TARGETS = Xlib.XInternAtom(display, Mem.cstr("TARGETS"), 0);
 		HXMC_CLIPBOARD = Xlib.XInternAtom(display, Mem.cstr("HXMC_CLIPBOARD"), 0);
 		INCR = Xlib.XInternAtom(display, Mem.cstr("INCR"), 0);
+		XdndAware = Xlib.XInternAtom(display, Mem.cstr("XdndAware"), 0);
+		XdndEnter = Xlib.XInternAtom(display, Mem.cstr("XdndEnter"), 0);
+		XdndPosition = Xlib.XInternAtom(display, Mem.cstr("XdndPosition"), 0);
+		XdndStatus = Xlib.XInternAtom(display, Mem.cstr("XdndStatus"), 0);
+		XdndLeave = Xlib.XInternAtom(display, Mem.cstr("XdndLeave"), 0);
+		XdndDrop = Xlib.XInternAtom(display, Mem.cstr("XdndDrop"), 0);
+		XdndFinished = Xlib.XInternAtom(display, Mem.cstr("XdndFinished"), 0);
+		XdndSelection = Xlib.XInternAtom(display, Mem.cstr("XdndSelection"), 0);
+		XdndTypeList = Xlib.XInternAtom(display, Mem.cstr("XdndTypeList"), 0);
+		XdndActionCopy = Xlib.XInternAtom(display, Mem.cstr("XdndActionCopy"), 0);
+		URI_LIST = Xlib.XInternAtom(display, Mem.cstr("text/uri-list"), 0);
+		HXMC_DND = Xlib.XInternAtom(display, Mem.cstr("HXMC_DND"), 0);
+		NET_WM_STATE = Xlib.XInternAtom(display, Mem.cstr("_NET_WM_STATE"), 0);
+		NET_WM_STATE_FULLSCREEN = Xlib.XInternAtom(display, Mem.cstr("_NET_WM_STATE_FULLSCREEN"), 0);
+		NET_FRAME_EXTENTS = Xlib.XInternAtom(display, Mem.cstr("_NET_FRAME_EXTENTS"), 0);
 		xev = LibC.malloc((X.EVENT_SIZE : Int64));
 		openInputMethod();
 	}
@@ -203,6 +248,142 @@ class X11Window {
 		Xlib.XResizeWindow(display, id, w, h);
 		Xlib.XFlush(display);
 	}
+
+	// (EWMH: a _NET_WM_STATE message to the root, add 1 or remove 0, from an application)
+	function setFullscreen(on:Bool) {
+		fullscreen = on;
+		sendMessage(Xlib.XDefaultRootWindow(display), id, NET_WM_STATE, on ? 1 : 0, NET_WM_STATE_FULLSCREEN, 0, 1, 0,
+			X.SubstructureRedirectMask | X.SubstructureNotifyMask);
+		Xlib.XFlush(display);
+	}
+
+	// the content's top left on the root window
+	function position():{x:Int, y:Int}
+		return Arena.scopedValue(a -> {
+			var x:Ptr<Int32> = a.alloc(4), y:Ptr<Int32> = a.alloc(4), child:Ptr<Int64> = a.alloc(8);
+			Xlib.XTranslateCoordinates(display, id, Xlib.XDefaultRootWindow(display), 0, 0, x, y, child);
+			{x: x.value, y: y.value};
+		});
+
+	// (the window manager places its frame where the window asks: the
+	// frame's left and top edges, _NET_FRAME_EXTENTS, taken off)
+	function moveTo(x:Int, y:Int) {
+		var p = takeProperty(NET_FRAME_EXTENTS, false);
+		var left = 0, top = 0;
+		if (p != null && p.format == 32 && p.bytes.length >= 32) {
+			left = p.bytes.getInt32(0);
+			top = p.bytes.getInt32(16);
+		}
+		Xlib.XMoveWindow(display, id, x - left, y - top);
+		Xlib.XFlush(display);
+	}
+
+	// a client message of format 32 to a window (its five longs)
+	static function sendMessage(to:Int64, window:Int64, type:Int64, l0:Int64, l1:Int64, l2:Int64, l3:Int64, l4:Int64, mask:Int)
+		Arena.scoped(a -> {
+			var raw:Ptr<UInt8> = a.alloc(X.EVENT_SIZE);
+			for (i in 0...X.EVENT_SIZE)
+				raw[i] = 0;
+			var m:Ptr<XClientMessageEvent> = cast raw;
+			m.value.type = X.ClientMessage;
+			m.value.display = display;
+			m.value.window = window;
+			m.value.message_type = type;
+			m.value.format = 32;
+			// (data.l at 56: l[0] to l[4])
+			var l:Ptr<Int64> = cast raw.add(56);
+			l[0] = l0;
+			l[1] = l1;
+			l[2] = l2;
+			l[3] = l3;
+			l[4] = l4;
+			Xlib.XSendEvent(display, to, 0, (mask : Int64), cast raw);
+		});
+
+	// XDND's messages to this window (the source's): an enter (does it carry
+	// text/uri-list), positions (each answered: accepted with a copy, or
+	// not), a leave, the drop (its files asked for: XdndSelection converted
+	// into HXMC_DND, then dropArrived)
+	function dnd(m:Ptr<XClientMessageEvent>):Bool {
+		var raw:Ptr<UInt8> = cast m;
+		var l:Ptr<Int64> = cast raw.add(56);
+		var type = m.value.message_type;
+		if (type == XdndEnter) {
+			dndSource = l[0];
+			dndFiles = false;
+			if ((l[1].toInt() & 1) != 0) {
+				var p = sourceProperty(dndSource, XdndTypeList);
+				if (p != null) for (i in 0...p.bytes.length >> 3)
+					if (p.bytes.getInt64(8 * i) == URI_LIST) dndFiles = true;
+			} else for (i in 2...5)
+				if (l[i] == URI_LIST) dndFiles = true;
+			return true;
+		}
+		if (type == XdndPosition) {
+			if (dndSource != l[0]) return true;
+			var at = l[2].toInt();
+			dndX = at >>> 16;
+			dndY = at & 0xFFFF;
+			sendMessage(dndSource, dndSource, XdndStatus, id, dndFiles ? 1 : 0, 0, 0, dndFiles ? XdndActionCopy : 0, 0);
+			Xlib.XFlush(display);
+			return true;
+		}
+		if (type == XdndLeave) {
+			dndSource = 0;
+			return true;
+		}
+		if (type == XdndDrop) {
+			if (dndSource != l[0]) return true;
+			if (!dndFiles) {
+				sendMessage(dndSource, dndSource, XdndFinished, id, 0, 0, 0, 0, 0);
+				dndSource = 0;
+			} else
+				Xlib.XConvertSelection(display, XdndSelection, URI_LIST, HXMC_DND, id, l[2]);
+			Xlib.XFlush(display);
+			return true;
+		}
+		return false;
+	}
+
+	// the dropped files arrived: their paths (Event.files), where the drop
+	// was; the source told it is done
+	function dropArrived(s:Ptr<XSelectionEvent>, e:Event):Bool {
+		var p = s.value.property == (0 : Int64) ? null : takeProperty(s.value.property);
+		var source = dndSource;
+		dndSource = 0;
+		if (source != (0 : Int64)) {
+			sendMessage(source, source, XdndFinished, id, p != null ? 1 : 0, p != null ? XdndActionCopy : 0, 0, 0, 0);
+			Xlib.XFlush(display);
+		}
+		if (p == null) return false;
+		var files = UriList.paths(p.bytes.toString());
+		if (files.length == 0) return false;
+		Arena.scoped(a -> {
+			var x:Ptr<Int32> = a.alloc(4), y:Ptr<Int32> = a.alloc(4), child:Ptr<Int64> = a.alloc(8);
+			Xlib.XTranslateCoordinates(display, Xlib.XDefaultRootWindow(display), id, dndX, dndY, x, y, child);
+			e.x = x.value;
+			e.y = y.value;
+		});
+		e.kind = Drop;
+		e.files = files;
+		return true;
+	}
+
+	// another window's property (the source's XdndTypeList), not deleted
+	static function sourceProperty(window:Int64, property:Int64):Null<{type:Int64, format:Int, bytes:haxe.io.Bytes}>
+		return Arena.scopedValue(a -> {
+			var type:Ptr<Int64> = a.alloc(8), format:Ptr<Int32> = a.alloc(4), count:Ptr<Int64> = a.alloc(8), after:Ptr<Int64> = a.alloc(8);
+			var data:Ptr<Ptr> = a.alloc(8);
+			if (Xlib.XGetWindowProperty(display, window, property, 0, 1024, 0, X.AnyPropertyType, type, format, count, after, data) != 0) null else {
+				var n = count.value.toInt() * (format.value == 32 ? 8 : format.value == 16 ? 2 : 1);
+				var b = haxe.io.Bytes.alloc(n);
+				if (!data.value.isNull()) {
+					if (n > 0) BytesPtr.copyIn(b, 0, data.value, n);
+					Xlib.XFree(data.value);
+				}
+				{type: type.value, format: format.value, bytes: b};
+			}
+		});
 
 	// WM_NORMAL_HINTS: XSizeHints with PMinSize (flags at 0, min_width and min_height at 24 and 28)
 	function setMinSize(w:Int, h:Int)
@@ -317,11 +498,11 @@ class X11Window {
 	var incomingType:Int64 = 0;
 
 	// the property's contents, deleted (null: none)
-	function takeProperty(property:Int64):Null<{type:Int64, format:Int, bytes:haxe.io.Bytes}>
+	function takeProperty(property:Int64, delete = true):Null<{type:Int64, format:Int, bytes:haxe.io.Bytes}>
 		return Arena.scopedValue(a -> {
 			var type:Ptr<Int64> = a.alloc(8), format:Ptr<Int32> = a.alloc(4), count:Ptr<Int64> = a.alloc(8), after:Ptr<Int64> = a.alloc(8);
 			var data:Ptr<Ptr> = a.alloc(8);
-			if (Xlib.XGetWindowProperty(display, id, property, 0, 1 << 24, 1, X.AnyPropertyType, type, format, count, after, data) != 0) null else {
+			if (Xlib.XGetWindowProperty(display, id, property, 0, 1 << 24, delete ? 1 : 0, X.AnyPropertyType, type, format, count, after, data) != 0) null else {
 				// (32-bit items come as longs)
 				var n = count.value.toInt() * (format.value == 32 ? 8 : format.value == 16 ? 2 : 1);
 				var b = haxe.io.Bytes.alloc(n);
@@ -429,13 +610,14 @@ class X11Window {
 			switch any.value.type {
 				case X.ClientMessage:
 					var m:Ptr<XClientMessageEvent> = xev;
-					if (m.value.l0 == wmDelete) e.kind = Close;
+					if (!w.dnd(m) && m.value.l0 == wmDelete) e.kind = Close;
 				case X.SelectionRequest:
 					answerSelection(xev);
 				case X.SelectionClear:
 					clipboardText = null;
 				case X.SelectionNotify:
-					w.selectionArrived(xev);
+					var s:Ptr<XSelectionEvent> = xev;
+					if (s.value.selection == XdndSelection) w.dropArrived(s, e) else w.selectionArrived(xev);
 				case X.Expose:
 					var x:Ptr<XExposeEvent> = xev;
 					if (x.value.count == 0) e.kind = Redraw;

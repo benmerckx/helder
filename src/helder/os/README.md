@@ -52,6 +52,44 @@ draws while the app is active, a touch is as in the browser
 and on Android, `Suspend` and `Resume` come when
 the app goes to the background and back. No keys or text input there yet.
 
+### Files dropped, full screen, a window's place
+
+```haxe
+App.run(frame, e -> switch e.kind {
+	case Drop: open(e.files[0]);           // paths, at e.x, e.y (pixels)
+	case _:
+});
+window.fullscreen = true;                   // the whole screen, no frame
+var p = window.position();                  // the content's top left on the screen (points); null in a browser
+window.moveTo(p.x, p.y);                    // put back (a setting kept across runs)
+```
+
+A drop of files is a `Drop` event with their paths (`Event.files`) and
+where they fell, by each system's own means: Windows' `DragAcceptFiles`
+and `WM_DROPFILES` (`DragQueryFileW`, UTF-16), macOS's dragging
+destination (the window registered for `public.file-url`, its delegate
+answering `draggingEntered:` with a copy when the pasteboard has file
+URLs and reading them at `performDragOperation:`), X11's XDND 5 (the
+window `XdndAware`; an `XdndEnter` offering `text/uri-list`, each
+`XdndPosition` answered by an `XdndStatus`, the drop's
+`XdndSelection` converted, the URIs' paths decoded by `UriList`, then
+`XdndFinished`). Not yet in the browser, on Android or iOS, nor Wayland
+(which helder does not speak yet). `fullscreen`: X11's
+`_NET_WM_STATE_FULLSCREEN` asked of the window manager, Windows' borderless
+window over its monitor (the frame and place given back after), macOS's
+full-screen space (`toggleFullScreen:`; the getter follows once there).
+`position` and `moveTo`: the content's top left, in points (X11: pixels;
+the frame's extents, `_NET_FRAME_EXTENTS`, taken off when moving; macOS:
+from the main screen's top left). A trackpad's pinch on macOS is a
+`Scroll` with `Mods.CONTROL` (`deltaY` -180 ln(scale): as browsers send
+one, as Control and the wheel; Windows' precision touchpads send it so
+themselves). Tests: `bun run test window` (tests/os/WindowTest.hx: on X11
+a second connection drags two files over the window speaking XDND, on
+Windows an HDROP posted as `WM_DROPFILES`, under Wine too
+(`GFX_TARGET=windows-x86_64`), on macOS a dragging info of the test's
+own class given to the window's dragging destination; then moveTo and
+position, fullscreen asked); `src/helder/os/UriList.test.hx`.
+
 ### A phone's screen and the display's frames
 
 ```haxe

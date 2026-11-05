@@ -39,6 +39,7 @@ class Msg {
 	static function vFloat(self:Ptr, sel:Ptr, a:Float):Void;
 	static function vSize(self:Ptr, sel:Ptr, a:CGSize):Void;
 	static function vRect(self:Ptr, sel:Ptr, a:CGRect):Void;
+	static function vPoint(self:Ptr, sel:Ptr, a:CGPoint):Void;
 	static function vPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Bool):Void;
 	static function vPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Void;
 	// (an NSRange by value: two NSUIntegers)

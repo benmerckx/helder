@@ -66,6 +66,7 @@ class Win32Window {
 			Arena.scoped(a -> User32.SetWindowTextW(hwnd, a.wstring(title)));
 			surface = new Surface(Win32, instance, hwnd, w, h);
 			open.push(this);
+			Shell32.DragAcceptFiles(hwnd, 1);
 			hostWindow();
 			measure();
 			return;
@@ -81,6 +82,7 @@ class Win32Window {
 				r.value.bottom - r.value.top, Ptr.nil(), Ptr.nil(), instance, Ptr.nil());
 		});
 		if (hwnd.isNull()) throw "helder.os: CreateWindowExW failed (error " + Kernel32.GetLastError() + ")";
+		Shell32.DragAcceptFiles(hwnd, 1);
 		surface = new Surface(Win32, instance, hwnd, w, h);
 		open.push(this);
 		#if hxmc.dev_host
@@ -180,6 +182,54 @@ class Win32Window {
 		var o = outer(w, h);
 		User32.SetWindowPos(hwnd, Ptr.nil(), 0, 0, o.w, o.h, 0x2 | 0x4 | 0x10);
 	}
+
+	// on the whole monitor: borderless over it, its style and frame before kept
+	var fullscreen = false;
+	var savedStyle = Ptr.nil();
+	final saved = [0, 0, 0, 0];
+
+	// (GWL_STYLE -16; MONITOR_DEFAULTTONEAREST 2; SWP_FRAMECHANGED 0x20,
+	// SWP_NOOWNERZORDER 0x200, SWP_NOZORDER 4, SWP_NOACTIVATE 0x10)
+	function setFullscreen(on:Bool) {
+		if (on == fullscreen) return;
+		fullscreen = on;
+		Arena.scoped(a -> {
+			if (on) {
+				savedStyle = User32.GetWindowLongPtrW(hwnd, -16);
+				var r = a.make(RECT);
+				User32.GetWindowRect(hwnd, r);
+				saved[0] = r.value.left;
+				saved[1] = r.value.top;
+				saved[2] = r.value.right;
+				saved[3] = r.value.bottom;
+				var info:Ptr<Int32> = a.alloc(40);
+				info[0] = 40;
+				User32.GetMonitorInfoW(User32.MonitorFromWindow(hwnd, 2), info);
+				// (WS_POPUP, WS_VISIBLE and WS_CLIPCHILDREN: no frame)
+				User32.SetWindowLongPtrW(hwnd, -16, Ptr.ofI64((0x80000000 : Int64) | 0x10000000 | 0x02000000));
+				User32.SetWindowPos(hwnd, Ptr.nil(), info[1], info[2], info[3] - info[1], info[4] - info[2], 0x20 | 0x200);
+			} else {
+				User32.SetWindowLongPtrW(hwnd, -16, savedStyle);
+				User32.SetWindowPos(hwnd, Ptr.nil(), saved[0], saved[1], saved[2] - saved[0], saved[3] - saved[1], 0x20 | 0x200 | 0x4 | 0x10);
+			}
+		});
+	}
+
+	// the client area's top left on the screen, in points
+	function position():{x:Int, y:Int}
+		return Arena.scopedValue(a -> {
+			var p = a.make(POINT);
+			User32.ClientToScreen(hwnd, p);
+			{x: Math.round(p.value.x / scale), y: Math.round(p.value.y / scale)};
+		});
+
+	// (the frame's offset from the client area: AdjustWindowRectEx's; SWP_NOSIZE 1)
+	function moveTo(x:Int, y:Int)
+		Arena.scoped(a -> {
+			var r = a.make(RECT);
+			User32.AdjustWindowRectEx(r, STYLE, 0, 0);
+			User32.SetWindowPos(hwnd, Ptr.nil(), Math.round(x * scale) + r.value.left, Math.round(y * scale) + r.value.top, 0, 0, 0x1 | 0x4 | 0x10);
+		});
 
 	// a Resize not told yet (before the loop)
 	var pending = false;
@@ -413,6 +463,36 @@ class Win32Window {
 				var r:Ptr<RECT> = Ptr.ofI64(lParam);
 				User32.SetWindowPos(hwnd, Ptr.nil(), r.value.left, r.value.top, r.value.right - r.value.left, r.value.bottom - r.value.top,
 					WM.SWP_NOZORDER | WM.SWP_NOACTIVATE);
+				return 0;
+			case 0x0233: // WM_DROPFILES: the paths (UTF-16), where they were dropped
+				var drop = Ptr.ofI64(wParam), files = [];
+				var n = Shell32.DragQueryFileW(drop, -1, Ptr.nil(), 0);
+				for (i in 0...n) {
+					var len = Shell32.DragQueryFileW(drop, i, Ptr.nil(), 0);
+					var buf:Ptr<UInt16> = LibC.malloc((2 * len + 2 : Int64));
+					Shell32.DragQueryFileW(drop, i, buf, len + 1);
+					var b = new StringBuf(), k = 0;
+					while (k < len && buf[k] != 0) {
+						var c:Int = buf[k++];
+						// (a surrogate pair: one code point)
+						if (c >= 0xD800 && c < 0xDC00 && k < len) c = 0x10000 + ((c - 0xD800) << 10) + ((buf[k++] : Int) - 0xDC00);
+						b.addChar(c);
+					}
+					LibC.free(buf);
+					files.push(b.toString());
+				}
+				Arena.scoped(a -> {
+					var p = a.make(POINT);
+					Shell32.DragQueryPoint(drop, p);
+					e.x = p.value.x;
+					e.y = p.value.y;
+				});
+				Shell32.DragFinish(drop);
+				if (files.length > 0) {
+					e.kind = Drop;
+					e.files = files;
+					dispatch(e);
+				}
 				return 0;
 			case WM.ENTERSIZEMOVE:
 				User32.SetTimer(hwnd, SIZING_TIMER, 10, Ptr.nil());

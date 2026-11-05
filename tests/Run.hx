@@ -41,6 +41,7 @@ class Run {
 		{name: "jobs", about: "helder.jobs: the sendable check's rejections (tests/jobs/reject); the pool, cancellation, errors and channels are the test lane's (tests/jobs/Jobs.test.hx, natively and on wasm32-wasi with node's workers)", run: jobsLane},
 		{name: "jobs-web", about: "helder.jobs in headless Chromium: Web Workers instantiating the module, a cancelled one ended, the loop without frames (tests/jobs/JobsWeb.hx)", run: jobsWeb},
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
+		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked (Linux: Xvfb)", run: window},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
@@ -186,6 +187,14 @@ class Run {
 		native('bin/os/$GFX_TARGET/AppLoopTest', cps(["src", "tests/os"]).concat(["-main", "AppLoopTest"]), GFX_TARGET);
 		var exe = exePath('bin/os/$GFX_TARGET/AppLoopTest', GFX_TARGET);
 		if (GFX_TARGET.startsWith("linux-")) shell('xvfb-run -a ' + exe) else run(exe, []);
+	}
+
+	// (Linux: Xvfb; a Windows target on another host: under Wine)
+	static function window() {
+		native('bin/os/$GFX_TARGET/WindowTest', cps(["src", "tests/os"]).concat(["-main", "WindowTest"]), GFX_TARGET);
+		var exe = exePath('bin/os/$GFX_TARGET/WindowTest', GFX_TARGET);
+		var wine = GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-") ? "wine " : "";
+		if (Sys.systemName() == "Linux") shell('xvfb-run -a $wine$exe') else run(exe, []);
 	}
 
 	static function asyncWeb() {

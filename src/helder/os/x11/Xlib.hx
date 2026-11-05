@@ -17,6 +17,7 @@ import hxmc.unsafe.*;
 	static function XDestroyWindow(d:Ptr, w:Int64):Int;
 	static function XStoreName(d:Ptr, w:Int64, name:Ptr):Int;
 	static function XResizeWindow(d:Ptr, w:Int64, width:Int, height:Int):Int;
+	static function XMoveWindow(d:Ptr, w:Int64, x:Int, y:Int):Int;
 	static function XSetWMNormalHints(d:Ptr, w:Int64, hints:Ptr):Void;
 	static function XSelectInput(d:Ptr, w:Int64, mask:Int64):Int;
 	static function XMapWindow(d:Ptr, w:Int64):Int;
@@ -112,6 +113,8 @@ class X {
 	public static inline var ExposureMask = 1 << 15;
 	public static inline var StructureNotifyMask = 1 << 17;
 	public static inline var PropertyChangeMask = 1 << 22;
+	public static inline var SubstructureNotifyMask = 1 << 19;
+	public static inline var SubstructureRedirectMask = 1 << 20;
 	public static inline var ZPixmap = 2;
 }
 

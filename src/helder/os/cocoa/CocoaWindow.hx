@@ -93,6 +93,13 @@ class CocoaWindow {
 		ObjC.release(t);
 		Msg.vPtr(window, ObjC.sel("setDelegate:"), delegate);
 		Msg.vBool(window, ObjC.sel("setAcceptsMouseMovedEvents:"), true);
+		// (files dragged onto it: public.file-url; a full-screen space of its own: NSWindowCollectionBehaviorFullScreenPrimary)
+		var pool = Runtime.objc_autoreleasePoolPush();
+		var type = ObjC.str("public.file-url");
+		Msg.vPtr(window, ObjC.sel("registerForDraggedTypes:"), Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), type));
+		ObjC.release(type);
+		Runtime.objc_autoreleasePoolPop(pool);
+		Msg.vInt(window, ObjC.sel("setCollectionBehavior:"), 1 << 7);
 		// (no line under the title bar: it would hide the content's top pixels)
 		Msg.vInt(window, ObjC.sel("setTitlebarSeparatorStyle:"), 1);
 		var content = Msg.id(window, ObjC.sel("contentView"));
@@ -146,6 +153,10 @@ class CocoaWindow {
 			Runtime.class_replaceMethod(made, ObjC.sel("windowDidEndLiveResize:"), Callback.addr(endResize), Mem.cstr("v@:@"));
 			Runtime.class_replaceMethod(made, ObjC.sel("liveFrame:"), Callback.addr(liveFrame), Mem.cstr("v@:@"));
 			Runtime.class_replaceMethod(made, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
+		Runtime.class_replaceMethod(made, ObjC.sel("draggingEntered:"), Callback.addr(dragEntered), Mem.cstr("Q@:@"));
+		Runtime.class_replaceMethod(made, ObjC.sel("draggingUpdated:"), Callback.addr(dragEntered), Mem.cstr("Q@:@"));
+		Runtime.class_replaceMethod(made, ObjC.sel("prepareForDragOperation:"), Callback.addr(prepareDrag), Mem.cstr("c@:@"));
+		Runtime.class_replaceMethod(made, ObjC.sel("performDragOperation:"), Callback.addr(performDrag), Mem.cstr("c@:@"));
 			delegate = helder.dev.Hosted.get(helder.dev.Hosted.MAC_DELEGATE);
 			var t = Runtime.objc_getClass(Mem.cstr("HxmcTextView"));
 			Runtime.class_replaceMethod(t, ObjC.sel("insertText:replacementRange:"), Callback.addr(insertText), Mem.cstr("v@:@{_NSRange=QQ}"));
@@ -167,6 +178,11 @@ class CocoaWindow {
 		Runtime.class_addMethod(cls, ObjC.sel("liveFrame:"), Callback.addr(liveFrame), Mem.cstr("v@:@"));
 		// (the application's delegate too)
 		Runtime.class_addMethod(cls, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
+		// (the windows' dragging destination: NSWindow passes it its drags' messages)
+		Runtime.class_addMethod(cls, ObjC.sel("draggingEntered:"), Callback.addr(dragEntered), Mem.cstr("Q@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("draggingUpdated:"), Callback.addr(dragEntered), Mem.cstr("Q@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("prepareForDragOperation:"), Callback.addr(prepareDrag), Mem.cstr("c@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("performDragOperation:"), Callback.addr(performDrag), Mem.cstr("c@:@"));
 		Runtime.objc_registerClassPair(cls);
 		delegate = Msg.id(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("init"));
 		Msg.vPtr(app, ObjC.sel("setDelegate:"), delegate);
@@ -277,6 +293,74 @@ class CocoaWindow {
 		size.value.height = h;
 		Msg.vSize(window, ObjC.sel("setContentSize:"), size.value);
 		if (measure()) resized();
+	}
+
+	// (NSWindowStyleMaskFullScreen; toggleFullScreen: animates into its space: the getter follows when it is there)
+	function isFullscreen():Bool
+		return Msg.i(window, ObjC.sel("styleMask")).toInt() & (1 << 14) != 0;
+
+	function setFullscreen(on:Bool)
+		if (isFullscreen() != on) Msg.vPtr(window, ObjC.sel("toggleFullScreen:"), Ptr.nil());
+
+	// (the main screen's height: AppKit's y goes up from its bottom)
+	static function screenHeight():Float {
+		var screens = Msg.id(ObjC.cls("NSScreen"), ObjC.sel("screens"));
+		return Msg.i(screens, ObjC.sel("count")) == 0 ? 0 : Msg.rect(Msg.idInt(screens, ObjC.sel("objectAtIndex:"), 0), ObjC.sel("frame")).size.height;
+	}
+
+	function position():{x:Int, y:Int} {
+		var f = Msg.rect(window, ObjC.sel("frame"));
+		var c = Msg.rectRect(window, ObjC.sel("contentRectForFrameRect:"), f);
+		return {x: Math.round(c.origin.x), y: Math.round(screenHeight() - (c.origin.y + c.size.height))};
+	}
+
+	function moveTo(x:Int, y:Int) {
+		var f = Msg.rect(window, ObjC.sel("frame"));
+		var c = Msg.rectRect(window, ObjC.sel("contentRectForFrameRect:"), f);
+		rect.value.origin.x = x - (c.origin.x - f.origin.x);
+		rect.value.origin.y = screenHeight() - y - c.size.height - (c.origin.y - f.origin.y);
+		Msg.vPoint(window, ObjC.sel("setFrameOrigin:"), rect.value.origin);
+	}
+
+	// a drag over a window: a copy when it carries file URLs (NSDragOperationCopy), else none
+	@:hxmc.callback static function dragEntered(self:Ptr, cmd:Ptr, info:Ptr):Int64
+		return draggedFiles(info).length > 0 ? 1 : 0;
+
+	@:hxmc.callback static function prepareDrag(self:Ptr, cmd:Ptr, info:Ptr):Int
+		return 1;
+
+	// the drop: its files' paths (Event.files), where the pointer is in the window
+	@:hxmc.callback static function performDrag(self:Ptr, cmd:Ptr, info:Ptr):Int {
+		var w = find(Msg.id(info, ObjC.sel("draggingDestinationWindow")));
+		var files = draggedFiles(info);
+		if (w == null || files.length == 0) return 0;
+		var p = Msg.pointPointPtr(w.view, ObjC.sel("convertPoint:fromView:"), Msg.point(w.window, ObjC.sel("mouseLocationOutsideOfEventStream")), Ptr.nil());
+		var b = Msg.rect(w.view, ObjC.sel("bounds"));
+		var e = event;
+		e.kind = Drop;
+		e.window = w.owner;
+		e.files = files;
+		e.x = Math.floor(p.x * w.scale);
+		e.y = Math.floor((b.size.height - p.y) * w.scale);
+		dispatch(e);
+		return 1;
+	}
+
+	// (the dragging pasteboard's NSURLs that are files: their paths)
+	static function draggedFiles(info:Ptr):Array<String> {
+		var files = [];
+		var pool = Runtime.objc_autoreleasePoolPush();
+		var pb = Msg.id(info, ObjC.sel("draggingPasteboard"));
+		var urls = pb.isNull() ? Ptr.nil() : Msg.idPtrPtr(pb, ObjC.sel("readObjectsForClasses:options:"), Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), ObjC.cls("NSURL")), Ptr.nil());
+		if (!urls.isNull())
+			for (i in 0...Msg.i(urls, ObjC.sel("count")).toInt()) {
+				var url = Msg.idInt(urls, ObjC.sel("objectAtIndex:"), i);
+				if (!Msg.b(url, ObjC.sel("isFileURL"))) continue;
+				var path = ObjC.string(Msg.id(url, ObjC.sel("path")));
+				if (path != null) files.push(path);
+			}
+		Runtime.objc_autoreleasePoolPop(pool);
+		return files;
 	}
 
 	function setMinSize(w:Int, h:Int) {
@@ -607,6 +691,16 @@ class CocoaWindow {
 			case NS.MouseMoved | NS.LeftMouseDragged | NS.RightMouseDragged | NS.OtherMouseDragged:
 				e.kind = MouseMove;
 				e.button = 0;
+			case NS.Magnify:
+				// (a trackpad's pinch: a Scroll with Control, as browsers send
+				// it; -180 ln(scale) pixels, as many as a wheel's notches for
+				// that zoom at 1.25 a notch)
+				var m = Msg.f(ev, ObjC.sel("magnification"));
+				if (m == 0 || m <= -1) return;
+				e.kind = Scroll;
+				e.mods = mods(ev) | Mods.CONTROL;
+				e.deltaX = 0;
+				e.deltaY = -180 * Math.log(1 + m);
 			case NS.ScrollWheel:
 				var dx = Msg.f(ev, ObjC.sel("scrollingDeltaX")), dy = Msg.f(ev, ObjC.sel("scrollingDeltaY"));
 				if (dx == 0 && dy == 0) return;
@@ -705,4 +799,5 @@ class NS {
 	public static inline var OtherMouseDown = 25;
 	public static inline var OtherMouseUp = 26;
 	public static inline var OtherMouseDragged = 27;
+	public static inline var Magnify = 30;
 }
