@@ -69,7 +69,8 @@ size and place, and the status line, are kept between runs (helder.os's
 ## Tests
 
 `bun run test viewer` (`helder test` in this directory, natively, as
-wasm32-wasi and on Eval): `tests/viewer/FolderModel.test.hx` (natural
+wasm32-wasi and on Eval; on Windows not as wasm32-wasi, whose directory
+listings come back empty under node's WASI there): `tests/viewer/FolderModel.test.hx` (natural
 order, opening a file or a folder, wrapping, the watch: added, removed,
 changed), `DecodeCache.test.hx` (the order, two at a time, eviction by
 distance, a budget too small for every neighbour, a changed file),

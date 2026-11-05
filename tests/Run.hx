@@ -196,7 +196,9 @@ class Run {
 		var h = FileSystem.fullPath(helderCli());
 		var here = Sys.getCwd();
 		Sys.setCwd("apps/viewer");
-		try run(h, ["test", "--target", "all,interp"]) catch (e:Failed) {
+		// (Windows: not as wasm32-wasi, whose directory listings come back
+		// empty under node's WASI there: the folder's tests need them)
+		try run(h, ["test", "--target", HOST.startsWith("windows-") ? "host,interp" : "all,interp"]) catch (e:Failed) {
 			Sys.setCwd(here);
 			throw e;
 		}
