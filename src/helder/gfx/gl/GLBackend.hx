@@ -183,6 +183,8 @@ class GLBackend {
 			display = Egl.eglGetDisplay(Ptr.nil()); // (EGL_DEFAULT_DISPLAY)
 		else if (headless)
 			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_SURFACELESS_MESA, Ptr.nil(), Ptr.nil());
+		else if (surface.kind == Wayland)
+			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_WAYLAND_KHR, surface.display, Ptr.nil());
 		else {
 			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_X11_KHR, surface.display, Ptr.nil());
 			if (display.isNull()) display = Egl.eglGetDisplay(surface.display);
@@ -220,6 +222,8 @@ class GLBackend {
 		}
 		#end
 		if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+		// (Wayland: a swap waits for the compositor's frame callback, never sent to a hidden window: the loop paces itself)
+		if (Mem.target() < 9) if (surface.kind == Wayland) Egl.eglSwapInterval(display, 0);
 		current = this;
 		alive++;
 		// (Android: libGLESv3.so's own functions; eglGetProcAddress may know only extensions there)

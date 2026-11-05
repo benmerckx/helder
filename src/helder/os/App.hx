@@ -8,6 +8,7 @@ import helder.os.uikit.UIKitWindow;
 import helder.os.web.CanvasWindow;
 import helder.os.win32.Win32Window;
 import helder.os.x11.X11Window;
+import helder.os.wayland.WaylandWindow;
 import hxmc.unsafe.*;
 
 // The app loop, callback driven (Cocoa, GTK and the browser own their
@@ -230,7 +231,7 @@ class App {
 			}
 		} else {
 			if (Mem.os() == 1) CocoaWindow.poll(onFrame, onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
-				X11Window.poll(onEvent);
+				if (WaylandWindow.chosen) WaylandWindow.poll(onEvent) else X11Window.poll(onEvent);
 			loopTurn();
 			if (running && windows.length > 0) {
 				frame.tick(haxe.Timer.stamp(), false);
@@ -277,7 +278,7 @@ class App {
 		if (Mem.platform() >= 1) UIKitWindow.pauseVsync();
 		if (Mem.platform() >= 1) UIKitWindow.wait(bounded(seconds)) else if (Mem.os() == 1) CocoaWindow.wait(bounded(seconds)) else if (Mem.os() == 2)
 			Win32Window.wait(bounded(seconds)) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) AndroidWindow.wait(bounded(seconds)) else
-			X11Window.waitFor(seconds);
+			if (WaylandWindow.chosen) WaylandWindow.waitFor(seconds) else X11Window.waitFor(seconds);
 	}
 
 	public static function quit()

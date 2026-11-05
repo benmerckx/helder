@@ -48,5 +48,6 @@ class EGL {
 	public static inline var WIDTH = 0x3057;
 	public static inline var HEIGHT = 0x3056;
 	public static inline var PLATFORM_X11_KHR = 0x31D5;
+	public static inline var PLATFORM_WAYLAND_KHR = 0x31D8;
 	public static inline var PLATFORM_SURFACELESS_MESA = 0x31DD;
 }

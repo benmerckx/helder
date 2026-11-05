@@ -4,8 +4,7 @@ import hxmc.unsafe.*;
 
 // What a GPU API renders to (helder.gfx's Device.create): the native handles
 // of a window, or of a child of one, or nothing (headless: offscreen
-// rendering at a fixed size). Later kinds: Wayland (wl_display,
-// wl_surface).
+// rendering at a fixed size).
 enum abstract SurfaceKind(Int) {
 	var Headless;
 	var X11;
@@ -17,13 +16,15 @@ enum abstract SurfaceKind(Int) {
 	var Canvas;
 	// an ANativeWindow (Android: the activity's window)
 	var Android;
+	// a wl_egl_window of a wl_surface (Linux on Wayland: helder.os.wayland)
+	var Wayland;
 }
 
 class Surface {
 	public final kind:SurfaceKind;
-	// X11: the Display*; Cocoa: the CAMetalLayer*; Win32: the HINSTANCE (or nil)
+	// X11: the Display*; Wayland: the wl_display*; Cocoa: the CAMetalLayer*; Win32: the HINSTANCE (or nil)
 	public final display:Ptr;
-	// X11: the Window (an XID); Cocoa: the NSView*; Win32: the HWND; Canvas:
+	// X11: the Window (an XID); Wayland: the wl_egl_window*; Cocoa: the NSView*; Win32: the HWND; Canvas:
 	// the canvas's handle in the JavaScript side's table (src/helder/os/browser.mjs);
 	// Android: the ANativeWindow* (nil while suspended, another after a Resume: reattach)
 	public var handle(default, null):Ptr;

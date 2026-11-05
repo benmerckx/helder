@@ -5,6 +5,7 @@ import helder.os.uikit.UIKitWindow;
 import helder.os.web.CanvasWindow;
 import helder.os.win32.Win32Window;
 import helder.os.x11.X11Window;
+import helder.os.wayland.WaylandWindow;
 import hxmc.unsafe.Mem;
 
 // The system clipboard's text. write puts text there; read hands it to a
@@ -18,12 +19,14 @@ import hxmc.unsafe.Mem;
 class Clipboard {
 	public static function write(window:Window, text:String) {
 		if (Mem.platform() >= 1) UIKitWindow.writeClipboard(text) else if (Mem.os() == 1) CocoaWindow.writeClipboard(text) else if (Mem.os() == 2) (cast @:privateAccess window.native : Win32Window).writeClipboard(text) else
-			if (Mem.os() == 3) CanvasWindow.writeClipboard(text) else if (Mem.target() >= 9) {} else (cast @:privateAccess window.native : X11Window).writeClipboard(text);
+			if (Mem.os() == 3) CanvasWindow.writeClipboard(text) else if (Mem.target() >= 9) {} else if (Std.isOfType(@:privateAccess window.native, WaylandWindow))
+				(cast @:privateAccess window.native : WaylandWindow).writeClipboard(text) else (cast @:privateAccess window.native : X11Window).writeClipboard(text);
 	}
 
 	public static function read(window:Window, callback:Null<String>->Void) {
 		if (Mem.platform() >= 1) callback(UIKitWindow.readClipboard()) else if (Mem.os() == 1) callback(CocoaWindow.readClipboard()) else if (Mem.os() == 2) callback((cast @:privateAccess window.native : Win32Window).readClipboard()) else
 			if (Mem.os() == 3) CanvasWindow.readClipboard(callback) else if (Mem.target() >= 9) callback(null) else
-			(cast @:privateAccess window.native : X11Window).readClipboard(callback);
+			if (Std.isOfType(@:privateAccess window.native, WaylandWindow)) (cast @:privateAccess window.native : WaylandWindow).readClipboard(callback) else
+				(cast @:privateAccess window.native : X11Window).readClipboard(callback);
 	}
 }

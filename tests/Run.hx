@@ -43,6 +43,7 @@ class Run {
 		{name: "jobs-web", about: "helder.jobs in headless Chromium: Web Workers instantiating the module, a cancelled one ended, the loop without frames (tests/jobs/JobsWeb.hx)", run: jobsWeb},
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
 		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked; helder.ui.menu's model as each platform's menus (tests/os/MenuTest.hx: macOS's NSMenu bar and roles, Windows' HMENU and accelerators, Linux's drawn bar and context menu driven by the keys, bin/os/menus-linux*.png) (Linux: Xvfb)", run: window},
+		{name: "wayland", about: "helder.os on Wayland: the protocol bindings generated again from the system's XML (helder.os.wayland.Scanner) and compared with src/helder/os/wayland/protocol; then, where weston is installed, under a headless weston at scale 1 and 2 (tests/os/wayland.sh): tests/os/WaylandTest.hx (the back end chosen, configured, GL's frames through EGL on the wl_surface read back, the buffer at the scale, fullscreen and back, the clipboard), the viewer showing a photo, the compositor's screenshot (bin/os/wayland-viewer.png); without weston, built only", run: wayland},
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
 		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
@@ -311,6 +312,36 @@ class Run {
 	}
 
 	// (Linux: Xvfb; a Windows target on another host: under Wine)
+	// (the protocols the bindings are made from, where the system has their XML)
+	static final WAYLAND_XML = [
+		"/usr/share/wayland/wayland.xml", "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml",
+		"/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "/usr/share/wayland-protocols/stable/viewporter/viewporter.xml",
+		"/usr/share/wayland-protocols/staging/fractional-scale/fractional-scale-v1.xml", "/usr/share/wayland-protocols/staging/cursor-shape/cursor-shape-v1.xml"
+	];
+
+	static function wayland() {
+		if ([for (x in WAYLAND_XML) if (!FileSystem.exists(x)) x].length == 0) {
+			if (FileSystem.exists("bin/wayland/protocol")) rmrf("bin/wayland/protocol");
+			mkdirs("bin/wayland/protocol");
+			run(TOOL, ["-cp", "src", "--run", "helder.os.wayland.Scanner", "bin/wayland/protocol"].concat(WAYLAND_XML));
+			for (f in FileSystem.readDirectory("bin/wayland/protocol"))
+				if (File.getContent('bin/wayland/protocol/$f') != File.getContent('src/helder/os/wayland/protocol/$f'))
+					throw new Failed('src/helder/os/wayland/protocol/$f differs from what the scanner makes of the system\'s XML (bin/wayland/protocol/$f)');
+			Sys.println("wayland: the bindings are the scanner's of the system's XML");
+		} else Sys.println("wayland: no wayland-protocols XML here: the bindings not compared");
+		if (!GFX_TARGET.startsWith("linux-")) {
+			Sys.println("wayland: Linux's alone");
+			return;
+		}
+		native('bin/os/$GFX_TARGET/WaylandTest', cps(["src", "tests/os"]).concat(["-main", "WaylandTest"]), GFX_TARGET);
+		run(helderCli(), ["build", "apps/viewer"]);
+		if (Sys.systemName() != "Linux" || Sys.command("sh", ["-c", "command -v weston > /dev/null"]) != 0) {
+			Sys.println("wayland: no weston here: built, not run");
+			return;
+		}
+		shell('sh tests/os/wayland.sh bin/os/$GFX_TARGET/WaylandTest apps/viewer/bin/$GFX_TARGET/viewer bin/os');
+	}
+
 	static function window() {
 		native('bin/os/$GFX_TARGET/WindowTest', cps(["src", "tests/os"]).concat(["-main", "WindowTest"]), GFX_TARGET);
 		var exe = exePath('bin/os/$GFX_TARGET/WindowTest', GFX_TARGET);

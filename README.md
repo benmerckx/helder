@@ -67,12 +67,12 @@ All under `src/helder`, Haxe package `helder.<name>`:
 
 | | |
 | --- | --- |
-| `os` | windows, input, the app loop and audio: X11, Cocoa, Win32, Android, UIKit, the browser |
+| `os` | windows, input, the app loop and audio: X11, Wayland, Cocoa, Win32, Android, UIKit, the browser |
 | `gfx` | a portable GPU API: GL/GLES, Metal, D3D11, WebGPU, WebGL2; shaders written in Haxe |
 | `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas |
 | `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames |
 | `view` | signals and JSX-like markup, compiled to direct calls on the renderer each subtree's tag chooses |
-| `ui` | flexbox layout, events, focus and accessibility, drawn on gfx or as the platform's controls |
+| `ui` | flexbox layout, events, focus and accessibility, actions and keymaps, menus, drawn on gfx or as the platform's controls |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
 | `asset` | files by path: images, fonts, models, sounds, bytes; checked when compiling, bundled by use (the executable, the APK, the app, beside the page), loaded by a coroutine, reloaded in place under `helder dev` |
@@ -400,6 +400,18 @@ collection only when it allocates or blocks.
   size shown), 4. native dialogs and "Open with" (file associations, a
   second launch handing over its file), 5. the platforms' codecs (WIC,
   ImageIO; HEIC and AVIF where the system has them).
+- **Desktop: actions, menus, Wayland** (*landed*, after Zed's GPUI):
+  helder.ui.actions (actions as enums dispatched from the focus up to the
+  window and the app; key contexts and GPUI's predicates; keymaps with
+  chords, `secondary`, a user's JSON reloaded, conflicts by depth then
+  order; the keys an action is bound to; FocusHandle, focus-within,
+  tabIndex), helder.ui.menu (one model: macOS's NSMenu with its roles,
+  Windows' HMENU and TrackPopupMenuEx, helder's drawn bar and popups on
+  Linux), the viewer's keys, menus and context menu through them, and
+  helder.os.wayland (generated bindings, EGL on a wl_surface, fractional
+  scale, helder's decorations, xkbcommon, the clipboard and drops; under a
+  headless weston in CI). Next: Wayland's text-input-v3 and xdg_popup,
+  D-Bus's dbusmenu, a keymap editor.
   - **next: text's shaping and glyph rasterizing**, the spiky part of
     text (a cold atlas about 5 ms; a relayout of 10k nodes is 0.008 ms): a
     new paragraph shaped and its glyphs drawn into the atlas as GC-free
