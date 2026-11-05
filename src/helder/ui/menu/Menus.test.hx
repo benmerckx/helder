@@ -3,7 +3,7 @@ package helder.ui.menu;
 import helder.test.Test;
 import helder.ui.Key;
 import helder.ui.Node;
-import helder.ui.PlatformMenuItem;
+import helder.ui.platform.PlatformMenuItem;
 import helder.ui.Ui;
 import helder.ui.actions.Actions;
 import helder.ui.actions.Keymap;
@@ -157,7 +157,7 @@ enum MenuAction {
 	Zoom(by:Int);
 }
 
-class FakeViews implements helder.ui.PlatformViews {
+class FakeViews implements helder.ui.platform.PlatformViews {
 	public final menus:Array<{items:Array<PlatformMenuItem>, chosen:Int->Void}> = [];
 	public var bar:Array<PlatformMenuItem> = [];
 	public var bars = 0;
@@ -165,7 +165,7 @@ class FakeViews implements helder.ui.PlatformViews {
 
 	public function new() {}
 
-	public function editor(multiline:Bool):Null<helder.ui.PlatformEditor>
+	public function editor(multiline:Bool):Null<helder.ui.platform.PlatformEditor>
 		return null;
 
 	public function poll() {}

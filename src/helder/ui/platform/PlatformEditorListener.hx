@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.ui.platform;
 
 // What hears a PlatformEditor (EditableText)
 interface PlatformEditorListener {

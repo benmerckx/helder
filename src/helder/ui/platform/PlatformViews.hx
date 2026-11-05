@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.ui.platform;
 
 // The platform's own views inside a drawn tree (Ui.platform; a window
 // gives it where its platform has them): native controls placed where

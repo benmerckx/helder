@@ -2,7 +2,7 @@ package helder.ui.menu;
 
 import helder.ui.Key;
 import helder.ui.Node;
-import helder.ui.PlatformMenuItem;
+import helder.ui.platform.PlatformMenuItem;
 import helder.ui.Popup;
 import helder.ui.TextNode;
 import helder.ui.Ui;

@@ -128,7 +128,7 @@ class MenuTest {
 		var a = [];
 		var items = Menus.resolve(w.ui, [Item("Tile", Tile), Separator, Item("Open…", Open)], null, a);
 		var p = WinMenu.CreatePopupMenu();
-		@:privateAccess helder.ui.draw.WinViews.fill(p, items);
+		@:privateAccess helder.ui.platform.WinViews.fill(p, items);
 		check("windows: a context menu's items", WinMenu.GetMenuItemCount(p) == 3 && text(p, 2) == "Open…\tCtrl+O", text(p, 2));
 		WinMenu.DestroyMenu(p);
 		#end
@@ -178,7 +178,7 @@ class MenuTest {
 		// (a context menu's NSMenu, as MacViews pops it up)
 		var a = [];
 		var items = Menus.resolve(w.ui, [Item("Tile", Tile), Separator, Item("Open…", Open)], null, a);
-		var m = @:privateAccess helder.ui.draw.MacViews.nsMenu(items);
+		var m = @:privateAccess helder.ui.platform.MacViews.nsMenu(items);
 		check("cocoa: a context menu's items", helder.os.objc.Msg.i(m, helder.os.objc.ObjC.sel("numberOfItems")) == 3 && title(item(m, 2)) == "Open…");
 		helder.os.objc.ObjC.release(m);
 		#end

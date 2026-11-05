@@ -15,7 +15,7 @@
 // textarea focused, for input methods), the focus stays the textarea's,
 // named as the field.
 //
-// A window's native text editors (src/helder/ui/draw/WebViews.hx): an input
+// A window's native text editors (src/helder/ui/platform/WebViews.hx): an input
 // or a textarea of the page, in a layer over the canvas (its size, clipping
 // them), absolutely placed where the
 // field's content box is laid out, borderless and transparent (the drawn

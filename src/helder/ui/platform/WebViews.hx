@@ -1,4 +1,4 @@
-package helder.ui.draw;
+package helder.ui.platform;
 
 import helder.os.web.Dom;
 import helder.ui.*;
@@ -47,7 +47,7 @@ class WebViews implements PlatformViews {
 	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool
 		return false;
 
-	@:allow(helder.ui.draw.WebEditor) function forget(h:Int)
+	@:allow(helder.ui.platform.WebEditor) function forget(h:Int)
 		editors.remove(h);
 
 	public function poll()

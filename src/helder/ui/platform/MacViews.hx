@@ -1,9 +1,7 @@
-package helder.ui.draw;
+package helder.ui.platform;
 
 import helder.os.objc.*;
 import helder.ui.*;
-import helder.ui.native.appkit.AkMsg;
-import helder.ui.native.appkit.AppKitBackend;
 import hxmc.unsafe.*;
 
 // macOS's own views over a window (Ui.platform there): one-line text
@@ -28,6 +26,19 @@ import hxmc.unsafe.*;
 // key equivalents taken by the menu bar before the window, as the
 // system's).
 class MacViews implements PlatformViews {
+	// an NSFont for a ui Font (its family, else the system's; bold from 600, italic)
+	@:allow(helder.ui.platform) static function nsFont(f:Font):Ptr {
+		var name = ObjC.str(f.family);
+		var nf = AkMsg.idPtrFloat(ObjC.cls("NSFont"), ObjC.sel("fontWithName:size:"), name, f.size);
+		ObjC.release(name);
+		if (nf.isNull()) nf = AkMsg.idFloat(ObjC.cls("NSFont"), ObjC.sel("systemFontOfSize:"), f.size);
+		var fm = AkMsg.id(ObjC.cls("NSFontManager"), ObjC.sel("sharedFontManager"));
+		// (NSFontTraitMask: italic 1, bold 2)
+		if (f.weight >= 600) nf = AkMsg.idPtrInt(fm, ObjC.sel("convertFont:toHaveTrait:"), nf, 2);
+		if (f.italic) nf = AkMsg.idPtrInt(fm, ObjC.sel("convertFont:toHaveTrait:"), nf, 1);
+		return nf;
+	}
+
 	static var delegateClass = Ptr.nil();
 	static var delegate = Ptr.nil();
 	static final editors:Array<MacEditor> = [];
@@ -121,7 +132,7 @@ class MacViews implements PlatformViews {
 	}
 
 	// (a field, hidden, in the content view: a password's NSSecureTextField)
-	@:allow(helder.ui.draw.MacEditor) function field(secure:Bool):Ptr {
+	@:allow(helder.ui.platform.MacEditor) function field(secure:Bool):Ptr {
 		var f = Arena.scopedValue(a -> {
 			var r = a.make(CGRect);
 			r.value.size.width = 10;
@@ -138,7 +149,7 @@ class MacViews implements PlatformViews {
 		return f;
 	}
 
-	@:allow(helder.ui.draw.MacEditor) function push(e:MacEditor, kind:Int, key = 0, mods = 0) {
+	@:allow(helder.ui.platform.MacEditor) function push(e:MacEditor, kind:Int, key = 0, mods = 0) {
 		queue.push({e: e, kind: kind, key: key, mods: mods});
 		ui.requestFrame();
 	}
@@ -447,7 +458,7 @@ class MacEditor implements PlatformEditor {
 
 	public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool) {
 		if (secret != secure) remake(secret);
-		Msg.vPtr(field, ObjC.sel("setFont:"), @:privateAccess AppKitBackend.font(font));
+		Msg.vPtr(field, ObjC.sel("setFont:"), MacViews.nsFont(font));
 		Msg.vPtr(field, ObjC.sel("setTextColor:"), AkMsg.idFloat4(ObjC.cls("NSColor"), ObjC.sel("colorWithSRGBRed:green:blue:alpha:"), color.r / 255,
 			color.g / 255, color.b / 255, color.a / 255));
 		// (NSTextAlignment: left 0, right 1, center 2, justified 3)
@@ -535,7 +546,7 @@ class MacAreaEditor extends MacEditor {
 
 	// (no placeholder of its own: the drawn one shows while it is empty)
 	override public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool) {
-		Msg.vPtr(field, ObjC.sel("setFont:"), @:privateAccess AppKitBackend.font(font));
+		Msg.vPtr(field, ObjC.sel("setFont:"), MacViews.nsFont(font));
 		Msg.vPtr(field, ObjC.sel("setTextColor:"), AkMsg.idFloat4(ObjC.cls("NSColor"), ObjC.sel("colorWithSRGBRed:green:blue:alpha:"), color.r / 255,
 			color.g / 255, color.b / 255, color.a / 255));
 		Msg.vInt(field, ObjC.sel("setAlignment:"), align == Center ? 2 : align == Right ? 1 : align == Justify ? 3 : 0);

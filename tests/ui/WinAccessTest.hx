@@ -1,8 +1,8 @@
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
 import helder.ui.draw.WinAccess;
-import helder.ui.draw.WinViews;
-import helder.ui.native.win32.Win32;
+import helder.ui.platform.WinViews;
+import helder.ui.platform.Win32;
 import helder.view.*;
 import helder.view.graph.Graph.*;
 import Plain.*;

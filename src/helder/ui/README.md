@@ -495,27 +495,18 @@ program's fallback tested as on a bare system). Colour emoji come from the syste
 drawn from its bitmaps (scaled down as a browser does) or colour layers. In a browser, give the page's fonts to `run`
 (`fonts: [...]` with `src/helder/text/imports.mjs`).
 
-## Native controls
+## Platform views
 
-`helder.ui.native` puts the platform's own controls in the same node tree:
-a `NativeHost` window whose `Control` nodes (button, checkbox, text field,
-slider, progress bar) are native widgets and whose `TextNode`s are native
-labels, measured by the platform, laid out by helder.ui's flexbox and placed
-absolutely; the markup and signals are the same (`import
-helder.ui.native.Controls.*`: `Button`, `Checkbox`, `Field`, `Slider`,
-`Progress`). The backends: GTK 3 on Linux (glibc mode; tested under Xvfb by
-`NativeTest`) and the DOM in a browser (the page's own controls in a
-container, `nativeContainer` in run's options, with
-`src/helder/ui/imports.mjs`; tested in Chromium by `native-web.mjs`); the
-same `examples/native-form/NativeForm.hx` runs on both. Plain nodes only lay out (no
-backgrounds), and nothing scrolls yet. Win32 (the standard controls,
-comctl32 5's classic look until a visual styles manifest) and AppKit run
-`NativeTest` in CI. On Android the controls are `android.widget`'s views
-(through JNI; `NativeHost.run` hands the steps to Java's main thread),
-checked on an emulator by `AndroidNativeTest` with taps, text typed
-through the input method and the accessibility tree; a `GpuView`
-(`helder.ui.native.android`) is a GPU view among them, where gfx draws
-(`AndroidMixTest`).
+`helder.ui.platform` is a small layer for the platform's own views
+embedded in a drawn window, each in a rectangle the layout gives it:
+the native menus (a context menu, the menu bar), the platform's text
+editors where `Ui.policy` says native, and later heavy views (a web
+view, video) when an app needs one. A window's `Ui.platform` is its
+`PlatformViews` (`MacViews` on macOS, `WinViews` on Windows, `WebViews`
+in a browser; none on Linux and Android, where everything is drawn); a
+`PlatformEditor` is one text editor, `PlatformMenuItem` a menu's item as
+the platform takes it. The AppKit and Win32 calls they make beside
+helder.os's are theirs (`AkMsg`, `Win32`).
 
 ### Native or drawn, per widget
 
@@ -524,7 +515,7 @@ In a drawn window a widget can also be the platform's own control:
 `Drawn`; markup's `host="native"`) holds for its subtree, and where the
 tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
 (`"text-field"`, `"text-area"`, `"context-menu"` and `"menubar"`: native, the plan's defaults). Native
-needs the window's `Ui.platform` (`PlatformViews`); without one, or for a
+needs the window's `Ui.platform` (`helder.ui.platform.PlatformViews`); without one, or for a
 kind it lacks, the widget is drawn. Text fields and areas first: the
 platform's editor sits over the field's content box, borderless and
 transparent in the field's font, colour and alignment, the theme drawing

@@ -1,5 +1,6 @@
 package helder.ui.widgets;
 
+import helder.ui.platform.*;
 import helder.ui.*;
 
 // Text edited in place: what TextField (one line) and TextArea (several)

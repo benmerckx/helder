@@ -73,7 +73,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames; PNG and JPEG encoded |
 | `canvas` | 2D drawing on the CPU: paths, fills, strokes, gradients, patterns, clips, layers, blend modes, images, text, analytic antialiasing; `canvas.dom`, the browser's Canvas 2D on it for Haxe and TypeScript (src/helder/canvas/README.md) |
 | `view` | signals and JSX-like markup, compiled to direct calls on the renderer each subtree's tag chooses |
-| `ui` | flexbox layout, events, focus and accessibility, actions and keymaps, menus, drawn on gfx or as the platform's controls |
+| `ui` | flexbox layout, events, focus and accessibility, actions and keymaps, menus, drawn on gfx; the platform's menus and text editors where asked (helder.ui.platform) |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
 | `asset` | files by path: images, fonts, models, sounds, bytes; checked when compiling, bundled by use (the executable, the APK, the app, beside the page), loaded by a coroutine, reloaded in place under `helder dev` |

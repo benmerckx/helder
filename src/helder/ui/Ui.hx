@@ -1,5 +1,6 @@
 package helder.ui;
 
+import helder.ui.platform.*;
 import helder.os.PointerType;
 import helder.ui.Event;
 import helder.ui.gesture.Gesture;

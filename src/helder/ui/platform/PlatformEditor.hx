@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.ui.platform;
 
 // A native text editor: the theme draws its box, the editor its text (in
 // the box's font, colour and alignment, with no border or background of

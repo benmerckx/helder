@@ -1,8 +1,8 @@
-package helder.ui.draw;
+package helder.ui.platform;
 
 import helder.os.win32.User32;
 import helder.ui.*;
-import helder.ui.native.win32.Win32;
+import helder.ui.platform.Win32;
 import hxmc.unsafe.*;
 
 // Windows' own views over a window (Ui.platform there): text editors, EDIT
@@ -69,13 +69,13 @@ class WinViews implements PlatformViews {
 	}
 
 	// (an EDIT, hidden; align: ES_LEFT 0, ES_CENTER 1, ES_RIGHT 2)
-	@:allow(helder.ui.draw.WinEditor) function create(multiline:Bool, align:Int):Ptr {
+	@:allow(helder.ui.platform.WinEditor) function create(multiline:Bool, align:Int):Ptr {
 		// WS_CHILD | WS_CLIPSIBLINGS, ES_AUTOHSCROLL; several lines: ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN
 		var style = 0x40000000 | 0x04000000 | 0x80 | align | (multiline ? 0x4 | 0x40 | 0x1000 : 0);
 		return Arena.scopedValue(a -> W32.CreateWindowExW(0, a.wstring("EDIT"), Ptr.nil(), style, 0, 0, 10, 10, hwnd, Ptr.nil(), Ptr.nil(), Ptr.nil()));
 	}
 
-	@:allow(helder.ui.draw.WinEditor) function push(e:WinEditor, kind:Int, key = 0, mods = 0) {
+	@:allow(helder.ui.platform.WinEditor) function push(e:WinEditor, kind:Int, key = 0, mods = 0) {
 		queue.push({e: e, kind: kind, key: key, mods: mods});
 		ui.requestFrame();
 	}

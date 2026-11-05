@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.ui.platform;
 
 // An item of a native menu (PlatformViews.menu): its label, its shortcut
 // as shown ("Ctrl+C", "⌘C") and as keys (a menu that takes its keys
