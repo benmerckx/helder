@@ -130,6 +130,20 @@ interface, `TextBackend`:
 - Linux (`linux/LinuxText`): fontconfig's fallback and families, HarfBuzz's
   shaping, FreeType's rasters (unhinted, grayscale); each library loaded
   at run time (helder.os.Dl), none: helder's own for that part.
+- Windows (`windows/DirectWrite`, COM's vtables): the shared
+  IDWriteFactory2; the system font collection (FindFamilyName,
+  GetFirstMatchingFont) for a family; IDWriteFontFallback's MapCharacters
+  (over a text analysis source of ours, its methods callbacks) for a
+  character; IDWriteTextAnalyzer's AnalyzeScript, GetGlyphs and
+  GetGlyphPlacements for shaping; IDWriteGlyphRunAnalysis (grayscale,
+  natural symmetric, no grid fitting) for rasters. A face is opened from
+  its file; a font's file named by the local loader's path.
+- macOS (`mac/CoreText`, Core Foundation and the Objective-C runtime): a
+  family's faces by a CTFontDescriptor, a character's fallback from
+  CTFontCopyDefaultCascadeListForLanguages then CTFontCreateForString,
+  shaping as a CTLine's runs (a run Core Text gave another font not
+  taken), rasters by CTFontDrawGlyphs into an alpha-only
+  CGBitmapContext.
 
 TextLayout gives such a run (one face, one text run) to the back end and
 takes its glyphs in visual order: ids, advances and offsets, each

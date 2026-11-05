@@ -11,10 +11,13 @@ import helder.text.Shaping;
 // helder's own (bin/text/system-<os>.png).
 class SystemTextTest {
 	static var failures = 0;
+	// (under Wine, from Linux: its DirectWrite falls back to its own few fonts and does not reorder Indic scripts; noted, not failed)
+	static final wine = Sys.getEnv("HELDER_UNDER_WINE") == "1";
 
-	static function check(name:String, ok:Bool, ?detail:String) {
-		Sys.println((ok ? "ok   " : "FAIL ") + name + (detail != null ? ": " + detail : ""));
-		if (!ok) failures++;
+	static function check(name:String, ok:Bool, ?detail:String, ?lenient:Bool) {
+		var soft = lenient == true && wine;
+		Sys.println((ok ? "ok   " : soft ? "wine " : "FAIL ") + name + (detail != null ? ": " + detail : ""));
+		if (!ok && !soft) failures++;
 	}
 
 	static final SCRIPTS = [
@@ -46,11 +49,17 @@ class SystemTextTest {
 			if (f == null && s.name == "Emoji") f = fonts.emojiFor(s.cp);
 			Sys.println('     ${s.name}: ${be.name()} falls back to ${m == null ? "nothing" : m.path + "#" + m.index}; laid out in ${f == null ? "none" : f.family}');
 			if (f != null) faces.set(s.name, f);
-			if (s.name != "Emoji" && s.name != "Thai" && s.name != "Bengali" && s.name != "Tamil") check(s.name + ": a fallback face", m != null);
+			if (s.name != "Emoji" && s.name != "Thai" && s.name != "Bengali" && s.name != "Tamil") check(s.name + ": a fallback face", m != null, null, s.name != "Latin");
 		}
 		// discovery: a family the system has
-		var family = Sys.systemName() == "Windows" ? "Arial" : Sys.systemName() == "Mac" ? "Helvetica" : "DejaVu Sans";
-		var found = be.find(family, 700, false);
+		// (Wine's prefix may have only its own and DejaVu)
+		var families = Sys.systemName() == "Windows" ? ["Arial", "Tahoma", "DejaVu Sans"] : Sys.systemName() == "Mac" ? ["Helvetica"] : ["DejaVu Sans"];
+		var found:Null<{path:String, index:Int}> = null, family = "";
+		for (f in families)
+			if (found == null) {
+				found = be.find(f, 700, false);
+				family = f;
+			}
 		check('$family Bold found', found != null, found == null ? null : found.path + "#" + found.index);
 		// shaping: the reordering helder's engine does not do
 		var out = new ShapedGlyphs();
@@ -58,19 +67,19 @@ class SystemTextTest {
 		if (d != null) {
 			var ok = be.shape(d, "हि", 0, 2, false, out);
 			check("Devanagari: हि shaped, the vowel sign first", ok && out.count >= 2 && out.ids[0] != d.glyph(0x939) && out.ids[out.count - 1] == d.glyph(0x939),
-				[for (i in 0...out.count) out.ids[i] + "@" + out.clusters[i]].join(" ") + ' (ह ${d.glyph(0x939)})');
+				[for (i in 0...out.count) out.ids[i] + "@" + out.clusters[i]].join(" ") + ' (ह ${d.glyph(0x939)})', true);
 			var l = new TextLayout("हिन्दी", new FontSet(d, [], 24), 1.2, Math.NaN);
-			check("Devanagari: TextLayout's first glyph not ह", l.glyphId(0) != d.glyph(0x939));
+			check("Devanagari: TextLayout's first glyph not ह", l.glyphId(0) != d.glyph(0x939), null, true);
 		}
 		var b = faces.get("Bengali");
 		if (b != null) {
 			var ok = be.shape(b, "কো", 0, 2, false, out);
-			check("Bengali: কো split around its consonant", ok && out.count >= 3 && out.ids[1] == b.glyph(0x995), [for (i in 0...out.count) out.ids[i]].join(" "));
+			check("Bengali: কো split around its consonant", ok && out.count >= 3 && out.ids[1] == b.glyph(0x995), [for (i in 0...out.count) out.ids[i]].join(" "), true);
 		}
 		var t = faces.get("Tamil");
 		if (t != null) {
 			var ok = be.shape(t, "கொ", 0, 2, false, out);
-			check("Tamil: கொ split around its consonant", ok && out.count >= 3 && out.ids[1] == t.glyph(0xB95), [for (i in 0...out.count) out.ids[i]].join(" "));
+			check("Tamil: கொ split around its consonant", ok && out.count >= 3 && out.ids[1] == t.glyph(0xB95), [for (i in 0...out.count) out.ids[i]].join(" "), true);
 		}
 		// rasterising
 		if (sans != null) {

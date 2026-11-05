@@ -288,7 +288,10 @@ class Run {
 	static function systemText() {
 		native('bin/text/$GFX_TARGET/SystemTextTest', cps(["src", "tests/text"]).concat(["-main", "SystemTextTest"]), GFX_TARGET);
 		var exe = exePath('bin/text/$GFX_TARGET/SystemTextTest', GFX_TARGET), env = ["HELDER_TEXT_ENGINE" => "system"];
-		if (GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-")) run("wine", [exe], env) else run(exe, [], env);
+		if (GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-")) {
+			env.set("HELDER_UNDER_WINE", "1");
+			run("wine", [exe], env);
+		} else run(exe, [], env);
 	}
 
 	static function systemImages() {

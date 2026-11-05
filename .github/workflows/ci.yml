@@ -81,7 +81,7 @@ jobs:
         run: bun run test -k gfx 3d audio touch ui-draw window viewer-window dbus system-text
       - uses: actions/upload-artifact@v7
         if: always()
-        with: {name: images, path: "bin/gfx/**/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png", retention-days: 7, if-no-files-found: ignore}
+        with: {name: images, path: "bin/gfx/**/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png", retention-days: 7, if-no-files-found: ignore}
 
   browser:
     runs-on: ubuntu-24.04
@@ -238,7 +238,10 @@ jobs:
           cp -R node_modules/@hxmc/darwin-arm64/macos-arm64 "$RUNNER_TEMP/rt/package/"
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
       - name: window, the viewer (its tests, its builds, a real window, its app bundle)
-        run: bun run test -k window viewer viewer-window viewer-app system-images
+        run: bun run test -k window viewer viewer-window viewer-app system-images system-text
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: {name: text-macos, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
 
   desktop-windows:
     runs-on: windows-2025
@@ -258,7 +261,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - name: window, the viewer (its tests, its builds, a real window), the system's decoders
-        run: bun run test -k window viewer viewer-window system-images
+        run: bun run test -k window viewer viewer-window system-images system-text
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: {name: text-windows, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
 
   publish-npm:
     needs: headless
