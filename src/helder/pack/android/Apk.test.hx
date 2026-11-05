@@ -62,7 +62,7 @@ function tests() {
 	});
 
 	describe("the APK", () -> {
-		final apk = Apk.write(so, "android-x86_64", Glue.dex(), true, app, {d: d, cert: cert});
+		final apk = Apk.write(so, "android-x86_64", Glue.dex(), true, app, Apk.debugSigner({d: d, cert: cert}));
 		test("stored entries: the manifest and classes.dex 4-byte aligned, the library 16 KB", () -> {
 			var es = Zip.read(apk);
 			equals([for (e in es) e.name], ["AndroidManifest.xml", "classes.dex", "lib/x86_64/libmain.so"]);
@@ -71,7 +71,7 @@ function tests() {
 			equals(es[2].data.compare(so), 0);
 		});
 		test("the same input, the same bytes", () -> {
-			equals(Apk.write(so, "android-x86_64", Glue.dex(), true, app, {d: d, cert: cert}).compare(apk), 0);
+			equals(Apk.write(so, "android-x86_64", Glue.dex(), true, app, Apk.debugSigner({d: d, cert: cert})).compare(apk), 0);
 		});
 		test("the manifest, read back", () -> {
 			var xml = Axml.dump(Zip.entry(apk, "AndroidManifest.xml"));
@@ -81,7 +81,7 @@ function tests() {
 			equals(lines[2], '<uses-permission android:name(0x01010003)="android.permission.INTERNET">');
 			equals(lines[3], '<uses-permission android:name(0x01010003)="com.example.permission.X">');
 			equals(lines[4], "<uses-feature android:glEsVersion(0x01010281)=0x30000 android:required(0x0101028e)=true>");
-			equals(lines[5], '<application android:label(0x01010001)="Hello" android:hasCode(0x0101000c)=true android:debuggable(0x0101000f)=true android:extractNativeLibs(0x010104ea)=false>');
+			equals(lines[5], '<application android:label(0x01010001)="Hello" android:hasCode(0x0101000c)=true android:debuggable(0x0101000f)=true android:extractNativeLibs(0x010104ea)=false android:enableOnBackInvokedCallback(0x0101066c)=false>');
 			assert(lines[6].startsWith('<activity android:theme(0x01010000)=@0x010302e3 android:label(0x01010001)="Hello" android:name(0x01010003)="org.hxmc.Activity" android:exported(0x01010010)=true'), lines[6]);
 			equals(lines[7], '<meta-data android:name(0x01010003)="android.app.lib_name" android:value(0x01010024)="main">');
 			equals(lines.slice(8, 11), [
@@ -91,7 +91,7 @@ function tests() {
 			]);
 		});
 		test("without views or listeners: NativeActivity, no code, the full-screen theme", () -> {
-			var plain = Apk.write(so, "android-arm64", null, false, app, {d: d, cert: cert});
+			var plain = Apk.write(so, "android-arm64", null, false, app, Apk.debugSigner({d: d, cert: cert}));
 			equals([for (e in Zip.read(plain)) e.name], ["AndroidManifest.xml", "lib/arm64-v8a/libmain.so"]);
 			var xml = Axml.dump(Zip.entry(plain, "AndroidManifest.xml"));
 			assert(xml.indexOf('android:name(0x01010003)="android.app.NativeActivity"') >= 0);
@@ -102,7 +102,7 @@ function tests() {
 			var o = (orientation:Null<String>) -> {
 				var a = Reflect.copy(app);
 				a.orientation = orientation;
-				var xml = Axml.dump(Zip.entry(Apk.write(so, "android-arm64", null, false, a, {d: d, cert: cert}), "AndroidManifest.xml"));
+				var xml = Axml.dump(Zip.entry(Apk.write(so, "android-arm64", null, false, a, Apk.debugSigner({d: d, cert: cert})), "AndroidManifest.xml"));
 				var r = ~/android:screenOrientation\(0x0101001e\)=(\d+)/;
 				r.match(xml) ? r.matched(1) : "none";
 			};
@@ -147,7 +147,7 @@ function tests() {
 				minSdk: 29,
 				targetSdk: 35,
 				permissions: []
-			}, {d: d, cert: cert}));
+			}, Apk.debugSigner({d: d, cert: cert})));
 			equals(Std.string(e), "the application id hello is not one (a.b.c: letters, digits, _)");
 			equals(Std.string(throws(() -> Apk.abiDir("android-arm"))), "no Android ABI for android-arm");
 		});

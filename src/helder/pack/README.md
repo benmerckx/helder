@@ -10,7 +10,11 @@ bytes of the package, with no SDK, no Xcode and no Mac. Ported from hxmc
 - `android`: the APK (`Apk`: AndroidManifest.xml in binary XML, `Axml`;
   resources.arsc, `Arsc`; classes.dex when the program needs it, `Dex`,
   `Glue`, `Classes`; 16 KB alignment; the v2 signature with the debug key,
-  `DebugKey`, ECDSA P-256 in plain Haxe, `P256`, `Der`).
+  `DebugKey`, ECDSA P-256 in plain Haxe, `P256`, `Der`, or a release key,
+  RSA or P-256 from PEM); the App Bundle (`Aab`: the manifest and
+  resource table in aapt2's protobuf forms, `Pb`, after aapt2's
+  Resources.proto and bundletool's config.proto, Apache-2.0; JAR signing
+  with a PKCS#7 signature).
 - `ios`: the bundle (`Bundle`: Info.plist, `_CodeSignature/CodeResources`
   with codesign's rules, the .ipa), property lists (`Plist`), the app
   icon's asset catalog (`AssetCatalog`).

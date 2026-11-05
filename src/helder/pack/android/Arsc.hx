@@ -18,8 +18,8 @@ class Arsc {
 	// a configuration's density (dpi) and night mode (uiMode's night: yes)
 	public static inline var XXXHDPI = 640;
 
-	final pkg:String;
-	final types:Array<{name:String, entries:Array<{name:String, values:Array<{config:Config, value:Value}>}>}> = [];
+	public final pkg:String;
+	public final types:Array<{name:String, entries:Array<{name:String, values:Array<{config:Config, value:Value}>}>}> = [];
 
 	public function new(pkg:String)
 		this.pkg = pkg;

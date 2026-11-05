@@ -69,10 +69,11 @@ using StringTools;
 // Exits non-zero on a failure; a missing tool is a line saying so.
 class PackCheck {
 	static var failures = 0;
-	static var want:{id:Null<String>, entitlements:Bool, signed:Bool, encryption:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, icons:Bool, assets:{dir:String, keys:Array<String>}} = {
+	static var want:{id:Null<String>, entitlements:Bool, signed:Bool, encryption:Bool, release:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, icons:Bool, assets:{dir:String, keys:Array<String>}} = {
 		icons: false,
 		signed: false,
 		encryption: false,
+		release: false,
 		id: null,
 		entitlements: false,
 		views: null,
@@ -121,12 +122,13 @@ class PackCheck {
 				entitlements: parts.contains("entitlements"),
 				signed: parts.contains("signed"),
 				encryption: parts.contains("encryption"),
+				release: parts.contains("release"),
 				views: parts.contains("views") ? true : parts.contains("surface") ? false : null,
 				orientation: parts.contains("portrait") ? "portrait" : parts.contains("landscape") ? "landscape" : "any",
 				fullscreen: parts.contains("fullscreen"),
 				icons: parts.contains("icons")
 			};
-			if (parts[0].endsWith(".apk")) apk(parts[0]) else bundle(parts[0]);
+			if (parts[0].endsWith(".apk")) apk(parts[0]) else if (parts[0].endsWith(".aab")) aab(parts[0]) else bundle(parts[0]);
 		}
 		if (failures > 0) {
 			Sys.println('PackCheck: $failures failed');
@@ -173,7 +175,8 @@ class PackCheck {
 		check("manifest: android.app.lib_name main", xml.indexOf('"android.app.lib_name"') >= 0 && xml.indexOf('android:value(0x01010024)="main"') >= 0);
 		check("manifest: hasCode " + code + ", extractNativeLibs false, debuggable",
 			xml.indexOf("android:hasCode(0x0101000c)=" + code) >= 0 && xml.indexOf("android:extractNativeLibs(0x010104ea)=false") >= 0
-			&& xml.indexOf("android:debuggable(0x0101000f)=true") >= 0);
+			&& xml.indexOf("android:debuggable(0x0101000f)=" + (want.release ? "false" : "true")) >= 0);
+		check("manifest: predictive back opted out (the back key kept)", xml.indexOf("android:enableOnBackInvokedCallback(0x0101066c)=false") >= 0);
 		check("manifest: the launcher's intent filter", xml.indexOf('"android.intent.action.MAIN"') >= 0 && xml.indexOf('"android.intent.category.LAUNCHER"') >= 0);
 		var so = ~/android:screenOrientation\(0x0101001e\)=(\d+)/;
 		var orientation = so.match(xml) ? so.matched(1) : "none";
@@ -260,6 +263,77 @@ class PackCheck {
 			&& libs.contains("libandroid.so"));
 	}
 
+	// an App Bundle (helder.pack.android.Aab): the base module's layout, the
+	// manifest and resource table in aapt2's protobuf (read back: the
+	// manifest's element and package, not debuggable), both ABIs'
+	// libraries, the JAR signature (MANIFEST.MF's digests recomputed, the
+	// signature file's of the manifest, jarsigner -verify and openssl cms
+	// -verify of its PKCS#7 when there); bundletool validate and build-apks
+	// when BUNDLETOOL names its jar
+	static function aab(path:String) {
+		var entries = try Zip.read(File.getBytes(path)) catch (e:Dynamic) {
+			check("zip: read back", false, Std.string(e));
+			return;
+		}
+		var files = [for (e in entries) e.name => e.data];
+		for (n in ["BundleConfig.pb", "base/manifest/AndroidManifest.xml", "base/resources.pb", "base/lib/arm64-v8a/libmain.so", "base/lib/x86_64/libmain.so",
+			"META-INF/MANIFEST.MF", "META-INF/HELDER.SF", "META-INF/HELDER.RSA"])
+			check('aab: $n', files.exists(n));
+		var m = files.get("base/manifest/AndroidManifest.xml");
+		if (m != null) {
+			var node = Pb.read(m), el = node.length == 1 && node[0].field == 1 ? Pb.read(node[0].data) : [];
+			var name = Lambda.find(el, f -> f.field == 3);
+			check("aab: the manifest an XmlNode <manifest>", name != null && name.data.toString() == "manifest");
+			var attrs = [for (f in el) if (f.field == 4) Pb.read(f.data)];
+			var pkg = Lambda.find(attrs, a -> Lambda.exists(a, f -> f.field == 2 && f.data.toString() == "package"));
+			var value = pkg == null ? null : Lambda.find(pkg, f -> f.field == 3);
+			check('aab: its package ${want.id}', value != null && value.data.toString() == want.id, value == null ? "" : value.data.toString());
+			var app = Lambda.find([for (f in el) if (f.field == 5) Pb.read(Lambda.find(Pb.read(f.data), x -> x.field == 1).data)],
+				c -> Lambda.exists(c, f -> f.field == 3 && f.data.toString() == "application"));
+			var appAttrs = app == null ? [] : [for (f in app) if (f.field == 4) Pb.read(f.data)];
+			var dbg = Lambda.find(appAttrs, a -> Lambda.exists(a, f -> f.field == 2 && f.data.toString() == "debuggable"));
+			var item = dbg == null ? null : Lambda.find(dbg, f -> f.field == 6);
+			var prim = item == null ? null : Lambda.find(Pb.read(item.data), f -> f.field == 7);
+			var flag = prim == null ? null : Lambda.find(Pb.read(prim.data), f -> f.field == 8);
+			check("aab: android:debuggable false (compiled)", flag != null && flag.value == 0);
+		}
+		var mf = files.get("META-INF/MANIFEST.MF"), sf = files.get("META-INF/HELDER.SF");
+		if (mf != null && sf != null) {
+			var bad = 0, re = ~/Name: ([^\r]+(?:\r\n [^\r]+)*)\r\nSHA-256-Digest: ([^\r]+)\r\n/g, text = mf.toString(), n = 0;
+			var at = 0;
+			while (re.matchSub(text, at)) {
+				var name = re.matched(1).split("\r\n ").join("");
+				var d = files.get(name);
+				if (d == null || haxe.crypto.Base64.encode(haxe.crypto.Sha256.make(d)) != re.matched(2)) bad++;
+				n++;
+				var p = re.matchedPos();
+				at = p.pos + p.len;
+			}
+			check('JAR: MANIFEST.MF\'s digests recomputed ($n entries)', bad == 0 && n == entries.length - 3, '$bad differ');
+			check("JAR: HELDER.SF has the manifest's digest", sf.toString().indexOf("SHA-256-Digest-Manifest: " + haxe.crypto.Base64.encode(haxe.crypto.Sha256.make(mf))) >= 0);
+		}
+		if (has("jarsigner")) {
+			// (not -strict: the test CA is no trusted root)
+			var r = exec("jarsigner", ["-verify", path]);
+			check("jarsigner -verify", r.code == 0 && r.out.indexOf("jar verified") >= 0, r.out.trim().split("\n")[0]);
+		} else skip("jarsigner -verify (not found)");
+		if (has("openssl") && sf != null && files.exists("META-INF/HELDER.RSA")) {
+			File.saveBytes('$dir/HELDER.SF', sf);
+			File.saveBytes('$dir/HELDER.RSA', files.get("META-INF/HELDER.RSA"));
+			var r = exec("openssl", ["cms", "-verify", "-binary", "-inform", "DER", "-in", '$dir/HELDER.RSA', "-content", '$dir/HELDER.SF', "-CAfile",
+				"tests/pack/signing/ca.pem", "-purpose", "any", "-out", '$dir/sf.out']);
+			check("JAR: openssl cms -verify of HELDER.RSA over HELDER.SF", r.code == 0, r.out.trim().split("\n").join("; "));
+		}
+		var bt = Sys.getEnv("BUNDLETOOL");
+		if (bt != null && bt != "" && has("java")) {
+			var r = exec("java", ["-jar", bt, "validate", "--bundle", path]);
+			check("bundletool validate", r.code == 0, r.out.trim().split("\n").slice(-3).join("; "));
+			try FileSystem.deleteFile('$dir/bundle.apks') catch (_:Dynamic) {}
+			var r = exec("java", ["-jar", bt, "build-apks", "--bundle", path, "--output", '$dir/bundle.apks', "--mode", "universal"]);
+			check("bundletool build-apks --mode universal", r.code == 0 && FileSystem.exists('$dir/bundle.apks'), r.out.trim().split("\n").slice(-3).join("; "));
+		} else skip("bundletool validate, build-apks (BUNDLETOOL: its jar)");
+	}
+
 	// the APK Signing Block before the central directory, its v2 signer
 	static function signature(path:String, b:Bytes) {
 		var eocdAt = b.length - 22;
@@ -281,7 +355,8 @@ class PackCheck {
 		var sd = signer.sub(4, signer.getInt32(0));
 		var digests = sd.sub(4, sd.getInt32(0));
 		var digest = digests.sub(4, digests.getInt32(0));
-		check("signature: ECDSA with SHA-256", digest.getInt32(0) == 0x0201);
+		if (want.release) check("signature: RSA PKCS#1 v1.5 with SHA-256 (the release key)", digest.getInt32(0) == 0x0103);
+		else check("signature: ECDSA with SHA-256", digest.getInt32(0) == 0x0201);
 		var eocd = b.sub(eocdAt, b.length - eocdAt);
 		eocd.setInt32(16, blockAt);
 		var computed = Apk.contentDigest([b.sub(0, blockAt), b.sub(cdAt, eocdAt - cdAt), eocd]);
@@ -309,7 +384,8 @@ class PackCheck {
 			var certs = sd.sub(4 + digests.length, sd.length - 4 - digests.length);
 			File.saveBytes('$base.cert.der', certs.sub(8, certs.getInt32(4)));
 			var c = exec("openssl", ["x509", "-inform", "DER", "-in", '$base.cert.der', "-noout", "-subject", "-pubkey"]);
-			check("signature: openssl reads the certificate (CN=Android Debug)", c.code == 0 && c.out.indexOf("Android Debug") >= 0,
+			var cn = want.release ? "Helder Test Distribution" : "Android Debug";
+			check('signature: openssl reads the certificate (CN=$cn)', c.code == 0 && c.out.indexOf(cn) >= 0,
 				c.out.trim().split("\n")[0]);
 		} else skip("openssl (not found)");
 	}

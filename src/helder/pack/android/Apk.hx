@@ -18,7 +18,10 @@ import helder.pack.android.Axml.el;
 // pages) and the rest to 4 bytes, as zipalign -P 16 does; then the APK
 // Signature Scheme v2 block before the central directory, signed with ECDSA
 // P-256 and SHA-256 (P256) by a key (DebugKey: the user's debug key, made
-// on first use). The app is debuggable (no release signing yet). Pure: the
+// on first use; debuggable), or by a release key (RSA or P-256, from PEM:
+// not debuggable). targetSdk 36 by default; predictive back opted out
+// (enableOnBackInvokedCallback false) so that the back key still reaches
+// App.onBack. Aab writes the same app as an Android App Bundle. Pure: the
 // bytes in, the APK's out (helder.cli.Android writes it). Ported from hxmc
 // (hxmc.android.Apk), MIT.
 class Apk {
@@ -27,6 +30,7 @@ class Apk {
 	// the v2 signature scheme's block id, the algorithm (ECDSA with SHA2-256)
 	static inline var V2_ID = 0x7109871a;
 	static inline var ECDSA_SHA256 = 0x0201;
+	static inline var RSA_SHA256 = 0x0103; // RSASSA-PKCS1-v1_5 with SHA2-256
 
 	// the APK's library, as hxmc names it (its soname) and NativeActivity loads it
 	public static inline var LIBRARY = "libmain.so";
@@ -52,11 +56,10 @@ class Apk {
 	// activity), the manifest of the app's options, signed with the key
 	// (assets: assets/<path> each, stored and 4-byte aligned, so that
 	// AAssetManager maps them in place)
-	public static function write(so:Bytes, target:String, dex:Null<Bytes>, views:Bool, app:ApkOptions, key:{d:Bytes, cert:Bytes},
+	public static function write(so:Bytes, target:String, dex:Null<Bytes>, views:Bool, app:ApkOptions, key:Signer,
 			?assets:Array<{name:String, data:Bytes}>):Bytes {
 		if (!validId(app.id)) throw 'the application id ${app.id} is not one (a.b.c: letters, digits, _)';
-		var m = manifest(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, dex != null, views, app.permissions, app.orientation,
-			app.icon, app.theme);
+		var m = Axml.encode(manifestOf(app, dex != null, views));
 		var entries:Array<helder.pack.Zip.ZipEntry> = [{name: "AndroidManifest.xml", data: m, align: 4}];
 		// (resources.arsc stored and 4-byte aligned: Android 11's rule for targetSdk 30)
 		if (app.resources != null) for (r in app.resources) entries.push({name: r.name, data: r.data, align: 4});
@@ -67,8 +70,26 @@ class Apk {
 				if (!StringTools.startsWith(a.name, "assets/")) throw '${a.name}: an asset is under assets/';
 				entries.push({name: a.name, data: a.data, align: 4});
 			}
-		return sign(helder.pack.Zip.stored(entries), key.d, key.cert);
+		return sign(helder.pack.Zip.stored(entries), key);
 	}
+
+	// the manifest of the app's options (an APK's, an App Bundle's)
+	public static function manifestOf(app:ApkOptions, code:Bool, views:Bool):Axml.Element
+		return manifestElement(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, code, views, app.permissions, app.orientation,
+			app.icon, app.theme, app.debuggable ?? true);
+
+	// the debug key as a signer (ECDSA P-256)
+	public static function debugSigner(key:{d:Bytes, cert:Bytes}):Signer
+		return {cert: key.cert, spki: publicKeyInfo(key.d), algorithm: ECDSA_SHA256, sign: m -> P256.sign(key.d, m)};
+
+	// a release key (helder.pack.apple.Identity's PEM: RSA or P-256) as a signer
+	public static function releaseSigner(id:helder.pack.apple.Identity):Signer
+		return {
+			cert: id.leaf.der,
+			spki: id.leaf.spki,
+			algorithm: id.key.rsa != null ? RSA_SHA256 : ECDSA_SHA256,
+			sign: id.key.sign
+		};
 
 	// ---- the manifest
 
@@ -76,7 +97,15 @@ class Apk {
 	// (sensorLandscape: either way up, as the phone is held), else any: none
 	// written, the sensor's and the user's rotation lock's)
 	public static function manifest(pkg:String, label:String, versionCode:Int, versionName:String, minSdk:Int, targetSdk:Int, code = false, views = false,
-			?permissions:Array<String>, ?orientation:String, ?icon:Int, ?theme:Int):Bytes {
+			?permissions:Array<String>, ?orientation:String, ?icon:Int, ?theme:Int, debuggable = true):Bytes
+		return Axml.encode(manifestElement(pkg, label, versionCode, versionName, minSdk, targetSdk, code, views, permissions, orientation, icon, theme,
+			debuggable));
+
+	// (predictive back: enableOnBackInvokedCallback false, the back key's
+	// path kept, which targetSdk 36 would otherwise stop sending:
+	// helder.os.android's AKEYCODE_BACK to App.onBack)
+	public static function manifestElement(pkg:String, label:String, versionCode:Int, versionName:String, minSdk:Int, targetSdk:Int, code = false,
+			views = false, ?permissions:Array<String>, ?orientation:String, ?icon:Int, ?theme:Int, debuggable = true):Axml.Element {
 		inline function s(n:String, v:String):Axml.Attr
 			return {android: true, name: n, type: Axml.STRING, string: v};
 		inline function i(n:String, v:Int, hex = false):Axml.Attr
@@ -101,7 +130,7 @@ class Apk {
 			{android: true, name: "theme", type: Axml.REFERENCE, value: theme ?? (views ? THEME_VIEWS : THEME)}
 		];
 		if (orientation == "portrait") activity.push(i("screenOrientation", 1)) else if (orientation == "landscape") activity.push(i("screenOrientation", 6));
-		var root = el("manifest", [
+		return el("manifest", [
 			{android: false, name: "package", type: Axml.STRING, string: pkg},
 			i("versionCode", versionCode),
 			s("versionName", versionName)
@@ -109,7 +138,13 @@ class Apk {
 			el("uses-sdk", [i("minSdkVersion", minSdk), i("targetSdkVersion", targetSdk)]),
 		].concat(uses).concat([
 			el("uses-feature", [i("glEsVersion", 0x30000, true), b("required", true)]),
-			el("application", [s("label", label), b("hasCode", code), b("debuggable", true), b("extractNativeLibs", false)].concat(icon == null ? [] : ([
+			el("application", [
+				s("label", label),
+				b("hasCode", code),
+				b("debuggable", debuggable),
+				b("extractNativeLibs", false),
+				b("enableOnBackInvokedCallback", false)
+			].concat(icon == null ? [] : ([
 				{android: true, name: "icon", type: Axml.REFERENCE, value: icon},
 				{android: true, name: "roundIcon", type: Axml.REFERENCE, value: icon}
 			] : Array<Axml.Attr>)), [
@@ -122,7 +157,6 @@ class Apk {
 				])
 			])
 		]));
-		return Axml.encode(root);
 	}
 
 	// ---- the signature (APK Signature Scheme v2)
@@ -188,7 +222,7 @@ class Apk {
 	}
 
 	// the zip with its v2 signing block before the central directory
-	public static function sign(zip:Bytes, d:Bytes, cert:Bytes):Bytes {
+	public static function sign(zip:Bytes, key:Signer):Bytes {
 		// the end of central directory (no comment: the last 22 bytes) and the directory's offset
 		var eocdAt = zip.length - 22;
 		if (zip.getInt32(eocdAt) != 0x06054b50) throw "APK: no end of central directory";
@@ -196,10 +230,10 @@ class Apk {
 		var contents = zip.sub(0, cdAt), cd = zip.sub(cdAt, eocdAt - cdAt), eocd = zip.sub(eocdAt, 22);
 		// (the digest sees the directory's offset as the block's: the unsigned zip's)
 		var digest = contentDigest([contents, cd, eocd]);
-		var spki = publicKeyInfo(d);
-		var digests = lp(lp(cat([int(ECDSA_SHA256), lp(digest)])));
-		var signedData = cat([digests, lp(lp(cert)), lp(Bytes.alloc(0))]);
-		var signatures = lp(lp(cat([int(ECDSA_SHA256), lp(P256.sign(d, signedData))])));
+		var spki = key.spki;
+		var digests = lp(lp(cat([int(key.algorithm), lp(digest)])));
+		var signedData = cat([digests, lp(lp(key.cert)), lp(Bytes.alloc(0))]);
+		var signatures = lp(lp(cat([int(key.algorithm), lp(key.sign(signedData))])));
 		var signer = cat([lp(signedData), signatures, lp(spki)]);
 		var value = lp(lp(signer));
 		// the block: size, pairs (length, id, value), size, magic
@@ -249,4 +283,11 @@ typedef ApkOptions = {
 	?resources:Array<{name:String, data:Bytes}>,
 	?icon:Int,
 	?theme:Int,
+	// android:debuggable (true: a debug key's build; false: release signing's)
+	?debuggable:Bool,
 }
+
+// who signs: the certificate, its SubjectPublicKeyInfo, the v2 scheme's
+// algorithm id (0x0201 ECDSA, 0x0103 RSA PKCS#1, both SHA2-256), the
+// signature of a message
+typedef Signer = {cert:Bytes, spki:Bytes, algorithm:Int, sign:Bytes->Bytes};

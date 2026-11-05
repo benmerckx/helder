@@ -349,6 +349,20 @@ class Run {
 				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
 				if (got != c.want) throw new Failed('bin/pack/${c.apk}.lib/classes.json: $got, not ${c.want}');
 			}
+			// (release signing, tests/pack/signing's RSA key: an APK, and the
+			// project's App Bundle of both ABIs; one of the two settings alone an error)
+			var release = [for (k => v in env) k => v];
+			release.set("HELDER_ANDROID_SIGNING_CERTIFICATE", FileSystem.fullPath("tests/pack/signing/cert.pem"));
+			release.set("HELDER_ANDROID_SIGNING_KEY", FileSystem.fullPath("tests/pack/signing/key.pem"));
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "android", "--release", "-o", "bin/pack/Hello-release.apk"], release);
+			run(h, ["build", "bin/pack/project", "--target", "android", "--release", "--bundle", "-o", "bin/pack/Packed.aab"], release);
+			var half = [for (k => v in env) k => v];
+			half.set("HELDER_ANDROID_SIGNING_KEY", FileSystem.fullPath("tests/pack/signing/key.pem"));
+			expect(h, ["build", "tests/pack/Hello.hx", "--target", "android", "-o", "bin/pack/Half.apk"], half,
+				"release signing takes a certificate and its key: HELDER_ANDROID_SIGNING_CERTIFICATE", 1);
+			expect(h, ["build", "tests/pack/Hello.hx", "--target", "android", "--bundle", "-o", "bin/pack/Unsigned.aab"], env,
+				"an App Bundle is signed by the upload key", 1);
+			checks = checks.concat(["bin/pack/Hello-release.apk@org.helder.hello@surface@release", "bin/pack/Packed.aab@org.helder.packcheck"]);
 			if (!File.getContent("bin/pack/cache/android/debug-key").startsWith("helder-android-debug-key 1\n"))
 				throw new Failed("bin/pack/cache/android/debug-key: not made on first use");
 			Sys.println("pack: the debug key made on first use, in the cache");

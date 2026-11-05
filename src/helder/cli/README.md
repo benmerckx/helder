@@ -22,7 +22,8 @@ helder run tests/cli/tally -- 3               # built, then run with arguments
 helder test                                   # the *.test.hx files (src/helder/test)
 helder inspect --tree                         # a running helder dev's ui tree (--log, --frames, --state)
 helder devices                                # this machine, a browser, Android devices, iOS simulators
-helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key
+helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key (or the release key)
+helder build --target android --bundle        # bin/android/<name>.aab for Google Play, signed with the release key
 helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's; signed for the App Store with HELDER_IOS_*); --target ios-sim: bin/ios-sim/<name>.app
 helder run --target android -d emulator-5554  # built for the device's ABI, installed, started, its logcat here
 helder dev --target ios                       # on the booted simulator: installed once, each build swapped in
@@ -143,7 +144,8 @@ browser extensions and PWA tools each claim.
     "version": "1.2",
     "build": 3,
     "id": "org.example.expansion",
-    "android": {"package": "org.example.expansion", "minSdk": 29, "targetSdk": 35, "permissions": ["VIBRATE"], "key": "keys/debug"},
+    "android": {"package": "org.example.expansion", "minSdk": 29, "targetSdk": 36, "permissions": ["VIBRATE"], "key": "keys/debug",
+                "signing": {"certificate": "keys/upload.pem", "key": "keys/upload.key"}},
     "ios": {"bundleId": "org.example.expansion", "minVersion": "15.0", "entitlements": "app.entitlements",
             "signing": {"certificate": "keys/distribution.pem", "key": "keys/distribution.key", "profile": "keys/AppStore.mobileprovision"},
             "sdk": {"version": "26.0", "build": "23A339", "xcode": "2600", "xcodeBuild": "17A324", "machine": "25A354"},
@@ -168,9 +170,9 @@ browser extensions and PWA tools each claim.
 - **`"helder"`**: `version` (versionName, CFBundleShortVersionString:
   `1.0`), `build` (versionCode, CFBundleVersion: 1), `id` (both platforms'
   id, else `org.helder.<name>`), `android` (`package`: its id; `minSdk`:
-  29, the lowest, Bionic's ELF TLS; `targetSdk`: 35; `permissions`:
+  29, the lowest, Bionic's ELF TLS; `targetSdk`: 36; `permissions`:
   `android.permission.<name>` unless it has a dot; `key`: the debug key's
-  file), `ios` (`bundleId`; `minVersion`: 15.0; `entitlements`: an XML
+  file; `signing`: the release key's certificate and key, PEM, below), `ios` (`bundleId`; `minVersion`: 15.0; `entitlements`: an XML
   plist signed with the executable, each key one the provisioning profile
   grants; `signing`: the distribution identity's files, below;
   `sdk`: the SDK and Xcode an iPhone's build says it was made with,
@@ -261,8 +263,29 @@ build time.
   program has the class, a drawn window needs NativeActivity's surface;
   tested on the counter and native-form examples), and APK Signature Scheme v2
   (ECDSA P-256 with SHA-256, RFC 6979's nonces: `P256`, `Der`; v2 only,
-  which minSdk 29 allows). Debuggable; no release signing, icons,
-  resources or `.aab` yet.
+  which minSdk 29 allows). targetSdk 36 by default; predictive back
+  opted out (`enableOnBackInvokedCallback="false"`), so the back key and
+  gesture still reach `App.onBack` as `AKEYCODE_BACK` (an
+  `OnBackInvokedCallback` of Glue's is to come). Debuggable with the
+  debug key; with a release key not.
+- **Android's release signing and App Bundles**: `HELDER_ANDROID_SIGNING_CERTIFICATE`
+  and `HELDER_ANDROID_SIGNING_KEY` (PEM, RSA or P-256: each a file's path
+  or its text), else the manifest's `"android": {"signing": {"certificate",
+  "key"}}`, sign the APK (v2, RSA PKCS#1 or ECDSA) instead of the debug
+  key, not debuggable; one without the other is an error. `helder build
+  --target android --release --bundle` writes `bin/android/<name>.aab`
+  (`helder.pack.android.Aab`): both ABIs built (`android-arm64`,
+  `android-x86_64`), the manifest and resource table in aapt2's protobuf
+  forms (`Pb`), the res files, `classes.dex` and the assets under `base/`,
+  `BundleConfig.pb`, signed with JAR signing (v1: `META-INF/MANIFEST.MF`,
+  `HELDER.SF`, a PKCS#7 `HELDER.RSA` or `.EC`) by the release key, Play's
+  upload key; a bundle without one is an error. A keystore is not read:
+  `keytool -importkeystore -srckeystore upload.jks -destkeystore
+  upload.p12 -deststoretype PKCS12`, then `openssl pkcs12 -in upload.p12
+  -nokeys -out upload.pem` and `-nocerts -nodes -out upload.key`. Checked
+  by the pack lane (the protobufs read back, the JAR digests, `jarsigner
+  -verify`, `openssl cms -verify`; bundletool `validate` and `build-apks`
+  in CI's android job).
 - **Android's runtime objects** (`android-arm64`, `android-x86_64`'s
   `rt.o`, `ssl.o`, `uv.o`) are not on npm: @hxmc/cli's package.json names
   the GitHub release of benmerckx/hxmc built from the same sources

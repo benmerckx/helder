@@ -17,7 +17,7 @@ using StringTools;
 //     "versionName": "1.2",           versionName, CFBundleShortVersionString (1.0)
 //     "orientation": "landscape",     portrait, landscape or any (any): screenOrientation, UISupportedInterfaceOrientations
 //     "fullscreen": true,             the system's bars hidden (false): Window.immersive from the start, UIStatusBarHidden
-//     "android": {"permissions": ["INTERNET"], "minSdk": 29, "targetSdk": 35, "key": "<file>"},
+//     "android": {"permissions": ["INTERNET"], "minSdk": 29, "targetSdk": 36, "key": "<file>"},
 //     "ios": {"minVersion": "15.0", "entitlements": "<file>"}
 //   }
 //
@@ -35,7 +35,7 @@ class App {
 		if (!Apk.validId(id)) throw 'package.json\'s "helder": {"id": "$id"} is not an application id (a.b.c: letters, digits, _; each part starting with a letter)';
 		var permissions:Array<String> = a?.permissions == null ? [] : [for (p in (a.permissions : Array<Dynamic>)) Std.string(p).trim()];
 		if (dev && !permissions.contains("INTERNET") && !permissions.contains("android.permission.INTERNET")) permissions.push("INTERNET");
-		var minSdk = int(a?.minSdk, 29, "android.minSdk"), targetSdk = int(a?.targetSdk, 35, "android.targetSdk");
+		var minSdk = int(a?.minSdk, 29, "android.minSdk"), targetSdk = int(a?.targetSdk, 36, "android.targetSdk");
 		if (minSdk < 29) throw 'package.json\'s "helder": {"android": {"minSdk": $minSdk}}: 29 is the lowest (Android 10: Bionic\'s ELF TLS)';
 		return {
 			id: id,

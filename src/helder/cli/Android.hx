@@ -6,8 +6,11 @@ import helder.cli.BuildCommand.Mode;
 import helder.cli.Compiler.CompileServer;
 import helder.cli.Devices.Device;
 import helder.pack.android.Apk;
+import helder.pack.android.Apk.ApkOptions;
+import helder.pack.android.Apk.Signer;
 import helder.pack.android.Arsc;
 import helder.pack.android.Axml;
+import helder.pack.android.Axml.Element as XmlElement;
 import helder.pack.android.DebugKey;
 import helder.pack.android.Glue;
 import sys.FileSystem;
@@ -35,8 +38,8 @@ class Android {
 	public static function target(t:String, abi:Null<String>):String
 		return t == "android" ? (abi ?? "android-arm64") : t;
 
-	public static function out(e:Entry):String
-		return Entry.clean('${e.root}/bin/android/${e.name}.apk');
+	public static function out(e:Entry, bundle = false):String
+		return Entry.clean('${e.root}/bin/android/${e.name}.${bundle ? "aab" : "apk"}');
 
 	// the library built for an APK, beside it
 	public static function library(apk:String):String
@@ -64,14 +67,61 @@ class Android {
 	// helder dev serves those)
 	public static function pack(e:Entry, lib:String, apk:String, dev = false) {
 		var c = classes(apk);
-		// (HELDER_ANDROID_KEY: the key's text, or its file's path)
-		var env = Sys.getEnv("HELDER_ANDROID_KEY");
-		var key = env != null && DebugKey.isText(env) ? DebugKey.fromEnv(env) : DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), env));
+		var release = dev ? null : releaseSigner(e.config, e.root);
+		var key = release ?? Apk.debugSigner(debugKey(e));
 		var assets = dev ? [] : [for (a in AssetStep.assets(lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
+		var o = options(e, c.views, dev, release == null);
+		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, o, key, assets));
+	}
+
+	// the debug key (HELDER_ANDROID_KEY: the key's text, or its file's path)
+	static function debugKey(e:Entry):{d:haxe.io.Bytes, cert:haxe.io.Bytes} {
+		var env = Sys.getEnv("HELDER_ANDROID_KEY");
+		return env != null && DebugKey.isText(env) ? DebugKey.fromEnv(env) : DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), env));
+	}
+
+	// the release key: HELDER_ANDROID_SIGNING_CERTIFICATE and
+	// HELDER_ANDROID_SIGNING_KEY (PEM: each a file's path or its text), else
+	// the manifest's "android": {"signing": {"certificate", "key"}} (paths
+	// from the project); null: none (the debug key). One without the other: an error
+	public static function releaseSigner(cfg:Dynamic, root:String, ?env:String->Null<String>):Null<Signer> {
+		env = env ?? Sys.getEnv;
+		var m:Dynamic = cfg?.android?.signing;
+		function given(name:String, key:String):Null<{name:String, value:String, file:Bool}> {
+			var v = env(name);
+			if (v != null && v.trim() != "") return {name: name, value: v, file: v.indexOf("-----BEGIN") < 0};
+			var f:Dynamic = m == null ? null : Reflect.field(m, key);
+			return f == null ? null : {name: '"helder": {"android": {"signing": {"$key"}}}', value: Path.isAbsolute(f) || root == "." ? f : '$root/$f', file: true};
+		}
+		var cert = given("HELDER_ANDROID_SIGNING_CERTIFICATE", "certificate"), key = given("HELDER_ANDROID_SIGNING_KEY", "key");
+		if (cert == null && key == null) return null;
+		if (cert == null || key == null)
+			throw 'release signing takes a certificate and its key: ${cert == null ? "HELDER_ANDROID_SIGNING_CERTIFICATE (or \"helder\": {\"android\": {\"signing\": {\"certificate\"}}})" : "HELDER_ANDROID_SIGNING_KEY (or \"helder\": {\"android\": {\"signing\": {\"key\"}}})"} not given';
+		function text(g:{name:String, value:String, file:Bool}):String {
+			if (!g.file) return g.value;
+			if (!FileSystem.exists(g.value)) throw '${g.name}: ${g.value}: no such file (nor PEM text)';
+			return File.getContent(g.value);
+		}
+		var id = try helder.pack.apple.Identity.fromPem(text(cert), text(key)) catch (err:String) throw '${cert.name}, ${key.name}: $err';
+		return Apk.releaseSigner(id);
+	}
+
+	// the manifest's options with its resources (debuggable: a debug key's build)
+	static function options(e:Entry, views:Bool, dev:Bool, debuggable:Bool):ApkOptions {
 		var o = App.android(e.name, e.config, dev);
 		Manifest.warn(e);
-		var r = resources(e.config, e.root, o.id, c.views);
-		if (r != null) o = {
+		var r = resources(e.config, e.root, o.id, views);
+		return r == null ? {
+			id: o.id,
+			label: o.label,
+			versionCode: o.versionCode,
+			versionName: o.versionName,
+			minSdk: o.minSdk,
+			targetSdk: o.targetSdk,
+			permissions: o.permissions,
+			orientation: o.orientation,
+			debuggable: debuggable
+		} : {
 			id: o.id,
 			label: o.label,
 			versionCode: o.versionCode,
@@ -82,9 +132,39 @@ class Android {
 			orientation: o.orientation,
 			resources: r.files,
 			icon: r.icon,
-			theme: r.theme
+			theme: r.theme,
+			debuggable: debuggable
 		};
-		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, o, key, assets));
+	}
+
+	// an App Bundle for Google Play: the program built for both ABIs
+	// (android-arm64, android-x86_64; their libraries beside it, in
+	// <name>.<abi>.lib/), its resources and manifest in aapt2's protobuf
+	// formats, signed by the release key (required: Play's upload key)
+	@:coroutine public static function bundle(e:Entry, out:String):{ok:Bool, ms:Int, messages:String} {
+		if (!out.endsWith(".aab")) throw '$out: an App Bundle is an .aab';
+		var key = releaseSigner(e.config, e.root);
+		if (key == null)
+			throw "an App Bundle is signed by the upload key: HELDER_ANDROID_SIGNING_CERTIFICATE and HELDER_ANDROID_SIGNING_KEY (or \"helder\": {\"android\": {\"signing\"}}) not given";
+		var libs = [], last = null, ms = 0;
+		for (t in ["android-arm64", "android-x86_64"]) {
+			e.target = t;
+			Runtime.ensure(t);
+			var base = Path.withoutExtension(out) + "." + Apk.abiDir(t);
+			var r = build(e, base + ".apk", Release, null, null, false, false);
+			ms += r.ms;
+			if (!r.ok) return r;
+			libs.push({target: t, so: File.getBytes(library(base + ".apk")), lib: library(base + ".apk"), classes: classes(base + ".apk")});
+			last = r;
+		}
+		var c = libs[0].classes;
+		var assets = [for (a in AssetStep.assets(libs[0].lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
+		var o = options(e, c.views, false, false);
+		var r = resources(e.config, e.root, o.id, c.views);
+		File.saveBytes(out, helder.pack.android.Aab.write([for (l in libs) {target: l.target, so: l.so}], c.dex ? Glue.dex() : null, Apk.manifestOf(o, c.dex, c.views),
+			r == null ? null : {table: r.table, files: r.files, xml: r.xml}, assets, key));
+		Term.out(helder.cli.Style.status("bundled", helder.cli.Style.Tone.Ok, helder.cli.Style.path(out) + helder.cli.Style.dim(helder.cli.Style.sep() + Math.round(FileSystem.stat(out).size / 1024) + " KB")));
+		return {ok: true, ms: ms, messages: last.messages};
 	}
 
 	// the manifest's icon and splash as Android's resources (null: neither,
@@ -100,12 +180,14 @@ class Android {
 	public static function resources(cfg:Dynamic, root:String, pkg:String, views:Bool, ?read:String->haxe.io.Bytes):Null<{
 		files:Array<{name:String, data:haxe.io.Bytes}>,
 		icon:Null<Int>,
-		theme:Null<Int>
+		theme:Null<Int>,
+		table:Arsc,
+		xml:Map<String, XmlElement>
 	}> {
 		var m:Manifest.AppConfig = cfg;
 		if (m == null || m.icons == null && m.splash == null && m.theme == null) return null;
 		var icons = new Icons(m, root, read), t = new Arsc(pkg), files = [];
-		var icon:Null<Int> = null, theme:Null<Int> = null;
+		var icon:Null<Int> = null, theme:Null<Int> = null, xml = new Map<String, XmlElement>();
 		var density:Config = {density: Arsc.XXXHDPI};
 		function file(type:String, name:String, path:String, data:haxe.io.Bytes, ?config:Config):Int {
 			files.push({name: path, data: data});
@@ -125,7 +207,9 @@ class Android {
 				{android: true, name: "drawable", type: Axml.REFERENCE, value: file("mipmap", "ic_launcher_monochrome", "res/mipmap-xxxhdpi-v4/ic_launcher_monochrome.png", mono, density)}
 			]));
 			// (an adaptive icon in every configuration: minSdk is 29, adaptive icons are 26's)
-			icon = file("mipmap", "ic_launcher", "res/mipmap-anydpi-v26/ic_launcher.xml", Axml.encode(Axml.el("adaptive-icon", [], layers)));
+			var adaptive = Axml.el("adaptive-icon", [], layers);
+			xml.set("res/mipmap-anydpi-v26/ic_launcher.xml", adaptive);
+			icon = file("mipmap", "ic_launcher", "res/mipmap-anydpi-v26/ic_launcher.xml", Axml.encode(adaptive));
 		}
 		var s = m.splash, items:Array<{attr:Int, value:Value}> = [];
 		if (s?.background != null) {
@@ -149,7 +233,7 @@ class Android {
 		if (items.length > 0) theme = t.add("style", "Theme.Helder", Style(views ? Apk.THEME_VIEWS : Apk.THEME, items));
 		if (icon == null && theme == null) return null;
 		files.unshift({name: "resources.arsc", data: t.encode()});
-		return {files: files, icon: icon, theme: theme};
+		return {files: files, icon: icon, theme: theme, table: t, xml: xml};
 	}
 
 	// the framework's attributes (public.xml): windowBackground, windowSplashScreenBackground, windowSplashScreenAnimatedIcon,

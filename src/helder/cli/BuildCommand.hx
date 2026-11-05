@@ -71,8 +71,10 @@ class BuildCommand {
 		e.target = mobile == "android" ? Android.target(e.target, null) : Ios.target(e.target, "build");
 		Term.out(Style.header("build", [e.target, e.main]));
 		var r = try {
+			if (o.has("bundle") && mobile != "android") throw "--bundle: an Android App Bundle (--target android)";
 			if (mobile == "android") Runtime.ensure(e.target);
-			mobile == "android" ? Android.build(e, o.out ?? Android.out(e), Release) : Ios.build(e, o.out ?? Ios.out(e), Release);
+			if (o.has("bundle")) Android.bundle(e, o.out ?? Android.out(e, true)) else mobile == "android" ? Android.build(e, o.out ?? Android.out(e),
+				Release) : Ios.build(e, o.out ?? Ios.out(e), Release);
 		} catch (err:Dynamic) {
 			Term.err(Style.status("error", Fail, Std.string(err)));
 			return 1;

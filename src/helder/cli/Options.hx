@@ -72,7 +72,10 @@ class Options {
 			about: "a release build: bin/<target>/<name>, its time and size",
 			entry: true,
 			common: ["target", "device", "out"],
-			own: [{key: "release", names: ["--release"], about: "a release build (what build makes anyway)"}],
+			own: [
+				{key: "release", names: ["--release"], about: "a release build (what build makes anyway)"},
+				{key: "bundle", names: ["--bundle"], about: "android: an App Bundle (.aab) for Google Play, signed by the release key"}
+			],
 		},
 		{
 			name: "test",

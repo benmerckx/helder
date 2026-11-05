@@ -26,7 +26,7 @@ class Axml {
 		"hasCode" => 0x0101000c, "screenOrientation" => 0x0101001e, "configChanges" => 0x0101001f, "value" => 0x01010024,
 		"minSdkVersion" => 0x0101020c, "versionCode" => 0x0101021b, "versionName" => 0x0101021c, "targetSdkVersion" => 0x01010270,
 		"glEsVersion" => 0x01010281, "required" => 0x0101028e, "extractNativeLibs" => 0x010104ea, "icon" => 0x01010002,
-		"roundIcon" => 0x0101052c, "drawable" => 0x01010199,
+		"roundIcon" => 0x0101052c, "drawable" => 0x01010199, "enableOnBackInvokedCallback" => 0x0101066c,
 	];
 
 	// an element: its name, attributes (android: ones by name in IDS, others

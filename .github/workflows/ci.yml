@@ -116,10 +116,12 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: The CLI, Android's runtime objects, the APKs checked (pack)
+      - name: The CLI, Android's runtime objects, the APKs and the App Bundle checked (pack; bundletool validate and build-apks)
         env:
           PACK_REQUIRE: 1
         run: |
+          curl -sSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
+          export BUNDLETOOL="$RUNNER_TEMP/bundletool.jar"
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           bun run test pack
       - name: KVM

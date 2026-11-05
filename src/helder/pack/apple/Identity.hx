@@ -73,9 +73,11 @@ class Certificate {
 	public final commonName:String;
 	public final organizationalUnit:Null<String>;
 	public final publicKey:Bytes; // the SubjectPublicKeyInfo's BIT STRING's content (without its unused-bits byte)
+	public final spki:Bytes; // the SubjectPublicKeyInfo, its TLV
 	public final extensions:Array<String>; // their OIDs, dotted
 
-	function new(der, serial, issuer, subject, cn, ou, key, ext) {
+	function new(der, serial, issuer, subject, cn, ou, key, spki, ext) {
+		this.spki = spki;
 		this.der = der;
 		this.serial = serial;
 		this.issuer = issuer;
@@ -110,7 +112,7 @@ class Certificate {
 				if (n.tag == 0xa3)
 					for (e in Der.children(der, Der.children(der, n)[0])) ext.push(oidString(der, Der.children(der, e)[0]));
 			return new Certificate(der, tlv(tbs[i]), tlv(tbs[i + 2]), tlv(subject), attr("2.5.4.3") ?? "", attr("2.5.4.11"),
-				der.sub(bits.start + 1, bits.end - bits.start - 1), ext);
+				der.sub(bits.start + 1, bits.end - bits.start - 1), tlv(tbs[i + 5]), ext);
 		} catch (e:String) {
 			throw 'a certificate that is not X.509 ($e)';
 		}

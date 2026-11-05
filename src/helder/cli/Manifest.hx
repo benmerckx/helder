@@ -25,7 +25,8 @@ using StringTools;
 //     "helder": {
 //       "version": "1.2", "build": 3,      versionName and versionCode, CFBundleShortVersionString and CFBundleVersion (1.0, 1)
 //       "id": "org.example.game",          both platforms' id (else org.helder.<name>)
-//       "android": {"package": "org.example.game", "minSdk": 29, "targetSdk": 35, "permissions": ["VIBRATE"], "key": "<file>"},
+//       "android": {"package": "org.example.game", "minSdk": 29, "targetSdk": 36, "permissions": ["VIBRATE"], "key": "<file>",
+//                   "signing": {"certificate": "<pem>", "key": "<pem>"}},
 //       "ios": {"bundleId": "org.example.game", "minVersion": "15.0", "entitlements": "<file>",
 //               "signing": {"certificate": "<pem>", "key": "<pem>", "profile": "<.mobileprovision>"},
 //               "sdk": {"version": "26.0", "build": "23A339", "xcode": "2600", "xcodeBuild": "17A324", "machine": "25A354"},
@@ -50,7 +51,7 @@ class Manifest {
 	];
 	static final PURPOSE = ["any", "maskable", "monochrome"];
 	static final HELDER = ["version", "build", "id", "android", "ios", "splash"];
-	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key"];
+	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key", "signing"];
 	static final IOS = ["bundleId", "minVersion", "entitlements", "signing", "sdk", "nonExemptEncryption", "privacy"];
 	static final SIGNING = ["certificate", "key", "profile"];
 	public static final SDK = ["version", "build", "xcode", "xcodeBuild", "machine"];
@@ -132,7 +133,11 @@ class Manifest {
 			throw '$where: "helder": {"android": {"permissions"}}: an array of strings';
 		var min = str(i, "minVersion", '"helder": {"ios": {"minVersion"}}');
 		if (min != null && !~/^[0-9]+\.[0-9]+$/.match(min)) throw '$where: "helder": {"ios": {"minVersion": "$min"}}: a version, major.minor (15.0)';
-		var signing:Dynamic = i.signing, sdk:Dynamic = i.sdk, privacy:Dynamic = i.privacy;
+		var signing:Dynamic = i.signing, sdk:Dynamic = i.sdk, privacy:Dynamic = i.privacy, release:Dynamic = a.signing;
+		if (release != null) {
+			known(release, ["certificate", "key"], '"helder": {"android": {"signing"}}');
+			for (k in ["certificate", "key"]) str(release, k, '"helder": {"android": {"signing": {"$k"}}}');
+		}
 		for (o in [{v: signing, keys: SIGNING, name: "signing"}, {v: sdk, keys: SDK, name: "sdk"}])
 			if (o.v != null) {
 				known(o.v, o.keys, '"helder": {"ios": {"${o.name}"}}');
@@ -180,7 +185,8 @@ class Manifest {
 				permissions: a.permissions,
 				minSdk: minSdk,
 				targetSdk: targetSdk,
-				key: str(a, "key", '"helder": {"android": {"key"}}')
+				key: str(a, "key", '"helder": {"android": {"key"}}'),
+				signing: release
 			},
 			ios: {
 				id: bundle,

@@ -20,7 +20,7 @@ function tests() {
 			versionCode: 1,
 			versionName: "1.0",
 			minSdk: 29,
-			targetSdk: 35,
+			targetSdk: 36,
 			permissions: [],
 			orientation: "any"
 		});
@@ -123,7 +123,7 @@ function tests() {
 			versionCode: 7,
 			versionName: "1.2",
 			minSdk: 31,
-			targetSdk: 35,
+			targetSdk: 36,
 			permissions: ["VIBRATE"],
 			orientation: "landscape"
 		});
@@ -156,7 +156,7 @@ function tests() {
 			versionCode: 1,
 			versionName: "1.0",
 			minSdk: 29,
-			targetSdk: 35,
+			targetSdk: 36,
 			permissions: [],
 			orientation: "any"
 		});

@@ -765,7 +765,9 @@ fix.
   `helder.pack` and the CLI, without Xcode, Android Studio or fastlane:
   - **Packaging:** Android App Bundles (AAB, required by Google Play)
     next to the APK, release signing configured in `helder.webmanifest`,
-    targetSdk kept current (with predictive back); a macOS `.app` bundle
+    targetSdk kept current, *landed* (`helder build --target android
+    --bundle`, `HELDER_ANDROID_SIGNING_*`, targetSdk 36 with predictive
+    back opted out; the OnBackInvokedCallback still to wire); a macOS `.app` bundle
     (Info.plist, `.icns`, a universal arm64 and x86_64 binary, file types
     for "Open with").
   - **Apple's tools, our own** (clean-room, after viraptor/actool and
