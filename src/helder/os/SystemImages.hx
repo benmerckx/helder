@@ -7,31 +7,49 @@ import hxmc.unsafe.*;
 
 // The system's own image decoders, for what helder.image does not read:
 // Windows' WIC (COM: the factory's decoder from the file, its first frame
-// converted to 32bppRGBA, its pixels copied), macOS's ImageIO (an image
+// converted to 32bppRGBA, its pixels copied, its EXIF orientation applied
+// as its metadata query reader gives it), macOS's ImageIO (an image
 // source from the file, its size from its properties, then a thumbnail of
 // at most the side asked for with its EXIF orientation applied, drawn into
 // an sRGB RGBA bitmap, unpremultiplied): TIFF, HEIC and HEIF, AVIF, the
 // cameras' RAW files where the system has their codecs (Windows: its HEIF
-// and AV1 extensions, its Raw Image Extension). ImageLimits is checked on
-// the size the system reports, before any pixel is decoded. Linux and the
-// rest: none (supported() false). Pixels: RGBA8, straight alpha, upright.
+// and AV1 extensions, its Raw Image Extension). Linux: libtiff, libheif,
+// libavif and libraw where installed, each loaded at run time
+// (helder.os.linux.LinuxImages; none: supports() false for its formats).
+// ImageLimits is checked on the size the system reports, before any pixel
+// is decoded. The rest: none. Pixels: RGBA8, straight alpha, upright.
 class SystemImages {
 	// the extensions it may read where there are system decoders
 	public static final EXTENSIONS = ["tif", "tiff", "heic", "heif", "avif", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2"];
 
+	// (Linux's: a constant condition, so that no other target links its libraries' loaders)
+	static inline function linux():Bool
+		return Mem.platform() == 0 && Mem.os() == 0 && Mem.target() < 9;
+
 	public static function available():Bool
-		return Mem.platform() == 0 && (Mem.os() == 1 || Mem.os() == 2);
+		return Mem.platform() == 0 && (Mem.os() == 1 || Mem.os() == 2) || linux() && helder.os.linux.LinuxImages.any();
 
 	public static function supports(path:String):Bool {
-		var dot = path.lastIndexOf(".");
-		return available() && dot > 0 && EXTENSIONS.contains(path.substr(dot + 1).toLowerCase());
+		var dot = path.lastIndexOf("."), ext = dot > 0 ? path.substr(dot + 1).toLowerCase() : "";
+		if (!EXTENSIONS.contains(ext)) return false;
+		return if (linux()) helder.os.linux.LinuxImages.supports(ext) else available();
 	}
 
 	// the file decoded (side > 0: at most that a side, where the system scales
 	// as it decodes); an ImageError when it cannot be
 	public static function decode(path:String, side = 0):{width:Int, height:Int, pixelsWidth:Int, pixelsHeight:Int, rgba:Bytes}
 		return if (Mem.platform() != 0) throw ImageError.unsupported("SystemImages: none here") else if (Mem.os() == 2) wic(path) else if (Mem.os() == 1)
-			imageIO(path, side) else throw ImageError.unsupported("SystemImages: none on this system");
+			imageIO(path, side) else if (linux()) linuxLibraries(path) else throw ImageError.unsupported("SystemImages: none on this system");
+
+	// --- Linux: libtiff, libheif, libavif, libraw where they are (helder.os.linux.LinuxImages)
+
+	static function linuxLibraries(path:String):{width:Int, height:Int, pixelsWidth:Int, pixelsHeight:Int, rgba:Bytes} {
+		var ext = path.substr(path.lastIndexOf(".") + 1).toLowerCase();
+		var d = helder.os.linux.LinuxImages.decode(path, ext);
+		// (libtiff's RGBA premultiplied: straight, as the others')
+		if (ext == "tif" || ext == "tiff") unpremultiply(d.rgba);
+		return {width: d.width, height: d.height, pixelsWidth: d.width, pixelsHeight: d.height, rgba: d.rgba};
+	}
 
 	// --- Windows: WIC
 
@@ -99,6 +117,7 @@ class SystemImages {
 			done();
 			throw ImageError.unsupported("SystemImages: not convertible to RGBA");
 		}
+		var o = orientation(frame);
 		var n = w * h * 4, buf = LibC.malloc((n : hxmc.I64));
 		var r = IWICBitmapSource.CopyPixels(conv, Ptr.nil(), w * 4, n, buf);
 		var rgba = Bytes.alloc(n);
@@ -106,7 +125,35 @@ class SystemImages {
 		LibC.free(buf);
 		done();
 		if (r < 0) throw ImageError.corrupt("SystemImages: WIC's pixels (0x" + StringTools.hex(r, 8) + ")");
-		return {width: w, height: h, pixelsWidth: w, pixelsHeight: h, rgba: rgba};
+		// (upright, as ImageIO's: EXIF's orientation applied, the sides swapped by a quarter turn)
+		var up = helder.image.Exif.apply(rgba, w, h, o);
+		return {width: up.width, height: up.height, pixelsWidth: up.width, pixelsHeight: up.height, rgba: up.rgba};
+	}
+
+	// (the frame's EXIF orientation, 1 to 8, by its metadata query reader: the photo
+	// policy System.Photo.Orientation, else JPEG's and TIFF's IFD0 tag 274; 1: none)
+	static function orientation(frame:Ptr):Int {
+		var out:Ptr<Ptr> = LibC.malloc(8);
+		out.value = Ptr.nil();
+		var o = 1;
+		if (IWICBitmapFrameDecode.GetMetadataQueryReader(frame, out) >= 0 && !out.value.isNull()) {
+			var reader = out.value;
+			// (PROPVARIANT: vt at 0, the value at 8; VT_UI2 18)
+			var pv:Ptr<UInt16> = LibC.malloc(24);
+			for (q in ["System.Photo.Orientation", "/app1/ifd/{ushort=274}", "/ifd/{ushort=274}"]) {
+				LibC.memset(cast pv, 0, 24);
+				var hr = Arena.scopedValue(a -> IWICMetadataQueryReader.GetMetadataByName(reader, a.wstring(q), cast pv));
+				if (hr >= 0 && pv[0] == 18 && pv[4] >= 1 && pv[4] <= 8) {
+					o = pv[4];
+					break;
+				}
+				if (hr >= 0) helder.os.win32.FileOpenDialog.Shell32Com.PropVariantClear(cast pv);
+			}
+			LibC.free(cast pv);
+			helder.os.win32.Com.release(reader);
+		}
+		LibC.free(cast out);
+		return o;
 	}
 
 	// --- macOS: ImageIO
@@ -198,6 +245,16 @@ class IWICImagingFactory {
 @:build(helder.os.win32.Com.build())
 class IWICBitmapDecoder {
 	@:slot(13) static function GetFrame(self:Ptr, index:Int, out:Ptr<Ptr>):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+class IWICBitmapFrameDecode {
+	@:slot(8) static function GetMetadataQueryReader(self:Ptr, out:Ptr<Ptr>):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+class IWICMetadataQueryReader {
+	@:slot(5) static function GetMetadataByName(self:Ptr, name:Ptr, value:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())

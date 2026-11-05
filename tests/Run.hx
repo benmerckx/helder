@@ -295,10 +295,6 @@ class Run {
 	}
 
 	static function systemImages() {
-		if (GFX_TARGET.startsWith("linux-")) {
-			Sys.println("system-images: no system decoders on Linux (GFX_TARGET=windows-x86_64: WIC under Wine)");
-			return;
-		}
 		native('bin/os/$GFX_TARGET/SystemImagesTest', cps(["src", "tests/os"]).concat(["-main", "SystemImagesTest"]), GFX_TARGET);
 		var exe = exePath('bin/os/$GFX_TARGET/SystemImagesTest', GFX_TARGET), args = ["tests/os/images"];
 		if (GFX_TARGET.startsWith("macos-")) {

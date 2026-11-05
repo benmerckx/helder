@@ -67,6 +67,7 @@ class FileOpenDialog {
 	static function CoInitializeEx(reserved:Ptr, flags:Int):Int;
 	static function CoCreateInstance(clsid:Ptr, outer:Ptr, context:Int, iid:Ptr, out:Ptr<Ptr>):Int;
 	static function CoTaskMemFree(p:Ptr):Void;
+	static function PropVariantClear(pv:Ptr):Int;
 }
 
 // (IUnknown 0-2, IModalWindow's Show 3, then IFileDialog's)

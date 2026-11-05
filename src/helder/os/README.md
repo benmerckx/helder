@@ -121,17 +121,24 @@ OpenFile against a stand-in portal).
 
 `SystemImages.decode(path, side)`: what helder.image does not read,
 through the system: Windows' WIC (COM: the factory's decoder from the
-file, its first frame converted to 32bppRGBA), macOS's ImageIO (an image
+file, its first frame converted to 32bppRGBA, its EXIF orientation from
+the metadata query reader applied), macOS's ImageIO (an image
 source, its size from its properties, then a thumbnail of at most `side`
 with its EXIF orientation applied, drawn into an sRGB bitmap,
 unpremultiplied). TIFF, HEIC and HEIF, AVIF and the cameras' RAW files
 where the system has their codecs (Windows: its HEIF, AV1 and Raw Image
 extensions). ImageLimits is checked on the size the system reports,
 before any pixel; errors are ImageErrors (Unsupported: no codec for it).
-None on Linux yet (`available()`). Tests: `bun run test system-images`
+Linux (`linux/LinuxImages`): libtiff, libheif (HEIC, HEIF, and AVIF with
+its AV1 decoder), libavif and libraw where installed, each loaded at run
+time (none: `supports` false for its formats; `available()` whether any
+is); the limits first on each one's size (HEIF's and AVIF's from their
+ispe boxes). Tests: `bun run test system-images`
 (tests/os/SystemImagesTest.hx: a TIFF of a known gradient, plain and LZW,
-its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a
-side; the limits first; under Wine with GFX_TARGET=windows-x86_64).
+its pixels and straight alpha; one with EXIF's orientation 6, upright; an
+AVIF where the system reads it; macOS: a HEIC made by sips, whole and at
+a side; the limits first; Linux natively, Windows under Wine with
+GFX_TARGET=windows-x86_64).
 
 ### A phone's screen and the display's frames
 
