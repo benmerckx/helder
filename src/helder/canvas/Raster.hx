@@ -151,11 +151,8 @@ final class Raster implements Path.Sink {
 	// cleared; the columns before x0 carry nothing (a line left of the
 	// canvas lands in column 0)
 	public function row(y:Int, out:Bytes, evenOdd:Bool) {
+		// (the columns before x0 never written: nothing to carry)
 		var r = y * stride, sum = 0.0;
-		for (x in 0...x0) {
-			sum += acc[r + x];
-			acc[r + x] = 0;
-		}
 		for (x in x0...x1) {
 			sum += acc[r + x];
 			acc[r + x] = 0;
@@ -172,10 +169,15 @@ final class Raster implements Path.Sink {
 
 	// every touched row cleared without reading it
 	public function discard() {
+		// (only the columns written: x0 to x1 and the two past the edge)
+		var a = x0 > 0 ? x0 : 0, b = x1 + 2 < stride ? x1 + 2 : stride;
 		for (y in y0...y1) {
 			var r = y * stride;
-			for (x in 0...stride)
+			acc[r] = 0;
+			for (x in a...b)
 				acc[r + x] = 0;
+			acc[r + width] = 0;
+			acc[r + width + 1] = 0;
 		}
 		reset();
 	}

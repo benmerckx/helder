@@ -52,7 +52,7 @@ jobs:
         # (helder test's host build links helder.gfx's libEGL.so.1 when a test
         # reaches the scene; nothing opens a display. llvmpipe: the pack
         # lane's store screenshots, rendered offscreen: STORE_SHOTS_REQUIRE)
-        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core libegl1 libegl-mesa0 libgl1-mesa-dri
+        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core fonts-liberation libegl1 libegl-mesa0 libgl1-mesa-dri
       - name: Headless checks
         # (pack: the Android and iOS runtime objects fetched, their builds
         # skipped without them: the android job requires them; the SDK's
@@ -62,6 +62,8 @@ jobs:
           STORE_SHOTS_REQUIRE=1 bun run test -k headless
       - name: helder.image's decoders fuzzed for 30 s (tests/image/Fuzz.hx)
         run: bun run test image-fuzz
+      - name: helder.pdf fuzzed for 30 s (tests/pdf/Fuzz.hx)
+        run: bun run test pdf-fuzz
 
   gfx:
     runs-on: ubuntu-24.04

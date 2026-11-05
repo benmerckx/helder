@@ -102,7 +102,7 @@ class Decode {
 
 	public static function decode(bytes:Bytes, side = 0):Decoded {
 		var format = formatOf(bytes);
-		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP" + (helder.os.SystemImages.available() ? "; the system's: TIFF, HEIC, AVIF, RAW" : "") + ")", bytes.length, "");
+		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP, PDF" + (helder.os.SystemImages.available() ? "; the system's: TIFF, HEIC, AVIF, RAW" : "") + ")", bytes.length, "");
 		try {
 			var frames:Array<{rgba:Bytes, delay:Float}>, w:Int, h:Int, reps = 0;
 			// (the image's own size, when it was decoded smaller)
@@ -121,6 +121,14 @@ class Decode {
 						if (scale > 1) full = sz;
 						d;
 					case "WebP": WebpDecoder.decode(bytes, mem);
+					case "PDF":
+						// (its first page by helder.pdf, at the side shown: 2 pixels a point by default, 4096 a side at most)
+						var doc = helder.pdf.Pdf.open(bytes);
+						if (doc.pages.length == 0) throw ImageError.corrupt("PDF: no pages");
+						var pg = doc.pages[0], big = Math.max(pg.width, pg.height);
+						var k = Math.min(side > 0 ? side / big : 2, 4096 / big);
+						var b = helder.pdf.Pdf.render(doc, 0, k);
+						{width: b.width, height: b.height, rgba: b.straight()};
 					case _: PngDecoder.decode(bytes, mem);
 				}
 				w = d.width;
@@ -181,6 +189,8 @@ class Decode {
 			};
 		} catch (e:ImageError) {
 			return failedBy(e, bytes.length, format);
+		} catch (e:helder.pdf.PdfError) {
+			return failed(Std.string(e.kind), "PDF: " + e.message, bytes.length, format);
 		}
 	}
 
@@ -197,6 +207,7 @@ class Decode {
 		if (b.length >= 8 && b.get(0) == 0x89 && b.get(1) == 0x50 && b.get(2) == 0x4E && b.get(3) == 0x47) return "PNG";
 		if (b.length >= 6 && b.getString(0, 3) == "GIF") return "GIF";
 		if (b.length >= 12 && b.getString(0, 4) == "RIFF" && b.getString(8, 4) == "WEBP") return "WebP";
+		if (b.length >= 5 && b.getString(0, 5) == "%PDF-") return "PDF";
 		return "";
 	}
 

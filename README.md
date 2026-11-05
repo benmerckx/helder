@@ -71,6 +71,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `gfx` | a portable GPU API: GL/GLES, Metal, D3D11, WebGPU, WebGL2; shaders written in Haxe |
 | `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas |
 | `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames; PNG and JPEG encoded |
+| `pdf` | PDF read (xref, recovery, filters, RC4 and AES) and rendered on `canvas`: its fonts as outlines, images, shadings, patterns (src/helder/pdf/README.md) |
 | `canvas` | 2D drawing on the CPU: paths, fills, strokes, gradients, patterns, clips, layers, blend modes, images, text, analytic antialiasing; `canvas.dom`, the browser's Canvas 2D on it for Haxe and TypeScript (src/helder/canvas/README.md) |
 | `view` | signals and JSX-like markup, compiled to direct calls on the renderer each subtree's tag chooses |
 | `ui` | flexbox layout, events, focus and accessibility, actions and keymaps, menus, drawn on gfx; the platform's menus and text editors where asked (helder.ui.platform) |
@@ -961,8 +962,7 @@ fix.
   by the browser's own Canvas 2D (the canvas-web lane, in Chromium);
   *phase 4 landed*: multi-page PDF and SVG export, text to outlines,
   boolean operations and path effects, filters and shadows, a window.
-  Next: PDF rendering (below); one batcher with ui's renderer and
-  sprite's),
+  Next: one batcher with ui's renderer and sprite's),
   designed to be the best of its kind rather than a copy of one: it
   learns from HTML's Canvas 2D, Skia, Vello, tiny-skia and Kha's g2
   without matching any line for line. Paths with lines, quadratic and
@@ -990,7 +990,12 @@ fix.
   - The same drawing code on screen through the GPU and to an exact PNG
     through the CPU; helder.ui's SVG rendering and the 2D charts and
     whiteboard examples on it too.
-- **PDF on `helder.canvas`**, from leanpdf (alineacms/leanpdf, MIT,
+- **PDF on `helder.canvas`** (*rendering landed*, src/helder/pdf/README.md:
+  reading with recovery and every standard encryption, the content
+  stream interpreter, TrueType, OpenType, CFF, Type 1 and Type 3 fonts as
+  outlines, limits and a fuzz lane, the pdf lane against pdf.js; still to
+  come: JPX, CCITT and JBIG2 images, soft masks, mesh shadings, writing),
+  from leanpdf (alineacms/leanpdf, MIT,
   TypeScript) as the basis: its reading (metadata, pages, outlines,
   links, forms, attachments, images, text for search), writing (image
   compression, page selection and rotation, metadata removal, merging,

@@ -12,7 +12,7 @@ using StringTools;
 // the files whose size or time changed are named (to decode again).
 class FolderModel {
 	// (helder.image's, and the system's where it has decoders: helder.os.SystemImages)
-	public static final EXTENSIONS = ["png", "apng", "jpg", "jpeg", "jfif", "gif", "webp"].concat(helder.os.SystemImages.available() ? helder.os.SystemImages.EXTENSIONS : []);
+	public static final EXTENSIONS = ["png", "apng", "jpg", "jpeg", "jfif", "gif", "webp", "pdf"].concat(helder.os.SystemImages.available() ? helder.os.SystemImages.EXTENSIONS : []);
 
 	public var dir(default, null) = "";
 	public var files(default, null):Array<String> = [];
