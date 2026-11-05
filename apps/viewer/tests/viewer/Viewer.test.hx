@@ -60,15 +60,15 @@ function tests() {
 			equals(viewer.title.peek(), "photo 2.jpg · 5 / 6 · 1242×1048");
 			equals(viewer.camera.fitted, true);
 			equals(viewer.camera.percent(), 57);
-			// (the zoom: +, 1, the wheel about the cursor, 0)
-			ui.textInput("+");
+			// (the zoom: + (Shift and =), 1, the wheel about the cursor, 0; the viewer's keymap)
+			ui.keyDown("=".code, Key.MOD_SHIFT);
 			equals(viewer.camera.percent(), 67);
-			ui.textInput("1");
+			ui.keyDown("1".code, 0);
 			equals(viewer.camera.percent(), 100);
 			viewer.wheel(100, 100, -40, true, 11);
 			equals(viewer.camera.percent(), 125);
 			viewer.pan(50, 0);
-			ui.textInput("0");
+			ui.keyDown("0".code, 0);
 			equals(viewer.camera.fitted, true);
 			// (the status line)
 			ui.keyDown("i".code, 0);

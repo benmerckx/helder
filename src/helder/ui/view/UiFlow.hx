@@ -31,6 +31,11 @@ class UiFlow {
 	public static function Hotkey(props:{keys:String, action:Void->Void, ?local:Bool}):Any
 		return new HotkeyMount(props);
 
+	// the window's menu bar (helder.ui.menu.MenuBar): the platform's, or
+	// drawn here (put it first in the window's content); ref: the bar
+	public static function MenuBarView(props:{menus:Array<helder.ui.menu.Menu>, ?ref:helder.ui.menu.Menus.MenuBar->Void}):Any
+		return new helder.ui.menu.Menus.MenuBarMount(props);
+
 	// a long list in a scrolling view height pixels high: only the rows in
 	// view are made (and overscan more on each side, 3), each itemHeight
 	// high, again as it scrolls; its child function gets a row's item (a

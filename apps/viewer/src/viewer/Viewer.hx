@@ -1,10 +1,10 @@
 package viewer;
 
 import helder.image.AnimatedImage;
-import helder.ui.Key;
 import helder.view.graph.Graph;
 import helder.view.graph.Signal;
 import viewer.Decode.Decoded;
+import viewer.ViewerActions;
 
 using StringTools;
 
@@ -80,8 +80,12 @@ class Viewer {
 			return true;
 		}
 		refresh();
+		if (onOpened != null) onOpened(path);
 		return true;
 	}
+
+	// a file opened (the shell's recent files)
+	public var onOpened:Null<String->Void> = null;
 
 	public function next():Bool
 		return go(folder.go(1));
@@ -242,54 +246,41 @@ class Viewer {
 		if (dir > 0) next() else previous();
 	}
 
-	// --- keys: true when taken
+	// --- actions (ViewerActions: the keymap's and the menus'): true when taken
 
-	public function key(key:Int, mods:Int):Bool {
-		if (pickerOpen.peek()) {
-			if (key == Key.ESCAPE) {
-				pickerOpen(false);
-				return true;
-			}
-			return false;
-		}
-		if (mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) {
-			if (key == "o".code) {
-				if (openDialog != null && openDialog()) return true;
-				openPicker(folder.dir);
-				return true;
-			}
-			return false;
-		}
-		return switch key {
-			case Key.RIGHT | Key.DOWN | Key.PAGE_DOWN | Key.SPACE: next(); true;
-			case Key.LEFT | Key.UP | Key.PAGE_UP | Key.BACKSPACE: previous(); true;
-			case Key.HOME: first(); true;
-			case Key.END: last(); true;
-			case v if (v == Key.F1 + 10 || v == Key.ENTER):
-				fullscreen(!fullscreen.peek());
-				true;
-			case Key.ESCAPE if (fullscreen.peek()):
-				fullscreen(false);
-				true;
-			case "i".code:
-				statusOn(!statusOn.peek());
-				true;
-			case _: false;
-		}
-	}
-
-	// the zoom's keys, as typed (a layout's own + and -): true when taken
-	public function typed(text:String):Bool {
-		if (pickerOpen.peek()) return false;
-		switch text {
-			case "+" | "=": zoomStep(1);
-			case "-" | "_": zoomStep(-1);
-			case "0": fit();
-			case "1": actual();
-			case _: return false;
+	public function perform(a:ViewerAction):Bool {
+		switch a {
+			case Open:
+				if (openDialog == null || !openDialog()) openPicker(folder.dir);
+			case OpenRecent(path):
+				open(path);
+			case Next: next();
+			case Previous: previous();
+			case First: first();
+			case Last: last();
+			case ZoomIn: zoomStep(1);
+			case ZoomOut: zoomStep(-1);
+			case Fit: fit();
+			case ActualSize: actual();
+			case ToggleFullscreen: fullscreen(!fullscreen.peek());
+			case LeaveFullscreen: fullscreen(false);
+			case ToggleStatus: statusOn(!statusOn.peek());
+			case ClosePicker: pickerOpen(false);
+			case CopyPath | ShowInFolder | OpenWithDefault: return false;
 		}
 		return true;
 	}
+
+	// what a menu shows it as
+	public function actionState(a:ViewerAction):helder.ui.actions.Actions.ActionState
+		return switch a {
+			case Next | Previous | First | Last: folder.index >= 0 ? Enabled : Disabled;
+			case ZoomIn | ZoomOut | Fit | ActualSize: state.peek() == Shown ? Enabled : Disabled;
+			case CopyPath | ShowInFolder | OpenWithDefault: shownPath != "" || folder.current != null ? Enabled : Disabled;
+			case ToggleFullscreen: fullscreen.peek() ? Checked : Unchecked;
+			case ToggleStatus: statusOn.peek() ? Checked : Unchecked;
+			case _: Enabled;
+		}
 
 	// --- the frame: an animation's next frame, a glide; true when it moved
 

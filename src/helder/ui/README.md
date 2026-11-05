@@ -337,6 +337,36 @@ markup:
 </view>
 ```
 
+## Menus
+
+`helder.ui.menu`: one model for the menu bar and context menus. A
+`MenuItem` is `Item(label, action)`, `Separator`, `Submenu(label, items)`
+or `Role(role)` (About, Quit, Hide, Undo, Redo, Cut, Copy, Paste,
+SelectAll, Minimize, Zoom, Fullscreen, CloseWindow: `StandardAction`'s);
+a `Menu` is a title and its items (`role: Window`: the window menu).
+`Menus.resolve` turns it into the platform's items: each action's
+shortcut from the keymap (the first binding where the context stack of
+the node it is for holds), enabled and checked from its handler's state.
+`Menus.popup(ui, items, x, y, ?from)` shows a context menu, its choice
+dispatched from `from`; `MenuBar` (markup's `<MenuBarView menus={...}/>`)
+the window's bar, set again when a label or a state changes (checked
+before each update, `Ui.beforeUpdate`). Where `Ui.hostOf` says native
+(`"context-menu"`, `"menubar"`) and the window has them: macOS's NSMenu
+(the bar's menus after the application's, About moved to the top of the
+application's menu, Quit and Hide left to its own, a window menu's items
+in Window; an editing role's `copy:`, `paste:`... sent to a native text
+editor first; context menus by popUpMenuPositioningItem), Windows' HMENU
+(SetMenu; the accelerator after a tab, `Open…\tCtrl+O`; TrackPopupMenuEx).
+Elsewhere (Linux) helder draws them (`DrawnMenu`, GTK's look loosely, in
+the window's light or dark colours): a bar of titles (F10 opens the
+first; Left and Right move along it; a hover moves while one is open) and
+popups with check marks, shortcuts at the right and submenus; Up, Down,
+Home, End, a letter, Right and Left into and out of submenus, Enter or
+Space chooses, Escape closes the innermost, a press outside all; the
+focus given back when they close. `tests/os/MenuTest.hx` reads each
+platform's back (the window lane); `src/helder/ui/menu/Menus.test.hx` the
+model and the drawn menus.
+
 ## Markup
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
@@ -512,7 +542,7 @@ NSTextFields over the window's content view (a password's an
 NSSecureTextField) in the field's font, colour and alignment, a text area an
 NSTextView in a borderless NSScrollView (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
 and Android draw them still. The platform's menus are there for a
-program's own: `PlatformViews.menu` shows a context menu (its items,
+program's own (`helder.ui.menu` is the model over them, Menus below): `PlatformViews.menu` shows a context menu (its items,
 separators, checked and disabled ones, submenus and shortcuts' labels):
 Windows' popup menu, macOS's NSMenu; `PlatformViews.menuBar` a menu bar,
 the system's on macOS (its menus after the application's) and the

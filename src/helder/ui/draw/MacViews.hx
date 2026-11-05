@@ -162,24 +162,107 @@ class MacViews implements PlatformViews {
 	}
 
 	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool {
-		var main = Msg.id(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("mainMenu"));
+		var app = Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication"));
+		var main = Msg.id(app, ObjC.sel("mainMenu"));
 		if (main.isNull()) return false;
 		for (it in barItems) {
 			Msg.vPtr(main, ObjC.sel("removeItem:"), it);
 			ObjC.release(it);
 		}
 		barItems = [];
+		// (the items put in the application's menu and the Window menu)
+		for (it in placed) {
+			var m = Msg.id(it, ObjC.sel("menu"));
+			if (!m.isNull()) Msg.vPtr(m, ObjC.sel("removeItem:"), it);
+			ObjC.release(it);
+		}
+		placed = [];
 		barChosen = chosen;
 		current = this;
-		for (k in 0...menus.length) {
-			var m = menus[k], sub = nsMenu(m.items ?? [], ObjC.sel("hxmcBarPick:"), m.label);
+		var own = Msg.id(Msg.idInt(main, ObjC.sel("itemAtIndex:"), 0), ObjC.sel("submenu"));
+		var windows = Msg.id(app, ObjC.sel("windowsMenu"));
+		var k = 0;
+		for (m in menus) {
+			// (roles in their platform places: About at the top of the application's
+			// menu, Quit and Hide its own already; the window menu's items in Window)
+			var items = [];
+			for (it in m.items ?? []) {
+				if (it.role == "about" && !own.isNull()) {
+					var a = nsMenu([it], ObjC.sel("hxmcBarPick:"));
+					var item = Msg.idInt(a, ObjC.sel("itemAtIndex:"), 0);
+					Runtime.objc_retain(item);
+					Msg.vPtr(a, ObjC.sel("removeItem:"), item);
+					ObjC.release(a);
+					// (no handler of About: the standard panel)
+					if (it.disabled == true) {
+						Msg.vPtr(item, ObjC.sel("setAction:"), ObjC.sel("orderFrontStandardAboutPanel:"));
+						Msg.vPtr(item, ObjC.sel("setTarget:"), app);
+						Msg.vBool(item, ObjC.sel("setEnabled:"), true);
+					}
+					AkMsg.vPtrInt(own, ObjC.sel("insertItem:atIndex:"), item, 0);
+					placed.push(item);
+					var sep = Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("separatorItem"));
+					Runtime.objc_retain(sep);
+					AkMsg.vPtrInt(own, ObjC.sel("insertItem:atIndex:"), sep, 1);
+					placed.push(sep);
+					continue;
+				}
+				if (it.role == "quit" || it.role == "hide") continue;
+				if (m.role == "window" && (it.role == "minimize" || it.role == "zoom" || it.role == "close")) continue;
+				items.push(it);
+			}
+			while (items.length > 0 && items[0].separator == true)
+				items.shift();
+			while (items.length > 0 && items[items.length - 1].separator == true)
+				items.pop();
+			if (m.role == "window" && !windows.isNull()) {
+				var w = nsMenu(items, ObjC.sel("hxmcBarPick:"));
+				while (Msg.i(w, ObjC.sel("numberOfItems")) > 0) {
+					var item = Msg.idInt(w, ObjC.sel("itemAtIndex:"), 0);
+					Runtime.objc_retain(item);
+					Msg.vPtr(w, ObjC.sel("removeItem:"), item);
+					Msg.vPtr(windows, ObjC.sel("addItem:"), item);
+					placed.push(item);
+				}
+				ObjC.release(w);
+				continue;
+			}
+			if (items.length == 0) continue;
+			var sub = nsMenu(items, ObjC.sel("hxmcBarPick:"), m.label);
 			var item = Msg.id(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("init"));
 			Msg.vPtr(item, ObjC.sel("setSubmenu:"), sub);
 			ObjC.release(sub);
-			AkMsg.vPtrInt(main, ObjC.sel("insertItem:atIndex:"), item, 1 + k);
+			AkMsg.vPtrInt(main, ObjC.sel("insertItem:atIndex:"), item, 1 + k++);
 			barItems.push(item);
 		}
 		return true;
+	}
+
+	// (items placed in the application's own menus, removed when the bar is set again)
+	var placed:Array<Ptr> = [];
+	// (the editing roles' selectors by item tag: sent to the first responder first, a native editor's)
+	static final roleSelectors:Map<Int, String> = [];
+
+	static function editSelector(role:Null<String>):Null<String>
+		return switch role {
+			case "undo": "undo:";
+			case "redo": "redo:";
+			case "cut": "cut:";
+			case "copy": "copy:";
+			case "paste": "paste:";
+			case "select-all": "selectAll:";
+			case _: null;
+		}
+
+	// (an editing role's: true when a native editor, the first responder, took it)
+	static function nativeEdit(item:Ptr):Bool {
+		var sel = roleSelectors.get(Msg.i(item, ObjC.sel("tag")).toInt());
+		if (sel == null) return false;
+		var app = Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication"));
+		var responder = Msg.id(Msg.id(app, ObjC.sel("keyWindow")), ObjC.sel("firstResponder"));
+		var s = Arena.scopedValue(a -> Runtime.sel_registerName(a.cstring(sel)));
+		if (responder.isNull() || !Msg.bPtr(responder, ObjC.sel("respondsToSelector:"), s)) return false;
+		return AkMsg.bPtrPtrPtr(app, ObjC.sel("sendAction:to:from:"), s, Ptr.nil(), item);
 	}
 
 	// (an NSMenu of the items: enabled as given, checked as NSControlStateValueOn)
@@ -201,6 +284,8 @@ class MacViews implements PlatformViews {
 			ObjC.release(e);
 			Msg.vPtr(item, ObjC.sel("setTarget:"), delegate);
 			Msg.vInt(item, ObjC.sel("setTag:"), it.id);
+			var es = editSelector(it.role);
+			if (es != null) roleSelectors.set(it.id, es);
 			Msg.vBool(item, ObjC.sel("setEnabled:"), it.disabled != true);
 			// (NSEventModifierFlagShift 1 << 17, Control 1 << 18, Option 1 << 19, Command 1 << 20)
 			if (equivalent != "")
@@ -270,11 +355,11 @@ class MacViews implements PlatformViews {
 	}
 
 	@:hxmc.callback static function pick(self:Ptr, cmd:Ptr, item:Ptr)
-		picked = Msg.i(item, ObjC.sel("tag")).toInt();
+		picked = nativeEdit(item) ? -1 : Msg.i(item, ObjC.sel("tag")).toInt();
 
-	// (a menu bar's item chosen: queued, a frame asked for)
+	// (a menu bar's item chosen: queued, a frame asked for; an editing role a native editor's first)
 	@:hxmc.callback static function barPick(self:Ptr, cmd:Ptr, item:Ptr)
-		if (current != null) current.push(null, 5, Msg.i(item, ObjC.sel("tag")).toInt());
+		if (current != null && !nativeEdit(item)) current.push(null, 5, Msg.i(item, ObjC.sel("tag")).toInt());
 
 	// (a text area's commands: Tab, Shift+Tab and Escape left to the program)
 	@:hxmc.callback static function areaCommand(self:Ptr, cmd:Ptr, textView:Ptr, sel:Ptr):Int {

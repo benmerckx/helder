@@ -9,7 +9,9 @@ import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 import helder.ui.view.UiFlow.VirtualList;
+import helder.ui.view.UiFlow.MenuBarView;
 import viewer.Decode.Decoded;
+import viewer.ViewerActions;
 
 // The viewer's window: the image view filling it on the dark background,
 // a message in place of the image (none open, loading, an error), the
@@ -31,6 +33,24 @@ class Shell implements Markup {
 		helder.image.JpegDecoder.threads = 2;
 		var viewer = new Viewer(jobDecode);
 		viewer.mod = mac ? "Cmd" : "Ctrl";
+		// (the keymap: secondary as this platform's; the user's file over the defaults, beside the store)
+		helder.ui.actions.Keymap.mac = mac;
+		helder.ui.menu.Menus.appName = "Viewer";
+		ViewerActions.defaults(helder.ui.actions.Keymap.global);
+		if (store != null) helder.ui.actions.Keymap.global.loadUser(haxe.io.Path.join([haxe.io.Path.directory(store.path), "helder-viewer-keymap.json"]));
+		if (helder.ui.actions.Keymap.global.error != null) Sys.println("viewer: " + helder.ui.actions.Keymap.global.error);
+		// (File's Open Recent: the last eight files opened, kept in the store)
+		var recent = store == null || store.get("recent") == null ? [] : [for (r in store.get("recent").split("\n")) if (r != "") r];
+		var bar:Null<helder.ui.menu.Menus.MenuBar> = null;
+		viewer.onOpened = p -> {
+			var full = try sys.FileSystem.fullPath(p) catch (_:Dynamic) p;
+			if (sys.FileSystem.isDirectory(full)) return;
+			recent.remove(full);
+			recent.unshift(full);
+			if (recent.length > 8) recent.resize(8);
+			if (store != null) store.set("recent", recent.join("\n"));
+			if (bar != null) bar.setMenus(ViewerActions.menus(recent));
+		};
 		viewer.statusOn(num("status", 0) == 1);
 		// (--exit-after s: the window closed after s seconds, the title and
 		// state printed: a smoke run of the real window and GPU, CI's)
@@ -97,6 +117,7 @@ class Shell implements Markup {
 					w.close();
 				});
 			}}>
+			<MenuBarView menus={ViewerActions.menus(recent)} ref={b -> bar = b}/>
 			{view(viewer)}
 		</Surface>);
 	}
@@ -135,19 +156,60 @@ class Shell implements Markup {
 		store.set("height", Std.string(Math.round(w.window.height / k)));
 	}
 
-	// the keys reaching the root (no focused node took them), the folder watched
+	// the viewer's actions on the root (its key context "Viewer", with
+	// picker and fullscreen while they are; ViewerActions' default keymap in
+	// the app's), the folder watched
 	public static function attach(root:Node, viewer:Viewer, watch = true) {
-		root.onKeyDown = e -> if (viewer.key(e.key, e.mods)) e.preventDefault();
-		root.onTextInput = e -> if (viewer.typed(e.text)) e.preventDefault();
+		ViewerActions.defaults(helder.ui.actions.Keymap.global);
+		renderEffect(() -> "Viewer" + (viewer.pickerOpen() ? " picker" : "") + (viewer.fullscreen() ? " fullscreen" : ""),
+			c -> root.keyContext = helder.ui.actions.KeyContext.parse(c));
+		root.on(ViewerAction, a -> switch a {
+			case CopyPath:
+				if (root.ui != null && viewer.folder.current != null) root.ui.clipboard.write(viewer.folder.current);
+				true;
+			case ShowInFolder:
+				if (viewer.folder.current != null) reveal(viewer.folder.current);
+				true;
+			case OpenWithDefault:
+				if (viewer.folder.current != null) openDefault(viewer.folder.current);
+				true;
+			case _: viewer.perform(a);
+		}, viewer.actionState);
 		if (watch) Async.launch(_ -> while (true) {
 			Async.delay(1);
 			viewer.watch();
 		});
 	}
 
+	// (the system's file manager at the file: Finder, Explorer, the FileManager1 portal's caller, else the folder opened)
+	static function reveal(path:String) {
+		var os = Sys.systemName();
+		if (os == "Mac") spawn("open", ["-R", path]) else if (os == "Windows") spawn("explorer", ["/select," + path]) else
+			spawn("dbus-send", ["--session", "--dest=org.freedesktop.FileManager1", "--type=method_call", "/org/freedesktop/FileManager1",
+				"org.freedesktop.FileManager1.ShowItems", "array:string:file://" + path, "string:"], () -> spawn("xdg-open", [haxe.io.Path.directory(path)]));
+	}
+
+	static function openDefault(path:String) {
+		var os = Sys.systemName();
+		if (os == "Mac") spawn("open", [path]) else if (os == "Windows") spawn("cmd", ["/c", "start", "", path]) else spawn("xdg-open", [path]);
+	}
+
+	// (a program run, not waited for by the window; failed: otherwise)
+	static function spawn(cmd:String, args:Array<String>, ?otherwise:Void->Void)
+		Async.launch(_ -> {
+			var code = try {
+				var p = new helder.async.Process(cmd, args);
+				var c = p.wait();
+				p.close();
+				c;
+			} catch (_:Dynamic) -1;
+			if (code != 0 && otherwise != null) otherwise();
+		});
+
 	// the window's content
 	public static function view(viewer:Viewer):View {
 		var image = new ImageView(viewer);
+		image.onContextMenu = (x, y) -> if (image.ui != null) helder.ui.menu.Menus.popup(image.ui, ViewerActions.context, x, y, image);
 		image.style.position = Absolute;
 		image.style.left = image.style.top = image.style.right = image.style.bottom = 0;
 		// (a change drawn; an animation or a glide ticked on the clock while it lasts)

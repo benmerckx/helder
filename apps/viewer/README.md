@@ -27,6 +27,8 @@ bun run test viewer viewer-window                # its tests; a real window on t
 | One viewer | a second launch hands its file to the first (a loopback port in its store, a token) and ends; `--new`: a viewer of its own |
 | Open with | `viewer --register`: this user's file types (Windows' registry, Linux's .desktop file); macOS: the app bundle (`bun run helder build --target macos apps/viewer`: `bin/macos/Viewer.app`, universal, its document types from `helder.webmanifest`'s `file_handlers`) |
 | Window | F11 or Enter fullscreen, Escape leaves it; I the status line (zoom, size, format, the file's size, its place in the folder) |
+| Menus | File (Open…, Open Recent: the last eight files, Quit) and View (Fit, Actual Size, Zoom In, Zoom Out, Previous, Next, Full Screen, Status Line): macOS's menu bar, Windows' in the window, drawn in the window on Linux (F10); a right click on the image: Copy Path (Ctrl+Shift+C), Show in Folder (Finder, Explorer, the file manager's FileManager1), Open with Default App, Fit, Actual Size |
+| Keys | every key above is an action of the viewer's keymap (`ViewerActions.hx`: `viewer::Next`, `viewer::ZoomIn`...), the menus' shortcuts the same bindings; a JSON file beside the store (`helder-viewer-keymap.json`, helder.ui's keymap format: `[{"context": "Viewer", "bindings": {"n": "viewer::Next", "space": null}}]`) overrides them, read again when it changes |
 
 The title is the file's name, its place in the folder and its size
 (`photo.jpg · 3 / 128 · 4032×3024`). A file that cannot be read, is not
@@ -81,7 +83,10 @@ size and place, and the status line, are kept between runs (helder.os's
   sRGB. An animation's frame written into the texture as it changes.
 - **Viewer** (`Viewer.hx`) is all of it without a window: the state and
   the texts the window shows as signals, the keys, the wheel and the
-  pointer; **Shell** (`Shell.hx`) the window (`UiWindow`, `<Surface>`
+  pointer; **ViewerActions** (`ViewerActions.hx`) its actions, default
+  keymap (the root's key context `Viewer`, with `picker` and `fullscreen`
+  while they are), menus and context menu (helder.ui.actions, helder.ui.menu);
+  **Shell** (`Shell.hx`) the window (`UiWindow`, `<Surface>`
   with `onDrop`), its markup, the jobs, the watch, the settings.
 
 ## Tests

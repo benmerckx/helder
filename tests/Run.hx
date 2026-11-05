@@ -42,7 +42,7 @@ class Run {
 		{name: "jobs", about: "helder.jobs: the sendable check's rejections (tests/jobs/reject); the pool, cancellation, errors and channels are the test lane's (tests/jobs/Jobs.test.hx, natively and on wasm32-wasi with node's workers)", run: jobsLane},
 		{name: "jobs-web", about: "helder.jobs in headless Chromium: Web Workers instantiating the module, a cancelled one ended, the loop without frames (tests/jobs/JobsWeb.hx)", run: jobsWeb},
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
-		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked (Linux: Xvfb)", run: window},
+		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked; helder.ui.menu's model as each platform's menus (tests/os/MenuTest.hx: macOS's NSMenu bar and roles, Windows' HMENU and accelerators, Linux's drawn bar and context menu driven by the keys, bin/os/menus-linux*.png) (Linux: Xvfb)", run: window},
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
 		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
@@ -316,6 +316,10 @@ class Run {
 		var exe = exePath('bin/os/$GFX_TARGET/WindowTest', GFX_TARGET);
 		var wine = GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-") ? "wine " : "";
 		if (Sys.systemName() == "Linux") shell('xvfb-run -a $wine$exe') else run(exe, []);
+		// (helder.ui.menu's model as each platform's menus: tests/os/MenuTest.hx)
+		native('bin/os/$GFX_TARGET/MenuTest', cps(["src", "tests/os"]).concat(["-main", "MenuTest"]), GFX_TARGET);
+		var menus = exePath('bin/os/$GFX_TARGET/MenuTest', GFX_TARGET);
+		if (Sys.systemName() == "Linux") shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a $wine$menus bin/os') else run(menus, ["bin/os"]);
 	}
 
 	static function asyncWeb() {

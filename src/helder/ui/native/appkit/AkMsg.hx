@@ -33,6 +33,7 @@ class AkMsg {
 	static function vRectPtr(self:Ptr, sel:Ptr, r:CGRect, a:Ptr):Void;
 	static function bPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Bool):Bool;
 	static function bPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Bool;
+	static function bPtrPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Ptr):Bool;
 	static function bPtrPointPtr(self:Ptr, sel:Ptr, a:Ptr, p:CGPoint, b:Ptr):Bool;
 	static function vPtrPtrFloatPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Float, d:Ptr):Void;
 	static function vPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64):Void;

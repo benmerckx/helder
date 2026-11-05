@@ -221,7 +221,12 @@ class Ui {
 
 	// lays the tree out if it changed (a tree that did not: nothing done);
 	// the platform's views' events first, their nodes kept in step after
+	// run first in each update (a menu bar's states checked: helder.ui.menu.MenuBar)
+	public final beforeUpdate:Array<Void->Void> = [];
+
 	public function update() {
+		for (f in beforeUpdate.copy())
+			f();
 		if (platform != null) platform.poll();
 		// (the frame: what was written since lands first, helder.view.graph)
 		helder.view.graph.Graph.flush();
@@ -1080,7 +1085,7 @@ class Ui {
 	// the key contexts from the root to from (default: the focus), outermost first
 	public function contextStack(?from:Node):Array<helder.ui.actions.KeyContext> {
 		var out = [];
-		var n = from != null ? from : focus;
+		var n = from != null ? from : focus != null ? focus : root;
 		while (n != null) {
 			if (n.keyContext != null) out.unshift(n.keyContext);
 			n = parentOf(n);
@@ -1091,7 +1096,7 @@ class Ui {
 	// the handler that would take an action from (default: the focus), the
 	// tree's up to the root, the window's, the app's (null: none)
 	function handlerOf(a:EnumValue, from:Null<Node>):Null<helder.ui.actions.Actions.ActionHandler> {
-		var n = from != null ? from : focus;
+		var n = from != null ? from : focus != null ? focus : root;
 		while (n != null) {
 			if (n.actionHandlers != null)
 				for (h in n.actionHandlers)
@@ -1116,7 +1121,7 @@ class Ui {
 	// the window's and the app's handlers, until one takes it (true); a
 	// disabled one's is not run
 	public function dispatchAction(a:EnumValue, ?from:Node):Bool {
-		var n = from != null ? from : focus;
+		var n = from != null ? from : focus != null ? focus : root;
 		inline function tryAll(hs:Array<helder.ui.actions.Actions.ActionHandler>):Bool {
 			var taken = false;
 			for (h in hs.copy())

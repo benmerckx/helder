@@ -80,7 +80,16 @@ class ImageView extends helder.ui.Node {
 	override public function hasContent():Bool
 		return true;
 
+	// a right click's (window pixels): the shell's context menu
+	public var onContextMenu:Null<(x:Float, y:Float) -> Void> = null;
+
 	function down(e:Event) {
+		if (e.button == 3) {
+			// (the focus left in the menu, not taken by the press)
+			e.preventDefault();
+			if (onContextMenu != null) onContextMenu(e.x, e.y);
+			return;
+		}
 		var now = haxe.Timer.stamp();
 		// (a second press within 0.4 s and 6 points: a double click)
 		if (pressT >= 0 && now - pressT < 0.4 && Math.abs(e.localX - pressX) < 6 && Math.abs(e.localY - pressY) < 6) {
