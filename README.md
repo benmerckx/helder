@@ -925,6 +925,26 @@ fix.
     Java, through JNI).
   Shaping and fallback first (the correctness gain), native rasterising
   after.
+- **Drawn widgets, the platform at the edges** (as GPUI, Flutter and
+  Compose do): helder.ui draws every widget, and the platform supplies
+  what can't be drawn: text input, accessibility, menus, dialogs.
+  `helder.ui.platform` stays a small layer for native views in a laid-out
+  rectangle: menus, the platform's text editor where `Ui.policy` asks for
+  it, and later heavy views (a web view, video) when an app needs one.
+  The whole-window native controls (`NativeHost`) are retired. Next:
+  - **the drawn editor as the desktop default**, the native one an
+    option: it composes with popups, scrolling and clipping, and keeps
+    screenshots deterministic. It still needs TSF on Windows (in place of
+    the IME's own windows), text-input-v3 on Wayland, and spellcheck
+    through the platform (NSSpellChecker, ISpellChecker over COM,
+    Enchant or Hunspell);
+  - **mobile keeps the platform's editor** for autocorrect, autofill,
+    dictation and selection handles, until a hidden input connection
+    (Flutter's way: Android's InputConnection, UITextInput) can replace
+    it;
+  - **accessibility everywhere**: helder.ui's access tree mapped fully to
+    UI Automation, NSAccessibility, AT-SPI and Android's, the one thing
+    native widgets would otherwise give for free.
 - **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**
   (*phase 1 landed*, src/helder/canvas/README.md: the core API and its CPU
   back end, analytic coverage into premultiplied RGBA8, typed so `-dce
