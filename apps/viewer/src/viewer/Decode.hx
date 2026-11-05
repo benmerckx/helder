@@ -172,31 +172,9 @@ class Decode {
 			errorKind: kind
 		};
 
-	// half the size, each pixel the mean of four (straight alpha weighted by it)
-	public static function halve(src:Bytes, w:Int, h:Int, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
-		var nw = (w + 1) >> 1, nh = (h + 1) >> 1, out = (mem ?? ImageMemory.gc).bytes(nw * nh * 4);
-		for (y in 0...nh)
-			for (x in 0...nw) {
-				var r = 0, g = 0, b = 0, a = 0;
-				for (dy in 0...2)
-					for (dx in 0...2) {
-						var sx = Std.int(Math.min(2 * x + dx, w - 1)), sy = Std.int(Math.min(2 * y + dy, h - 1)), p = 4 * (sy * w + sx);
-						var pa = src.get(p + 3);
-						r += src.get(p) * pa;
-						g += src.get(p + 1) * pa;
-						b += src.get(p + 2) * pa;
-						a += pa;
-					}
-				var o = 4 * (y * nw + x);
-				if (a > 0) {
-					out.set(o, Std.int(r / a + 0.5));
-					out.set(o + 1, Std.int(g / a + 0.5));
-					out.set(o + 2, Std.int(b / a + 0.5));
-				}
-				out.set(o + 3, (a + 2) >> 2);
-			}
-		return {width: nw, height: nh, rgba: out};
-	}
+	// half the size, each pixel the mean of four (helder.image's Resize)
+	public static function halve(src:Bytes, w:Int, h:Int, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes}
+		return Resize.half(src, w, h, mem);
 
 	// the bytes a decoded image holds
 	public static function bytesOf(d:Decoded):Float {

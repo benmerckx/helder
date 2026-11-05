@@ -27,6 +27,8 @@ class Shell implements Markup {
 			return v == null ? d : v;
 		}
 		fallbackFont();
+		// (a decode's IDCT, upsampling and colours over two threads: the pool decodes two files at once)
+		helder.image.JpegDecoder.threads = 2;
 		var viewer = new Viewer(jobDecode);
 		viewer.mod = mac ? "Cmd" : "Ctrl";
 		viewer.statusOn(num("status", 0) == 1);

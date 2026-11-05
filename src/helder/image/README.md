@@ -137,6 +137,35 @@ coefficients 16-bit, its pixels not copied). The JPEG, GIF and WebP
 decoders are not kernels (PngCore is: a GC-free job, `ImageJobs`): their
 port is still to come.
 
+## Speed
+
+`JpegDecoder.decode(file, mem, scale)` decodes at 1/2, 1/4 or 1/8 of the
+size (`scaleFor(width, height, w, h)`: the largest reduction still at
+least w x h), each block's IDCT reduced as libjpeg's jidctred (the
+8-point IDCT sampled at the groups' centres, from every coefficient; a
+subsampled component at a larger block where that spares it upsampling,
+as libjpeg does): within 40 to 54 dB of libjpeg-turbo's own scaled
+decodes of a photo. `JpegDecoder.threads` splits the IDCT, the upsampling
+(a component a thread) and the colours over threads (`Strips`); the IDCT
+(`idctSimd`) and the YCbCr conversion run four lanes at once (hxmc.simd:
+jpeg_idct_islow's and jdcolor's integer arithmetic lane by lane, the same
+pixels); `Resize.half` halves two pixels at once where they are opaque.
+`bun run test image-bench` (tests/bench/ImageBench.hx, tests/bench/image.mjs)
+against vips 8.15 and Bun.Image 1.4.4 on one machine (4 cores), a 24 MP
+JPEG and a 12 MP PNG, ms:
+
+| | helder.image | vips | Bun.Image |
+| --- | ---: | ---: | ---: |
+| JPEG decoded, 1 thread / 4 | 317 / 198 | 99 (avg: decode and a mean) | 112 (with its re-encode) |
+| JPEG at 1/8 | 74 | | |
+| JPEG to a 256 px thumbnail | 75 | 56 (vipsthumbnail, its process too) | 26 |
+| JPEG to 50% | 130 (at 1/2) | 129 | 682 |
+| PNG decoded | 293 | 237 | 1029 (with its re-encode) |
+
+Before: the JPEG 612 ms, no reduced decode. Left: the entropy decoding
+(some 66 ms of the JPEG's), the upsampling (111 ms) in SIMD; GIF and WebP
+in strips.
+
 `Exif.orientation(file)` reads EXIF's orientation (1 to 8) from a JPEG's
 APP1 or a WebP's EXIF chunk: IFD0 only, every offset within the TIFF block
 (no chain of IFDs followed: no loop, no depth); `Exif.apply` shows pixels

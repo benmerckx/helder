@@ -34,6 +34,7 @@ class Run {
 		{name: "view", about: "helder.view on Eval, natively and as JavaScript: signals, markup, control flow, the programs the macro rejects", run: view},
 		{name: "text", about: "helder.text on Eval: the rasterizer, DejaVu Sans, line layout, a sample through the atlas (tests/text/sample.png)", run: text},
 		{name: "image", about: "helder.image on Eval and natively: PNG, JPEG, GIF and WebP against Chromium's and libwebp's pixels, animations' frames; hxmc.unsafe's uses against the reviewed list (tests/image/unsafe.mjs); its limits and hostile headers are the test lane's (src/helder/image/ImageLimits.test.hx)", run: image},
+		{name: "image-bench", about: "helder.image's speed (tests/bench/ImageBench.hx, natively): a JPEG decoded on one thread and four, at 1/8, a 256-pixel thumbnail, 50%, a large PNG; against vips, vipsthumbnail and Bun.Image where installed (tests/bench/image.mjs): bin/bench/image.md (IMAGE_BENCH_JPEG, IMAGE_BENCH_PNG)", run: imageBench},
 		{name: "image-fuzz", about: "helder.image's decoders under a time-boxed mutation fuzzer (tests/image/Fuzz.hx, natively): the test images mutated, each input a decode or an ImageError within its time, the peak memory within budget (FUZZ_SECONDS, FUZZ_SEED)", run: imageFuzz},
 		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader macro on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs it rejects", run: gfxShader},
@@ -127,6 +128,14 @@ class Run {
 		exe("bin/image/ImageTest", cp.concat(["-main", "ImageTest"]));
 		run(exePath("bin/image/ImageTest", HOST), []);
 		run(NODE, ["tests/image/unsafe.mjs"]);
+	}
+
+	// (IMAGE_BENCH_JPEG, IMAGE_BENCH_PNG: the files, a photo and a large PNG;
+	// by default the repository's largest: examples' comparison.jpg, tests/ui/todo.png)
+	static function imageBench() {
+		exe("bin/bench/ImageBench", cps(["src", "tests/bench"]).concat(["-main", "ImageBench"]));
+		run(NODE, ["tests/bench/image.mjs", exePath("bin/bench/ImageBench", HOST), Sys.getEnv("IMAGE_BENCH_JPEG") ?? "examples/gltf-showcase/comparison.jpg",
+			Sys.getEnv("IMAGE_BENCH_PNG") ?? "tests/ui/todo.png"]);
 	}
 
 	// (FUZZ_SECONDS: the budget, 30 s by default; FUZZ_SEED: where it starts)

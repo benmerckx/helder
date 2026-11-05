@@ -2,6 +2,7 @@ package helder.image;
 
 import haxe.ds.Vector;
 import haxe.io.Bytes;
+import hxmc.simd.*;
 
 // JPEG files decoded to RGBA8 (Image.decode), as browsers decode them
 // (libjpeg-turbo's way): baseline and extended sequential (SOF0, SOF1) and
@@ -47,14 +48,37 @@ class JpegDecoder {
 	var markerHit = false;
 
 	// the pixels: width * height * 4 bytes, rows top to bottom, opaque
-	// (mem: where its planes, coefficients and pixels are; ImageMemory)
-	public static function decode(jpg:Bytes, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
+	// (mem: where its planes, coefficients and pixels are, ImageMemory;
+	// scale 1, 2, 4 or 8: the image at that fraction of its size, each
+	// block's IDCT reduced to 4x4, 2x2 or its DC, as libjpeg's scale_denom:
+	// a photo decoded at the size it is shown, a fraction of the work)
+	public static function decode(jpg:Bytes, ?mem:ImageMemory, scale = 1):{width:Int, height:Int, rgba:Bytes} {
+		if (scale != 1 && scale != 2 && scale != 4 && scale != 8) throw ImageError.unsupported("JpegDecoder: a scale of 1/" + scale);
 		var r = new ByteReader(jpg);
 		if (r.length < 4 || r.u8(0) != 0xFF || r.u8(1) != 0xD8) throw ImageError.unsupported("JpegDecoder: not a JPEG file");
-		return ImageLimits.guard("JpegDecoder", () -> new JpegDecoder(jpg, mem ?? ImageMemory.gc).run());
+		return ImageLimits.guard("JpegDecoder", () -> {
+			var d = new JpegDecoder(jpg, mem ?? ImageMemory.gc);
+			d.bs = 8 >> (scale == 1 ? 0 : scale == 2 ? 1 : scale == 4 ? 2 : 3);
+			d.run();
+		});
+	}
+
+	// the largest reduction (1, 2, 4 or 8) whose image is still at least
+	// w x h, of an image of width x height (as stored: EXIF's turn aside)
+	public static function scaleFor(width:Int, height:Int, w:Int, h:Int):Int {
+		var s = 8;
+		while (s > 1 && (Math.ceil(width / s) < w || Math.ceil(height / s) < h))
+			s >>= 1;
+		return s;
 	}
 
 	final mem:ImageMemory;
+	// a block's samples a side (8, or 4, 2, 1 scaled)
+	var bs = 8;
+
+	// the threads a decode's IDCT, upsampling and colours are split over
+	// (natively; 1: the calling thread's alone)
+	public static var threads = 1;
 
 	function new(data:Bytes, mem:ImageMemory) {
 		this.data = new ByteReader(data);
@@ -416,17 +440,42 @@ class JpegDecoder {
 
 	function output():{width:Int, height:Int, rgba:Bytes} {
 		for (c in components) {
+			// (scaled: a subsampled component at a larger block where that
+			// spares it upsampling, as libjpeg's jpeg_core_output_dimensions)
+			var nb = bs;
+			while (nb < 8 && (hmax * bs) % (c.h * nb * 2) == 0 && (vmax * bs) % (c.v * nb * 2) == 0)
+				nb *= 2;
+			c.bs = nb;
+			var table = nb < 8 ? reducedTable(nb) : null;
 			var q = quant[c.tq];
 			if (q == null) throw "JpegDecoder: no quantization table " + c.tq;
-			c.pixels = mem.bytes(c.blocksX * 8 * c.blocksY * 8);
-			var ws = new Vector<Int>(64);
-			for (by in 0...c.blocksY)
-				if (GcPoint.yes()) for (bx in 0...c.blocksX)
-					idct(c.coeffs, (by * c.blocksX + bx) * 64, q, ws, c.pixels, by * 8 * c.blocksX * 8 + bx * 8, c.blocksX * 8);
+			c.pixels = mem.bytes(c.blocksX * nb * c.blocksY * nb);
+			// (the table as 32-bit lanes, for the SIMD IDCT)
+			var qb = Bytes.alloc(256);
+			for (k in 0...64)
+				qb.setInt32(4 * k, q[k]);
+			// (in strips of block rows, each its own workspace)
+			Strips.run(threads, c.blocksY, (from, to) -> {
+				var wsf = new Vector<Float>(64), w1 = Bytes.alloc(256), w2 = Bytes.alloc(256);
+				for (by in from...to)
+					if (GcPoint.yes()) for (bx in 0...c.blocksX)
+						if (nb == 8) idctSimd(c.coeffs.bytes(), (by * c.blocksX + bx) * 64, qb, w1, w2, c.pixels, by * 8 * c.blocksX * 8 + bx * 8, c.blocksX * 8) else
+							reduced(c.coeffs, (by * c.blocksX + bx) * 64, q, nb, table, wsf, c.pixels, by * nb * c.blocksX * nb + bx * nb, c.blocksX * nb);
+			});
 			c.coeffs = null;
 		}
+		// (scaled: the image's size and the components' at their fractions, rounded up)
+		if (bs < 8) {
+			width = Std.int((width * bs + 7) / 8);
+			height = Std.int((height * bs + 7) / 8);
+			for (c in components) {
+				c.width = Std.int((c.width * c.bs + 7) / 8);
+				c.height = Std.int((c.height * c.bs + 7) / 8);
+			}
+		}
 		// each component at the image's size
-		var planes = [for (c in components) upsample(c)];
+		var planes = [for (c in components) null];
+		Strips.run(threads, components.length, (from, to) -> for (k in from...to) planes[k] = upsample(components[k]));
 		var rgba = mem.bytes(width * height * 4);
 		var n = components.length;
 		// (jdapimin's guess: JFIF is YCbCr, else Adobe's transform, else
@@ -444,7 +493,27 @@ class JpegDecoder {
 		}
 		inline function clamp(v:Int):Int
 			return v < 0 ? 0 : v > 255 ? 255 : v;
-		for (i in 0...width * height) {
+		Strips.run(threads, height, (from, to) -> {
+			var i = from * width, end = to * width;
+			// (YCbCr, four pixels at once: jdcolor's tables as arithmetic, the same values;
+			// each pixel's RGBA one 32-bit lane, A 255)
+			if (n == 3 && transform == 1) {
+				var p0 = planes[0], p1 = planes[1], p2 = planes[2];
+				var k128 = I32x4.splat(128), half = I32x4.splat(32768), zero = I32x4.zero(), max = I32x4.splat(255), alpha = I32x4.splat(0xFF000000);
+				var cR = I32x4.splat(91881), cB = I32x4.splat(116130), gB = I32x4.splat(-22554), gR = I32x4.splat(-46802);
+				while (i + 4 <= end) {
+					if (i & 0xFFFF < 4) GcPoint.poll();
+					var y = U32x4.extendLow(U16x8.extendLow(U8x16.load32(p0, i))).asI32x4();
+					var cb = U32x4.extendLow(U16x8.extendLow(U8x16.load32(p1, i))).asI32x4() - k128;
+					var cr = U32x4.extendLow(U16x8.extendLow(U8x16.load32(p2, i))).asI32x4() - k128;
+					var r = (y + ((cr * cR + half) >> 16)).clamp(zero, max);
+					var g = (y + ((cb * gB + half + cr * gR) >> 16)).clamp(zero, max);
+					var b = (y + ((cb * cB + half) >> 16)).clamp(zero, max);
+					(r | (g << 8) | (b << 16) | alpha).store(rgba, 4 * i);
+					i += 4;
+				}
+			}
+			for (i in i...end) {
 			if (i & 0xFFFF == 0) GcPoint.poll();
 			var r:Int, g:Int, b:Int;
 			if (n == 1) {
@@ -478,14 +547,15 @@ class JpegDecoder {
 			rgba.set(4 * i + 1, g);
 			rgba.set(4 * i + 2, b);
 			rgba.set(4 * i + 3, 255);
-		}
+			}
+		});
 		return orient(rgba);
 	}
 
 	// the component's samples upsampled to width x height (one byte each)
 	function upsample(c:Component):Bytes {
-		var stride = c.blocksX * 8, src = c.pixels;
-		var rh = Std.int(hmax / c.h), rv = Std.int(vmax / c.v);
+		var stride = c.blocksX * c.bs, src = c.pixels;
+		var rh = Std.int(hmax * bs / (c.h * c.bs)), rv = Std.int(vmax * bs / (c.v * c.bs));
 		var out = mem.bytes(width * height);
 		var cw = c.width, ch = c.height;
 		if (rh == 1 && rv == 1) {
@@ -524,11 +594,11 @@ class JpegDecoder {
 			return out;
 		}
 		var line = new Vector<Int>(cw * rh);
+		var srcRow = new Vector<Int>(cw);
 		for (y in 0...height) {
 			GcPoint.poll();
 			// the source row (h1v2 fancy: blended with its nearer neighbour)
 			var sy = Std.int(y / rv);
-			var srcRow = new Vector<Int>(cw);
 			if (rv == 2 && fancyV && rh == 1) {
 				var nb = (y & 1) == 0 ? sy - 1 : sy + 1, bias = (y & 1) == 0 ? 1 : 2;
 				for (x in 0...cw)
@@ -559,6 +629,132 @@ class JpegDecoder {
 	// EXIF's orientation applied (2-8: mirrored, rotated)
 	function orient(rgba:Bytes):{width:Int, height:Int, rgba:Bytes}
 		return Exif.apply(rgba, width, height, orientation, mem);
+
+	// (a reduced IDCT's basis: n x 8, C(u) cos((2x + 1) u pi / 2n) / 2: the
+	// 8-point IDCT sampled at the centres of each group of 8 / n samples,
+	// every coefficient's part in it, as libjpeg's jidctred)
+	static function reducedTable(n:Int):Vector<Float> {
+		var t = new Vector<Float>(n * 8);
+		for (x in 0...n)
+			for (u in 0...8)
+				t[x * 8 + u] = (u == 0 ? Math.sqrt(0.5) : 1.0) * Math.cos((2 * x + 1) * u * Math.PI / (2 * n)) / 2;
+		return t;
+	}
+
+	// a block's n x n samples (n 4, 2 or 1): its rows' n samples first, then the columns'
+	static function reduced(co:Coeffs, o:Int, q:Vector<Int>, n:Int, t:Vector<Float>, ws:Vector<Float>, out:Bytes, at:Int, stride:Int) {
+		if (n == 1) {
+			// (the DC alone: libjpeg's jpeg_idct_1x1)
+			var v = ((co[o] * q[0] + 4) >> 3) + 128;
+			out.set(at, v < 0 ? 0 : v > 255 ? 255 : v);
+			return;
+		}
+		for (v in 0...8)
+			for (x in 0...n) {
+				var sum = 0.0;
+				for (u in 0...8)
+					sum += t[x * 8 + u] * co[o + v * 8 + u] * q[v * 8 + u];
+				ws[v * n + x] = sum;
+			}
+		for (y in 0...n)
+			for (x in 0...n) {
+				var sum = 0.0;
+				for (v in 0...8)
+					sum += t[y * 8 + v] * ws[v * n + x];
+				var p = Math.round(sum) + 128;
+				out.set(at + y * stride + x, p < 0 ? 0 : p > 255 ? 255 : p);
+			}
+	}
+
+	// jpeg_idct_islow four columns (then four rows) at once, its integer
+	// arithmetic lane by lane (the same samples as idct): the coefficients
+	// dequantized into w1, the columns' pass into w2, transposed into w1,
+	// the rows' pass (as columns of the transpose), transposed back as rows
+	static function idctSimd(co:Bytes, o:Int, qb:Bytes, w1:Bytes, w2:Bytes, out:Bytes, at:Int, stride:Int) {
+		for (k in 0...16)
+			(I32x4.extendLow(I16x8.load64(co, 2 * (o + 4 * k))) * I32x4.load(qb, 16 * k)).store(w1, 16 * k);
+		pass(w1, w2, 11);
+		transpose(w2, w1);
+		pass(w1, w2, 18);
+		// (w2's rows are the transpose's: columns of the output; transposed as they are stored)
+		var k128 = I32x4.splat(128), zero = I32x4.zero(), max = I32x4.splat(255);
+		for (g in 0...2) {
+			// (4 rows of the output: the transpose of w2's 4x4 tiles at rows 0-7, columns 4g..4g+3)
+			var a0 = I32x4.load(w2, 16 * (0 * 2 + g)), a1 = I32x4.load(w2, 16 * (1 * 2 + g)), a2 = I32x4.load(w2, 16 * (2 * 2 + g)), a3 = I32x4.load(w2, 16 * (3 * 2 + g));
+			var b0 = I32x4.load(w2, 16 * (4 * 2 + g)), b1 = I32x4.load(w2, 16 * (5 * 2 + g)), b2 = I32x4.load(w2, 16 * (6 * 2 + g)), b3 = I32x4.load(w2, 16 * (7 * 2 + g));
+			var t0 = a0.shuffle(a1, 0, 4, 1, 5), t1 = a0.shuffle(a1, 2, 6, 3, 7), t2 = a2.shuffle(a3, 0, 4, 1, 5), t3 = a2.shuffle(a3, 2, 6, 3, 7);
+			var u0 = b0.shuffle(b1, 0, 4, 1, 5), u1 = b0.shuffle(b1, 2, 6, 3, 7), u2 = b2.shuffle(b3, 0, 4, 1, 5), u3 = b2.shuffle(b3, 2, 6, 3, 7);
+			inline function put(r:Int, lo:I32x4, hi:I32x4)
+				U8x16.narrow(U16x8.narrow((lo + k128).clamp(zero, max), (hi + k128).clamp(zero, max)).asI16x8(), I16x8.zero()).store64(out, at + (4 * g + r) * stride);
+			put(0, t0.shuffle(t2, 0, 1, 4, 5), u0.shuffle(u2, 0, 1, 4, 5));
+			put(1, t0.shuffle(t2, 2, 3, 6, 7), u0.shuffle(u2, 2, 3, 6, 7));
+			put(2, t1.shuffle(t3, 0, 1, 4, 5), u1.shuffle(u3, 0, 1, 4, 5));
+			put(3, t1.shuffle(t3, 2, 3, 6, 7), u1.shuffle(u3, 2, 3, 6, 7));
+		}
+	}
+
+	// (8x8 Int32s, row-major: src's columns' 1-D IDCT into dst, four columns
+	// at a time; the result descaled by `bits`)
+	static inline function pass(src:Bytes, dst:Bytes, bits:Int) {
+		var round = I32x4.splat(1 << (bits - 1));
+		for (g in 0...2) {
+			inline function at(k:Int):I32x4
+				return I32x4.load(src, 16 * (k * 2 + g));
+			var z2 = at(2), z3 = at(6);
+			var z1 = (z2 + z3) * I32x4.splat(4433);
+			var tmp2 = z1 + z3 * I32x4.splat(-15137), tmp3 = z1 + z2 * I32x4.splat(6270);
+			z2 = at(0);
+			z3 = at(4);
+			var tmp0 = (z2 + z3) << 13, tmp1 = (z2 - z3) << 13;
+			var tmp10 = tmp0 + tmp3, tmp13 = tmp0 - tmp3, tmp11 = tmp1 + tmp2, tmp12 = tmp1 - tmp2;
+			tmp0 = at(7);
+			tmp1 = at(5);
+			tmp2 = at(3);
+			tmp3 = at(1);
+			z1 = tmp0 + tmp3;
+			z2 = tmp1 + tmp2;
+			z3 = tmp0 + tmp2;
+			var z4 = tmp1 + tmp3;
+			var z5 = (z3 + z4) * I32x4.splat(9633);
+			tmp0 = tmp0 * I32x4.splat(2446);
+			tmp1 = tmp1 * I32x4.splat(16819);
+			tmp2 = tmp2 * I32x4.splat(25172);
+			tmp3 = tmp3 * I32x4.splat(12299);
+			z1 = z1 * I32x4.splat(-7373);
+			z2 = z2 * I32x4.splat(-20995);
+			z3 = z3 * I32x4.splat(-16069) + z5;
+			z4 = z4 * I32x4.splat(-3196) + z5;
+			tmp0 = tmp0 + z1 + z3;
+			tmp1 = tmp1 + z2 + z4;
+			tmp2 = tmp2 + z2 + z3;
+			tmp3 = tmp3 + z1 + z4;
+			inline function put(k:Int, v:I32x4)
+				((v + round) >> bits).store(dst, 16 * (k * 2 + g));
+			put(0, tmp10 + tmp3);
+			put(7, tmp10 - tmp3);
+			put(1, tmp11 + tmp2);
+			put(6, tmp11 - tmp2);
+			put(2, tmp12 + tmp1);
+			put(5, tmp12 - tmp1);
+			put(3, tmp13 + tmp0);
+			put(4, tmp13 - tmp0);
+		}
+	}
+
+	// (8x8 Int32s, row-major: src transposed into dst, by 4x4 tiles)
+	static inline function transpose(src:Bytes, dst:Bytes) {
+		for (bi in 0...2)
+			for (bj in 0...2) {
+				inline function row(r:Int):I32x4
+					return I32x4.load(src, 16 * ((4 * bi + r) * 2 + bj));
+				var r0 = row(0), r1 = row(1), r2 = row(2), r3 = row(3);
+				var t0 = r0.shuffle(r1, 0, 4, 1, 5), t1 = r0.shuffle(r1, 2, 6, 3, 7), t2 = r2.shuffle(r3, 0, 4, 1, 5), t3 = r2.shuffle(r3, 2, 6, 3, 7);
+				t0.shuffle(t2, 0, 1, 4, 5).store(dst, 16 * ((4 * bj + 0) * 2 + bi));
+				t0.shuffle(t2, 2, 3, 6, 7).store(dst, 16 * ((4 * bj + 1) * 2 + bi));
+				t1.shuffle(t3, 0, 1, 4, 5).store(dst, 16 * ((4 * bj + 2) * 2 + bi));
+				t1.shuffle(t3, 2, 3, 6, 7).store(dst, 16 * ((4 * bj + 3) * 2 + bi));
+			}
+	}
 
 	// libjpeg's jpeg_idct_islow: a block's coefficients dequantized, columns then rows, into 8x8 samples
 	static function idct(co:Coeffs, o:Int, q:Vector<Int>, ws:Vector<Int>, out:Bytes, at:Int, stride:Int) {
@@ -668,6 +864,8 @@ private class Component {
 	public var blocksX = 0;
 	public var blocksY = 0;
 	public var coeffs:Null<Coeffs>;
+	// its block's samples a side (8; scaled, 4, 2 or 1, or more than the image's)
+	public var bs = 8;
 	public var pixels:Null<Bytes>;
 	public var dcTable = 0;
 	public var acTable = 0;
@@ -720,6 +918,9 @@ abstract Coeffs(Bytes) {
 
 	@:arrayAccess inline function get(i:Int):Int
 		return (this.getUInt16(i << 1) << 16) >> 16;
+
+	public inline function bytes():Bytes
+		return this;
 
 	@:arrayAccess inline function set(i:Int, v:Int):Int {
 		this.setUInt16(i << 1, v & 0xFFFF);
