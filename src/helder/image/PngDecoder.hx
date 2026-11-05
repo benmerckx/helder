@@ -15,7 +15,10 @@ import hxmc.Span;
 class PngDecoder {
 	// the pixels: width * height * 4 bytes, rows top to bottom, straight alpha
 	// (an animated PNG's: its default image)
-	public static function decode(png:Bytes):{width:Int, height:Int, rgba:Bytes} {
+	public static function decode(png:Bytes):{width:Int, height:Int, rgba:Bytes}
+		return ImageLimits.guard("PngDecoder", () -> still(png));
+
+	static function still(png:Bytes):{width:Int, height:Int, rgba:Bytes} {
 		var info = header(png);
 		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
 		var px = w * h * 4, out = Bytes.alloc(px);
@@ -31,11 +34,16 @@ class PngDecoder {
 	static function header(png:Bytes):Bytes {
 		var info = Bytes.alloc(PngCore.INFO);
 		check(PngCore.info(ReadOnlySpan.ofBytes(png), Span.ofBytes(info)), info);
+		// (the pixels, and the rows decoded beside them when they are more)
+		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
+		ImageLimits.check("PngDecoder", w, h, 4);
+		var len = PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h);
+		ImageLimits.memory("PngDecoder", (w : Float) * h * 4 + (len == w * h * 4 ? 0 : len));
 		return info;
 	}
 
 	static function check(e:Int, info:Bytes)
-		if (e != 0) throw PngCore.message(e, info);
+		if (e != 0) throw PngCore.error(e, info);
 
 	// (decoded into a buffer of its own, the pixels copied to out: the file's
 	// image data, or a frame's zlib stream; off the GC heap on hxmc)
@@ -69,17 +77,24 @@ class PngDecoder {
 	// back as it was), with its delay (seconds) and the repetitions after
 	// the first play (-1: forever); a PNG without animation, its image as
 	// the one frame. A frame drawn over another blends with straight alpha.
-	public static function frames(png:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
+	public static function frames(png:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>}
+		return ImageLimits.guard("PngDecoder", () -> animated(png));
+
+	static function animated(png:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
 		var info = header(png);
 		var w = info.getInt32(PngCore.WIDTH), height = info.getInt32(PngCore.HEIGHT);
 		var f = animation(png);
 		if (f.frames.length == 0)
-			return {width: w, height: height, repetitions: 0, frames: [{rgba: decode(png).rgba, delay: 0.0}]};
+			return {width: w, height: height, repetitions: 0, frames: [{rgba: still(png).rgba, delay: 0.0}]};
+		// (the canvas, the one put back, then each frame's copy and its region)
+		var budget = new DecodeBudget("PngDecoder", (w : Float) * height * 8);
 		var canvas = Bytes.alloc(w * height * 4), out = [];
 		for (k in 0...f.frames.length) {
 			var a = f.frames[k];
-			if (a.x < 0 || a.y < 0 || a.width <= 0 || a.height <= 0 || a.x + a.width > w || a.y + a.height > height)
-				throw "PngDecoder: a frame outside the image";
+			// (no sum that could overflow: each side within what is left of the image)
+			if (a.x < 0 || a.y < 0 || a.width <= 0 || a.height <= 0 || a.x > w || a.y > height || a.width > w - a.x || a.height > height - a.y)
+				throw ImageError.corrupt("PngDecoder: a frame outside the image");
+			budget.add((w : Float) * height * 4 + (a.width : Float) * a.height * 4 + PngCore.bufferLength(ReadOnlySpan.ofBytes(info), a.width, a.height));
 			var sub = region(png, info, a.inIdat ? f.idat : a.parts.getBytes(), a.width, a.height);
 			// (put back after it: the canvas before it; the first frame's "previous" is a clear)
 			var before = a.dispose == 2 && k > 0 ? canvas.sub(0, canvas.length) : null;
@@ -122,6 +137,7 @@ class PngDecoder {
 		var p = 8;
 		while (p + 8 <= png.length) {
 			var n = u32(png, p), name = png.getString(p + 4, 4), at = p + 8;
+			if (n < 0 || n > png.length - at - 4) break;
 			switch name {
 				case "acTL" if (n >= 8):
 					plays = u32(png, at + 4);

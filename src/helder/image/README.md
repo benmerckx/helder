@@ -61,7 +61,7 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   `png` the job itself. JPEG, GIF and WebP decode on the calling thread
   for now.
 - `JpegDecoder`: baseline and progressive, decoded as browsers do, the
-  EXIF orientation applied.
+  EXIF orientation applied (`Exif`).
 - `GifDecoder`: the first frame, or `frames`.
 - `WebpDecoder` (with `Vp8Decoder`, `Vp8Tables`): lossless and lossy, with
   alpha, pixel-exact with libwebp's decoding; `frames` an animation's.
@@ -75,9 +75,53 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   (`decode`, tests); helder.gfx's `TextureFormat.BC1`, `BC3`, `ASTC4x4`
   sample them where `Device.supports` says the GPU does.
 
+## Limits and errors
+
+Every decoder checks what a file's header asks for before allocating it
+(`ImageLimits`), and each size it reads from a file is computed so that it
+cannot overflow (in Float, or within an Int once checked):
+
+```haxe
+ImageLimits.maxPixels = 268435456;   // width * height: 2^28, about 268 MP (the default)
+ImageLimits.maxSide = 65536;         // either side
+ImageLimits.maxMemory = 2147483648;  // the bytes one decode may allocate (2 GiB)
+try Image.decode(bytes) catch (e:ImageError) switch e.kind {
+	case TooLarge: ...;              // over a limit: its message says which
+	case Corrupt: ...;               // malformed or cut short
+	case Unsupported: ...;           // another format, or a feature not decoded
+}
+```
+
+`ImageLimits.check` is called right after each header: the image's sides
+and pixels, then the memory its decode takes by the decoder's own count
+(JPEG: each component's coefficients and samples, the planes, the pixels;
+PNG: the pixels and the rows decoded beside them; WebP lossless: the
+pixels, a transform's copy, the prefix codes of every group; VP8: its
+planes by whole macroblocks and ALPH's; an animation's frames added as
+they come, `DecodeBudget`). A frame's rectangle (GIF, APNG, an ANMF), an
+LZW stream's size, a chunk's or segment's length are checked against the
+image and the file without a sum that could wrap; reads past a file's end
+are zeros (GIF) or a `Corrupt` error. Whatever else a decoder throws is an
+`ImageError` too (`ImageLimits.guard`: an index out of a hostile file's
+range is `Corrupt`), so a caller catches one type. Tests:
+`ImageLimits.test.hx` (hostile headers per decoder: the largest sides,
+products past an Int, a frame larger than its screen, chunks past the end,
+every test image cut short), `bun run test image-fuzz` (tests/image/Fuzz.hx:
+a time-boxed mutation fuzzer over tests/image's files, the limits lowered;
+CI's headless job runs it for 30 s), and the image lane checks every
+`hxmc.unsafe` of helder.image against a reviewed list
+(`tests/image/unsafe.mjs`, `unsafe.txt`).
+
+`Exif.orientation(file)` reads EXIF's orientation (1 to 8) from a JPEG's
+APP1 or a WebP's EXIF chunk: IFD0 only, every offset within the TIFF block
+(no chain of IFDs followed: no loop, no depth); `Exif.apply` shows pixels
+upright. JpegDecoder applies it as browsers do; WebpDecoder's pixels are
+libwebp's, as stored (helder's viewer applies it).
+
 SVG is `helder.ui`'s (`Svg`: it draws through ui's `Drawing`).
 
-Tests: `tests/image/ImageTest.hx` (`bun run test image`, on Eval and
+Tests: `src/helder/image/ImageLimits.test.hx` and `Exif.test.hx` (the
+test lane, natively and on wasm32); `tests/image/ImageTest.hx` (`bun run test image`, on Eval and
 natively): the decoders against Chromium's and libwebp's pixels, the
 cases written by `tests/image/*-cases.mjs`; `tests/image/ImageJobs.test.hx`
 the PNG cases through the job (natively and on wasm32-wasi);

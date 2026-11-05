@@ -85,6 +85,9 @@ class Vp8Decoder {
 		width = (data.get(at + 6) | (data.get(at + 7) << 8)) & 0x3FFF;
 		height = (data.get(at + 8) | (data.get(at + 9) << 8)) & 0x3FFF;
 		if (width == 0 || height == 0) throw "WebpDecoder: an empty frame";
+		// (Y, U and V by whole macroblocks, the RGBA8 result, ALPH's plane and its lossless pixels)
+		ImageLimits.check("WebpDecoder", width, height, 11);
+		if (first > size - 10) throw "WebpDecoder: VP8's first partition past its chunk";
 		mbw = (width + 15) >> 4;
 		mbh = (height + 15) >> 4;
 		ys = mbw * 16;
@@ -98,6 +101,7 @@ class Vp8Decoder {
 		// the token partitions
 		var count = 1 << br.literal(2);
 		var sizes = p + first, start = sizes + 3 * (count - 1), end = at + size;
+		if (start > end) throw "WebpDecoder: VP8's partition sizes past its chunk";
 		var parts:Array<BoolDecoder> = [];
 		for (i in 0...count) {
 			var len = i < count - 1 ? data.get(sizes + 3 * i) | (data.get(sizes + 3 * i + 1) << 8) | (data.get(sizes + 3 * i + 2) << 16) : end - start;

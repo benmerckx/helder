@@ -47,8 +47,8 @@ class JpegDecoder {
 
 	// the pixels: width * height * 4 bytes, rows top to bottom, opaque
 	public static function decode(jpg:Bytes):{width:Int, height:Int, rgba:Bytes} {
-		if (jpg.length < 4 || jpg.get(0) != 0xFF || jpg.get(1) != 0xD8) throw "JpegDecoder: not a JPEG file";
-		return new JpegDecoder(jpg).run();
+		if (jpg.length < 4 || jpg.get(0) != 0xFF || jpg.get(1) != 0xD8) throw ImageError.unsupported("JpegDecoder: not a JPEG file");
+		return ImageLimits.guard("JpegDecoder", () -> new JpegDecoder(jpg).run());
 	}
 
 	function new(data:Bytes)
@@ -77,23 +77,23 @@ class JpegDecoder {
 			}
 			if (m == 0xD9) break;
 			var len = u16(pos), seg = pos + 2, end = pos + len;
-			if (end > data.length) throw "JpegDecoder: a truncated segment";
+			if (len < 2 || end > data.length) throw "JpegDecoder: a truncated segment";
 			switch m {
 				case 0xDB: readQuant(seg, end);
 				case 0xC4: readHuffman(seg, end);
 				case 0xDD: restartInterval = u16(seg);
-				case 0xC0 | 0xC1 | 0xC2: readFrame(seg, m == 0xC2);
+				case 0xC0 | 0xC1 | 0xC2: readFrame(seg, end, m == 0xC2);
 				case 0xC3 | 0xC5 | 0xC6 | 0xC7 | 0xC9 | 0xCA | 0xCB | 0xCD | 0xCE | 0xCF:
-					throw "JpegDecoder: lossless, hierarchical or arithmetic-coded JPEGs are not supported";
+					throw ImageError.unsupported("JpegDecoder: lossless, hierarchical or arithmetic-coded JPEGs are not supported");
 				case 0xE0:
 					if (len >= 7 && data.getString(seg, 4) == "JFIF") jfif = true;
 				case 0xE1:
-					if (len >= 8 && data.getString(seg, 4) == "Exif") readExif(seg + 6, end);
+					if (len >= 8 && data.getString(seg, 4) == "Exif" && orientation == 1) orientation = Exif.tiff(data, seg + 6, end);
 				case 0xEE:
 					if (len >= 14 && data.getString(seg, 5) == "Adobe") adobe = data.get(seg + 11);
 				case 0xDA:
 					pos = end;
-					readScan(seg);
+					readScan(seg, end);
 					continue;
 				case _:
 			}
@@ -108,6 +108,7 @@ class JpegDecoder {
 			var pq = data.get(p) >> 4, tq = data.get(p) & 15;
 			p++;
 			if (tq > 3) throw "JpegDecoder: a quantization table id " + tq;
+			if (p + (pq == 0 ? 64 : 128) > end) throw "JpegDecoder: a quantization table cut short";
 			var t = new Vector<Int>(64);
 			for (i in 0...64) {
 				t[ZIGZAG[i]] = pq == 0 ? data.get(p) : u16(p);
@@ -121,10 +122,17 @@ class JpegDecoder {
 		while (p < end) {
 			var tc = data.get(p) >> 4, th = data.get(p) & 15;
 			if (th > 3) throw "JpegDecoder: a Huffman table id " + th;
+			if (p + 17 > end) throw "JpegDecoder: a Huffman table cut short";
 			var counts = [for (i in 0...16) data.get(p + 1 + i)];
 			var n = 0;
-			for (c in counts)
+			// (no more codes of a length than it has: a table that fits)
+			var room = 2;
+			for (c in counts) {
 				n += c;
+				if (c > room) throw "JpegDecoder: a Huffman table of too many codes";
+				room = (room - c) * 2;
+			}
+			if (p + 17 + n > end) throw "JpegDecoder: a Huffman table cut short";
 			var symbols = [for (i in 0...n) data.get(p + 17 + i)];
 			var h = new Huffman(counts, symbols);
 			if (tc == 0) dcTables[th] = h else acTables[th] = h;
@@ -132,62 +140,53 @@ class JpegDecoder {
 		}
 	}
 
-	function readFrame(p:Int, prog:Bool) {
+	function readFrame(p:Int, end:Int, prog:Bool) {
 		if (frameRead) throw "JpegDecoder: more than one frame";
 		frameRead = true;
 		progressive = prog;
-		if (data.get(p) != 8) throw "JpegDecoder: " + data.get(p) + "-bit samples are not supported";
+		if (p + 6 > end) throw "JpegDecoder: a frame header cut short";
+		if (data.get(p) != 8) throw ImageError.unsupported("JpegDecoder: " + data.get(p) + "-bit samples are not supported");
 		height = u16(p + 1);
 		width = u16(p + 3);
-		if (width == 0 || height == 0) throw "JpegDecoder: an image without a size (DNL) is not supported";
-		if (width * height > 1 << 28) throw "JpegDecoder: too large";
+		if (width == 0 || height == 0) throw ImageError.unsupported("JpegDecoder: an image without a size (DNL) is not supported");
+		// (the sides and pixels first: the sizes below are within an Int then)
+		ImageLimits.check("JpegDecoder", width, height, 0);
 		var n = data.get(p + 5);
-		if (n != 1 && n != 3 && n != 4) throw "JpegDecoder: " + n + " components";
+		if (n != 1 && n != 3 && n != 4) throw ImageError.unsupported("JpegDecoder: " + n + " components");
+		if (p + 6 + 3 * n > end) throw "JpegDecoder: a frame header cut short";
 		for (i in 0...n) {
 			var q = p + 6 + 3 * i;
 			var c = new Component(data.get(q), data.get(q + 1) >> 4, data.get(q + 1) & 15, data.get(q + 2));
-			if (c.h < 1 || c.h > 4 || c.v < 1 || c.v > 4) throw "JpegDecoder: sampling factors " + c.h + "x" + c.v;
+			if (c.h < 1 || c.h > 4 || c.v < 1 || c.v > 4) throw ImageError.unsupported("JpegDecoder: sampling factors " + c.h + "x" + c.v);
+			if (c.tq > 3) throw "JpegDecoder: a quantization table id " + c.tq;
 			components.push(c);
 			if (c.h > hmax) hmax = c.h;
 			if (c.v > vmax) vmax = c.v;
 		}
 		mcusX = Std.int((width + 8 * hmax - 1) / (8 * hmax));
 		mcusY = Std.int((height + 8 * vmax - 1) / (8 * vmax));
+		// (the decode's memory: each component's coefficients (an Int each)
+		// and samples, then its plane at the image's size, the pixels, and a
+		// turned copy of them)
+		var bytes = 0.0;
 		for (c in components) {
 			c.width = Std.int((width * c.h + hmax - 1) / hmax);
 			c.height = Std.int((height * c.v + vmax - 1) / vmax);
 			c.blocksX = mcusX * c.h;
 			c.blocksY = mcusY * c.v;
+			bytes += (c.blocksX : Float) * c.blocksY * 64 * 5 + (width : Float) * height;
+		}
+		ImageLimits.memory("JpegDecoder", bytes + (width : Float) * height * 8);
+		for (c in components)
 			c.coeffs = new Vector<Int>(c.blocksX * c.blocksY * 64, 0);
-		}
-	}
-
-	// EXIF's orientation (IFD0's tag 0x112), from the TIFF header at p
-	function readExif(p:Int, end:Int) {
-		if (p + 8 > end) return;
-		var le = data.get(p) == 0x49;
-		inline function r16(q:Int):Int
-			return le ? data.get(q) | (data.get(q + 1) << 8) : u16(q);
-		inline function r32(q:Int):Int
-			return le ? r16(q) | (r16(q + 2) << 16) : (u16(q) << 16) | u16(q + 2);
-		var ifd = p + r32(p + 4);
-		if (ifd + 2 > end) return;
-		var n = r16(ifd);
-		for (i in 0...n) {
-			var e = ifd + 2 + 12 * i;
-			if (e + 12 > end) return;
-			if (r16(e) == 0x112) {
-				var v = r16(e + 8);
-				if (v >= 1 && v <= 8) orientation = v;
-			}
-		}
 	}
 
 	// --- scans ---
 
-	function readScan(p:Int) {
+	function readScan(p:Int, end:Int) {
 		if (!frameRead) throw "JpegDecoder: a scan before the frame";
 		var n = data.get(p);
+		if (n < 1 || n > 4 || p + 4 + 2 * n > end) throw "JpegDecoder: a scan header cut short";
 		var scan:Array<Component> = [];
 		for (i in 0...n) {
 			var id = data.get(p + 1 + 2 * i), t = data.get(p + 2 + 2 * i);
@@ -197,6 +196,7 @@ class JpegDecoder {
 			if (c == null) throw "JpegDecoder: a scan of an unknown component";
 			c.dcTable = t >> 4;
 			c.acTable = t & 15;
+			if (c.dcTable > 3 || c.acTable > 3) throw "JpegDecoder: a Huffman table id " + t;
 			scan.push(c);
 		}
 		var q = p + 1 + 2 * n;
@@ -206,6 +206,7 @@ class JpegDecoder {
 			se = 63;
 			ah = al = 0;
 		}
+		if (se > 63 || ss > se || al > 13) throw "JpegDecoder: a scan's spectral selection " + ss + "-" + se;
 		for (c in scan) {
 			c.pred = 0;
 			var needDc = ss == 0 && ah == 0, needAc = !progressive || ss > 0;
@@ -539,27 +540,8 @@ class JpegDecoder {
 	}
 
 	// EXIF's orientation applied (2-8: mirrored, rotated)
-	function orient(rgba:Bytes):{width:Int, height:Int, rgba:Bytes} {
-		if (orientation == 1) return {width: width, height: height, rgba: rgba};
-		var swap = orientation >= 5;
-		var w = swap ? height : width, h = swap ? width : height;
-		var out = Bytes.alloc(w * h * 4);
-		for (y in 0...height)
-			for (x in 0...width) {
-				var dx:Int, dy:Int;
-				switch orientation {
-					case 2: dx = width - 1 - x; dy = y;
-					case 3: dx = width - 1 - x; dy = height - 1 - y;
-					case 4: dx = x; dy = height - 1 - y;
-					case 5: dx = y; dy = x;
-					case 6: dx = height - 1 - y; dy = x;
-					case 7: dx = height - 1 - y; dy = width - 1 - x;
-					case _: dx = y; dy = width - 1 - x;
-				}
-				out.setInt32(4 * (dy * w + dx), rgba.getInt32(4 * (y * width + x)));
-			}
-		return {width: w, height: h, rgba: out};
-	}
+	function orient(rgba:Bytes):{width:Int, height:Int, rgba:Bytes}
+		return Exif.apply(rgba, width, height, orientation);
 
 	// libjpeg's jpeg_idct_islow: a block's coefficients dequantized, columns then rows, into 8x8 samples
 	static function idct(co:Vector<Int>, o:Int, q:Vector<Int>, ws:Vector<Int>, out:Bytes, at:Int, stride:Int) {

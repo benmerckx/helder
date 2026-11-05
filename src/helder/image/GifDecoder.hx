@@ -14,25 +14,35 @@ import haxe.io.Bytes;
 // NETSCAPE2.0 extension's; 0 in it: forever, -1; without it: 0).
 class GifDecoder {
 	public static function decode(gif:Bytes):{width:Int, height:Int, rgba:Bytes} {
-		var a = read(gif, true);
+		var a = ImageLimits.guard("GifDecoder", () -> read(gif, true));
 		return {width: a.width, height: a.height, rgba: a.frames[0].rgba};
 	}
 
 	public static function frames(gif:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>}
-		return read(gif, false);
+		return ImageLimits.guard("GifDecoder", () -> read(gif, false));
 
+	// (every size from the file checked against ImageLimits before its
+	// allocation, every read within the file: past its end a zero; a file
+	// cut short in a frame's data keeps what came, as browsers show it)
 	static function read(gif:Bytes, first:Bool):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
-		if (gif.length < 13 || gif.getString(0, 3) != "GIF") throw "GifDecoder: not a GIF file";
+		if (gif.length < 3 || gif.getString(0, 3) != "GIF") throw ImageError.unsupported("GifDecoder: not a GIF file");
+		if (gif.length < 13) throw ImageError.corrupt("GifDecoder: its header cut short");
+		var len = gif.length;
+		inline function u8(p:Int):Int
+			return p >= 0 && p < len ? gif.get(p) : 0;
 		inline function u16(p:Int):Int
-			return gif.get(p) | (gif.get(p + 1) << 8);
+			return u8(p) | (u8(p + 1) << 8);
 		var width = u16(6), height = u16(8), packed = gif.get(10);
-		if (width == 0 || height == 0) throw "GifDecoder: an empty image";
+		if (width == 0 || height == 0) throw ImageError.corrupt("GifDecoder: an empty image");
+		// (the screen, a frame's copy, the one before it, a frame's indices)
+		var budget = new DecodeBudget("GifDecoder", ImageLimits.check("GifDecoder", width, height, 13));
 		var p = 13;
 		var global:Null<Int> = null, globalSize = 0;
 		if (packed & 0x80 != 0) {
 			globalSize = 1 << ((packed & 7) + 1);
 			global = p;
 			p += 3 * globalSize;
+			if (p > len) throw ImageError.corrupt("GifDecoder: the colour table is cut short");
 		}
 		var frames:Array<{rgba:Bytes, delay:Float}> = [];
 		var repetitions = 0;
@@ -40,29 +50,37 @@ class GifDecoder {
 		var screen = Bytes.alloc(width * height * 4);
 		screen.fill(0, screen.length, 0);
 		var transparent = -1, delay = 0.0, disposal = 0;
-		while (p < gif.length) {
+		while (p < len) {
 			var b = gif.get(p++);
 			if (b == 0x3B) break;
 			if (b == 0x21) {
-				var label = gif.get(p++);
+				var label = u8(p++);
 				// the graphic control extension: disposal, delay (1/100 s), the transparent index
-				if (label == 0xF9 && gif.get(p) >= 4) {
-					var f = gif.get(p + 1);
+				if (label == 0xF9 && u8(p) >= 4) {
+					var f = u8(p + 1);
 					disposal = (f >> 2) & 7;
 					delay = u16(p + 2) / 100;
-					transparent = f & 1 != 0 ? gif.get(p + 4) : -1;
+					transparent = f & 1 != 0 ? u8(p + 4) : -1;
 				}
 				// the application extension NETSCAPE2.0: the loop count
-				if (label == 0xFF && gif.get(p) == 11 && gif.getString(p + 1, 11) == "NETSCAPE2.0" && gif.get(p + 12) >= 3 && gif.get(p + 13) == 1) {
+				if (label == 0xFF && u8(p) == 11 && p + 12 <= len && gif.getString(p + 1, 11) == "NETSCAPE2.0" && u8(p + 12) >= 3 && u8(p + 13) == 1) {
 					var n = u16(p + 14);
 					repetitions = n == 0 ? -1 : n;
 				}
-				while (p < gif.length && gif.get(p) != 0)
+				while (p < len && gif.get(p) != 0)
 					p += gif.get(p) + 1;
 				p++;
 				continue;
 			}
-			if (b != 0x2C) throw "GifDecoder: an unknown block 0x" + StringTools.hex(b);
+			if (b != 0x2C) {
+				// (data after the last frame: what came is shown, as browsers do)
+				if (frames.length > 0) break;
+				throw ImageError.corrupt("GifDecoder: an unknown block 0x" + StringTools.hex(b));
+			}
+			if (p + 9 > len) {
+				if (frames.length > 0) break;
+				throw ImageError.corrupt("GifDecoder: a frame's header cut short");
+			}
 			var left = u16(p), top = u16(p + 2), w = u16(p + 4), h = u16(p + 6), ip = gif.get(p + 8);
 			p += 9;
 			var table = global, tableSize = globalSize;
@@ -70,14 +88,19 @@ class GifDecoder {
 				tableSize = 1 << ((ip & 7) + 1);
 				table = p;
 				p += 3 * tableSize;
+				if (p > len) throw ImageError.corrupt("GifDecoder: a frame's colour table is cut short");
 			}
-			if (table == null) throw "GifDecoder: no colour table";
-			var minCode = gif.get(p++);
+			if (table == null) throw ImageError.corrupt("GifDecoder: no colour table");
+			// (a frame may be larger than the screen, its outside cut: its
+			// indices are within the limits too)
+			if (w > 0 && h > 0) budget.add(ImageLimits.check("GifDecoder", w, h, 1));
+			var minCode = u8(p++);
 			// the image data's sub-blocks, joined
 			var data = new haxe.io.BytesBuffer();
-			while (p < gif.length && gif.get(p) != 0) {
+			while (p < len && gif.get(p) != 0) {
 				var n = gif.get(p);
-				data.addBytes(gif, p + 1, n);
+				var m = p + 1 + n > len ? len - p - 1 : n;
+				data.addBytes(gif, p + 1, m);
 				p += n + 1;
 			}
 			p++;
@@ -104,22 +127,24 @@ class GifDecoder {
 			}
 			frames.push({rgba: screen.sub(0, screen.length), delay: delay});
 			if (first) break;
+			budget.add(screen.length);
 			// this frame disposed of before the next: cleared to transparent, or the screen before it
 			if (disposal == 2) {
-				for (y in top...Std.int(Math.min(top + h, height)))
-					screen.fill(4 * (y * width + left), 4 * (Std.int(Math.min(left + w, width)) - left), 0);
+				if (left < width)
+					for (y in top...Std.int(Math.min(top + h, height)))
+						screen.fill(4 * (y * width + left), 4 * (Std.int(Math.min(left + w, width)) - left), 0);
 			} else if (before != null) screen = before;
 			transparent = -1;
 			delay = 0;
 			disposal = 0;
 		}
-		if (frames.length == 0) throw "GifDecoder: no image";
+		if (frames.length == 0) throw ImageError.corrupt("GifDecoder: no image");
 		return {width: width, height: height, repetitions: repetitions, frames: frames};
 	}
 
 	// the LZW codes to n colour indices (what is missing: 0)
 	static function lzw(data:Bytes, minCode:Int, n:Int):Bytes {
-		if (minCode < 2 || minCode > 8) throw "GifDecoder: an LZW code size of " + minCode;
+		if (minCode < 2 || minCode > 8) throw ImageError.corrupt("GifDecoder: an LZW code size of " + minCode);
 		var out = Bytes.alloc(n);
 		var clear = 1 << minCode, end = clear + 1;
 		// the dictionary: each code's prefix code and last index, and its length

@@ -1,0 +1,24 @@
+# hxmc.unsafe in helder.image, reviewed (tests/image/unsafe.mjs checks the code
+# against it in the image lane). Each line: the file, then the line's code.
+# PngCore: its scratch's memory (malloc'd once a thread) and the spans over it;
+# ImageJobs: the PNG job over the job's buffers; PngDecoder and Image: an
+# IoBuffer off the GC heap, freed after; WebImages: the browser's decoder's
+# imports; ImageAsset and ImageTexture: a Bytes' pointer handed to them.
+src/helder/image/Image.hx: var buf = hxmc.unsafe.IoBuffer.alloc(n * 4), pre = buf.view();
+src/helder/image/ImageJobs.hx: import hxmc.unsafe.IoBuffer;
+src/helder/image/ImageJobs.hx: import hxmc.unsafe.Mem;
+src/helder/image/ImageJobs.hx: import hxmc.unsafe.Ptr;
+src/helder/image/ImageJobs.hx: import hxmc.unsafe.UInt8;
+src/helder/image/ImageJobs.hx: @:hxmc.unsafe @:hxmc.callback public static function png(job:Job):Int {
+src/helder/image/PngCore.hx: import hxmc.unsafe.UInt8;
+src/helder/image/PngCore.hx: @:hxmc.threadLocal static var memory:hxmc.unsafe.Ptr;
+src/helder/image/PngCore.hx: @:hxmc.unsafe @:hxmc.kernel public static function get():Span<UInt8> {
+src/helder/image/PngCore.hx: var p:hxmc.unsafe.Ptr<UInt8> = cast memory;
+src/helder/image/PngCore.hx: p = cast hxmc.unsafe.LibC.malloc(PngCore.SCRATCH);
+src/helder/image/PngDecoder.hx: var b = hxmc.unsafe.IoBuffer.alloc(len);
+src/helder/image/WebImages.hx: import hxmc.unsafe.Ptr;
+src/helder/asset/ImageAsset.hx: var h = helder.image.WebImages.decode(f, hxmc.unsafe.Ptr.nil(), 0, 1);
+src/helder/asset/ImageAsset.hx: @:hxmc.unsafe static function take(h:Int, b:haxe.io.Bytes, n:Int)
+src/helder/asset/ImageAsset.hx: helder.image.WebImages.file_take(h, hxmc.unsafe.BytesPtr.of(b, 0, n));
+src/helder/gfx/ImageTexture.hx: @:hxmc.unsafe static function start(b:haxe.io.Bytes, offset:Int, length:Int):Int
+src/helder/gfx/ImageTexture.hx: return helder.image.WebImages.decode(0, hxmc.unsafe.BytesPtr.of(b, offset, length), length, 0);

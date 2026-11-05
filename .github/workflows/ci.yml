@@ -1,7 +1,8 @@
 # The checks (tests/Run.hx: bun run test <lane>), with @hxmc/cli's compiler
 # installed by bun (package.json's devDependencies; node runs the compiler's
 # launcher and the test scripts).
-# - headless: the lanes that need no GPU, display or browser (bun run test);
+# - headless: the lanes that need no GPU, display or browser (bun run test),
+#   then helder.image's decoders fuzzed for 30 s (image-fuzz);
 # - gfx: the native GPU and audio lanes on Mesa's llvmpipe and Xvfb;
 # - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium;
 # - android: tests/pack/Hello.hx on an emulator (helder run, adb), the
@@ -57,6 +58,8 @@ jobs:
         run: |
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           STORE_SHOTS_REQUIRE=1 bun run test -k headless
+      - name: helder.image's decoders fuzzed for 30 s (tests/image/Fuzz.hx)
+        run: bun run test image-fuzz
 
   gfx:
     runs-on: ubuntu-24.04

@@ -43,7 +43,7 @@ class ImageJobs {
 	@:coroutine public static function decode(bytes:Bytes):Image {
 		if (!(bytes.length >= 8 && bytes.get(0) == 0x89 && bytes.get(1) == 0x50 && bytes.get(2) == 0x4E && bytes.get(3) == 0x47))
 			return Image.decode(bytes);
-		var p = pixels(IoBuffer.ofBytes(bytes));
+		var p = try pixels(IoBuffer.ofBytes(bytes)) catch (j:JobError) throw PngCore.error(j.code, Bytes.alloc(PngCore.INFO));
 		var image = new Image(p.width, p.height, p.rgba.view());
 		@:privateAccess image.source = {bytes: bytes, type: "png"};
 		return image;
@@ -51,15 +51,19 @@ class ImageJobs {
 
 	// a PNG file's pixels (the file moved into the job): RGBA8, rows top to
 	// bottom, straight alpha, in an IoBuffer the caller frees; its header's
-	// errors thrown here (PngDecoder's), the data's as a JobError (PngCore's
-	// code, PngDecoder's message)
+	// errors and ImageLimits' thrown here (ImageError), the data's as a
+	// JobError (PngCore's code, PngDecoder's message; decode: an ImageError)
 	@:coroutine public static function pixels(file:IoBuffer):{width:Int, height:Int, rgba:IoBuffer} {
 		var info = Bytes.alloc(PngCore.INFO);
 		var e = PngCore.info(ReadOnlySpan.ofIoBuffer(file), Span.ofBytes(info));
 		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
+		if (e == 0) try ImageLimits.check("PngDecoder", w, h, 0, PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h)) catch (x:ImageError) {
+			file.free();
+			throw x;
+		}
 		if (e != 0) {
 			file.free();
-			throw PngCore.message(e, info);
+			throw PngCore.error(e, info);
 		}
 		var rgba = try Jobs.run(ImageJobs.png, file) catch (j:JobError) {
 			throw new JobError(j.code, PngCore.message(j.code, Bytes.alloc(PngCore.INFO)));

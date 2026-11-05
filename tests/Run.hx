@@ -33,7 +33,8 @@ class Run {
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
 		{name: "view", about: "helder.view on Eval, natively and as JavaScript: signals, markup, control flow, the programs the macro rejects", run: view},
 		{name: "text", about: "helder.text on Eval: the rasterizer, DejaVu Sans, line layout, a sample through the atlas (tests/text/sample.png)", run: text},
-		{name: "image", about: "helder.image on Eval and natively: PNG, JPEG, GIF and WebP against Chromium's and libwebp's pixels, animations' frames", run: image},
+		{name: "image", about: "helder.image on Eval and natively: PNG, JPEG, GIF and WebP against Chromium's and libwebp's pixels, animations' frames; hxmc.unsafe's uses against the reviewed list (tests/image/unsafe.mjs); its limits and hostile headers are the test lane's (src/helder/image/ImageLimits.test.hx)", run: image},
+		{name: "image-fuzz", about: "helder.image's decoders under a time-boxed mutation fuzzer (tests/image/Fuzz.hx, natively): the test images mutated, each input a decode or an ImageError within its time, the peak memory within budget (FUZZ_SECONDS, FUZZ_SEED)", run: imageFuzz},
 		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader macro on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs it rejects", run: gfxShader},
 		{name: "async", about: "helder.async on Eval and natively (the loop, TCP, processes, the watcher, HTTP and WebSocket; its tasks and timers are the test lane's), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
@@ -122,6 +123,13 @@ class Run {
 		interp(cp, "ImageTest");
 		exe("bin/image/ImageTest", cp.concat(["-main", "ImageTest"]));
 		run(exePath("bin/image/ImageTest", HOST), []);
+		run(NODE, ["tests/image/unsafe.mjs"]);
+	}
+
+	// (FUZZ_SECONDS: the budget, 30 s by default; FUZZ_SEED: where it starts)
+	static function imageFuzz() {
+		exe("bin/image/Fuzz", cps(["src", "tests/image"]).concat(["-main", "Fuzz"]));
+		run(exePath("bin/image/Fuzz", HOST), [Sys.getEnv("FUZZ_SECONDS") ?? "30", Sys.getEnv("FUZZ_SEED") ?? "1"]);
 	}
 
 	static function ui() {

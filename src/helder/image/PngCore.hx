@@ -58,6 +58,14 @@ class PngCore {
 	public static inline var DETAIL = 40;
 	public static inline var INFO = 44;
 
+	// an error as helder.image's ImageError: its kind, its message
+	public static function error(code:Int, info:Bytes):ImageError
+		return new ImageError(switch code {
+			case ERR_SIGNATURE | ERR_FORMAT | ERR_INTERLACE: Unsupported;
+			case ERR_LARGE | ERR_MEMORY: TooLarge;
+			case _: Corrupt;
+		}, message(code, info));
+
 	// what an error says (PngDecoder's), info as info left it
 	public static function message(code:Int, info:Bytes):String {
 		var d = info.getInt32(DETAIL);
@@ -90,7 +98,7 @@ class PngCore {
 		var p = 8, idat = 0;
 		while (p + 8 <= n) {
 			var len = u32(png, p), name = name(png, p + 4);
-			if (len < 0 || p + 12 + len > n) {
+			if (len < 0 || len > n - p - 12) {
 				f[DETAIL >> 2] = name;
 				return ERR_TRUNCATED;
 			}
@@ -670,7 +678,7 @@ class PngCore {
 		var q = st[0].end + 4;
 		while (q + 8 <= src.length) {
 			var len = u32(src, q);
-			if (name(src, q + 4) != 0x54414449 || len < 0 || q + 12 + len > src.length) break;
+			if (name(src, q + 4) != 0x54414449 || len < 0 || len > src.length - q - 12) break;
 			if (len > 0) {
 				st[0].p = q + 8;
 				st[0].end = q + 8 + len;

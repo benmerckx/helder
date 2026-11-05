@@ -108,7 +108,9 @@ class Model<N, M, A, C> {
 				try
 					asset.resolve(new Model(f.bytes, {}, {}, {}, {}))
 				catch (e:String)
-					asset.fail(e);
+					asset.fail(e)
+				catch (e:helder.image.ImageError)
+					asset.fail(e.message);
 				return true;
 			}
 			if (f.failed) {

@@ -142,22 +142,8 @@ class Image {
 					i += 2;
 					continue;
 				}
-				if (m == 0xE1 && i + 18 < n && b.getString(o + i + 4, 4) == "Exif") {
-					var t = i + 10, le = u8(t) == 0x49;
-					inline function r16(k:Int)
-						return le ? le16(k) : be16(k);
-					inline function r32(k:Int)
-						return le ? le16(k) | (le16(k + 2) << 16) : (be16(k) << 16) | be16(k + 2);
-					var ifd = t + r32(t + 4);
-					if (ifd + 2 <= n) {
-						var count = r16(ifd);
-						for (e in 0...count) {
-							var at = ifd + 2 + 12 * e;
-							if (at + 12 > n) break;
-							if (r16(at) == 0x0112) turned = r16(at + 8) >= 5 && r16(at + 8) <= 8;
-						}
-					}
-				}
+				if (m == 0xE1 && i + 18 < n && b.getString(o + i + 4, 4) == "Exif" && !turned)
+					turned = Exif.swaps(Exif.tiff(b, o + i + 10, o + Std.int(Math.min(n, i + 2 + be16(i + 2)))));
 				i += 2 + be16(i + 2);
 			}
 		}
