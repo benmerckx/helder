@@ -51,7 +51,7 @@ class Manifest {
 	];
 	static final PURPOSE = ["any", "maskable", "monochrome"];
 	static final HELDER = ["version", "build", "id", "android", "ios", "splash"];
-	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key", "signing"];
+	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount"];
 	static final IOS = ["bundleId", "minVersion", "entitlements", "signing", "sdk", "nonExemptEncryption", "privacy"];
 	static final SIGNING = ["certificate", "key", "profile"];
 	public static final SDK = ["version", "build", "xcode", "xcodeBuild", "machine"];
@@ -186,7 +186,8 @@ class Manifest {
 				minSdk: minSdk,
 				targetSdk: targetSdk,
 				key: str(a, "key", '"helder": {"android": {"key"}}'),
-				signing: release
+				signing: release,
+				serviceAccount: str(a, "serviceAccount", '"helder": {"android": {"serviceAccount"}}')
 			},
 			ios: {
 				id: bundle,

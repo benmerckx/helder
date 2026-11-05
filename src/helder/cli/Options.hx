@@ -110,6 +110,20 @@ class Options {
 			],
 		},
 		{
+			name: "publish",
+			usage: "[entry] --play | --testflight [options]",
+			about: "a release built, signed and uploaded: Google Play's track, or TestFlight",
+			entry: true,
+			common: ["out"],
+			own: [
+				{key: "play", names: ["--play"], about: "to Google Play (the App Bundle; HELDER_PLAY_SERVICE_ACCOUNT)"},
+				{key: "testflight", names: ["--testflight"], about: "to TestFlight (the .ipa; HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID, HELDER_ASC_KEY)"},
+				{key: "track", names: ["--track"], value: "<t>", about: "Play's track: internal (the default), alpha, beta, production"},
+				{key: "draft", names: ["--draft"], about: "Play's release a draft (an app never published)"},
+				{key: "dry-run", names: ["--dry-run"], about: "built and signed, what is there read, what would change printed; nothing uploaded"},
+			],
+		},
+		{
 			name: "devices",
 			usage: "",
 			about: "where to run: this machine, a browser, Android devices and emulators, iOS simulators",

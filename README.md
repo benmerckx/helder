@@ -779,7 +779,9 @@ fix.
     Developer ID: the hardened runtime, a secure timestamp, and
     notarisation with stapling.
   - **`helder publish`**, uploading through the stores' own APIs, as
-    fastlane, EAS Submit and Codemagic do:
+    fastlane, EAS Submit and Codemagic do (*landed*: `--play` and
+    `--testflight` with `--dry-run`, checked against a stand-in of both
+    APIs; TestFlight through Apple's build upload API, no Transporter):
     - Google Play: the Play Developer Publishing API with a service
       account (an RS256 JWT): an edit, the AAB uploaded, a track
       (internal, beta, production) set, committed;

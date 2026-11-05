@@ -383,6 +383,8 @@ class Run {
 			checks.push("bin/pack/Fetched.apk");
 			Sys.println('pack: Android\'s runtime objects fetched on first use (${fetched[0]})');
 		}
+		// (helder publish against a stand-in of Google Play's and App Store Connect's APIs)
+		if (have("android-arm64") && have("android-x86_64") && have("macos-arm64")) run(NODE, ["tests/pack/publish.mjs", h, "bin/pack/publish"], env);
 		if (have("macos-arm64")) {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello.ipa"], env);
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios-sim", "-o", "bin/pack/Hello.app"], env);

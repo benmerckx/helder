@@ -24,6 +24,8 @@ helder inspect --tree                         # a running helder dev's ui tree (
 helder devices                                # this machine, a browser, Android devices, iOS simulators
 helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key (or the release key)
 helder build --target android --bundle        # bin/android/<name>.aab for Google Play, signed with the release key
+helder publish --play [--track beta] [--dry-run]   # the .aab to Google Play's track (internal by default)
+helder publish --testflight [--dry-run]       # the signed .ipa to App Store Connect, for TestFlight
 helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's; signed for the App Store with HELDER_IOS_*); --target ios-sim: bin/ios-sim/<name>.app
 helder run --target android -d emulator-5554  # built for the device's ABI, installed, started, its logcat here
 helder dev --target ios                       # on the booted simulator: installed once, each build swapped in
@@ -241,6 +243,43 @@ browser extensions and PWA tools each claim.
   icons and dark launch screen (more of the asset catalog); Android's legacy (pre-adaptive) icons are not needed
   (minSdk 29); the web's splash is not the installed PWA's (the browser
   makes that from `background_color` and the icons).
+
+## Publishing to the stores
+
+`helder publish` (`Publish.hx`) builds the release, signs it and uploads
+it through the store's own API, without fastlane, Transporter or Xcode
+(HTTP by curl):
+
+- **`--play`**: the App Bundle (below: the release key's), a token for
+  the service account (`HELDER_PLAY_SERVICE_ACCOUNT`: its JSON key's path
+  or text, else the manifest's `"android": {"serviceAccount"}`): an RS256
+  JWT (`helder.pack.Jwt`, `Rsa`) for the `androidpublisher` scope,
+  exchanged at the key's `token_uri`; then the Play Developer Publishing
+  API's edit: `edits.insert`, `bundles.upload`, `tracks.update`
+  (`--track`: `internal`, the default, `alpha`, `beta`, `production`; the
+  release `completed`, or `--draft` for an app never published yet),
+  `edits.commit`. The service account needs the app's release
+  permissions in Play Console (Users and permissions), and Play needs a
+  first bundle uploaded by hand to create the app's listing.
+- **`--testflight`**: the `.ipa` signed for distribution (below), an
+  ES256 JWT of the App Store Connect API key (`HELDER_ASC_KEY_ID`,
+  `HELDER_ASC_ISSUER_ID`, `HELDER_ASC_KEY`: the `.p8`'s path or text;
+  `helder.pack.Jwt` with `P256`), the app found by its bundle id
+  (`/v1/apps`), then Apple's build upload API (App Store Connect API,
+  2025): `POST /v1/buildUploads` (the versions, `IOS`), `POST
+  /v1/buildUploadFiles` (the file's name, size, `com.apple.ipa`), each
+  of its upload operations' parts sent where it says, `PATCH` the file
+  uploaded with its MD5, the upload's state read back. No Transporter.
+  TestFlight lists the build once App Store Connect has processed it;
+  its validation's errors come by email and on the build's page.
+- **`--dry-run`**: built and signed, the token got, what is there read
+  (the track's releases; the app's id), what would change printed;
+  nothing uploaded, nothing committed (Play's edit deleted).
+
+Checked against a stand-in of both APIs (`tests/pack/publish.mjs`, the
+pack lane: the JWTs verified with the keys' public halves, every call
+and its order, the uploaded bytes against the files, the dry run's
+calls); a real upload needs the owner's accounts (`helder.pack`'s README).
 
 ## Android and iOS
 

@@ -43,6 +43,8 @@ class Cli {
 				Async.main(task -> Sys.exit(TestCommand.run(task, o)));
 			case "inspect":
 				Async.main(task -> Sys.exit(Inspect.run(task, o)));
+			case "publish":
+				Async.main(_ -> Sys.exit(Publish.run(o)));
 			case "devices":
 				Async.main(_ -> Sys.exit(Devices.run(o)));
 			case c:
