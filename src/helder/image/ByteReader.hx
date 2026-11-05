@@ -3,9 +3,10 @@ package helder.image;
 import haxe.io.Bytes;
 
 // A file's bytes as the decoders read them: every read checked against the
-// file's end (natively a Bytes' read past it is not: hxmc leaves it
-// unspecified, as Haxe does), one past it refused as an ImageError
-// (Corrupt, "a read past the end"). The decoders read their input through
+// file's end, one past it refused as an ImageError (Corrupt, "a read past
+// the end"). Within that range a byte is read unchecked (Bytes.fastGet:
+// the reader's own test is the only one, where hxmc's Bytes.get would test
+// again and throw OutsideBounds). The decoders read their input through
 // nothing else (tests/image/unsafe.mjs checks it); what they made
 // themselves (their planes, canvases, tables) they read as Bytes. u8or0 is
 // for the formats that show what came of a file cut short (GIF's): zeros
@@ -14,12 +15,14 @@ import haxe.io.Bytes;
 final class ByteReader {
 	public final bytes:Bytes;
 	public final length:Int;
+	final data:haxe.io.BytesData;
 
 	public static var refused = 0;
 
 	public inline function new(bytes:Bytes) {
 		this.bytes = bytes;
 		this.length = bytes.length;
+		this.data = bytes.getData();
 	}
 
 	// (p within [0, length): one unsigned comparison)
@@ -27,10 +30,10 @@ final class ByteReader {
 		return n >= 0 && p >= 0 && p <= length - n;
 
 	public inline function u8(p:Int):Int
-		return p >= 0 && p < length ? bytes.get(p) : refuse(p, 1);
+		return p >= 0 && p < length ? Bytes.fastGet(data, p) : refuse(p, 1);
 
 	public inline function u8or0(p:Int):Int
-		return p >= 0 && p < length ? bytes.get(p) : 0;
+		return p >= 0 && p < length ? Bytes.fastGet(data, p) : 0;
 
 	public inline function be16(p:Int):Int
 		return (u8(p) << 8) | u8(p + 1);
