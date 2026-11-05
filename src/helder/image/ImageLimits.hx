@@ -53,7 +53,8 @@ class ImageLimits {
 	// of a hostile file's range, a string of its own: Corrupt)
 	public static function guard<T>(format:String, f:() -> T):T {
 		return try f() catch (e:ImageError) {
-			throw e;
+			// (the reader's refusals name no decoder: this one's)
+			throw StringTools.startsWith(e.message, format) ? e : new ImageError(e.kind, '$format: ${e.message}');
 		} catch (e:String) {
 			throw ImageError.corrupt(StringTools.startsWith(e, format) ? e : '$format: $e');
 		} catch (e:haxe.Exception) {

@@ -101,16 +101,22 @@ planes by whole macroblocks and ALPH's; an animation's frames added as
 they come, `DecodeBudget`). A frame's rectangle (GIF, APNG, an ANMF), an
 LZW stream's size, a chunk's or segment's length are checked against the
 image and the file without a sum that could wrap; reads past a file's end
-are zeros (GIF) or a `Corrupt` error. Whatever else a decoder throws is an
+are zeros (GIF) or a `Corrupt` error: every decoder reads its input
+through `ByteReader` (each read checked against the file's end, one past
+it refused as `Corrupt`: natively a Bytes' read is not checked), PngCore
+through spans; the image lane fails a raw Bytes read of input in a
+decoder (`tests/image/unsafe.mjs`). Whatever else a decoder throws is an
 `ImageError` too (`ImageLimits.guard`: an index out of a hostile file's
 range is `Corrupt`), so a caller catches one type. Tests:
 `ImageLimits.test.hx` (hostile headers per decoder: the largest sides,
 products past an Int, a frame larger than its screen, chunks past the end,
-every test image cut short), `bun run test image-fuzz` (tests/image/Fuzz.hx:
-a time-boxed mutation fuzzer over tests/image's files, the limits lowered;
+every test image cut short, each decoder's file cut in mid-structure),
+`bun run test image-fuzz` (tests/image/Fuzz.hx: a time-boxed mutation
+fuzzer over tests/image's files, the limits lowered, every read the
+reader refused surfacing as an ImageError, none swallowed into a decode;
 CI's headless job runs it for 30 s), and the image lane checks every
-`hxmc.unsafe` of helder.image against a reviewed list
-(`tests/image/unsafe.mjs`, `unsafe.txt`).
+`hxmc.unsafe` of helder.image against a reviewed list, each with its
+reason (`tests/image/unsafe.mjs`, `unsafe.txt`).
 
 `Exif.orientation(file)` reads EXIF's orientation (1 to 8) from a JPEG's
 APP1 or a WebP's EXIF chunk: IFD0 only, every offset within the TIFF block

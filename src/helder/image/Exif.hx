@@ -11,14 +11,14 @@ import haxe.io.Bytes;
 // (`apply`: helder's viewer).
 class Exif {
 	// a JPEG's or WebP's orientation (1 when it has none, or another file)
-	public static function orientation(file:Bytes):Int {
-		var n = file.length;
-		if (n >= 4 && file.get(0) == 0xFF && file.get(1) == 0xD8) {
+	public static function orientation(bytes:Bytes):Int {
+		var file = new ByteReader(bytes), n = file.length;
+		if (n >= 4 && file.u8(0) == 0xFF && file.u8(1) == 0xD8) {
 			// the markers before the first scan
 			var p = 2;
 			while (p + 4 <= n) {
-				if (file.get(p) != 0xFF) return 1;
-				var m = file.get(p + 1);
+				if (file.u8(p) != 0xFF) return 1;
+				var m = file.u8(p + 1);
 				if (m == 0xFF) {
 					p++;
 					continue;
@@ -28,22 +28,22 @@ class Exif {
 					continue;
 				}
 				if (m == 0xDA || m == 0xD9) return 1;
-				var len = (file.get(p + 2) << 8) | file.get(p + 3), end = p + 2 + len;
+				var len = (file.u8(p + 2) << 8) | file.u8(p + 3), end = p + 2 + len;
 				if (len < 2 || end > n) return 1;
-				if (m == 0xE1 && len >= 8 && file.getString(p + 4, 4) == "Exif" && file.get(p + 8) == 0 && file.get(p + 9) == 0) return tiff(file, p + 10, end);
+				if (m == 0xE1 && len >= 8 && file.string(p + 4, 4) == "Exif" && file.u8(p + 8) == 0 && file.u8(p + 9) == 0) return tiff(bytes, p + 10, end);
 				p = end;
 			}
 			return 1;
 		}
-		if (n >= 20 && file.getString(0, 4) == "RIFF" && file.getString(8, 4) == "WEBP") {
+		if (n >= 20 && file.string(0, 4) == "RIFF" && file.string(8, 4) == "WEBP") {
 			var p = 12;
 			while (p + 8 <= n) {
-				var size = file.get(p + 4) | (file.get(p + 5) << 8) | (file.get(p + 6) << 16) | (file.get(p + 7) << 24), at = p + 8;
+				var size = file.u8(p + 4) | (file.u8(p + 5) << 8) | (file.u8(p + 6) << 16) | (file.u8(p + 7) << 24), at = p + 8;
 				if (size < 0 || size > n - at) return 1;
-				if (file.getString(p, 4) == "EXIF") {
+				if (file.string(p, 4) == "EXIF") {
 					// (some writers keep JPEG's "Exif\0\0" before the TIFF header)
-					var t = size >= 6 && file.getString(at, 4) == "Exif" ? at + 6 : at;
-					return tiff(file, t, at + size);
+					var t = size >= 6 && file.string(at, 4) == "Exif" ? at + 6 : at;
+					return tiff(bytes, t, at + size);
 				}
 				p = at + size + (size & 1);
 			}
@@ -52,12 +52,13 @@ class Exif {
 	}
 
 	// the orientation in a TIFF block at [start, end) of b (1 when none)
-	public static function tiff(b:Bytes, start:Int, end:Int):Int {
+	public static function tiff(bytes:Bytes, start:Int, end:Int):Int {
+		var b = new ByteReader(bytes);
 		if (start < 0 || end > b.length || end - start < 8) return 1;
-		var le = b.get(start) == 0x49 && b.get(start + 1) == 0x49;
-		if (!le && !(b.get(start) == 0x4D && b.get(start + 1) == 0x4D)) return 1;
+		var le = b.u8(start) == 0x49 && b.u8(start + 1) == 0x49;
+		if (!le && !(b.u8(start) == 0x4D && b.u8(start + 1) == 0x4D)) return 1;
 		inline function r16(q:Int):Int
-			return le ? b.get(q) | (b.get(q + 1) << 8) : (b.get(q) << 8) | b.get(q + 1);
+			return le ? b.u8(q) | (b.u8(q + 1) << 8) : (b.u8(q) << 8) | b.u8(q + 1);
 		inline function r32(q:Int):Float
 			return le ? r16(q) + r16(q + 2) * 65536.0 : r16(q) * 65536.0 + r16(q + 2);
 		if (r16(start + 2) != 42) return 1;

@@ -9,7 +9,9 @@ import sys.io.File;
 // header ints made huge, runs cut, repeated or spliced from another seed),
 // each input decoded by Image.decode and AnimatedImage.decode with
 // ImageLimits lowered to a small budget. Passes only if every input ends
-// in a decode or an ImageError, each within the time budget, and the
+// in a decode or an ImageError, each within the time budget, every read
+// past the end the checked reader (ByteReader) refused surfacing as an
+// ImageError (none swallowed into a decode), and the
 // process's peak memory stays within its budget (Linux: VmHWM); the input
 // that failed is kept in bin/image/fuzz/.
 //
@@ -57,9 +59,16 @@ class Fuzz {
 			File.saveBytes("bin/image/fuzz/current.bin", input);
 			for (animated in [false, true]) {
 				started = Sys.time();
+				var before = ByteReader.refused;
 				try {
 					if (animated) AnimatedImage.decode(input) else Image.decode(input);
 					decoded++;
+					// (a read past the end the reader refused, yet a decode: swallowed somewhere)
+					if (ByteReader.refused != before) {
+						File.saveBytes("bin/image/fuzz/swallowed.bin", input);
+						Sys.println('fuzz: a read past the end refused, and still decoded (bin/image/fuzz/swallowed.bin)');
+						Sys.exit(5);
+					}
 				} catch (e:ImageError) {
 					errors[cast e.kind]++;
 				} catch (e:Dynamic) {
@@ -72,7 +81,7 @@ class Fuzz {
 			n++;
 		}
 		var peak = peakMemory();
-		Sys.println('fuzz: $n inputs in $seconds s: $decoded decoded, ${errors[0]} unsupported, ${errors[1]} corrupt, ${errors[2]} too large; peak ${peak < 0 ? "?" : Std.string(Math.round(peak)) + " MB"}');
+		Sys.println('fuzz: $n inputs in $seconds s: $decoded decoded, ${errors[0]} unsupported, ${errors[1]} corrupt, ${errors[2]} too large, ${ByteReader.refused} reads past the end refused (each an ImageError); peak ${peak < 0 ? "?" : Std.string(Math.round(peak)) + " MB"}');
 		if (peak > peakMb) {
 			Sys.println('fuzz: peak memory over $peakMb MB');
 			Sys.exit(4);

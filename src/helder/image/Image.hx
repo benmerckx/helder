@@ -102,9 +102,16 @@ class Image {
 	// the width and height a PNG, JPEG, GIF or WebP file says (its header),
 	// null when it is none of those or its header is cut short
 	public static function size(b:Bytes, offset = 0, length = -1):Null<{width:Int, height:Int}> {
-		var n = length < 0 ? b.length - offset : length, o = offset;
+		var n = length < 0 ? b.length - offset : length;
+		if (offset < 0 || n < 0 || offset > b.length - n) return null;
+		// (a read past the range: cut short, null)
+		return try header(b, offset, n) catch (e:ImageError) null;
+	}
+
+	static function header(b:Bytes, o:Int, n:Int):Null<{width:Int, height:Int}> {
+		var r = new ByteReader(b);
 		inline function u8(i:Int)
-			return b.get(o + i);
+			return i < n ? r.u8(o + i) : cut();
 		inline function be16(i:Int)
 			return (u8(i) << 8) | u8(i + 1);
 		inline function le16(i:Int)
@@ -114,7 +121,7 @@ class Image {
 		if (n >= 10 && u8(0) == 0x47 && u8(1) == 0x49 && u8(2) == 0x46)
 			return {width: le16(6), height: le16(8)};
 		if (n >= 30 && u8(0) == 0x52 && u8(1) == 0x49 && u8(8) == 0x57 && u8(9) == 0x45) {
-			var c = b.getString(o + 12, 4);
+			var c = r.string(o + 12, 4);
 			if (c == "VP8X") return {width: 1 + (u8(24) | (u8(25) << 8) | (u8(26) << 16)), height: 1 + (u8(27) | (u8(28) << 8) | (u8(29) << 16))};
 			if (c == "VP8L") {
 				var v = u8(21) | (u8(22) << 8) | (u8(23) << 16) | (u8(24) << 24);
@@ -142,7 +149,7 @@ class Image {
 					i += 2;
 					continue;
 				}
-				if (m == 0xE1 && i + 18 < n && b.getString(o + i + 4, 4) == "Exif" && !turned)
+				if (m == 0xE1 && i + 18 < n && r.string(o + i + 4, 4) == "Exif" && !turned)
 					turned = Exif.swaps(Exif.tiff(b, o + i + 10, o + Std.int(Math.min(n, i + 2 + be16(i + 2)))));
 				i += 2 + be16(i + 2);
 			}
@@ -150,10 +157,12 @@ class Image {
 		return null;
 	}
 
+	static function cut():Int
+		throw ImageError.corrupt("cut short");
+
 	// a PNG, JPEG, GIF or WebP file's image (by its signature)
 	public static function decode(bytes:Bytes):Image {
-		var type = bytes.length >= 2 && bytes.get(0) == 0xFF && bytes.get(1) == 0xD8 ? "jpeg" : bytes.length >= 4
-			&& bytes.getString(0, 4) == "GIF8" ? "gif" : bytes.length >= 12 && bytes.getString(0, 4) == "RIFF" && bytes.getString(8, 4) == "WEBP" ? "webp" : "png";
+		var type = typeOf(bytes);
 		var d = switch type {
 			case "jpeg": JpegDecoder.decode(bytes);
 			case "gif": GifDecoder.decode(bytes);
@@ -163,6 +172,13 @@ class Image {
 		var img = new Image(d.width, d.height, d.rgba);
 		img.source = {bytes: bytes, type: type};
 		return img;
+	}
+
+	// a file's type by its signature: "jpeg", "gif", "webp", else "png"
+	public static function typeOf(bytes:Bytes):String {
+		var r = new ByteReader(bytes);
+		return r.length >= 2 && r.u8(0) == 0xFF && r.u8(1) == 0xD8 ? "jpeg" : r.length >= 4 && r.string(0, 4) == "GIF8" ? "gif" : r.length >= 12
+			&& r.string(0, 4) == "RIFF" && r.string(8, 4) == "WEBP" ? "webp" : "png";
 	}
 
 	// other's pixels and size in this image (its source too): renderers

@@ -24,15 +24,16 @@ class GifDecoder {
 	// (every size from the file checked against ImageLimits before its
 	// allocation, every read within the file: past its end a zero; a file
 	// cut short in a frame's data keeps what came, as browsers show it)
-	static function read(gif:Bytes, first:Bool):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
-		if (gif.length < 3 || gif.getString(0, 3) != "GIF") throw ImageError.unsupported("GifDecoder: not a GIF file");
+	static function read(file:Bytes, first:Bool):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
+		var gif = new ByteReader(file);
+		if (gif.length < 3 || gif.string(0, 3) != "GIF") throw ImageError.unsupported("GifDecoder: not a GIF file");
 		if (gif.length < 13) throw ImageError.corrupt("GifDecoder: its header cut short");
 		var len = gif.length;
 		inline function u8(p:Int):Int
-			return p >= 0 && p < len ? gif.get(p) : 0;
+			return gif.u8or0(p);
 		inline function u16(p:Int):Int
 			return u8(p) | (u8(p + 1) << 8);
-		var width = u16(6), height = u16(8), packed = gif.get(10);
+		var width = u16(6), height = u16(8), packed = gif.u8(10);
 		if (width == 0 || height == 0) throw ImageError.corrupt("GifDecoder: an empty image");
 		// (the screen, a frame's copy, the one before it, a frame's indices)
 		var budget = new DecodeBudget("GifDecoder", ImageLimits.check("GifDecoder", width, height, 13));
@@ -51,7 +52,7 @@ class GifDecoder {
 		screen.fill(0, screen.length, 0);
 		var transparent = -1, delay = 0.0, disposal = 0;
 		while (p < len) {
-			var b = gif.get(p++);
+			var b = gif.u8(p++);
 			if (b == 0x3B) break;
 			if (b == 0x21) {
 				var label = u8(p++);
@@ -63,12 +64,12 @@ class GifDecoder {
 					transparent = f & 1 != 0 ? u8(p + 4) : -1;
 				}
 				// the application extension NETSCAPE2.0: the loop count
-				if (label == 0xFF && u8(p) == 11 && p + 12 <= len && gif.getString(p + 1, 11) == "NETSCAPE2.0" && u8(p + 12) >= 3 && u8(p + 13) == 1) {
+				if (label == 0xFF && u8(p) == 11 && p + 12 <= len && gif.string(p + 1, 11) == "NETSCAPE2.0" && u8(p + 12) >= 3 && u8(p + 13) == 1) {
 					var n = u16(p + 14);
 					repetitions = n == 0 ? -1 : n;
 				}
-				while (p < len && gif.get(p) != 0)
-					p += gif.get(p) + 1;
+				while (p < len && gif.u8(p) != 0)
+					p += gif.u8(p) + 1;
 				p++;
 				continue;
 			}
@@ -81,7 +82,7 @@ class GifDecoder {
 				if (frames.length > 0) break;
 				throw ImageError.corrupt("GifDecoder: a frame's header cut short");
 			}
-			var left = u16(p), top = u16(p + 2), w = u16(p + 4), h = u16(p + 6), ip = gif.get(p + 8);
+			var left = u16(p), top = u16(p + 2), w = u16(p + 4), h = u16(p + 6), ip = gif.u8(p + 8);
 			p += 9;
 			var table = global, tableSize = globalSize;
 			if (ip & 0x80 != 0) {
@@ -97,10 +98,10 @@ class GifDecoder {
 			var minCode = u8(p++);
 			// the image data's sub-blocks, joined
 			var data = new haxe.io.BytesBuffer();
-			while (p < len && gif.get(p) != 0) {
-				var n = gif.get(p);
+			while (p < len && gif.u8(p) != 0) {
+				var n = gif.u8(p);
 				var m = p + 1 + n > len ? len - p - 1 : n;
-				data.addBytes(gif, p + 1, m);
+				gif.addTo(data, p + 1, m);
 				p += n + 1;
 			}
 			p++;
@@ -119,9 +120,9 @@ class GifDecoder {
 					var i = indices.get(k * w + x);
 					if (i == transparent || i >= tableSize) continue;
 					var o = 4 * (y * width + X), c = table + 3 * i;
-					screen.set(o, gif.get(c));
-					screen.set(o + 1, gif.get(c + 1));
-					screen.set(o + 2, gif.get(c + 2));
+					screen.set(o, gif.u8(c));
+					screen.set(o + 1, gif.u8(c + 1));
+					screen.set(o + 2, gif.u8(c + 2));
 					screen.set(o + 3, 255);
 				}
 			}

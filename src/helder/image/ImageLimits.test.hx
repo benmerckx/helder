@@ -85,6 +85,39 @@ function tests() {
 			equals(outcome(() -> Image.decode(Bytes.ofString("hello, world"))), "unsupported");
 			equals(outcome(() -> AnimatedImage.decode(Bytes.ofString("GIF89a"))), "corrupt");
 		});
+		test("cut mid-structure, natively too: Corrupt, each decoder", () -> {
+			function file(p:String)
+				return sys.io.File.getBytes("tests/image/" + p);
+			function at(b:Bytes, hex:String):Int
+				return b.toHex().indexOf(hex) >> 1;
+			// JPEG: in its frame header, in a Huffman table
+			var jpg = file("jpeg/large-420.jpg");
+			equals(outcome(() -> JpegDecoder.decode(jpg.sub(0, at(jpg, "ffc0") + 6))), "corrupt");
+			equals(outcome(() -> JpegDecoder.decode(jpg.sub(0, at(jpg, "ffc4") + 12))), "corrupt");
+			// GIF: in its colour table, in a frame's header
+			var gif = file("gif/large.gif");
+			equals(outcome(() -> GifDecoder.decode(gif.sub(0, 13 + 5))), "corrupt");
+			equals(outcome(() -> GifDecoder.decode(gif.sub(0, at(gif, "2c00000000") + 4))), "corrupt");
+			// PNG: in IHDR, in IDAT
+			var png = file("png/rgb8.png");
+			equals(outcome(() -> PngDecoder.decode(png.sub(0, 8 + 8 + 6))), "corrupt");
+			equals(outcome(() -> PngDecoder.decode(png.sub(0, at(png, "49444154") + 10))), "corrupt");
+			// WebP: VP8's frame header; VP8L's bit stream cut with its chunk and RIFF sizes made to match (only the reader stops it)
+			var lossy = file("webp/lossy-q90.webp");
+			equals(outcome(() -> WebpDecoder.decode(resized(lossy.sub(0, 20 + 6)))), "corrupt");
+			var lossless = file("webp/lossless-photo.webp");
+			equals(outcome(() -> WebpDecoder.decode(resized(lossless.sub(0, 20 + Std.int((lossless.length - 20) / 2))))), "corrupt");
+		});
+		test("the reader: a read past the end refused as Corrupt, counted", () -> {
+			var r = new ByteReader(Bytes.alloc(4)), before = ByteReader.refused;
+			equals(r.le32(0), 0);
+			equals(outcome(() -> r.u8(4)), "corrupt");
+			equals(outcome(() -> r.u8(-1)), "corrupt");
+			equals(outcome(() -> r.string(2, 3)), "corrupt");
+			equals(outcome(() -> r.sub(0x7FFFFFFF, 2)), "corrupt");
+			equals(r.u8or0(9), 0);
+			equals(ByteReader.refused - before, 4);
+		});
 		test("every test image cut short: a decode or an ImageError", () -> {
 			var n = 0;
 			for (dir in ["png", "jpeg", "gif", "webp", "apng"]) {
@@ -117,6 +150,13 @@ private function outcome(f:() -> Dynamic):String {
 	} catch (e:ImageError) {
 		return Std.string(e.kind);
 	}
+}
+
+// (a WebP cut short, its RIFF and first chunk's sizes made to say so)
+private function resized(b:Bytes):Bytes {
+	b.setInt32(4, b.length - 8);
+	b.setInt32(16, b.length - 20);
+	return b;
 }
 
 // (a JPEG of a frame header alone: SOI, SOF0 of three components, EOI)

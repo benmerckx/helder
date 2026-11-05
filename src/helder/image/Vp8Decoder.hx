@@ -34,10 +34,10 @@ class Vp8Decoder {
 	static inline var HU = 9;
 	static inline var BPS = 32;
 
-	public static function decode(data:Bytes, at:Int, size:Int):{width:Int, height:Int, rgba:Bytes}
+	public static function decode(data:ByteReader, at:Int, size:Int):{width:Int, height:Int, rgba:Bytes}
 		return new Vp8Decoder(data, at, size).run();
 
-	final data:Bytes;
+	final data:ByteReader;
 	final at:Int;
 	final size:Int;
 	var width = 0;
@@ -70,7 +70,7 @@ class Vp8Decoder {
 	// per segment: y1 dc, y1 ac, y2 dc, y2 ac, uv dc, uv ac
 	final dq = [for (i in 0...24) 0];
 
-	function new(data:Bytes, at:Int, size:Int) {
+	function new(data:ByteReader, at:Int, size:Int) {
 		this.data = data;
 		this.at = at;
 		this.size = size;
@@ -78,12 +78,12 @@ class Vp8Decoder {
 
 	function run():{width:Int, height:Int, rgba:Bytes} {
 		if (size < 10) throw "WebpDecoder: a VP8 frame too short";
-		var bits = data.get(at) | (data.get(at + 1) << 8) | (data.get(at + 2) << 16);
+		var bits = data.u8(at) | (data.u8(at + 1) << 8) | (data.u8(at + 2) << 16);
 		if (bits & 1 != 0) throw "WebpDecoder: not a key frame";
 		var first = bits >> 5;
-		if (data.get(at + 3) != 0x9D || data.get(at + 4) != 0x01 || data.get(at + 5) != 0x2A) throw "WebpDecoder: no VP8 start code";
-		width = (data.get(at + 6) | (data.get(at + 7) << 8)) & 0x3FFF;
-		height = (data.get(at + 8) | (data.get(at + 9) << 8)) & 0x3FFF;
+		if (data.u8(at + 3) != 0x9D || data.u8(at + 4) != 0x01 || data.u8(at + 5) != 0x2A) throw "WebpDecoder: no VP8 start code";
+		width = (data.u8(at + 6) | (data.u8(at + 7) << 8)) & 0x3FFF;
+		height = (data.u8(at + 8) | (data.u8(at + 9) << 8)) & 0x3FFF;
 		if (width == 0 || height == 0) throw "WebpDecoder: an empty frame";
 		// (Y, U and V by whole macroblocks, the RGBA8 result, ALPH's plane and its lossless pixels)
 		ImageLimits.check("WebpDecoder", width, height, 11);
@@ -104,7 +104,7 @@ class Vp8Decoder {
 		if (start > end) throw "WebpDecoder: VP8's partition sizes past its chunk";
 		var parts:Array<BoolDecoder> = [];
 		for (i in 0...count) {
-			var len = i < count - 1 ? data.get(sizes + 3 * i) | (data.get(sizes + 3 * i + 1) << 8) | (data.get(sizes + 3 * i + 2) << 16) : end - start;
+			var len = i < count - 1 ? data.u8(sizes + 3 * i) | (data.u8(sizes + 3 * i + 1) << 8) | (data.u8(sizes + 3 * i + 2) << 16) : end - start;
 			var e = start + len > end ? end : start + len;
 			parts.push(new BoolDecoder(data, start, e));
 			start = e;
@@ -859,14 +859,14 @@ class Vp8Decoder {
 
 // the boolean entropy decoder (RFC 6386, section 7)
 private class BoolDecoder {
-	final data:Bytes;
+	final data:ByteReader;
 	var p:Int;
 	final end:Int;
 	var value = 0;
 	var range = 255;
 	var count = 0;
 
-	public function new(data:Bytes, start:Int, end:Int) {
+	public function new(data:ByteReader, start:Int, end:Int) {
 		this.data = data;
 		this.end = end;
 		p = start;
@@ -874,7 +874,7 @@ private class BoolDecoder {
 	}
 
 	inline function next():Int
-		return p < end ? data.get(p++) : 0;
+		return p < end ? data.u8(p++) : 0;
 
 	public function bit(prob:Int):Int {
 		var split = 1 + (((range - 1) * prob) >> 8);

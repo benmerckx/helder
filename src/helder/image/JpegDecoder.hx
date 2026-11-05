@@ -21,7 +21,7 @@ class JpegDecoder {
 		58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63
 	];
 
-	final data:Bytes;
+	final data:ByteReader;
 	var pos = 0;
 	final quant:Array<Null<Vector<Int>>> = [null, null, null, null];
 	final dcTables:Array<Null<Huffman>> = [null, null, null, null];
@@ -48,15 +48,16 @@ class JpegDecoder {
 
 	// the pixels: width * height * 4 bytes, rows top to bottom, opaque
 	public static function decode(jpg:Bytes):{width:Int, height:Int, rgba:Bytes} {
-		if (jpg.length < 4 || jpg.get(0) != 0xFF || jpg.get(1) != 0xD8) throw ImageError.unsupported("JpegDecoder: not a JPEG file");
+		var r = new ByteReader(jpg);
+		if (r.length < 4 || r.u8(0) != 0xFF || r.u8(1) != 0xD8) throw ImageError.unsupported("JpegDecoder: not a JPEG file");
 		return ImageLimits.guard("JpegDecoder", () -> new JpegDecoder(jpg).run());
 	}
 
 	function new(data:Bytes)
-		this.data = data;
+		this.data = new ByteReader(data);
 
 	function u16(p:Int):Int
-		return (data.get(p) << 8) | data.get(p + 1);
+		return (data.u8(p) << 8) | data.u8(p + 1);
 
 	function run():{width:Int, height:Int, rgba:Bytes} {
 		pos = 2;
@@ -66,11 +67,11 @@ class JpegDecoder {
 				if (frameRead) break;
 				throw "JpegDecoder: truncated";
 			}
-			if (data.get(pos) != 0xFF) {
+			if (data.u8(pos) != 0xFF) {
 				pos++;
 				continue;
 			}
-			var m = data.get(pos + 1);
+			var m = data.u8(pos + 1);
 			pos += 2;
 			if (m == 0xFF || m == 0x01 || (m >= 0xD0 && m <= 0xD7)) {
 				if (m == 0xFF) pos--;
@@ -87,11 +88,11 @@ class JpegDecoder {
 				case 0xC3 | 0xC5 | 0xC6 | 0xC7 | 0xC9 | 0xCA | 0xCB | 0xCD | 0xCE | 0xCF:
 					throw ImageError.unsupported("JpegDecoder: lossless, hierarchical or arithmetic-coded JPEGs are not supported");
 				case 0xE0:
-					if (len >= 7 && data.getString(seg, 4) == "JFIF") jfif = true;
+					if (len >= 7 && data.string(seg, 4) == "JFIF") jfif = true;
 				case 0xE1:
-					if (len >= 8 && data.getString(seg, 4) == "Exif" && orientation == 1) orientation = Exif.tiff(data, seg + 6, end);
+					if (len >= 8 && data.string(seg, 4) == "Exif" && orientation == 1) orientation = Exif.tiff(data.bytes, seg + 6, end);
 				case 0xEE:
-					if (len >= 14 && data.getString(seg, 5) == "Adobe") adobe = data.get(seg + 11);
+					if (len >= 14 && data.string(seg, 5) == "Adobe") adobe = data.u8(seg + 11);
 				case 0xDA:
 					pos = end;
 					readScan(seg, end);
@@ -108,13 +109,13 @@ class JpegDecoder {
 
 	function readQuant(p:Int, end:Int) {
 		while (p < end) {
-			var pq = data.get(p) >> 4, tq = data.get(p) & 15;
+			var pq = data.u8(p) >> 4, tq = data.u8(p) & 15;
 			p++;
 			if (tq > 3) throw "JpegDecoder: a quantization table id " + tq;
 			if (p + (pq == 0 ? 64 : 128) > end) throw "JpegDecoder: a quantization table cut short";
 			var t = new Vector<Int>(64);
 			for (i in 0...64) {
-				t[ZIGZAG[i]] = pq == 0 ? data.get(p) : u16(p);
+				t[ZIGZAG[i]] = pq == 0 ? data.u8(p) : u16(p);
 				p += pq == 0 ? 1 : 2;
 			}
 			quant[tq] = t;
@@ -123,10 +124,10 @@ class JpegDecoder {
 
 	function readHuffman(p:Int, end:Int) {
 		while (p < end) {
-			var tc = data.get(p) >> 4, th = data.get(p) & 15;
+			var tc = data.u8(p) >> 4, th = data.u8(p) & 15;
 			if (th > 3) throw "JpegDecoder: a Huffman table id " + th;
 			if (p + 17 > end) throw "JpegDecoder: a Huffman table cut short";
-			var counts = [for (i in 0...16) data.get(p + 1 + i)];
+			var counts = [for (i in 0...16) data.u8(p + 1 + i)];
 			var n = 0;
 			// (no more codes of a length than it has: a table that fits)
 			var room = 2;
@@ -136,7 +137,7 @@ class JpegDecoder {
 				room = (room - c) * 2;
 			}
 			if (p + 17 + n > end) throw "JpegDecoder: a Huffman table cut short";
-			var symbols = [for (i in 0...n) data.get(p + 17 + i)];
+			var symbols = [for (i in 0...n) data.u8(p + 17 + i)];
 			var h = new Huffman(counts, symbols);
 			if (tc == 0) dcTables[th] = h else acTables[th] = h;
 			p += 17 + n;
@@ -148,18 +149,18 @@ class JpegDecoder {
 		frameRead = true;
 		progressive = prog;
 		if (p + 6 > end) throw "JpegDecoder: a frame header cut short";
-		if (data.get(p) != 8) throw ImageError.unsupported("JpegDecoder: " + data.get(p) + "-bit samples are not supported");
+		if (data.u8(p) != 8) throw ImageError.unsupported("JpegDecoder: " + data.u8(p) + "-bit samples are not supported");
 		height = u16(p + 1);
 		width = u16(p + 3);
 		if (width == 0 || height == 0) throw ImageError.unsupported("JpegDecoder: an image without a size (DNL) is not supported");
 		// (the sides and pixels first: the sizes below are within an Int then)
 		ImageLimits.check("JpegDecoder", width, height, 0);
-		var n = data.get(p + 5);
+		var n = data.u8(p + 5);
 		if (n != 1 && n != 3 && n != 4) throw ImageError.unsupported("JpegDecoder: " + n + " components");
 		if (p + 6 + 3 * n > end) throw "JpegDecoder: a frame header cut short";
 		for (i in 0...n) {
 			var q = p + 6 + 3 * i;
-			var c = new Component(data.get(q), data.get(q + 1) >> 4, data.get(q + 1) & 15, data.get(q + 2));
+			var c = new Component(data.u8(q), data.u8(q + 1) >> 4, data.u8(q + 1) & 15, data.u8(q + 2));
 			if (c.h < 1 || c.h > 4 || c.v < 1 || c.v > 4) throw ImageError.unsupported("JpegDecoder: sampling factors " + c.h + "x" + c.v);
 			if (c.tq > 3) throw "JpegDecoder: a quantization table id " + c.tq;
 			components.push(c);
@@ -188,12 +189,12 @@ class JpegDecoder {
 
 	function readScan(p:Int, end:Int) {
 		if (!frameRead) throw "JpegDecoder: a scan before the frame";
-		var n = data.get(p);
+		var n = data.u8(p);
 		if (n < 1 || n > 4 || p + 4 + 2 * n > end) throw "JpegDecoder: a scan header cut short";
 		scans++;
 		var scan:Array<Component> = [];
 		for (i in 0...n) {
-			var id = data.get(p + 1 + 2 * i), t = data.get(p + 2 + 2 * i);
+			var id = data.u8(p + 1 + 2 * i), t = data.u8(p + 2 + 2 * i);
 			var c:Null<Component> = null;
 			for (k in components)
 				if (k.id == id) c = k;
@@ -204,7 +205,7 @@ class JpegDecoder {
 			scan.push(c);
 		}
 		var q = p + 1 + 2 * n;
-		var ss = data.get(q), se = data.get(q + 1), ah = data.get(q + 2) >> 4, al = data.get(q + 2) & 15;
+		var ss = data.u8(q), se = data.u8(q + 1), ah = data.u8(q + 2) >> 4, al = data.u8(q + 2) & 15;
 		if (!progressive) {
 			ss = 0;
 			se = 63;
@@ -244,7 +245,7 @@ class JpegDecoder {
 				}
 		}
 		// past the scan's data: the next marker
-		while (pos + 1 < data.length && !(data.get(pos) == 0xFF && data.get(pos + 1) != 0 && (data.get(pos + 1) < 0xD0 || data.get(pos + 1) > 0xD7)))
+		while (pos + 1 < data.length && !(data.u8(pos) == 0xFF && data.u8(pos + 1) != 0 && (data.u8(pos + 1) < 0xD0 || data.u8(pos + 1) > 0xD7)))
 			pos++;
 	}
 
@@ -253,7 +254,7 @@ class JpegDecoder {
 		if (restartInterval == 0 || units == 0 || units % restartInterval != 0) return;
 		bitBuf = bitCount = 0;
 		markerHit = false;
-		while (pos + 1 < data.length && !(data.get(pos) == 0xFF && data.get(pos + 1) >= 0xD0 && data.get(pos + 1) <= 0xD7))
+		while (pos + 1 < data.length && !(data.u8(pos) == 0xFF && data.u8(pos + 1) >= 0xD0 && data.u8(pos + 1) <= 0xD7))
 			pos++;
 		if (pos + 1 < data.length) pos += 2;
 		for (c in components)
@@ -265,9 +266,9 @@ class JpegDecoder {
 		while (bitCount <= 24) {
 			var b = 0;
 			if (!markerHit && pos < data.length) {
-				b = data.get(pos);
+				b = data.u8(pos);
 				if (b == 0xFF) {
-					var n = pos + 1 < data.length ? data.get(pos + 1) : 0;
+					var n = pos + 1 < data.length ? data.u8(pos + 1) : 0;
 					if (n == 0) pos += 2 else {
 						// a marker: zeros from here
 						markerHit = true;

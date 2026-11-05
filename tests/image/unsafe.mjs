@@ -22,12 +22,18 @@ for (const f of files)
 	});
 const listPath = "tests/image/unsafe.txt";
 if (process.argv.includes("--write")) {
+	// (the reasons kept for the lines still there; new ones to explain)
+	const old = new Map(readFileSync(listPath, "utf8").split("\n").filter(l => / {2}# /.test(l)).map(l => [l.replace(/  # .*$/, ""), l]));
 	const head = readFileSync(listPath, "utf8").split("\n").filter(l => l.startsWith("#"));
-	writeFileSync(listPath, [...head, ...found, ""].join("\n"));
+	writeFileSync(listPath, [...head, ...found.map(l => old.get(l) ?? l + "  # TODO: why"), ""].join("\n"));
 	console.log(`${listPath}: ${found.length} uses`);
 	process.exit(0);
 }
-const listed = readFileSync(listPath, "utf8").split("\n").filter(l => l.trim() !== "" && !l.startsWith("#"));
+const entries = readFileSync(listPath, "utf8").split("\n").filter(l => l.trim() !== "" && !l.startsWith("#"));
+const unexplained = entries.filter(l => !/  # \S/.test(l));
+for (const l of unexplained) console.log(`unsafe: listed without its reason ("  # why"): ${l}`);
+if (unexplained.length > 0) process.exit(1);
+const listed = entries.map(l => l.replace(/  # .*$/, ""));
 const count = a => a.reduce((m, l) => m.set(l, (m.get(l) ?? 0) + 1), new Map());
 const have = count(found), want = count(listed);
 const added = [...have].filter(([l, n]) => n > (want.get(l) ?? 0)).map(([l]) => l);
@@ -39,3 +45,30 @@ if (added.length + gone.length > 0) {
 	process.exit(1);
 }
 console.log(`unsafe: ${found.length} uses of hxmc.unsafe in helder.image, each reviewed (${listPath})`);
+
+// The decoders read their input through ByteReader only (every read checked
+// against the file's end): a Bytes read (get, getString, getInt32...,
+// addBytes, blit) in them is on a buffer of their own, named here; any
+// other is a raw read of untrusted input, and fails.
+const own = {
+	"GifDecoder.hx": ["data", "indices", "out"], // (data: the frame's joined sub-blocks, read within its length)
+	"JpegDecoder.hx": ["out", "src"],
+	"WebpDecoder.hx": ["a", "canvas", "d.rgba", "inner"],
+	"Vp8Decoder.hx": ["P", "U", "V", "Y", "b", "ws"],
+	"Exif.hx": ["rgba"],
+	"PngDecoder.hx": ["canvas", "dst", "info", "out", "src"],
+	"Image.hx": ["px"],
+	"AnimatedImage.hx": ["image.pixels"],
+};
+let raw = 0;
+for (const [f, names] of Object.entries(own))
+	readFileSync(`src/helder/image/${f}`, "utf8").split("\n").forEach((line, i) => {
+		const code = line.replace(/\/\/.*$/, "");
+		for (const m of code.matchAll(/([A-Za-z_0-9.]+)\.(get|getString|getInt32|getUInt16|getInt64|getFloat|getDouble|addBytes|blit)\(/g))
+			if (!names.includes(m[1])) {
+				console.log(`reads: src/helder/image/${f}:${i + 1}: ${m[1]}.${m[2]}: not through ByteReader`);
+				raw++;
+			}
+	});
+if (raw > 0) process.exit(1);
+console.log(`reads: the decoders' input through ByteReader only (${Object.keys(own).length} files)`);

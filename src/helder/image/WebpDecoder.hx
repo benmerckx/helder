@@ -15,18 +15,18 @@ import haxe.io.Bytes;
 // loop count: 0, forever, -1).
 class WebpDecoder {
 	public static function decode(webp:Bytes):{width:Int, height:Int, rgba:Bytes} {
-		if (webp.length < 16 || webp.getString(0, 4) != "RIFF" || webp.getString(8, 4) != "WEBP") throw ImageError.unsupported("WebpDecoder: not a WebP file");
-		return ImageLimits.guard("WebpDecoder", () -> still(webp));
+		if (!isWebp(new ByteReader(webp))) throw ImageError.unsupported("WebpDecoder: not a WebP file");
+		return ImageLimits.guard("WebpDecoder", () -> still(new ByteReader(webp)));
 	}
 
 	// (each chunk within the file, every size from it checked against
 	// ImageLimits before its allocation)
-	static function still(webp:Bytes):{width:Int, height:Int, rgba:Bytes} {
+	static function still(webp:ByteReader):{width:Int, height:Int, rgba:Bytes} {
 		var p = 12, end = webp.length;
 		var alpha:Null<{at:Int, length:Int}> = null;
 		var width = 0, height = 0;
 		while (p + 8 <= end) {
-			var tag = webp.getString(p, 4), size = u32le(webp, p + 4), at = p + 8;
+			var tag = webp.string(p, 4), size = webp.le32(p + 4), at = p + 8;
 			if (size < 0 || size > end - at) throw "WebpDecoder: a chunk past the file's end";
 			switch tag {
 				case "VP8L":
@@ -37,8 +37,8 @@ class WebpDecoder {
 					return d;
 				case "VP8X":
 					if (size < 10) throw "WebpDecoder: a VP8X chunk too short";
-					width = 1 + (webp.get(at + 4) | (webp.get(at + 5) << 8) | (webp.get(at + 6) << 16));
-					height = 1 + (webp.get(at + 7) | (webp.get(at + 8) << 8) | (webp.get(at + 9) << 16));
+					width = 1 + (webp.u8(at + 4) | (webp.u8(at + 5) << 8) | (webp.u8(at + 6) << 16));
+					height = 1 + (webp.u8(at + 7) | (webp.u8(at + 8) << 8) | (webp.u8(at + 9) << 16));
 				case "ALPH":
 					if (size < 1) throw "WebpDecoder: an empty ALPH chunk";
 					alpha = {at: at, length: size};
@@ -52,8 +52,11 @@ class WebpDecoder {
 		throw "WebpDecoder: no image data";
 	}
 
+	static function isWebp(r:ByteReader):Bool
+		return r.length >= 16 && r.string(0, 4) == "RIFF" && r.string(8, 4) == "WEBP";
+
 	// an animation's first frame (its image on the transparent canvas)
-	static function frame(webp:Bytes, at:Int, size:Int, width:Int, height:Int):{width:Int, height:Int, rgba:Bytes} {
+	static function frame(webp:ByteReader, at:Int, size:Int, width:Int, height:Int):{width:Int, height:Int, rgba:Bytes} {
 		ImageLimits.check("WebpDecoder", width, height, 8);
 		var canvas = Bytes.alloc(width * height * 4);
 		canvas.fill(0, canvas.length, 0);
@@ -63,23 +66,23 @@ class WebpDecoder {
 
 	// every frame of an animation (a still image: one, its duration 0)
 	public static function frames(webp:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
-		if (webp.length < 16 || webp.getString(0, 4) != "RIFF" || webp.getString(8, 4) != "WEBP") throw ImageError.unsupported("WebpDecoder: not a WebP file");
-		return ImageLimits.guard("WebpDecoder", () -> animation(webp));
+		if (!isWebp(new ByteReader(webp))) throw ImageError.unsupported("WebpDecoder: not a WebP file");
+		return ImageLimits.guard("WebpDecoder", () -> animation(new ByteReader(webp)));
 	}
 
-	static function animation(webp:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
+	static function animation(webp:ByteReader):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
 		var width = 0, height = 0, loops = 0, p = 12;
 		var anmf:Array<{at:Int, size:Int}> = [];
 		while (p + 8 <= webp.length) {
-			var tag = webp.getString(p, 4), size = u32le(webp, p + 4), at = p + 8;
+			var tag = webp.string(p, 4), size = webp.le32(p + 4), at = p + 8;
 			if (size < 0 || size > webp.length - at) throw "WebpDecoder: a chunk past the file's end";
 			switch tag {
 				case "VP8X":
 					if (size < 10) throw "WebpDecoder: a VP8X chunk too short";
-					width = 1 + (webp.get(at + 4) | (webp.get(at + 5) << 8) | (webp.get(at + 6) << 16));
-					height = 1 + (webp.get(at + 7) | (webp.get(at + 8) << 8) | (webp.get(at + 9) << 16));
+					width = 1 + (webp.u8(at + 4) | (webp.u8(at + 5) << 8) | (webp.u8(at + 6) << 16));
+					height = 1 + (webp.u8(at + 7) | (webp.u8(at + 8) << 8) | (webp.u8(at + 9) << 16));
 				case "ANIM" if (size >= 6):
-					loops = webp.get(at + 4) | (webp.get(at + 5) << 8);
+					loops = webp.u8(at + 4) | (webp.u8(at + 5) << 8);
 				case "ANMF":
 					if (size < 16) throw "WebpDecoder: an ANMF chunk too short";
 					anmf.push({at: at, size: size});
@@ -99,10 +102,10 @@ class WebpDecoder {
 		for (f in anmf) {
 			var rect = place(webp, f.at, f.size, canvas, width, height);
 			budget.add(canvas.length);
-			var duration = webp.get(f.at + 12) | (webp.get(f.at + 13) << 8) | (webp.get(f.at + 14) << 16);
+			var duration = webp.u8(f.at + 12) | (webp.u8(f.at + 13) << 8) | (webp.u8(f.at + 14) << 16);
 			out.push({rgba: canvas.sub(0, canvas.length), delay: duration / 1000});
 			// (disposed to the background: its rectangle cleared for the next)
-			if (webp.get(f.at + 15) & 1 != 0)
+			if (webp.u8(f.at + 15) & 1 != 0)
 				for (y in rect.y...rect.y + rect.h)
 					canvas.fill((y * width + rect.x) * 4, rect.w * 4, 0);
 		}
@@ -111,16 +114,16 @@ class WebpDecoder {
 
 	// an ANMF frame's image put on the canvas, blended (non-premultiplied, as
 	// libwebp's BlendPixelNonPremult) unless it asks not to; its rectangle
-	static function place(webp:Bytes, at:Int, size:Int, canvas:Bytes, width:Int, height:Int):{x:Int, y:Int, w:Int, h:Int} {
-		var fx = 2 * (webp.get(at) | (webp.get(at + 1) << 8) | (webp.get(at + 2) << 16));
-		var fy = 2 * (webp.get(at + 3) | (webp.get(at + 4) << 8) | (webp.get(at + 5) << 16));
-		var blend = webp.get(at + 15) & 2 == 0;
+	static function place(webp:ByteReader, at:Int, size:Int, canvas:Bytes, width:Int, height:Int):{x:Int, y:Int, w:Int, h:Int} {
+		var fx = 2 * (webp.u8(at) | (webp.u8(at + 1) << 8) | (webp.u8(at + 2) << 16));
+		var fy = 2 * (webp.u8(at + 3) | (webp.u8(at + 4) << 8) | (webp.u8(at + 5) << 16));
+		var blend = webp.u8(at + 15) & 2 == 0;
 		if (size < 16) throw "WebpDecoder: an ANMF chunk too short";
 		var inner = Bytes.alloc(12 + size - 16);
 		inner.blit(0, Bytes.ofString("RIFF"), 0, 4);
 		inner.blit(8, Bytes.ofString("WEBP"), 0, 4);
-		inner.blit(12, webp, at + 16, size - 16);
-		var d = still(inner);
+		webp.blitTo(inner, 12, at + 16, size - 16);
+		var d = still(new ByteReader(inner));
 		if (fx >= width || fy >= height) return {x: 0, y: 0, w: 0, h: 0};
 		var w = Std.int(Math.min(d.width, width - fx)), h = Std.int(Math.min(d.height, height - fy));
 		for (y in 0...h)
@@ -141,8 +144,6 @@ class WebpDecoder {
 		return {x: fx, y: fy, w: w < 0 ? 0 : w, h: h < 0 ? 0 : h};
 	}
 
-	static inline function u32le(b:Bytes, p:Int):Int
-		return b.get(p) | (b.get(p + 1) << 8) | (b.get(p + 2) << 16) | (b.get(p + 3) << 24);
 }
 
 // a VP8L bitstream: its header, transforms and entropy-coded image (or,
@@ -160,14 +161,14 @@ private class Lossless {
 		7, 6, -7, 6, 8, 5, 7, 7, -7, 7, 8, 6, 8, 7
 	];
 
-	final data:Bytes;
+	final data:ByteReader;
 	final end:Int;
 	var bit:Int;
 	var width = 0;
 	var height = 0;
 	var hasAlpha = false;
 
-	public function new(data:Bytes, at:Int, size:Int) {
+	public function new(data:ByteReader, at:Int, size:Int) {
 		this.data = data;
 		this.end = at + size;
 		bit = at * 8;
@@ -368,7 +369,7 @@ private class Lossless {
 		for (i in 0...n) {
 			var p = bit >> 3;
 			if (p >= end) throw "WebpDecoder: the data ends early";
-			v |= ((data.get(p) >> (bit & 7)) & 1) << i;
+			v |= ((data.u8(p) >> (bit & 7)) & 1) << i;
 			bit++;
 		}
 		return v;
@@ -504,11 +505,11 @@ private class Code {
 // ALPH: an image's alpha, raw or as a lossless image's green, filtered
 // (horizontally, vertically or by gradient) before coding
 private class Alpha {
-	public static function apply(data:Bytes, at:Int, length:Int, w:Int, h:Int, rgba:Bytes) {
-		var header = data.get(at), method = header & 3, filter = (header >> 2) & 3;
+	public static function apply(data:ByteReader, at:Int, length:Int, w:Int, h:Int, rgba:Bytes) {
+		var header = data.u8(at), method = header & 3, filter = (header >> 2) & 3;
 		if (method == 0 && length - 1 < w * h) throw "WebpDecoder: an ALPH chunk too short";
 		var a = Bytes.alloc(w * h);
-		if (method == 0) a.blit(0, data, at + 1, w * h) else {
+		if (method == 0) data.blitTo(a, 0, at + 1, w * h) else {
 			var l = new Lossless(data, at + 1, length - 1);
 			l.width = w;
 			l.height = h;

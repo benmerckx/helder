@@ -29,8 +29,8 @@ class AnimatedImage {
 
 	// a GIF, WebP or PNG file's animation (by its signature)
 	public static function decode(bytes:Bytes):AnimatedImage {
-		var a = bytes.length >= 12 && bytes.getString(0, 4) == "RIFF" && bytes.getString(8, 4) == "WEBP" ? WebpDecoder.frames(bytes) : bytes.length >= 8
-			&& bytes.get(0) == 0x89 && bytes.getString(1, 3) == "PNG" ? PngDecoder.frames(bytes) : GifDecoder.frames(bytes);
+		var t = Image.typeOf(bytes);
+		var a = t == "webp" ? WebpDecoder.frames(bytes) : t == "png" && bytes.length >= 8 ? PngDecoder.frames(bytes) : GifDecoder.frames(bytes);
 		return new AnimatedImage(a.width, a.height, a.frames, a.repetitions);
 	}
 

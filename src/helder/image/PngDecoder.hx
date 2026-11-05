@@ -132,33 +132,34 @@ class PngDecoder {
 	// (APNG's chunks: acTL's plays, each fcTL's frame and its fdAT data,
 	// the default image's IDAT data when a frame is it; the file's other
 	// chunks are PngCore's)
-	static function animation(png:Bytes):{plays:Int, frames:Array<ApngFrame>, idat:Bytes} {
+	static function animation(file:Bytes):{plays:Int, frames:Array<ApngFrame>, idat:Bytes} {
+		var png = new ByteReader(file);
 		var frames = [], plays = 0, idat = new haxe.io.BytesBuffer(), frame:Null<ApngFrame> = null, seenIdat = false;
 		var p = 8;
 		while (p + 8 <= png.length) {
-			var n = u32(png, p), name = png.getString(p + 4, 4), at = p + 8;
+			var n = png.be32(p), name = png.string(p + 4, 4), at = p + 8;
 			if (n < 0 || n > png.length - at - 4) break;
 			switch name {
 				case "acTL" if (n >= 8):
-					plays = u32(png, at + 4);
+					plays = png.be32(at + 4);
 				case "fcTL" if (n >= 26):
 					frame = new ApngFrame();
-					frame.width = u32(png, at + 4);
-					frame.height = u32(png, at + 8);
-					frame.x = u32(png, at + 12);
-					frame.y = u32(png, at + 16);
-					var num = (png.get(at + 20) << 8) | png.get(at + 21), den = (png.get(at + 22) << 8) | png.get(at + 23);
+					frame.width = png.be32(at + 4);
+					frame.height = png.be32(at + 8);
+					frame.x = png.be32(at + 12);
+					frame.y = png.be32(at + 16);
+					var num = (png.u8(at + 20) << 8) | png.u8(at + 21), den = (png.u8(at + 22) << 8) | png.u8(at + 23);
 					frame.delay = num / (den == 0 ? 100 : den);
-					frame.dispose = png.get(at + 24);
-					frame.blend = png.get(at + 25);
+					frame.dispose = png.u8(at + 24);
+					frame.blend = png.u8(at + 25);
 					// (before the image data: the default image is the first frame)
 					frame.inIdat = !seenIdat;
 					frames.push(frame);
 				case "IDAT":
 					seenIdat = true;
-					idat.addBytes(png, at, n);
+					png.addTo(idat, at, n);
 				case "fdAT" if (frame != null && n >= 4):
-					frame.parts.addBytes(png, at + 4, n - 4);
+					png.addTo(frame.parts, at + 4, n - 4);
 				case "IEND":
 					break;
 				case _:
@@ -168,8 +169,6 @@ class PngDecoder {
 		return {plays: plays, frames: frames, idat: idat.getBytes()};
 	}
 
-	static inline function u32(b:Bytes, p:Int):Int
-		return (b.get(p) << 24) | (b.get(p + 1) << 16) | (b.get(p + 2) << 8) | b.get(p + 3);
 
 }
 
