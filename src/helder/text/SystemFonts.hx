@@ -129,8 +129,30 @@ class SystemFonts {
 				break;
 			}
 		}
+		// (none of those: the desktop's own fallback, fontconfig's, on Linux)
+		if (found == null) found = fontconfig(cp);
 		moreFound.set(cp, found);
 		return found;
+	}
+
+	function fontconfig(cp:Int):Null<FontFile> {
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		if (hxmc.unsafe.Mem.os() != 0 || hxmc.unsafe.Mem.target() >= 9 || scannedNone()) return null;
+		var m = helder.text.linux.Fontconfig.fileFor(cp);
+		if (m == null) return null;
+		var key = m.path + "#" + m.index;
+		if (!loaded.exists(key)) loaded.set(key, try FontFile.parse(sys.io.File.getBytes(m.path), m.index) catch (e:Dynamic) null);
+		var f = loaded.get(key);
+		return f != null && f.glyph(cp) != 0 ? f : null;
+		#else
+		return null;
+		#end
+	}
+
+	// (HELDER_NO_SYSTEM_FONTS: none of the system's, fontconfig's neither)
+	static function scannedNone():Bool {
+		var none = Sys.getEnv("HELDER_NO_SYSTEM_FONTS");
+		return none != null && none != "" && none != "0";
 	}
 
 	var moreFaces:Null<Array<FaceInfo>> = null;

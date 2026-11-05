@@ -117,3 +117,19 @@ pixels on every machine, which makes golden-image tests portable; the
 platforms' shapers are the planned upgrade.
 
 Tests: `bun run test text` (`tests/text/TextTest.hx`).
+
+## The platform's own stack (a first slice)
+
+On Linux, `SystemFonts.fallbackFor` asks fontconfig (`linux/Fontconfig`:
+the character's charset matched as the desktop matches it, dlopen'ed)
+when none of its own fallback lists has a character: any script the
+system has a font for. `linux/HarfBuzz` shapes a font's text through
+libharfbuzz (dlopen'ed): glyphs, clusters, advances and offsets in visual
+order. `linux/HarfBuzz.test.hx` compares helder's own shaping with it on
+fontconfig's face for each script: Latin, Hebrew, Arabic, CJK and Thai
+the same glyphs; Devanagari not (HarfBuzz's reordering and conjuncts,
+which helder's engine does not do). Next (the roadmap's "Text on each
+platform's own stack"): TextLayout shaping complex scripts through
+HarfBuzz on Linux, DirectWrite (IDWriteTextAnalyzer, IDWriteFontFallback)
+on Windows and Core Text on macOS; then native rasterising.
+
