@@ -1,6 +1,6 @@
 package helder.typescript.js;
 
-import helder.typescript.js.unicode.NormalizationData;
+import helder.text.unicode.NormalizationData;
 
 // UAX #15: recursive decomposition, canonical ordering and blocked composition.
 // UTF-16 lone surrogates pass through, as required by String.normalize.

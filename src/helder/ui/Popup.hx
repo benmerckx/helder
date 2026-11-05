@@ -28,7 +28,7 @@ class Popup extends Node {
 	public var onDismiss:Null<Void->Void>;
 	public var dismissOnOutside = true;
 	// the focus when it opened (given back when it closes)
-	@:allow(helder.ui.Ui) var returnFocus:Null<Node>;
+	@:allow(helder.ui.Ui) @:allow(helder.ui.Popups) var returnFocus:Null<Node>;
 
 	public function new(?tag:String) {
 		super(tag == null ? "popup" : tag);

@@ -112,7 +112,7 @@ class MenuBar {
 		Actions.declare("menu", MenuBarAction);
 		if (!Lambda.exists(ui.keymap.bindings(), b -> b.action != null && Actions.equals(b.action, OpenMenuBar))) ui.keymap.bind("f10", OpenMenuBar);
 		removeKey = ui.on(MenuBarAction, _ -> {
-			if (native || menus.length == 0 || @:privateAccess ui.modal() != null) return false;
+			if (native || menus.length == 0 || helder.ui.Popups.modal(ui) != null) return false;
 			show(0);
 			true;
 		});
