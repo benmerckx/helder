@@ -38,7 +38,8 @@ class Entropy {
 }
 
 #if (target.name == "hxmc")
-@:hxmc.c @:hxmc.lib("bcrypt") private extern class Bcrypt {
+// (@:hxmc.fast as hxmc's own declaration of it, hxmc.rt.Random's: one C function, one way)
+@:hxmc.c @:hxmc.fast @:hxmc.lib("bcrypt") private extern class Bcrypt {
 	static function BCryptGenRandom(alg:hxmc.unsafe.Ptr, buf:hxmc.unsafe.Ptr, n:Int, flags:Int):Int;
 }
 #end

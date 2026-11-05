@@ -147,8 +147,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	public function hold() {
 		held++;
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		// (Mem.os(), known when compiling: no pipe linked on Windows)
-		if (wakeRead < 0 && hxmc.unsafe.Mem.os() != 2) {
+		if (wakeRead < 0 && !Io.Handle.WINDOWS) {
 			var fds = Wake.pipe();
 			if (fds >= 0) {
 				wakeRead = fds & 0xFFFF;
@@ -413,20 +412,14 @@ private class Call implements IDispatchObject {
 
 #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 // (the wake pipe: non-blocking, not inherited by children; none on Windows,
-// whose loop polls: no POSIX call linked there, where the C library has none)
-#if (hxmc.target == "windows-x86_64" || hxmc.target == "windows-arm64")
-private class Wake {
-	public static function pipe():Int
-		return -1;
-
-	public static function write(fd:Int) {}
-
-	public static function drain(fd:Int) {}
-}
-#else
+// whose loop polls: Mem.os() is known when compiling, and a constant
+// condition's other branch is not linked, POSIX's calls with it)
 private class Wake {
 	// both ends, read | write << 16; -1 on a failure
-	@:hxmc.unsafe public static function pipe():Int {
+	public static function pipe():Int
+		return if (hxmc.unsafe.Mem.os() == 2) -1 else posixPipe();
+
+	@:hxmc.unsafe static function posixPipe():Int {
 		var fds = hxmc.unsafe.Mem.stack(8);
 		if (hxmc.unsafe.Posix.pipe(fds) != 0) return -1;
 		var r = hxmc.unsafe.Mem.getI32(fds, 0), w = hxmc.unsafe.Mem.getI32(fds, 4);
@@ -441,18 +434,23 @@ private class Wake {
 		hxmc.unsafe.Posix.fcntl(fd, 2, 1);
 	}
 
-	@:hxmc.unsafe public static function write(fd:Int) {
+	public static function write(fd:Int)
+		if (hxmc.unsafe.Mem.os() == 2) {} else posixWrite(fd);
+
+	public static function drain(fd:Int)
+		if (hxmc.unsafe.Mem.os() == 2) {} else posixDrain(fd);
+
+	@:hxmc.unsafe static function posixWrite(fd:Int) {
 		var b = hxmc.unsafe.Mem.stack(8);
 		hxmc.unsafe.Mem.setI8(b, 0, 1);
 		hxmc.unsafe.Posix.write(fd, b, 1);
 	}
 
-	@:hxmc.unsafe public static function drain(fd:Int) {
+	@:hxmc.unsafe static function posixDrain(fd:Int) {
 		var b = hxmc.unsafe.Mem.stack(64);
 		while (hxmc.unsafe.Posix.read(fd, b, 64) > 0) {}
 	}
 }
-#end
 #end
 
 // (helder.view's graph on this loop: a write flushes when the task running
