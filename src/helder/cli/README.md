@@ -324,10 +324,10 @@ build time.
   views), `classes.dex` when the program has Java's listeners (`Dex`,
   `Glue`; `helder.pack.android.Classes`, a macro of the build, tells from
   the program as generated: `@:helder.android.dex` on
-  `helder.os.android.Glue` in it; `@:helder.android.views` on
-  `helder.ui.native.NativeHost`, which the program makes: every ui
-  program has the class, a drawn window needs NativeActivity's surface;
-  tested on the counter and native-form examples), and APK Signature Scheme v2
+  `helder.os.android.Glue` in it; `@:helder.android.views` on a class
+  the program makes that shows Android's views as the activity's content:
+  none does now, a drawn window needs NativeActivity's surface; tested on
+  the counter example), and APK Signature Scheme v2
   (ECDSA P-256 with SHA-256, RFC 6979's nonces: `P256`, `Der`; v2 only,
   which minSdk 29 allows). targetSdk 36 by default; predictive back
   opted out (`enableOnBackInvokedCallback="false"`), so the back key and

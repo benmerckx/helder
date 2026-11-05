@@ -11,12 +11,11 @@ import haxe.macro.Type;
 // - dex: a class marked @:helder.android.dex is in it (helder.os.android.Glue:
 //   Java's listeners; a text input's TextWatcher too);
 // - views: the program makes an instance of a class marked
-//   @:helder.android.views (helder.ui.native.NativeHost: Android's views as
-//   the activity's content), which needs org.hxmc.Activity: its window
-//   draws views, not the program's surface. Being in the program is not
-//   enough: every ui program has NativeHost (its native text editors), a
-//   dev build every class it typed, and a drawn window needs
-//   NativeActivity's surface.
+//   @:helder.android.views (Android's views as the activity's content; none
+//   is now), which needs org.hxmc.Activity: its window draws views, not
+//   the program's surface. Being in the program is not enough: a dev build
+//   has every class it typed, and a drawn window needs NativeActivity's
+//   surface.
 class Classes {
 	public static function write(file:String) {
 		Context.onGenerate(types -> {

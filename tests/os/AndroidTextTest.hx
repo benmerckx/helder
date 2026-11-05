@@ -5,7 +5,7 @@ import helder.os.android.TextInput;
 
 // Text input in a window the program draws (NativeActivity's, as a drawn
 // UI has it) on Android (CI's android job, read from logcat by
-// tests/ui/android-mix.sh): Window.startTextInput shows the soft
+// tests/os/android-text.sh): Window.startTextInput shows the soft
 // keyboard for a hidden EditText (the script reads the input method's
 // state); keys typed by adb come as KeyDown and TextInput; an input
 // method's composition and commit through the field's InputConnection (the

@@ -4,8 +4,9 @@ import helder.pack.android.Dex;
 
 // The Java an app needs for views and listeners (classes.dex, written by
 // Dex; the APK gets it when the program uses helder.os.android.Glue, and
-// org.hxmc.Activity as its activity when it uses Android's views:
-// helder.ui.native.NativeHost; Classes, a macro, tells helder.cli.Android):
+// org.hxmc.Activity as its activity when it shows Android's views as its
+// content: a class marked @:helder.android.views; Classes, a macro, tells
+// helder.cli.Android):
 //
 // - org.hxmc.Activity, the APK's activity: NativeActivity (which loads the
 //   program's library and runs it as without classes.dex), whose window

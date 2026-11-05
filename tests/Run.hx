@@ -72,8 +72,8 @@ class Run {
 		{name: "touch", about: "helder.os's touch gesture (TouchDrag), natively", run: touch},
 		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, Pointers.emulate, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
-		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
-		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
+		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
+		{name: "ui-web", about: "the todo example and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
@@ -575,16 +575,14 @@ class Run {
 			run(h, ["build", "tests/pack/Screen.hx", "--target", "android-x86_64", "-o", "bin/pack/Screen.apk"], env);
 			// (the asset fixture: its files in assets/, files/dropped.txt not; CI's emulator runs it)
 			run(h, ["build", "tests/asset/Checksum.hx", "--target", "android-x86_64", "-o", "bin/pack/Checksum.apk"], env);
-			// (Java's classes as the program needs them: a drawn ui's listeners,
-			// NativeActivity's surface; Android's views as the content, org.hxmc.Activity)
+			// (Java's classes as the program needs them: a drawn ui's listeners, NativeActivity's surface)
 			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
-			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
 			checks = checks.concat([
 				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen@icons",
-				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface",
+				"bin/pack/Counter.apk@@surface", "bin/pack/Screen.apk@org.helder.screen@surface",
 				'bin/pack/Checksum.apk@org.helder.checksum@$ASSETS'
 			]);
-			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}, {apk: "NativeForm", want: '{"dex":true,"views":true}'}]) {
+			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}]) {
 				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
 				if (got != c.want) throw new Failed('bin/pack/${c.apk}.lib/classes.json: $got, not ${c.want}');
 			}
@@ -821,11 +819,11 @@ class Run {
 	}
 
 	static function uiCp()
-		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo", "examples/native-form"]);
+		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo"]);
 
 	static function uiPrograms() {
 		var t = GFX_TARGET;
-		var programs = ["UiDrawTest", "TodoTest", "StressTest", "ClipboardTest", "NativeTest", "EmojiTest", "BoxTest", "SnapTest", "WindowTest"];
+		var programs = ["UiDrawTest", "TodoTest", "StressTest", "ClipboardTest", "EmojiTest", "BoxTest", "SnapTest", "WindowTest"];
 		if (t.startsWith("linux-")) programs = programs.concat(["TextInputTest", "LinuxAccessTest", "AtspiProbe"]);
 		if (t.startsWith("windows-")) programs.push("WinAccessTest");
 		for (m in programs)
@@ -850,15 +848,12 @@ class Run {
 		shell('$xvfb $b/WindowTest');
 		// (AT-SPI: the window's tree read by another process through libatspi, in a D-Bus session)
 		shell('LIBGL_ALWAYS_SOFTWARE=1 $xvfb dbus-run-session -- sh -c \'$b/LinuxAccessTest & p=$$!; $b/AtspiProbe; s=$$?; wait $$p && exit $$s\'');
-		shell('$xvfb $b/NativeTest $b/native.png');
 	}
 
 	static function uiWeb() {
 		var b = "bin/ui";
 		wasm('$b/WebTodo.wasm', uiCp().concat(["-main", "WebTodo"]));
 		run(NODE, ["tests/ui/web.mjs", '$b/WebTodo.wasm', b]);
-		wasm('$b/NativeForm.wasm', uiCp().concat(["-main", "NativeForm"]));
-		run(NODE, ["tests/ui/native-web.mjs", '$b/NativeForm.wasm', b]);
 		wasm('$b/WebField.wasm', uiCp().concat(["-main", "WebField"]));
 		run(NODE, ["tests/ui/web-field.mjs", '$b/WebField.wasm']);
 	}

@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
 const [compilerArg, example = 'Counter', mode = 'native'] = process.argv.slice(2);
-// (its directory: examples/native-form for NativeForm)
+// (its directory: examples/gltf-showcase for GltfShowcase)
 const exampleDir = example.replace(/[A-Z]/g, (c, i) => (i ? '-' : '') + c.toLowerCase());
 const compiler = path.resolve(compilerArg ?? 'node_modules/.bin/haxe');
 const web = mode === 'web';

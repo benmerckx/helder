@@ -8,8 +8,7 @@ import helder.image.AnimatedImage;
 
 // helder.view's renderer for helder.ui's nodes (helder.ui.Node names it:
 // @:rendered; a <Surface>'s children, UiView): the tree that the
-// drawn backend (helder.ui.draw) and the native one (helder.ui.native, whose
-// Controls are nodes in it) display.
+// drawn backend (helder.ui.draw) displays.
 //
 // Intrinsic elements: view (a Node), text (a TextNode of its children's
 // text; elements in it are its spans: span, b, i, or text again), scroll (a

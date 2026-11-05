@@ -503,8 +503,8 @@ macro on that class only) stays for builds by plain `haxe`.
    - **Flushes**: helder's loop flushes at the end of each event and
      frame: `Ui`'s pointer, key, text and access entry points, `Ui.update`,
      `Clock.tick`, `App.run`'s callbacks, a page's listeners (DomRenderer,
-     helder.web's neutral elements), a native control's callbacks,
-     NativeHost.step; helder.async's loop at the end of its turn (one
+     helder.web's neutral elements), a native view's callbacks;
+     helder.async's loop at the end of its turn (one
      dispatch object, queued once). `Render.render`, `Render.open` and
      `DomRenderer.hydrate` at the top flush before returning (what they
      scheduled, `onSettled`'s, has run), as onMount ran at the end of the
@@ -523,9 +523,9 @@ macro on that class only) stays for builds by plain `haxe`.
      neutral elements' in every renderer; `helder.web.DomEvents` (lib.dom's
      types, `on` typing `on:name`; Dynamic outside JavaScript, where the
      static renderer drops them); `helder.scene.view.SceneEvents` (a
-     `SceneEvent`). helder.ui.native's controls are components, their
-     handlers props (`onClick:Void->Void`, `onSubmit:String->Void`), which
-     Haxe checks as any prop. The planner hands each listener to the
+     `SceneEvent`). A component's handlers are props
+     (`onClick:Void->Void`, `onSubmit:String->Void`), which Haxe checks as
+     any prop. The planner hands each listener to the
      target with its name and renderer (Target.handler); the macro checks
      it: an untyped parameter typed as the event (`e -> name(e.text)` a
      String written), a function of the event (or of a supertype: `(g:Gesture) -> ...`)
