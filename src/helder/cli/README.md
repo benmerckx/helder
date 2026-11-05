@@ -250,10 +250,14 @@ browser extensions and PWA tools each claim.
 it through the store's own API, without fastlane, Transporter or Xcode
 (HTTP by curl):
 
-- **`--play`**: the App Bundle (below: the release key's), a token for
-  the service account (`HELDER_PLAY_SERVICE_ACCOUNT`: its JSON key's path
-  or text, else the manifest's `"android": {"serviceAccount"}`): an RS256
-  JWT (`helder.pack.Jwt`, `Rsa`) for the `androidpublisher` scope,
+- **`--play`**: the App Bundle (below: the release key's), an access
+  token: `GOOGLE_OAUTH_ACCESS_TOKEN` or `HELDER_PLAY_ACCESS_TOKEN` as it
+  is (CI's, short-lived, through Workload Identity Federation:
+  google-github-actions/auth with `token_format: access_token`), else a
+  service account's JSON key (`HELDER_PLAY_SERVICE_ACCOUNT`: its path or
+  text; the manifest's `"android": {"serviceAccount"}`;
+  `GOOGLE_APPLICATION_CREDENTIALS` when it is one) signed for one: an
+  RS256 JWT (`helder.pack.Jwt`, `Rsa`) for the `androidpublisher` scope,
   exchanged at the key's `token_uri`; then the Play Developer Publishing
   API's edit: `edits.insert`, `bundles.upload`, `tracks.update`
   (`--track`: `internal`, the default, `alpha`, `beta`, `production`; the
@@ -262,8 +266,10 @@ it through the store's own API, without fastlane, Transporter or Xcode
   permissions in Play Console (Users and permissions), and Play needs a
   first bundle uploaded by hand to create the app's listing.
 - **`--testflight`**: the `.ipa` signed for distribution (below), an
-  ES256 JWT of the App Store Connect API key (`HELDER_ASC_KEY_ID`,
-  `HELDER_ASC_ISSUER_ID`, `HELDER_ASC_KEY`: the `.p8`'s path or text;
+  ES256 JWT of the App Store Connect API key (`HELDER_ASC_API_KEY`: JSON
+  of `key_id`, `issuer_id` and `private_key`, the `.p8`'s text; or
+  `HELDER_ASC_KEY_ID`, `HELDER_ASC_ISSUER_ID`, `HELDER_ASC_KEY`: the
+  `.p8`'s path or text;
   `helder.pack.Jwt` with `P256`), the app found by its bundle id
   (`/v1/apps`), then Apple's build upload API (App Store Connect API,
   2025): `POST /v1/buildUploads` (the versions, `IOS`), `POST
@@ -320,7 +326,8 @@ build time.
   gesture still reach `App.onBack` as `AKEYCODE_BACK` (an
   `OnBackInvokedCallback` of Glue's is to come). Debuggable with the
   debug key; with a release key not.
-- **Android's release signing and App Bundles**: `HELDER_ANDROID_SIGNING_CERTIFICATE`
+- **Android's release signing and App Bundles**: `HELDER_ANDROID_UPLOAD_IDENTITY`
+  (the certificate and the key in one PEM), or `HELDER_ANDROID_SIGNING_CERTIFICATE`
   and `HELDER_ANDROID_SIGNING_KEY` (PEM, RSA or P-256: each a file's path
   or its text), else the manifest's `"android": {"signing": {"certificate",
   "key"}}`, sign the APK (v2, RSA PKCS#1 or ECDSA) instead of the debug
@@ -377,10 +384,14 @@ build time.
   gives, and the manifest's); signed for the App Store and TestFlight
   when an identity is given (below), else ad hoc, which no device runs.
 - **Signing for distribution** (`helder.pack.apple.CodeSign`, no
-  codesign, no Mac): `HELDER_IOS_CERTIFICATE` (the Apple Distribution
+  codesign, no Mac): `HELDER_IOS_IDENTITY` (the certificate, its chain and
+  the key in one PEM), or `HELDER_IOS_CERTIFICATE` (the Apple Distribution
   certificate with its chain, PEM), `HELDER_IOS_KEY` (its private key,
   PEM, RSA or P-256, unencrypted) and `HELDER_IOS_PROFILE` (the App
-  Store provisioning profile), each a file's path or its contents (PEM's
+  Store provisioning profile, optional: without it the build fetches
+  the bundle id's active App Store profile for the certificate from App
+  Store Connect, `/v1/bundleIds` and their `profiles`, with the API key
+  below), each a file's path or its contents (PEM's
   text; the profile's base64, as CI secrets hold them), else the
   manifest's `"ios": {"signing": {"certificate", "key", "profile"}}`
   (paths from the project). Some of them without the others is an error

@@ -85,7 +85,7 @@ class Publish {
 				var key = ascKey();
 				var out = o.out ?? Ios.out(e);
 				if (Ios.signing(App.ios(e.name, e.config), e.root) == null)
-					throw "TestFlight takes an .ipa signed for distribution: HELDER_IOS_CERTIFICATE, HELDER_IOS_KEY and HELDER_IOS_PROFILE";
+					throw "TestFlight takes an .ipa signed for distribution: HELDER_IOS_IDENTITY (or HELDER_IOS_CERTIFICATE and HELDER_IOS_KEY)";
 				if (!Ios.build(e, out, Release).ok) return 1;
 				var i = App.ios(e.name, e.config);
 				toTestFlight(out, i.id, i.versionName, i.version, dry, key);
@@ -126,7 +126,7 @@ class Publish {
 		return {code: Std.parseInt(r.text.substr(at + 1)) ?? 0, body: at < 0 ? "" : r.text.substr(0, at)};
 	}
 
-	@:coroutine static function json(method:String, url:String, token:String, ?body:Dynamic, ok = 200):Dynamic {
+	@:coroutine public static function json(method:String, url:String, token:String, ?body:Dynamic, ok = 200):Dynamic {
 		var r = http(method, url, ["Authorization: Bearer " + token, "Content-Type: application/json"],
 			body == null ? null : Bytes.ofString(haxe.Json.stringify(body)));
 		if (r.code != ok && !(ok == 200 && r.code == 204)) throw '$method $url: HTTP ${r.code} ${r.body.trim()}';
@@ -138,21 +138,40 @@ class Publish {
 
 	// ---- Google Play
 
-	static function serviceAccount(e:Entry):Dynamic {
+	// Google's credentials, the first there is: an access token
+	// (HELDER_PLAY_ACCESS_TOKEN, or GOOGLE_OAUTH_ACCESS_TOKEN: what
+	// google-github-actions/auth gives with token_format: access_token, a
+	// short-lived one through Workload Identity Federation), else a service
+	// account's JSON key (HELDER_PLAY_SERVICE_ACCOUNT: its path or text; the
+	// manifest's "android": {"serviceAccount"}; GOOGLE_APPLICATION_CREDENTIALS
+	// when it is one), signed for a token
+	public static function serviceAccount(e:Entry):Dynamic {
+		for (n in ["HELDER_PLAY_ACCESS_TOKEN", "GOOGLE_OAUTH_ACCESS_TOKEN"]) {
+			var t = Sys.getEnv(n);
+			if (t != null && t.trim() != "") return {token: t.trim()};
+		}
 		var v = Sys.getEnv("HELDER_PLAY_SERVICE_ACCOUNT"), name = "HELDER_PLAY_SERVICE_ACCOUNT";
 		if (v == null || v.trim() == "") {
-			var m:Dynamic = e.config?.android?.serviceAccount;
-			if (m == null) throw 'Google Play takes a service account\'s JSON key: HELDER_PLAY_SERVICE_ACCOUNT (its path or text), or "helder": {"android": {"serviceAccount"}}';
-			v = Path.isAbsolute(m) || e.root == "." ? m : '${e.root}/$m';
-			name = '"helder": {"android": {"serviceAccount"}}';
+			var m:Dynamic = e.config?.android?.serviceAccount, adc = Sys.getEnv("GOOGLE_APPLICATION_CREDENTIALS");
+			if (m != null) {
+				v = Path.isAbsolute(m) || e.root == "." ? m : '${e.root}/$m';
+				name = '"helder": {"android": {"serviceAccount"}}';
+			} else if (adc != null && adc.trim() != "") {
+				v = adc;
+				name = "GOOGLE_APPLICATION_CREDENTIALS";
+			} else
+				throw 'Google Play takes an access token (GOOGLE_OAUTH_ACCESS_TOKEN: Workload Identity Federation\'s, or HELDER_PLAY_ACCESS_TOKEN) or a service account\'s JSON key (HELDER_PLAY_SERVICE_ACCOUNT, its path or text; "helder": {"android": {"serviceAccount"}})';
 		}
 		var j:Dynamic = try haxe.Json.parse(textOrFile(name, v)) catch (err:String) throw err catch (err:Dynamic) throw '$name: not JSON ($err)';
+		if (j.type == "external_account")
+			throw '$name: Workload Identity Federation\'s credentials file: give its access token instead (google-github-actions/auth with token_format: access_token, access_token_scopes: https://www.googleapis.com/auth/androidpublisher; GOOGLE_OAUTH_ACCESS_TOKEN)';
 		if (j.client_email == null || j.private_key == null) throw '$name: not a service account\'s key (client_email, private_key)';
 		return j;
 	}
 
 	// the service account's access token (RFC 7523: a JWT bearer grant)
 	@:coroutine public static function googleToken(sa:Dynamic):String {
+		if (sa.token != null) return sa.token;
 		var now = Std.int(Date.now().getTime() / 1000);
 		var uri:String = sa.token_uri ?? "https://oauth2.googleapis.com/token";
 		var jwt = Jwt.sign({alg: "RS256", typ: "JWT"}, {
@@ -197,11 +216,22 @@ class Publish {
 
 	// ---- App Store Connect
 
-	static function ascKey():{id:String, issuer:String, key:PrivateKey} {
+	// the App Store Connect API key: HELDER_ASC_API_KEY (one secret: JSON
+	// {"key_id", "issuer_id", "private_key"}, its path or text), else
+	// HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID and HELDER_ASC_KEY (the .p8)
+	public static function ascKey():{id:String, issuer:String, key:PrivateKey} {
 		var id = Sys.getEnv("HELDER_ASC_KEY_ID"), issuer = Sys.getEnv("HELDER_ASC_ISSUER_ID"), key = Sys.getEnv("HELDER_ASC_KEY");
+		var bundle = Sys.getEnv("HELDER_ASC_API_KEY");
+		if (bundle != null && bundle.trim() != "") {
+			var j:Dynamic = try haxe.Json.parse(textOrFile("HELDER_ASC_API_KEY", bundle)) catch (err:String) throw err catch (err:Dynamic) throw 'HELDER_ASC_API_KEY: not JSON ($err)';
+			id = j.key_id ?? j.keyId;
+			issuer = j.issuer_id ?? j.issuerId;
+			key = j.private_key ?? j.privateKey ?? j.key;
+			if (id == null || issuer == null || key == null) throw 'HELDER_ASC_API_KEY: JSON of "key_id", "issuer_id" and "private_key" (the .p8\'s text)';
+		}
 		var missing = [for (n => v in ["HELDER_ASC_KEY_ID" => id, "HELDER_ASC_ISSUER_ID" => issuer, "HELDER_ASC_KEY" => key]) if (v == null || v.trim() == "") n];
 		missing.sort(Reflect.compare);
-		if (missing.length > 0) throw 'App Store Connect takes an API key: ${missing.join(", ")} not given (the key\'s id, its issuer id, the .p8)';
+		if (missing.length > 0) throw 'App Store Connect takes an API key: HELDER_ASC_API_KEY, or ${missing.join(", ")} not given (the key\'s id, its issuer id, the .p8)';
 		var k = try PrivateKey.fromPem(textOrFile("HELDER_ASC_KEY", key)) catch (err:String) throw 'HELDER_ASC_KEY: $err';
 		if (k.ec == null) throw "HELDER_ASC_KEY: not an App Store Connect key (a P-256 .p8)";
 		return {id: id.trim(), issuer: issuer.trim(), key: k};
@@ -217,7 +247,7 @@ class Publish {
 		if (api == "") api = ASC;
 		var token = ascToken(k);
 		var apps:Array<Dynamic> = json("GET", '$api/v1/apps?filter%5BbundleId%5D=' + StringTools.urlEncode(bundleId), token).data;
-		if (apps == null || apps.length == 0) throw 'App Store Connect has no app $bundleId (make its record first: My Apps, +, New App)';
+		if (apps == null || apps.length == 0) throw 'App Store Connect has no app $bundleId (make its record first: Apps, +, New App)';
 		var app:String = apps[0].id;
 		var size = FileSystem.stat(ipa).size;
 		if (dry) {
@@ -415,5 +445,28 @@ class Publish {
 		}
 		for (c in changes) Term.out(Style.status(dry ? "would" : "listing", dry ? Info : Ok, c));
 		return changes;
+	}
+
+	// the active App Store profile of a bundle id for the certificate, from
+	// App Store Connect (bundleIds by identifier, their profiles)
+	@:coroutine public static function profile(bundleId:String, cert:haxe.io.Bytes, k:{id:String, issuer:String, key:PrivateKey}):helder.pack.apple.Identity.Profile {
+		var api = (Sys.getEnv("HELDER_ASC_API") ?? "").trim();
+		if (api == "") api = ASC;
+		var token = ascToken(k);
+		var ids:Array<Dynamic> = json("GET", '$api/v1/bundleIds?filter%5Bidentifier%5D=' + StringTools.urlEncode(bundleId), token).data ?? [];
+		var id:Dynamic = Lambda.find(ids, b -> b.attributes?.identifier == bundleId);
+		if (id == null) throw 'App Store Connect: no App ID $bundleId (Certificates, Identifiers & Profiles: Identifiers, +)';
+		var all:Array<Dynamic> = json("GET", '$api/v1/bundleIds/${id.id}/profiles?limit=200', token).data ?? [];
+		var found = [];
+		for (p in all) {
+			var a:Dynamic = p.attributes;
+			if (a == null || a.profileType != "IOS_APP_STORE" || a.profileState != "ACTIVE" || a.profileContent == null) continue;
+			var parsed = helder.pack.apple.Identity.Profile.parse(haxe.crypto.Base64.decode(a.profileContent));
+			if (Lambda.exists(parsed.certificates, c -> c.compare(cert) == 0)) found.push(parsed);
+		}
+		if (found.length == 0)
+			throw 'App Store Connect: no active App Store profile for $bundleId with this certificate (Profiles, +, App Store Connect: the App ID, the certificate; or HELDER_IOS_PROFILE)';
+		Term.out(Style.status("profile", Info, '"${found[0].name}" from App Store Connect'));
+		return found[0];
 	}
 }

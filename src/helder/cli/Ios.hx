@@ -64,6 +64,11 @@ class Ios {
 		var device = e.target == "ios-arm64";
 		// (the identity and profile checked before the build: its mistakes first)
 		var sign = device ? signing(o, e.root) : null;
+		if (sign != null && sign.profile == null) {
+			var key = try Publish.ascKey() catch (err:String)
+				throw 'no provisioning profile given (HELDER_IOS_PROFILE): it is fetched from App Store Connect, which takes an API key: $err';
+			sign.profile = Publish.profile(o.id, sign.identity.leaf.der, key);
+		}
 		var appEntitlements:Null<Map<String, PValue>> = null;
 		var art = artwork(e.config, e.root, o.minVersion);
 		var keys = art.keys;
@@ -216,13 +221,22 @@ class Ios {
 	}
 
 	// the distribution signature's identity and provisioning profile:
-	// HELDER_IOS_CERTIFICATE (the certificate and its chain, PEM), HELDER_IOS_KEY
-	// (the private key, PEM) and HELDER_IOS_PROFILE (the .mobileprovision),
-	// each a file's path or its contents (PEM's text; the profile's base64),
-	// else the manifest's "signing" (paths from the project's directory);
-	// null: none given (an .ipa signed ad hoc, for no device). Part of them: an error
-	public static function signing(o:App.IosOptions, root:String, ?env:String->Null<String>):Null<{identity:Identity, profile:Profile}> {
+	// HELDER_IOS_IDENTITY (the certificate, its chain and the key in one
+	// PEM), or HELDER_IOS_CERTIFICATE (the certificate and its chain) and
+	// HELDER_IOS_KEY (the private key), and optionally HELDER_IOS_PROFILE
+	// (the .mobileprovision; else build fetches the bundle id's active App
+	// Store profile from App Store Connect: Publish.profile), each a file's
+	// path or its contents (PEM's text; the profile's base64), else the
+	// manifest's "signing" (paths from the project's directory); null: none
+	// given (an .ipa signed ad hoc, for no device). A key without its certificate: an error
+	public static function signing(o:App.IosOptions, root:String, ?env:String->Null<String>):Null<{identity:Identity, profile:Null<Profile>}> {
 		env = env ?? Sys.getEnv;
+		// (HELDER_IOS_IDENTITY: the certificate, its chain and the key in one PEM)
+		var bundle = env("HELDER_IOS_IDENTITY");
+		if (bundle != null && bundle.trim() != "") {
+			var both = bundle, outer = env;
+			env = n -> n == "HELDER_IOS_CERTIFICATE" || n == "HELDER_IOS_KEY" ? both : outer(n);
+		}
 		var names = [
 			{env: "HELDER_IOS_CERTIFICATE", key: "certificate"},
 			{env: "HELDER_IOS_KEY", key: "key"},
@@ -238,8 +252,8 @@ class Ios {
 			}
 		}
 		if (!Lambda.exists(given, g -> g != null)) return null;
-		var missing = [for (i => g in given) if (g == null) '${names[i].env} (or "helder": {"ios": {"signing": {"${names[i].key}"}}})'];
-		if (missing.length > 0) throw 'signing for the App Store takes a certificate, its key and a provisioning profile: ${missing.join(", ")} not given';
+		var missing = [for (i => g in given) if (g == null && i < 2) '${names[i].env} (or "helder": {"ios": {"signing": {"${names[i].key}"}}})'];
+		if (missing.length > 0) throw 'signing for the App Store takes a certificate and its key (HELDER_IOS_IDENTITY: both in one PEM): ${missing.join(", ")} not given';
 		function bytes(g:{name:String, value:String, file:Bool}, text:Bool):haxe.io.Bytes {
 			if (text && !g.file && g.value.indexOf("-----BEGIN") >= 0) return haxe.io.Bytes.ofString(g.value);
 			if (FileSystem.exists(g.value) && !FileSystem.isDirectory(g.value)) return File.getBytes(g.value);
@@ -252,8 +266,10 @@ class Ios {
 		}
 		function named(g:{name:String, value:String, file:Bool}, f:Void->Dynamic):Dynamic
 			return try f() catch (err:String) throw err.startsWith("HELDER_IOS_") || err.startsWith('"helder"') ? err : '${g.name}: $err';
-		var identity:Identity = named({name: '${given[0].name}, ${given[1].name}', value: "", file: false}, () -> Identity.fromPem(bytes(given[0], true).toString(), bytes(given[1], true).toString()));
-		var profile:Profile = named(given[2], () -> Profile.parse(bytes(given[2], false)));
+		var who = bundle != null && bundle.trim() != "" ? "HELDER_IOS_IDENTITY" : '${given[0].name}, ${given[1].name}';
+		var identity:Identity = named({name: who, value: "", file: false}, () -> Identity.fromPem(bytes(given[0], true).toString(), bytes(given[1], true).toString()));
+		// (no profile given: App Store Connect's, fetched by build: Publish.profile)
+		var profile:Null<Profile> = given[2] == null ? null : named(given[2], () -> Profile.parse(bytes(given[2], false)));
 		return {identity: identity, profile: profile};
 	}
 

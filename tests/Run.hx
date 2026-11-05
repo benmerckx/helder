@@ -411,7 +411,7 @@ class Run {
 			var partial = [for (k => v in env) k => v];
 			partial.set("HELDER_IOS_KEY", '$signing/key.pem');
 			expect(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Unsigned.ipa"], partial,
-				"signing for the App Store takes a certificate, its key and a provisioning profile: HELDER_IOS_CERTIFICATE", 1);
+				"signing for the App Store takes a certificate and its key (HELDER_IOS_IDENTITY: both in one PEM): HELDER_IOS_CERTIFICATE", 1);
 			checks = checks.concat(["bin/pack/Packed-signed.ipa@org.helder.packcheck@signed@encryption@entitlements@landscape@fullscreen@icons",
 				"bin/pack/Hello-signed.ipa@org.helder.Hello@signed"]);
 			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen@icons", "bin/pack/Screen.app@org.helder.Screen",

@@ -199,7 +199,7 @@ function tests() {
 		equals(Ios.signing(o, ".", _ -> null), null);
 		var env = ["HELDER_IOS_KEY" => "key.pem"];
 		equals(Std.string(throws(() -> Ios.signing(o, ".", k -> env.get(k)))),
-			'signing for the App Store takes a certificate, its key and a provisioning profile: HELDER_IOS_CERTIFICATE (or "helder": {"ios": {"signing": {"certificate"}}}), HELDER_IOS_PROFILE (or "helder": {"ios": {"signing": {"profile"}}}) not given');
+			'signing for the App Store takes a certificate and its key (HELDER_IOS_IDENTITY: both in one PEM): HELDER_IOS_CERTIFICATE (or "helder": {"ios": {"signing": {"certificate"}}}) not given');
 		var all = ["HELDER_IOS_CERTIFICATE" => "missing.pem", "HELDER_IOS_KEY" => "missing.key", "HELDER_IOS_PROFILE" => "missing.mobileprovision"];
 		equals(Std.string(throws(() -> Ios.signing(o, ".", k -> all.get(k)))), "HELDER_IOS_CERTIFICATE: missing.pem: no such file (nor PEM text)");
 		equals(Ios.dtKeys(App.ios("x", {ios: {sdk: {version: "26.1"}}})).get("DTSDKName"), PString("iphoneos26.1"));

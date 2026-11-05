@@ -64,6 +64,18 @@ const server = createServer((req, res) => {
       const t = jwt(auth.replace("Bearer ", ""), ecKey, "ES256");
       asc.jwt = t;
       if (!t.ok) return send(401, { errors: [{ detail: "bad token" }] });
+      if (req.method === "GET" && url.pathname === "/v1/bundleIds") {
+        asc.profileAsked = url.searchParams.get("filter[identifier]");
+        return send(200, { data: [{ type: "bundleIds", id: "B-2", attributes: { identifier: "org.helder.Hello.extra" } },
+          { type: "bundleIds", id: "B-1", attributes: { identifier: "org.helder.Hello" } }] });
+      }
+      if (req.method === "GET" && url.pathname === "/v1/bundleIds/B-1/profiles") {
+        const content = readFileSync(join(signing, "test.mobileprovision")).toString("base64");
+        return send(200, { data: [
+          { type: "profiles", id: "P-dev", attributes: { profileType: "IOS_APP_DEVELOPMENT", profileState: "ACTIVE", profileContent: content } },
+          { type: "profiles", id: "P-old", attributes: { profileType: "IOS_APP_STORE", profileState: "INVALID", profileContent: content } },
+          { type: "profiles", id: "P-1", attributes: { profileType: "IOS_APP_STORE", profileState: "ACTIVE", profileContent: content } }] });
+      }
       if (req.method === "GET" && url.pathname === "/v1/apps") {
         asc.bundleId = url.searchParams.get("filter[bundleId]");
         return send(200, { data: [{ type: "apps", id: "6400000001" }] });
@@ -140,9 +152,12 @@ const port = server.address().port;
 const sa = join(dir, "service-account.json");
 writeFileSync(sa, JSON.stringify({ type: "service_account", client_email: "publisher@helder-tests.iam.gserviceaccount.com",
   private_key: readFileSync(join(signing, "key.pem"), "utf8"), token_uri: `http://127.0.0.1:${port}/token` }));
+// (one secret a target, as Expansion's release workflow has them: the
+// identities as PEM bundles, the App Store Connect key as JSON, the profile
+// fetched from App Store Connect, Google's access token)
+const identity = readFileSync(join(signing, "cert.pem"), "utf8") + readFileSync(join(signing, "key.pem"), "utf8");
 const base = { ...process.env, HELDER_PLAY_API: `http://127.0.0.1:${port}`, HELDER_ASC_API: `http://127.0.0.1:${port}`,
-  HELDER_ANDROID_SIGNING_CERTIFICATE: join(signing, "cert.pem"), HELDER_ANDROID_SIGNING_KEY: join(signing, "key.pem"),
-  HELDER_IOS_CERTIFICATE: join(signing, "cert.pem"), HELDER_IOS_KEY: join(signing, "key.pem"), HELDER_IOS_PROFILE: join(signing, "test.mobileprovision") };
+  HELDER_ANDROID_UPLOAD_IDENTITY: identity, HELDER_IOS_IDENTITY: identity };
 async function publish(args, env, want = 0) {
   // (want null: any exit code)
   const p = await new Promise((done) => {
@@ -160,6 +175,7 @@ async function publish(args, env, want = 0) {
 // Google Play
 const aab = join(dir, "Hello.aab");
 const playEnv = { ...base, HELDER_PLAY_SERVICE_ACCOUNT: sa };
+const tokenEnv = { ...base, GOOGLE_OAUTH_ACCESS_TOKEN: "play-token" };
 calls = [];
 let out = await publish(["--play", "--dry-run", "-o", aab], playEnv);
 check("dry run: the service account's RS256 JWT (its email, the androidpublisher scope, the token URI)", play.jwt?.ok
@@ -169,25 +185,27 @@ check("dry run: edit opened, the track read, the edit deleted; nothing uploaded 
   && calls.some((c) => c.includes("/tracks/internal")), calls.join(", "));
 check("dry run: what would change printed", out.includes("would") && out.includes("internal") && out.includes("versionCode"));
 calls = []; play = {};
-out = await publish(["--play", "--track", "beta", "-o", aab], playEnv);
+out = await publish(["--play", "--track", "beta", "-o", aab], tokenEnv);
 check("the package's edit: org.helder.hello", play.pkg === "org.helder.hello");
 check("bundles.upload: the .aab's bytes", play.uploaded && Buffer.compare(play.uploaded, readFileSync(aab)) === 0);
 check("tracks.update: beta, the uploaded versionCode, completed", play.track?.track === "beta" && play.track.releases?.[0]?.versionCodes?.[0] === "2"
   && play.track.releases[0].status === "completed", JSON.stringify(play.track));
 check("edits.commit", play.committed === true);
-check("in order: insert, upload, track, commit", calls.join(",") === ["POST /token", "POST /androidpublisher/v3/applications/org.helder.hello/edits",
+check("an access token (Workload Identity Federation's): no token exchange; in order insert, upload, track, commit", calls.join(",") === ["POST /androidpublisher/v3/applications/org.helder.hello/edits",
   "POST /upload/androidpublisher/v3/applications/org.helder.hello/edits/edit-1/bundles", "PUT /androidpublisher/v3/applications/org.helder.hello/edits/edit-1/tracks/beta",
   "POST /androidpublisher/v3/applications/org.helder.hello/edits/edit-1:commit"].join(","), calls.join(", "));
 
 // TestFlight
 const ipa = join(dir, "Hello.ipa");
-const ascEnv = { ...base, HELDER_ASC_KEY_ID: "ABC123DEFG", HELDER_ASC_ISSUER_ID: "69a6de70-0000-47e3-e053-5b8c7c11a4d1",
-  HELDER_ASC_KEY: readFileSync(join(signing, "key-ec.pem"), "utf8") };
+const ascEnv = { ...base, HELDER_ASC_API_KEY: JSON.stringify({ key_id: "ABC123DEFG", issuer_id: "69a6de70-0000-47e3-e053-5b8c7c11a4d1",
+  private_key: readFileSync(join(signing, "key-ec.pem"), "utf8") }) };
 calls = []; parts = {};
 out = await publish(["--testflight", "--dry-run", "-o", ipa], ascEnv);
 check("dry run: the API key's ES256 JWT (kid, issuer, audience)", asc.jwt?.ok && asc.jwt.header.kid === "ABC123DEFG"
   && asc.jwt.claims.iss === "69a6de70-0000-47e3-e053-5b8c7c11a4d1" && asc.jwt.claims.aud === "appstoreconnect-v1");
 check("dry run: the app looked up by bundle id, nothing uploaded", asc.bundleId === "org.helder.Hello" && !calls.some((c) => c.startsWith("POST")), calls.join(", "));
+check("the profile fetched: the App ID's active App Store one", asc.profileAsked === "org.helder.Hello" && calls.includes("GET /v1/bundleIds/B-1/profiles")
+  && out.includes("from App Store Connect"));
 calls = []; asc = {};
 out = await publish(["--testflight", "-o", ipa], ascEnv);
 const data = readFileSync(ipa);
@@ -235,6 +253,8 @@ out = await publish(["--play", "-o", aab], { ...base, HELDER_PLAY_SERVICE_ACCOUN
 check("no service account: the message", out.includes("HELDER_PLAY_SERVICE_ACCOUNT"));
 out = await publish(["--testflight", "-o", ipa], { ...base, HELDER_ASC_KEY_ID: "x" }, 1);
 check("no App Store Connect key: the message", out.includes("HELDER_ASC_ISSUER_ID, HELDER_ASC_KEY not given"));
+out = await publish(["--testflight", "-o", ipa], { ...ascEnv, HELDER_IOS_IDENTITY: readFileSync(join(signing, "key.pem"), "utf8") }, 1);
+check("an identity without its certificate: the message", out.includes("no -----BEGIN CERTIFICATE----- block"));
 out = await publish(["-o", ipa], base, 2);
 server.close();
 if (failures > 0) { console.log(`publish: ${failures} failed`); process.exit(1); }

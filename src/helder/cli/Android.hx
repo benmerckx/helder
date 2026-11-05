@@ -80,7 +80,7 @@ class Android {
 		return env != null && DebugKey.isText(env) ? DebugKey.fromEnv(env) : DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), env));
 	}
 
-	// the release key: HELDER_ANDROID_SIGNING_CERTIFICATE and
+	// the release key: HELDER_ANDROID_UPLOAD_IDENTITY (one PEM of both), or HELDER_ANDROID_SIGNING_CERTIFICATE and
 	// HELDER_ANDROID_SIGNING_KEY (PEM: each a file's path or its text), else
 	// the manifest's "android": {"signing": {"certificate", "key"}} (paths
 	// from the project); null: none (the debug key). One without the other: an error
@@ -94,6 +94,13 @@ class Android {
 			return f == null ? null : {name: '"helder": {"android": {"signing": {"$key"}}}', value: Path.isAbsolute(f) || root == "." ? f : '$root/$f', file: true};
 		}
 		var cert = given("HELDER_ANDROID_SIGNING_CERTIFICATE", "certificate"), key = given("HELDER_ANDROID_SIGNING_KEY", "key");
+		// (HELDER_ANDROID_UPLOAD_IDENTITY: the certificate and the key in one PEM, over the two)
+		var both = env("HELDER_ANDROID_UPLOAD_IDENTITY");
+		if (both != null && both.trim() != "") {
+			var g = {name: "HELDER_ANDROID_UPLOAD_IDENTITY", value: both, file: both.indexOf("-----BEGIN") < 0};
+			cert = g;
+			key = g;
+		}
 		if (cert == null && key == null) return null;
 		if (cert == null || key == null)
 			throw 'release signing takes a certificate and its key: ${cert == null ? "HELDER_ANDROID_SIGNING_CERTIFICATE (or \"helder\": {\"android\": {\"signing\": {\"certificate\"}}})" : "HELDER_ANDROID_SIGNING_KEY (or \"helder\": {\"android\": {\"signing\": {\"key\"}}})"} not given';
@@ -102,7 +109,7 @@ class Android {
 			if (!FileSystem.exists(g.value)) throw '${g.name}: ${g.value}: no such file (nor PEM text)';
 			return File.getContent(g.value);
 		}
-		var id = try helder.pack.apple.Identity.fromPem(text(cert), text(key)) catch (err:String) throw '${cert.name}, ${key.name}: $err';
+		var id = try helder.pack.apple.Identity.fromPem(text(cert), text(key)) catch (err:String) throw (cert == key ? cert.name : '${cert.name}, ${key.name}') + ': $err';
 		return Apk.releaseSigner(id);
 	}
 
