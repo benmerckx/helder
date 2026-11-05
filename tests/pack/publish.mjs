@@ -13,7 +13,7 @@
 // MD5). Then the missing credentials' messages.
 import { spawn } from "node:child_process";
 import { createHash, createPublicKey, verify } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, resolve } from "node:path";
 
@@ -83,6 +83,30 @@ const server = createServer((req, res) => {
         asc.commit = JSON.parse(body);
         return send(200, { data: { type: "buildUploadFiles", id: "f-1" } });
       }
+      // (the listing's screenshots)
+      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appStoreVersions") return send(200, { data: [{ type: "appStoreVersions", id: "v-1" }] });
+      if (req.method === "GET" && url.pathname === "/v1/appStoreVersions/v-1/appStoreVersionLocalizations")
+        return send(200, { data: [{ type: "appStoreVersionLocalizations", id: "loc-1", attributes: { locale: "en-US" } }] });
+      if (req.method === "GET" && url.pathname === "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
+        return send(200, { data: [{ type: "appScreenshotSets", id: "set-67", attributes: { screenshotDisplayType: "APP_IPHONE_67" } }] });
+      if (req.method === "GET" && url.pathname === "/v1/appScreenshotSets/set-67/appScreenshots")
+        return send(200, { data: [{ type: "appScreenshots", id: "shot-old", attributes: { sourceFileChecksum: "0000" } }] });
+      if (req.method === "DELETE" && url.pathname.startsWith("/v1/appScreenshots/")) { asc.deleted = [...(asc.deleted ?? []), url.pathname.slice(19)]; return send(204); }
+      if (req.method === "POST" && url.pathname === "/v1/appScreenshotSets") {
+        const t = JSON.parse(body).data.attributes.screenshotDisplayType;
+        asc.sets = [...(asc.sets ?? []), t];
+        return send(201, { data: { type: "appScreenshotSets", id: `set-${t}` } });
+      }
+      if (req.method === "POST" && url.pathname === "/v1/appScreenshots") {
+        const a = JSON.parse(body).data, id = `shot-${(asc.shots ?? []).length}`;
+        asc.shots = [...(asc.shots ?? []), { id, set: a.relationships.appScreenshotSet.data.id, name: a.attributes.fileName }];
+        return send(201, { data: { type: "appScreenshots", id, attributes: { uploadOperations: [{ method: "PUT", url: `http://127.0.0.1:${port}/part/${id}`, offset: 0,
+          length: a.attributes.fileSize, requestHeaders: [] }] } } });
+      }
+      if (req.method === "PATCH" && url.pathname.startsWith("/v1/appScreenshots/")) {
+        asc.committed = { ...(asc.committed ?? {}), [url.pathname.slice(19)]: JSON.parse(body).data.attributes };
+        return send(200, { data: {} });
+      }
       if (req.method === "GET" && url.pathname === "/v1/buildUploads/bu-1")
         return send(200, { data: { type: "buildUploads", id: "bu-1", attributes: { state: { state: "PROCESSING" } } } });
       return send(404, { errors: [{ detail: "no such route" }] });
@@ -99,6 +123,13 @@ const server = createServer((req, res) => {
       play.uploaded = body;
       return send(200, { versionCode: 2, sha256: createHash("sha256").update(body).digest("hex") });
     }
+    if (req.method === "GET" && rest.startsWith("/listings/en-US/phoneScreenshots"))
+      return send(200, { images: [{ id: "img-old", sha256: "00" }] });
+    if (req.method === "DELETE" && rest.startsWith("/listings/en-US/phoneScreenshots/")) { play.deletedImages = [...(play.deletedImages ?? []), rest.slice(33)]; return send(204); }
+    if (req.method === "POST" && m[1] && rest.startsWith("/listings/en-US/phoneScreenshots")) {
+      play.images = [...(play.images ?? []), body];
+      return send(200, { image: { id: "img-new", sha256: createHash("sha256").update(body).digest("hex") } });
+    }
     if (req.method === "PUT" && rest.startsWith("/tracks/")) { play.track = JSON.parse(body); return send(200, play.track); }
     if (req.method === "POST" && rest === ":commit") { play.committed = true; return send(200, { id: "edit-1" }); }
     return send(404, { error: "no such route" });
@@ -113,6 +144,7 @@ const base = { ...process.env, HELDER_PLAY_API: `http://127.0.0.1:${port}`, HELD
   HELDER_ANDROID_SIGNING_CERTIFICATE: join(signing, "cert.pem"), HELDER_ANDROID_SIGNING_KEY: join(signing, "key.pem"),
   HELDER_IOS_CERTIFICATE: join(signing, "cert.pem"), HELDER_IOS_KEY: join(signing, "key.pem"), HELDER_IOS_PROFILE: join(signing, "test.mobileprovision") };
 async function publish(args, env, want = 0) {
+  // (want null: any exit code)
   const p = await new Promise((done) => {
     const c = spawn(helder, ["publish", "tests/pack/Hello.hx", ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
@@ -121,7 +153,7 @@ async function publish(args, env, want = 0) {
     c.on("close", (code) => done({ code, out }));
   });
   process.stdout.write(p.out);
-  check(`helder publish ${args.join(" ")}: exit code ${want}`, p.code === want, `${p.code}`);
+  if (want !== null) check(`helder publish ${args.join(" ")}: exit code ${want}`, p.code === want, `${p.code}`);
   return p.out;
 }
 
@@ -167,6 +199,36 @@ check("the parts PUT where the operations say: the .ipa put together", Buffer.co
   parts["/part/1"] ?? Buffer.alloc(0)]), data) === 0);
 check("committed: uploaded, the file's MD5", asc.commit?.data?.attributes?.uploaded === true
   && asc.commit.data.attributes.sourceFileChecksums.file.hash === createHash("md5").update(data).digest("hex"));
+
+// the store listings' screenshots (tests/story's store story rendered by
+// helder publish --screenshots: a GPU, or Mesa's llvmpipe; skipped without
+// one unless STORE_SHOTS_REQUIRE=1)
+const both = { ...playEnv, ...ascEnv };
+calls = []; play = {}; asc = {}; parts = {};
+out = await publish(["--screenshots"], both, null);
+if (out.includes("rendering failed") && process.env.STORE_SHOTS_REQUIRE !== "1") console.log("skip store screenshots (no GPU or llvmpipe here)");
+else {
+  check("--screenshots: rendered, the review sheet written", out.includes("rendered 4 screenshots") && existsSync("bin/store/review.html"));
+  const shots = JSON.parse(readFileSync("bin/store/shots.json", "utf8"));
+  const png = (f) => readFileSync(join("bin/store", f));
+  check("each at its store size, opaque RGB (PNG colour type 2)", shots.every((s) => { const b = png(s.file); return b.readUInt32BE(16) === s.width && b.readUInt32BE(20) === s.height && b[25] === 2; }),
+    shots.map((s) => `${s.size} ${s.width}x${s.height}`).join(", "));
+  calls = []; play = {}; asc = {};
+  out = await publish(["--listing", "--dry-run"], both);
+  check("listing dry run: the changes listed, nothing uploaded or deleted", out.includes("would") && out.includes("phoneScreenshots") && out.includes("APP_IPHONE_65")
+    && !play.images && !play.deletedImages && !asc.shots && !asc.deleted && !asc.sets);
+  check("listing dry run: the review sheet lists them", readFileSync("bin/store/review.html", "utf8").includes("What would change"));
+  calls = []; play = {}; asc = {}; parts = {};
+  out = await publish(["--listing"], both);
+  const android = shots.filter((s) => s.store === "android"), ios = shots.filter((s) => s.store === "ios");
+  check("Play: the old image deleted, ours uploaded (its bytes), committed", play.deletedImages?.join() === "img-old" && play.images?.length === android.length
+    && Buffer.compare(play.images[0], png(android[0].file)) === 0 && play.committed === true);
+  check("App Store: the old screenshot deleted, the missing sets made", asc.deleted?.join() === "shot-old" && asc.sets?.sort().join() === "APP_IPAD_PRO_3GEN_129,APP_IPHONE_65",
+    `${asc.deleted} ${asc.sets}`);
+  check("App Store: each screenshot reserved, sent, committed with its MD5", asc.shots?.length === ios.length && asc.shots.every((s, i) =>
+    asc.committed?.[s.id]?.uploaded === true && asc.committed[s.id].sourceFileChecksum === createHash("md5").update(parts[`/part/${s.id}`] ?? "").digest("hex")
+    && ios.some((x) => x.md5 === asc.committed[s.id].sourceFileChecksum)));
+}
 
 // missing credentials
 out = await publish(["--play", "-o", aab], { ...base, HELDER_PLAY_SERVICE_ACCOUNT: "" }, 1);

@@ -463,7 +463,8 @@ collection only when it allocates or blocks.
     frame, tree snapshots on request, commands, pick and highlight. Its
     protocol is there (phase 2: src/helder/devtools/README.md, frame stats,
     the log and the ui tree), and `helder inspect` a small client of it.
-  - **Stories**, as Storybook's: `Foo.story.hx` files anywhere (linked as
+  - **Stories** (*started*: helder.story, the files, controls and tree
+    snapshots in `helder test`), as Storybook's: `Foo.story.hx` files anywhere (linked as
     `.test.hx` files are) whose `stories()` registers
     `story("Inventory/full", c -> ...)`, built into dev builds only; controls
     are signals (`c.number`, `c.bool`, a choice, a colour), so an edit
@@ -790,8 +791,11 @@ fix.
       TestFlight through Transporter (on Linux too) or the API's own
       build upload where it is available;
     - optional store metadata (texts, screenshots) through the same APIs.
-  - **Store screenshots from stories** (phase 3's `.story.hx` stories,
-    not built yet: they come first): a story tagged for the store is a
+  - **Store screenshots from stories** (*landed*: helder.story's
+    `.story.hx` stories, tested by their trees, and `helder publish
+    --screenshots`, `--listing`: src/helder/story/README.md; the rest of
+    this item, device frames, localised captions and CI's visual diffs, to
+    come): a story tagged for the store is a
     fully deterministic scene (a seed, the state, the camera, a virtual
     clock frozen at a moment, a locale) that waits for a settled signal;
     `helder publish` renders each at every store size as a real layout

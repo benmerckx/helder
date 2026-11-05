@@ -10,9 +10,21 @@ import haxe.io.Bytes;
 // written once, by a build (helder's app icons and splash images), not a
 // frame's: no zlib, pure Haxe.
 class PngEncoder {
-	public static function encode(rgba:Bytes, width:Int, height:Int):Bytes {
+	// (opaque: written as 8-bit RGB, the alpha dropped: no alpha channel, as
+	// the App Store wants its screenshots)
+	public static function encode(rgba:Bytes, width:Int, height:Int, opaque = false):Bytes {
 		if (rgba.length != width * height * 4) throw 'PngEncoder: ${rgba.length} bytes are not ${width}x$height RGBA';
-		var stride = width * 4;
+		if (opaque) {
+			var rgb = Bytes.alloc(width * height * 3);
+			for (p in 0...width * height) {
+				rgb.set(3 * p, rgba.get(4 * p));
+				rgb.set(3 * p + 1, rgba.get(4 * p + 1));
+				rgb.set(3 * p + 2, rgba.get(4 * p + 2));
+			}
+			rgba = rgb;
+		}
+		var bpp = opaque ? 3 : 4;
+		var stride = width * bpp;
 		var raw = Bytes.alloc((stride + 1) * height);
 		var trial = [for (_ in 0...5) Bytes.alloc(stride)];
 		for (y in 0...height) {
@@ -22,7 +34,7 @@ class PngEncoder {
 				var t = trial[f], sum = 0;
 				for (i in 0...stride) {
 					var x = rgba.get(row + i);
-					var a = i >= 4 ? rgba.get(row + i - 4) : 0, b = y > 0 ? rgba.get(up + i) : 0, c = i >= 4 && y > 0 ? rgba.get(up + i - 4) : 0;
+					var a = i >= bpp ? rgba.get(row + i - bpp) : 0, b = y > 0 ? rgba.get(up + i) : 0, c = i >= bpp && y > 0 ? rgba.get(up + i - bpp) : 0;
 					var v:Int = switch f {
 						case 0: x;
 						case 1: x - a;
@@ -58,7 +70,7 @@ class PngEncoder {
 		ihdr.set(6, height >> 8);
 		ihdr.set(7, height);
 		ihdr.set(8, 8);
-		ihdr.set(9, 6);
+		ihdr.set(9, opaque ? 2 : 6);
 		chunk(o, "IHDR", ihdr);
 		chunk(o, "IDAT", zlib(raw));
 		chunk(o, "IEND", Bytes.alloc(0));

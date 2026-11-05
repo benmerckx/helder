@@ -1,0 +1,20 @@
+// helder.test snapshots: `helder test -u` rewrites them
+
+--- story Card/many: Card/many (5 lines)
+Node#root 0,0 390x844
+  Node#view 0,0 390x844
+    TextNode#title 24,24 342x35 "Armada"
+    TextNode#ships 24,71 342x20 "42 ships"
+    TextNode#warning 24,103 342x20 "Low fuel"
+
+--- story Card/plain: Card/plain (4 lines)
+Node#root 0,0 390x844
+  Node#view 0,0 390x844
+    TextNode#title 24,24 342x35 "Fleet"
+    TextNode#ships 24,71 342x20 "3 ships"
+
+--- story Store/fleet: Store/fleet (4 lines)
+Node#root 0,0 390x844
+  Node#view 0,0 390x844
+    TextNode#title 24,24 342x35 "Your fleet"
+    TextNode#ships 24,71 342x20 "69 ships"

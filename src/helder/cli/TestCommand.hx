@@ -172,7 +172,7 @@ class TestCommand {
 		function clean(dir:String)
 			for (n in (try FileSystem.readDirectory(dir) catch (_:Dynamic) [])) {
 				var p = '$dir/$n';
-				if (FileSystem.isDirectory(p)) clean(p) else if (n.endsWith("_test.hx") && !wanted.exists(p)) FileSystem.deleteFile(p);
+				if (FileSystem.isDirectory(p)) clean(p) else if ((n.endsWith("_test.hx") || n.endsWith("_story.hx")) && !wanted.exists(p)) FileSystem.deleteFile(p);
 			}
 		clean(GEN);
 		for (f in files) {
@@ -186,7 +186,7 @@ class TestCommand {
 	static function writeMain(name:String, files:Array<TestFile>, regex:Bool) {
 		var main = ["// `helder test`'s runner: the test files linked here, in order", 'class $name {', "\tstatic function main() {"];
 		for (f in files)
-			main.push('\t\thelder.test.Runner.add("${lit(f.real)}", "${lit(f.linked)}", ${f.module}.tests);');
+			main.push('\t\thelder.test.Runner.add("${lit(f.real)}", "${lit(f.linked)}", ' + (f.story ? '() -> helder.story.Stories.test(${f.module}.stories)' : '${f.module}.tests') + ');');
 		if (regex) main.push('\t\thelder.test.Runner.regex = p -> {\n\t\t\tvar r = new EReg(p, "");\n\t\t\ts -> r.match(s);\n\t\t};');
 		main = main.concat(["\t\thelder.test.Runner.run();", "\t}", "}", ""]);
 		var text = main.join("\n"), path = '$GEN/$name.hx';
@@ -231,6 +231,8 @@ typedef TestFile = {
 	module:String,
 	// (it opts in to interp: @:test.interp)
 	interp:Bool,
+	// a .story.hx file (its stories() registers stories, each a test: helder.story.Stories)
+	?story:Bool,
 }
 
 // The project in the working directory: its class paths (package.json's
@@ -293,7 +295,7 @@ class Project {
 			for (n in (try FileSystem.readDirectory(dir) catch (_:Dynamic) [])) {
 				if (n == "bin" || n == "node_modules" || n.startsWith(".")) continue;
 				var p = '$dir/$n';
-				if (FileSystem.isDirectory(p)) walk(p) else if (n.endsWith(".test.hx") && !found.contains(p)) found.push(p);
+				if (FileSystem.isDirectory(p)) walk(p) else if ((n.endsWith(".test.hx") || n.endsWith(".story.hx")) && !found.contains(p)) found.push(p);
 			}
 		for (r in roots) walk(r);
 		found.sort(Reflect.compare);
@@ -308,13 +310,13 @@ class Project {
 			var have = declared.match(content) ? declared.matched(1) : "";
 			if (have != pack)
 				throw '$p: package ${have == "" ? "(none)" : have}, but its directory under $r/ makes it ${pack == "" ? "(none)" : pack}';
-			var name = Path.withoutDirectory(p);
-			name = name.substr(0, name.length - ".test.hx".length) + "_test";
+			var name = Path.withoutDirectory(p), story = name.endsWith(".story.hx");
+			name = story ? name.substr(0, name.length - ".story.hx".length) + "_story" : name.substr(0, name.length - ".test.hx".length) + "_test";
 			var module = pack == "" ? name : '$pack.$name';
 			// (the same module from two roots)
 			if (seen.exists(module)) throw '$p: the same module as ${seen.get(module)}';
 			seen.set(module, p);
-			out.push({real: p, linked: '${TestCommand.GEN}/' + (dirs == "" ? "" : dirs + "/") + name + ".hx", module: module, interp: TestCommand.INTERP.match(content)});
+			out.push({real: p, linked: '${TestCommand.GEN}/' + (dirs == "" ? "" : dirs + "/") + name + ".hx", module: module, interp: !story && TestCommand.INTERP.match(content), story: story});
 		}
 		return out;
 	}
@@ -335,7 +337,7 @@ class Mapper {
 	}
 
 	public function apply(line:String):String {
-		if (!line.contains("_test.hx")) return line;
+		if (!line.contains("_test.hx") && !line.contains("_story.hx")) return line;
 		for (p in pairs) line = line.split(p.from).join(p.to);
 		return line;
 	}

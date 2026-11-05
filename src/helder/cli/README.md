@@ -275,6 +275,19 @@ it through the store's own API, without fastlane, Transporter or Xcode
 - **`--dry-run`**: built and signed, the token got, what is there read
   (the track's releases; the app's id), what would change printed;
   nothing uploaded, nothing committed (Play's edit deleted).
+- **`--screenshots`**: the project's stories marked `.store()`
+  (helder.story's README) rendered at the stores' sizes into `bin/store`
+  (a program of the story files built for this machine and run: a GPU,
+  or Mesa's llvmpipe), with the review sheet `bin/store/review.html`.
+- **`--listing`** (with `--play` or `--testflight` for one store, else
+  both; `--locale`, en-US): the same screenshots against each store's
+  listing by hash, those not ours deleted and ours missing uploaded:
+  Google Play's image types (`phoneScreenshots`) in an edit, committed;
+  App Store Connect's version being prepared, its localization's
+  screenshot sets by display type (`APP_IPHONE_67`, `APP_IPHONE_65`,
+  `APP_IPAD_PRO_3GEN_129`, made when missing), each screenshot reserved,
+  sent and committed with its MD5. With `--dry-run` the changes are only
+  listed, in the review sheet too.
 
 Checked against a stand-in of both APIs (`tests/pack/publish.mjs`, the
 pack lane: the JWTs verified with the keys' public halves, every call

@@ -45,17 +45,18 @@ jobs:
           node-version: 24
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: Fonts (DejaVu Sans, for text and ui) and libEGL
+      - name: Fonts (DejaVu Sans, for text and ui), libEGL and Mesa's llvmpipe
         # (helder test's host build links helder.gfx's libEGL.so.1 when a test
-        # reaches the scene; nothing opens a display)
-        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core libegl1
+        # reaches the scene; nothing opens a display. llvmpipe: the pack
+        # lane's store screenshots, rendered offscreen: STORE_SHOTS_REQUIRE)
+        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core libegl1 libegl-mesa0 libgl1-mesa-dri
       - name: Headless checks
         # (pack: the Android and iOS runtime objects fetched, their builds
         # skipped without them: the android job requires them; the SDK's
         # build tools on the PATH: zipalign, aapt, apksigner)
         run: |
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-          bun run test -k headless
+          STORE_SHOTS_REQUIRE=1 bun run test -k headless
 
   gfx:
     runs-on: ubuntu-24.04
