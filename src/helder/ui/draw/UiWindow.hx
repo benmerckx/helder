@@ -289,9 +289,9 @@ class UiWindow {
 		}
 	}
 
-	// the window's cursor: the Ui's (helder.os.Cursor has Default for Auto first)
+	// the window's cursor: the Ui's
 	function updateCursor()
-		window.cursor = cast Std.int(Math.max(0, (ui.cursor() : Int) - 1));
+		window.cursor = ui.cursor();
 
 	// one of the window's events
 	public function handle(e:OsEvent) {

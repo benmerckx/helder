@@ -32,7 +32,7 @@ class Zone {
 	public static function all():Zone
 		return new Zone(0, 0, 1, 1, -1);
 
-	// the same part of the window (Actions: one control for the bindings of equal zones)
+	// the same part of the window (InputMap: one control for the bindings of equal zones)
 	public function equals(o:Zone):Bool
 		return o == this || o.x0 == x0 && o.y0 == y0 && o.x1 == x1 && o.y1 == y1 && o.radius == radius;
 

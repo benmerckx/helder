@@ -47,7 +47,7 @@ class TestCommand {
 		if (compiler == null) Term.err(Style.status("warning", Warn, "no compilation server (each build from the module cache)"));
 		// (ctrl-c, SIGTERM: the compilation server stopped too)
 		task.async(_ -> {
-			var sig = Signals.next([Signal.SIGINT, Signal.SIGTERM]);
+			var sig = Signals.next([ProcessSignal.SIGINT, ProcessSignal.SIGTERM]);
 			if (compiler != null) compiler.process.stop();
 			Sys.exit(128 + sig);
 		});

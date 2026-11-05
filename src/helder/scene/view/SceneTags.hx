@@ -136,7 +136,7 @@ class SceneTags {
 	}
 
 	// an on-screen stick drawn over the ui (helder.scene.input.VirtualStick,
-	// which Actions bind): at rest at left, bottom (points from the lower
+	// which InputMap bind): at rest at left, bottom (points from the lower
 	// left), where the thumb holds it once it does; the pointer goes through
 	// it (StickNode)
 	public static function Stick(props:{bind:helder.scene.input.VirtualStick, ?left:Float, ?bottom:Float, ?color:helder.ui.Color, ?knob:helder.ui.Color}):helder.ui.Node {

@@ -5,7 +5,7 @@ import haxe.io.Bytes;
 import hxmc.unsafe.*;
 #end
 
-// Gamepads, polled (a game reads them once a step: helder.scene's Actions do):
+// Gamepads, polled (a game reads them once a step: helder.scene's InputMap do):
 // up to four, each its buttons and sticks in the browser's standard
 // layout (the W3C's "standard" mapping): buttons 0 A (south), 1 B (east),
 // 2 X (west), 3 Y (north), 4 and 5 the shoulders, 6 and 7 the triggers

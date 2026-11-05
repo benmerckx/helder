@@ -166,7 +166,7 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		return false;
 	}
 
-	function draw(enc:Encoder, pass:PassDesc, meshes:Store<Mesh>, world:World, skins:Null<RenderFeature.SkinSource>, viewProj:Mat4) {
+	function draw(enc:Encoder, pass:PassDesc, meshes:ComponentStore<Mesh>, world:World, skins:Null<RenderFeature.SkinSource>, viewProj:Mat4) {
 		enc.beginPass(pass);
 		enc.setPipeline(pipeline);
 		for (k in 0...meshes.length) {

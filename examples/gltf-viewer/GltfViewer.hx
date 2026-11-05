@@ -16,7 +16,7 @@ import helder.scene.render.*;
 // in a window: referenced with Model.of (checked and typed when compiling,
 // built into the program), instantiated into a World, drawn by Renderer. The camera circles the scene on a node of
 // its own (drag sideways, or hold the arrows, to turn it: the arrows are an
-// input action, Actions; Escape closes); the simulation (the
+// input action, InputMap; Escape closes); the simulation (the
 // moon's orbit, the turn) runs at a fixed 60 steps a second (FixedStep).
 //
 //   haxe -cp src -cp examples
@@ -45,7 +45,7 @@ class GltfViewer {
 		var orbit = root.find(model.nodes.orbit), r = orbit.rotation, ox = r.x, oy = r.y, oz = r.z, ow = r.w;
 		var clock = new FixedStep(1 / 60);
 		// (the arrows, or A and D, turn it too: an action read each step)
-		var actions = new Actions().bind("turn", KeyAxis(0xFF51, 0xFF53)).bind("turn", KeyAxis(0x61, 0x64));
+		var actions = new InputMap().bind("turn", KeyAxis(0xFF51, 0xFF53)).bind("turn", KeyAxis(0x61, 0x64));
 		var turn = 0.0, speed = 0.25, drag = false, from = 0, last = Sys.time();
 		window.cursor = Grab;
 		window.scrollsAt = (x, y, dx, dy) -> Math.abs(dx) > Math.abs(dy);

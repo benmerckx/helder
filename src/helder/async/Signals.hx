@@ -24,14 +24,14 @@ class Signals {
 	#end
 
 	// the next of these signals this process receives (suspends until then)
-	@:coroutine public static function next(signals:Array<Signal>):Signal {
+	@:coroutine public static function next(signals:Array<ProcessSignal>):ProcessSignal {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		if (!Handle.WINDOWS) {
 			for (s in signals) catchSignal(s);
 			var b = Bytes.alloc(1);
 			while (true) {
 				if (new Op(Read, readEnd, b, 0, 1).run().result <= 0) break;
-				var s:Signal = cast b.get(0);
+				var s:ProcessSignal = cast b.get(0);
 				if (signals.contains(s)) return s;
 			}
 		}

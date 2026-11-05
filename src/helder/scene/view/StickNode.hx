@@ -8,7 +8,7 @@ import helder.ui.Color;
 // a ring of its radius and its knob a disc, where the thumb holds it, else
 // at rest at left, bottom (points from the window's lower left corner).
 // It fills its parent and lets the pointer through (pointerEvents None:
-// the stick's finger is the game's, Actions'); drawn again when the stick
+// the stick's finger is the game's, InputMap's); drawn again when the stick
 // changes (VirtualStick.changed).
 class StickNode extends helder.ui.Node {
 	public final stick:VirtualStick;

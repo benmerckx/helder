@@ -8,13 +8,13 @@ import helder.gfx.shader.Vec4;
 import helder.os.*;
 import helder.physics.*;
 import helder.scene.*;
-import helder.scene.input.Actions;
+import helder.scene.input.InputMap;
 import helder.scene.math.*;
 import helder.scene.render.*;
 
 // A character in a physics world: Character's capsule body moves its node
 // (drawn with Shapes.capsule), crates are dynamic boxes it pushes, a
-// platform and a ramp of steps are static boxes; input through Actions,
+// platform and a ramp of steps are static boxes; input through InputMap,
 // read at each fixed step (the frame's Stages), the camera following
 // behind. Escape closes.
 //
@@ -84,7 +84,7 @@ class Walker {
 		var window = new Window("Walker", 640, 480);
 		var device = Device.create(window.surface);
 		var scene = new Walker(device);
-		var actions = new Actions();
+		var actions = new InputMap();
 		actions.bind("x", KeyAxis(0xFF51, 0xFF53)).bind("x", KeyAxis(0x61, 0x64));
 		actions.bind("z", KeyAxis(0xFF52, 0xFF54)).bind("z", KeyAxis(0x77, 0x73));
 		actions.bind("jump", Key(0x20)).bind("jump", Region(0.75, 0.6, 1, 1));

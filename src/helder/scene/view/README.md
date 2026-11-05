@@ -67,7 +67,7 @@ pos(new Vec3(1, 1, 0));   // the node moves at the next flush: no reconciliation
   go moving it glides on, slowing by `damping` a frame. A tap on a mesh
   selects, a drag from it orbits.
 - **`<Stick>`** (`SceneTags.Stick`): an on-screen stick
-  (`helder.scene.input.VirtualStick`, bound by `Actions`) drawn over the
+  (`helder.scene.input.VirtualStick`, bound by `InputMap`) drawn over the
   ui, at rest at `left`, `bottom`, under the thumb once it holds it; the
   pointer goes through it.
 - **`<Ui>`** (`SceneTags.Ui`): back to ui inside a scene, drei's `<Html>`:

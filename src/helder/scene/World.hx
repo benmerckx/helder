@@ -10,7 +10,7 @@ import helder.scene.math.Quat;
 // node: its local translation, rotation and scale (10 floats), its local
 // and world matrices (16 each), its parent and siblings, its name and
 // visibility. What nodes carry (a camera, a mesh, a light) is in typed
-// stores keyed by node (Store, created by the kinds a program uses, so a
+// stores keyed by node (ComponentStore, created by the kinds a program uses, so a
 // kind nobody uses is not linked).
 //
 // World matrices are computed when asked and cached: a slot keeps the
@@ -329,12 +329,12 @@ class World {
 	// (component stores)
 
 	// the world's store of a kind (made on first use)
-	public function store<T>(kind:StoreKind<T>):Store<T> {
+	public function store<T>(kind:StoreKind<T>):ComponentStore<T> {
 		while (stores.length <= kind.id)
 			stores.push(null);
 		var s = stores[kind.id];
 		if (s == null) {
-			s = new Store<T>(this);
+			s = new ComponentStore<T>(this);
 			stores[kind.id] = s;
 		}
 		return cast s;

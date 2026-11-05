@@ -12,7 +12,7 @@ import helder.os.Pointer;
 class VirtualButton extends TouchControl {
 	// down now
 	public var down(default, null) = false;
-	// its presses and releases so far (Actions read them once a step)
+	// its presses and releases so far (InputMap read them once a step)
 	public var presses(default, null) = 0;
 	public var releases(default, null) = 0;
 	// how far outside its zone a finger may slide (points)

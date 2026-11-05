@@ -7,7 +7,7 @@ import helder.os.Pointer;
 // gamepad's): it takes a finger whose press began in its zone, nobody's
 // yet (not the ui's: helder.os's Pointer.owner, marked Control then), and
 // keeps it until it lifts or is cancelled, wherever it goes; a finger
-// sliding over another control from elsewhere does not press it. Actions'
+// sliding over another control from elsewhere does not press it. InputMap's
 // step feeds it (helder.os.Pointers, read once a step): VirtualStick,
 // VirtualButton, and the zones of Touch and TouchDelta bindings.
 class TouchControl {

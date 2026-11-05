@@ -1,7 +1,7 @@
 package helder.scene;
 
 // The components of one kind in a world: at most one per node, by slot
-class Store<T> extends StoreBase {
+class ComponentStore<T> extends StoreBase {
 	final world:World;
 	final values:Array<Null<T>> = [];
 	final nodes:Array<Node> = [];

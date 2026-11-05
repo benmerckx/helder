@@ -3,7 +3,7 @@ import helder.scene.input.*;
 
 // packages/3d's step 4 so far (npm test -- 3d: natively and as wasm32-wasi;
 // not on Eval: helder.os.Event names a Window):
-// Actions from synthetic helder.os events: keys, mouse buttons, screen
+// InputMap from synthetic helder.os events: keys, mouse buttons, screen
 // regions, key axes, presses within a step, rebinding.
 class InputTest {
 	static var checks = 0;
@@ -29,7 +29,7 @@ class InputTest {
 	}
 
 	static function main() {
-		var a = new Actions();
+		var a = new InputMap();
 		a.setSize(400, 300);
 		a.bind("jump", Key(0x20)).bind("jump", Region(0.75, 0.5, 1, 1)).bind("fire", Mouse(1)).bind("moveX", KeyAxis(0xFF51, 0xFF53))
 			.bind("moveX", KeyAxis(0x61, 0x64)).bind("moveY", KeyAxis(0xFF54, 0xFF52));
@@ -73,7 +73,7 @@ class InputTest {
 		a.step();
 		check("rebound", a.pressed("jump"));
 		// a gamepad (fed through Gamepads.set: no device): A jumps, the left stick moves
-		var g = new Actions();
+		var g = new InputMap();
 		g.bind("jump", PadButton(0)).bind("moveX", PadAxis(0, 1)).bind("moveY", PadAxis(1, -1));
 		var pressed = [for (b in 0...17) b == 0];
 		helder.os.Gamepads.set(1, pressed, [0.5, -1, 0, 0]);

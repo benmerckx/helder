@@ -242,6 +242,9 @@ class AttrMacro {
 			case TType(_.get() => {name: "Null", pack: []}, [inner]):
 				t = lazy(inner);
 				nullable = true;
+			case l = TType(_, _):
+				// (a typedef: its type; ui's Cursor is helder.os's)
+				t = lazy(Context.follow(l, true));
 			case l:
 				t = l;
 		}

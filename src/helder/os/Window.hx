@@ -105,10 +105,11 @@ class Window {
 	// page pans. Elsewhere every drag is the program's
 	public var scrollsAt:Null<(x:Int, y:Int, dx:Float, dy:Float) -> Bool> = null;
 
-	// the pointer's shape over the window
+	// the pointer's shape over the window (Auto: Default)
 	public var cursor(default, set):Cursor = Default;
 
 	function set_cursor(c:Cursor):Cursor {
+		if (c == Auto) c = Default;
 		if (c == cursor || closed) return c;
 		cursor = c;
 		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setCursor(c) else if (Mem.os() == 2) (cast native : Win32Window).setCursor(c) else if (Mem.os() == 3)

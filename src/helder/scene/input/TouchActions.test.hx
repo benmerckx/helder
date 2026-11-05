@@ -4,14 +4,14 @@ import helder.os.Pointer;
 import helder.os.Pointers;
 import helder.test.Test;
 
-// Actions from fingers (helder.os.Pointers' slots fed as a back end does,
+// InputMap from fingers (helder.os.Pointers' slots fed as a back end does,
 // no window: a 400 x 300 one by setSize): on-screen sticks and buttons,
 // touch zones, a look zone's drag, the ui's presses left alone, cancels,
 // and nothing allocated per step (natively and as wasm32-wasi:
 // `bun run helder test src/helder/scene --target host,wasm`).
 function tests() {
 	describe("touch actions", () -> {
-		var a:Actions = null, move:VirtualStick = null, fire:VirtualButton = null;
+		var a:InputMap = null, move:VirtualStick = null, fire:VirtualButton = null;
 		var t = 0.0;
 		function down(key:Int, x:Float, y:Float):Pointer
 			return @:privateAccess Pointers.press(null, key, Touch, x, y, 1, t++);
@@ -21,7 +21,7 @@ function tests() {
 			@:privateAccess Pointers.lift(p, cancelled, t++);
 		beforeEach(() -> {
 			@:privateAccess Pointers.reset();
-			a = new Actions();
+			a = new InputMap();
 			a.setSize(400, 300);
 			// the left half's lower part a floating stick (40 points), a fire button on the right, the right half's top a look zone
 			move = new VirtualStick({zone: Zone.rect(0, 0.4, 0.5, 1), radius: 40, deadZone: 0.1});
@@ -53,7 +53,7 @@ function tests() {
 		});
 		test("a fixed stick: from its zone's centre", () -> {
 			var fixed = new VirtualStick({zone: Zone.circle(0.5, 0.5, 50), floating: false, radius: 50, deadZone: 0});
-			var b = new Actions();
+			var b = new InputMap();
 			b.setSize(400, 300);
 			b.bind("x", Stick(fixed, 0));
 			down(1, 210, 150);

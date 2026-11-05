@@ -2,7 +2,7 @@ package helder.scene;
 
 // A frame's work in ordered stages, on top of helder.os.App's frames:
 //
-//   Input        once a frame, first (read devices, feed Actions)
+//   Input        once a frame, first (read devices, feed InputMap)
 //   FixedUpdate  at the fixed rate, as many times as the frame holds
 //                (FixedStep: physics, gameplay), with the step's dt
 //   Update       once a frame, with the frame's seconds
@@ -35,7 +35,7 @@ class Stages {
 		// (loads in flight advanced first: helder.asset's Asset)
 		helder.asset.Assets.poll();
 		// (gamepads read once a frame, before the Input stage, when the program
-		// enabled them: Actions see them)
+		// enabled them: InputMap see them)
 		helder.os.Gamepads.poll();
 		run(Input, seconds);
 		var fixed = lists[FixedUpdate];

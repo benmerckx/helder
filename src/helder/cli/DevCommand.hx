@@ -173,7 +173,7 @@ class DevCommand {
 		// Windows has no signals here (helder.async.Signals): ctrl-c reaches
 		// every process of the console, the program's and the compiler's too)
 		task.async(_ -> {
-			var sig = Signals.next([Signal.SIGINT, Signal.SIGTERM]);
+			var sig = Signals.next([ProcessSignal.SIGINT, ProcessSignal.SIGTERM]);
 			shutdown(128 + sig);
 		});
 		var http = listen(address, port);

@@ -12,7 +12,7 @@ import helder.os.Pointers;
 // step so that input and the simulation agree (a press and its release
 // within one step still count as a press):
 //
-//   var actions = new Actions();
+//   var actions = new InputMap();
 //   final move = new VirtualStick({zone: Zone.rect(0, 0.4, 0.5, 1), radius: 60});
 //   final fire = new VirtualButton({zone: Zone.circle(0.88, 0.8, 40)});
 //   actions.bind("jump", Key(0x20)).bind("jump", Region(0.75, 0.6, 1, 1));
@@ -35,7 +35,7 @@ import helder.os.Pointers;
 // until it lifts or is cancelled (a cancel lets go: the player stops). A
 // zone shared by bindings is one control (equal zones). Nothing
 // is allocated per event or per step.
-class Actions {
+class InputMap {
 	final names:Array<String> = [];
 	final bindings:Array<Array<Binding>> = [];
 	// per action and binding: held (a region, a pad's button, a Button's or a
@@ -89,7 +89,7 @@ class Actions {
 		return names.length - 1;
 	}
 
-	public function bind(action:String, b:Binding):Actions {
+	public function bind(action:String, b:Binding):InputMap {
 		var k = index(action);
 		bindings[k].push(b);
 		bindingHeld[k].push(false);
@@ -110,7 +110,7 @@ class Actions {
 	}
 
 	// all of an action's bindings removed
-	public function unbind(action:String):Actions {
+	public function unbind(action:String):InputMap {
 		var k = names.indexOf(action);
 		if (k >= 0) {
 			bindings[k] = [];

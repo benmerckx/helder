@@ -11,7 +11,7 @@ import helder.os.*;
 //   3  + the glTF reader (Gltf.parse of the sample scene, GltfNodes)
 //   4  + the renderer (GltfScene, Renderer, PbrShader: the scene drawn)
 //   5  + shadows (Shadows: a shadow map pass)
-//   6  + input actions (Actions)
+//   6  + input actions (InputMap)
 //   7  + keyframe animation (AnimationClip, Animator)
 //   8  + skinning (Skinning: the skinned shader)
 //   9  + normal maps (NormalMaps: the normal-mapped shader)
@@ -58,7 +58,7 @@ class Size {
 		new helder.scene.gltf.GltfScene(doc, device).instantiate(world);
 		#end
 		#if (size_level >= 6)
-		var actions = new helder.scene.input.Actions().bind("turn", KeyAxis(0xFF51, 0xFF53));
+		var actions = new helder.scene.input.InputMap().bind("turn", KeyAxis(0xFF51, 0xFF53));
 		#end
 		#if (size_level >= 7)
 		var made = [];

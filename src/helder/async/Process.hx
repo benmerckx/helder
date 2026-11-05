@@ -107,11 +107,11 @@ class Process {
 
 	// SIGKILL (Windows: TerminateProcess)
 	public function kill()
-		signal(Signal.SIGKILL);
+		signal(ProcessSignal.SIGKILL);
 
 	// a signal: SIGINT, SIGTERM or SIGKILL (Windows: any of them ends it,
 	// its exit code 128 + the signal); false when it is gone already
-	public function signal(sig:Signal):Bool {
+	public function signal(sig:ProcessSignal):Bool {
 		if (code != null) return false;
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		return hxmc.NativeSys.processSignal(pid, sig);
@@ -127,9 +127,9 @@ class Process {
 	@:coroutine public function stop(grace = 2.0):Int {
 		if (code != null) return code;
 		var p = this;
-		signal(Signal.SIGTERM);
+		signal(ProcessSignal.SIGTERM);
 		return try Async.timeout(grace, _ -> p.wait()) catch (_:Async.TimeoutException) {
-			signal(Signal.SIGKILL);
+			signal(ProcessSignal.SIGKILL);
 			wait();
 		}
 	}

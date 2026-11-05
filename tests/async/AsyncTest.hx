@@ -216,7 +216,7 @@ class AsyncTest {
 		var sigint = Async.run(_ -> {
 			var p = new Process("sleep", ["10"]);
 			Async.delay(0.02);
-			p.signal(Signal.SIGINT);
+			p.signal(ProcessSignal.SIGINT);
 			var c = p.wait();
 			p.close();
 			c;
@@ -224,14 +224,14 @@ class AsyncTest {
 		eq(sigint, 128 + 2, "signal(SIGINT)");
 		// (a signal this process receives, on the loop: a child sends it SIGTERM)
 		var received = Async.run(task -> {
-			var next = task.async(_ -> Signals.next([Signal.SIGINT, Signal.SIGTERM]));
+			var next = task.async(_ -> Signals.next([ProcessSignal.SIGINT, ProcessSignal.SIGTERM]));
 			Async.delay(0.01);
 			var p = new Process("sh", ["-c", "kill -TERM $PPID"]);
 			p.wait();
 			p.close();
 			Async.timeout(2, _ -> next.await());
 		});
-		eq(received, Signal.SIGTERM, "Signals.next: SIGTERM received, not the end");
+		eq(received, ProcessSignal.SIGTERM, "Signals.next: SIGTERM received, not the end");
 		#end
 		ok(!Loop.current().alive(), "processes: nothing left");
 	}

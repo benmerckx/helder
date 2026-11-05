@@ -140,7 +140,7 @@ generated two-joint sample.
 ## Input
 
 ```haxe
-var actions = new Actions();
+var actions = new InputMap();
 actions.bind("jump", Key(0x20)).bind("jump", Region(0.75, 0.5, 1, 1));   // Space, or the screen's lower right
 actions.bind("moveX", KeyAxis(0xFF51, 0xFF53));                         // the arrows
 App.run(frame, e -> actions.event(e));
