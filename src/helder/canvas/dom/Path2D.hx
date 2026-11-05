@@ -18,6 +18,56 @@ class Path2D {
 		if (transform == null) path.addPath(other.path) else path.addPath(other.path, transform.into(new helder.canvas.Matrix()));
 	}
 
+	// skia-canvas's extras: boolean operations (each a new path), simplify,
+	// and effects (rounded corners, trimmed by length, jittered), a move and a transform
+	public function union(other:Path2D):Path2D
+		return of(helder.canvas.PathOps.union(path, other.path));
+
+	public function intersect(other:Path2D):Path2D
+		return of(helder.canvas.PathOps.intersect(path, other.path));
+
+	public function difference(other:Path2D):Path2D
+		return of(helder.canvas.PathOps.difference(path, other.path));
+
+	public function xor(other:Path2D):Path2D
+		return of(helder.canvas.PathOps.xor(path, other.path));
+
+	public function complement(other:Path2D):Path2D
+		return of(helder.canvas.PathOps.difference(other.path, path));
+
+	public function simplify(rule = "nonzero"):Path2D
+		return of(helder.canvas.PathOps.simplify(path, rule == "evenodd"));
+
+	public function round(radius:Float):Path2D
+		return of(helder.canvas.PathEffects.round(path, radius));
+
+	public function trim(start:Float, end:Float, inverted = false):Path2D
+		return of(helder.canvas.PathEffects.trim(path, start, end, inverted));
+
+	public function jitter(segmentLength:Float, amount:Float, seed = 0):Path2D
+		return of(helder.canvas.PathEffects.jitter(path, segmentLength, amount, seed));
+
+	public function dash(segments:Array<Float>, offset = 0.0):Path2D
+		return of(helder.canvas.PathEffects.dash(path, segments, offset));
+
+	public function offset(dx:Float, dy:Float):Path2D {
+		var p = new Path2D();
+		p.path.addPath(path, new helder.canvas.Matrix(1, 0, 0, 1, dx, dy));
+		return p;
+	}
+
+	public function transform(m:DOMMatrix):Path2D {
+		var p = new Path2D();
+		p.path.addPath(path, m.into(new helder.canvas.Matrix()));
+		return p;
+	}
+
+	@:noCompletion public static function of(p:Path):Path2D {
+		var r = new Path2D();
+		r.path.addPath(p);
+		return r;
+	}
+
 	public function closePath()
 		path.close();
 

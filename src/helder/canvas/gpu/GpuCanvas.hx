@@ -181,7 +181,7 @@ class GpuCanvas implements Painter {
 		state = states[depth];
 	}
 
-	public function saveLayer(alpha = 1.0, ?blend:Blender, ?mask:Mask) {
+	public function saveLayer(alpha = 1.0, ?blend:Blender, ?mask:Mask, ?filter:helder.canvas.Filter) {
 		finishBatch();
 		save();
 		var s = state;
@@ -189,6 +189,7 @@ class GpuCanvas implements Painter {
 		s.layerAlpha = alpha;
 		s.layerBlend = blend;
 		s.layerMask = mask;
+		s.layerFilter = filter;
 		s.under = s.drawTarget;
 		if (s.pixels == null) s.pixels = device.createTexture({width: width, height: height, renderTarget: true});
 		s.drawTarget = s.pixels;
@@ -210,14 +211,22 @@ class GpuCanvas implements Painter {
 				var m = s.layerMask;
 				maskTex = device.createTexture({width: m.width, height: m.height, format: R8, data: m.coverage});
 			}
+			// (a filter on the CPU: the layer read back, filtered, drawn from a texture of its own)
+			var source = s.pixels, filtered:Null<Texture> = null;
+			if (s.layerFilter != null) {
+				var b = readTexture(s.pixels);
+				s.layerFilter.apply(b);
+				filtered = device.createTexture({width: width, height: height, data: b.pixels});
+				source = filtered;
+				s.layerFilter = null;
+			}
 			setPaint(5, 0, 0, null, s.layerAlpha, s.layerBlend);
 			if (maskTex != null) uniforms.setFloat(12, 1);
 			quad(state.clipX0, state.clipY0, state.clipX1, state.clipY1, 0);
-			drawCover(s.layerBlend, maskTex ?? coverage, s.pixels, nearest);
-			if (maskTex != null) {
-				flush();
-				device.destroyTexture(maskTex);
-			}
+			drawCover(s.layerBlend, maskTex ?? coverage, source, nearest);
+			if (maskTex != null || filtered != null) flush();
+			if (maskTex != null) device.destroyTexture(maskTex);
+			if (filtered != null) device.destroyTexture(filtered);
 			s.layerMask = null;
 		}
 	}
@@ -764,7 +773,33 @@ class GpuCanvas implements Painter {
 	// ---- pixels
 
 	// the canvas's pixels read back (premultiplied): drawn into the frame, read, the frame ended
-	public function snapshot():Bitmap {
+	public function snapshot():Bitmap
+		return readTexture(target);
+
+	// the canvas drawn into the device's frame (a window's: Device.create(window.surface)), the frame ended
+	public function present() {
+		finishBatch();
+		var e = begin();
+		for (k in 0...4) {
+			var x = k == 0 || k == 3 ? -1.0 : 1.0, y = k < 2 ? 1.0 : -1.0;
+			copyQuad.setFloat(k * 16, x);
+			copyQuad.setFloat(k * 16 + 4, y);
+			copyQuad.setFloat(k * 16 + 8, (x + 1) / 2);
+			copyQuad.setFloat(k * 16 + 12, (1 - y) / 2);
+		}
+		var at = upload(copyQuad, 64);
+		quadIndices(1);
+		e.beginPass({colors: [{load: Clear, clear: new Color(0, 0, 0, 1)}]});
+		e.setPipeline(presentPipe);
+		e.setTexture(CopyShader.textures[0].binding, target, linear);
+		e.setVertexBuffer(0, vertices, at);
+		e.setIndexBuffer(indices, UInt32);
+		e.drawIndexed(6);
+		e.endPass();
+		flush();
+	}
+
+	function readTexture(tex:Texture):Bitmap {
 		finishBatch();
 		var e = begin();
 		for (k in 0...4) {
@@ -778,7 +813,7 @@ class GpuCanvas implements Painter {
 		quadIndices(1);
 		e.beginPass({colors: [{load: Clear, clear: new Color(0, 0, 0, 0)}]});
 		e.setPipeline(presentPipe);
-		e.setTexture(CopyShader.textures[0].binding, target, nearest);
+		e.setTexture(CopyShader.textures[0].binding, tex, nearest);
 		e.setVertexBuffer(0, vertices, at);
 		e.setIndexBuffer(indices, UInt32);
 		e.drawIndexed(6);
@@ -826,6 +861,7 @@ private class GpuState {
 	public var layerAlpha = 1.0;
 	public var layerBlend:Null<Blender> = null;
 	public var layerMask:Null<Mask> = null;
+	public var layerFilter:Null<helder.canvas.Filter> = null;
 	public var pixels:Null<Texture> = null;
 	public var under:Null<Texture> = null;
 

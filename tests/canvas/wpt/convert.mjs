@@ -1,11 +1,11 @@
 // web-platform-tests' Canvas 2D tests (html/canvas/element: paths, fills
-// and strokes, line styles, compositing, transforms, rectangles) as one
+// and strokes, line styles, compositing, transforms, rectangles, shadows) as one
 // TypeScript module, cases.ts, for the canvas lane (wpt.ts: helder;
 // chrome.mjs --wpt: Chromium). Each test's body as WPT wrote it, its
 // harness's functions (_assertPixel, _assertSame, assert_throws_js...)
 // harness.ts's. Tests that need a document, images, a promise, shadows,
 // filters or typed arrays are left out (helder's TypeScript has no typed
-// arrays yet; helder.canvas no shadows or filters yet).
+// arrays yet).
 //
 //   git clone --filter=blob:none --sparse --depth 1 https://github.com/web-platform-tests/wpt.git
 //   node tests/canvas/wpt/convert.mjs <wpt checkout>
@@ -13,9 +13,9 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const root = process.argv[2];
-const dirs = ["path-objects", "fill-and-stroke-styles", "line-styles", "compositing", "transformations", "drawing-rectangles-to-the-canvas"];
+const dirs = ["path-objects", "fill-and-stroke-styles", "line-styles", "compositing", "transformations", "drawing-rectangles-to-the-canvas", "shadows"];
 const skip = [/document\b/, /window\b/, /\bt\.(step|done)/, /\bawait\b/, /createImageBitmap/, /new Image\b/, /Uint8ClampedArray|Float32Array|Uint8Array/,
-	/OffscreenCanvas/, /shadow/i, /\bfilter\b/, /\.data\[[^\]]*\]\s*=[^=]/, /toDataURL|toBlob/, /deferTest|promise_test|step_func|_done\(|_timeout/,
+	/OffscreenCanvas/, /\bfilter\b/, /\.data\[[^\]]*\]\s*=[^=]/, /toDataURL|toBlob/, /deferTest|promise_test|step_func|_done\(|_timeout/,
 	/drawFocusIfNeeded|scrollPathIntoView|HitRegion|getContextAttributes/, /\b\d+n\b/, /\bfont\b/, /\bcolorSpace\b/, /_assertGreen/, /\bSymbol\b/,
 	/\bProxy\b/, /\bReflect\b/, /assert_regexp_match/, /\bvalueOf\b|\btoString\b/, /\bDOMMatrixReadOnly\b|\bDOMPoint\b/, /\bwith\b\s*\(/,
 	/createPattern\(\s*['"]?img/, /\bimg\b/, /\bvideo\b/, /\bdrawImage\(\s*canvas\s*,/, /\bcanvas\.(width|height)\s*=/, /\bdescriptor\b/,

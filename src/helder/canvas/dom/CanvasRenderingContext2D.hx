@@ -240,7 +240,7 @@ class CanvasRenderingContext2D {
 		return v;
 	}
 
-	// (stored; not drawn yet: helder.canvas has no blur or shadows in this phase)
+	// shadows and filter: the draw into a layer composited through them (Filter's DropShadow, Blur, colour matrices)
 	public var shadowBlur(get, set):Float;
 	public var shadowColor(get, set):String;
 	public var shadowOffsetX(get, set):Float;
@@ -283,8 +283,54 @@ class CanvasRenderingContext2D {
 	function get_filter()
 		return s.filter;
 
-	function set_filter(v:String)
-		return s.filter = v;
+	function set_filter(v:String) {
+		var f = Effects.parse(v);
+		if (f != null || StringTools.trim(v) == "none") {
+			s.filter = v;
+			s.filters = f;
+		}
+		return v;
+	}
+
+	// (a draw with a shadow: first into a layer moved by the offset (in pixels, whatever the transform),
+	// made the shadow's colour and blurred, then itself; with a filter: into a layer through it; each
+	// layer composited by the state's blend)
+	var layered = false;
+
+	function effects(draw:() -> Void) {
+		var shadow = ((s.shadowColor >>> 24) & 255) > 0 && (s.shadowBlur > 0 || s.shadowX != 0 || s.shadowY != 0);
+		if (s.filters == null && !shadow) {
+			draw();
+			return;
+		}
+		var m = core.matrix;
+		var a = m.a, b = m.b, c = m.c, d = m.d, e = m.e, f = m.f;
+		layered = true;
+		if (shadow) {
+			core.saveLayer(1, s.blend, null, new helder.canvas.Filter.Shadow(s.shadowBlur / 2, s.shadowColor));
+			core.setTransform(a, b, c, d, e + s.shadowX, f + s.shadowY);
+			draw();
+			core.restore();
+			core.setTransform(a, b, c, d, e, f);
+		}
+		if (s.filters != null) {
+			core.saveLayer(1, s.blend, null, s.filters.length == 1 ? s.filters[0] : new helder.canvas.Filter.FilterChain(s.filters));
+			core.setTransform(a, b, c, d, e, f);
+			draw();
+			core.restore();
+			core.setTransform(a, b, c, d, e, f);
+		} else {
+			layered = false;
+			draw();
+		}
+		layered = false;
+	}
+
+	inline function ready(style:Style):Bool {
+		if (!style.ready(paint, s, this)) return false;
+		if (layered) paint.blend = null;
+		return true;
+	}
 
 	// ---- lines
 
@@ -560,14 +606,13 @@ class CanvasRenderingContext2D {
 
 	public function fill(?a:Dynamic, ?b:Dynamic) {
 		var p = pathArg(a);
-		if (!s.fill.ready(paint, s, this)) return;
-		core.fill(p, paint, ruleArg(a, b));
+		var rule = ruleArg(a, b);
+		effects(() -> if (ready(s.fill)) core.fill(p, paint, rule));
 	}
 
 	public function stroke(?a:Path2D) {
 		var p = a == null ? path : a.path;
-		if (!s.stroke.ready(paint, s, this)) return;
-		core.stroke(p, s.line, paint);
+		effects(() -> if (ready(s.stroke)) core.stroke(p, s.line, paint));
 	}
 
 	public function clip(?a:Dynamic, ?b:Dynamic)
@@ -577,8 +622,7 @@ class CanvasRenderingContext2D {
 		if (!finite4(x, y, w, h)) return;
 		scratch.clear();
 		scratch.rect(x, y, w, h);
-		if (!s.fill.ready(paint, s, this)) return;
-		core.fill(scratch, paint);
+		effects(() -> if (ready(s.fill)) core.fill(scratch, paint));
 	}
 
 	public function strokeRect(x:Float, y:Float, w:Float, h:Float) {
@@ -592,8 +636,7 @@ class CanvasRenderingContext2D {
 			scratch.close();
 		} else
 			scratch.rect(x, y, w, h);
-		if (!s.stroke.ready(paint, s, this)) return;
-		core.stroke(scratch, s.line, paint);
+		effects(() -> if (ready(s.stroke)) core.stroke(scratch, s.line, paint));
 	}
 
 	public function clearRect(x:Float, y:Float, w:Float, h:Float) {
@@ -666,8 +709,14 @@ class CanvasRenderingContext2D {
 		paint.color = 0xFF000000;
 		paint.shader = null;
 		paint.alpha = s.alpha;
-		paint.blend = s.blend;
-		core.drawImage(bm, sx, sy, sw, sh, dx, dy, dw, dh, paint, s.smoothing);
+		var smooth = s.smoothing;
+		effects(() -> {
+			paint.color = 0xFF000000;
+			paint.shader = null;
+			paint.alpha = s.alpha;
+			paint.blend = layered ? null : s.blend;
+			core.drawImage(bm, sx, sy, sw, sh, dx, dy, dw, dh, paint, smooth);
+		});
 	}
 
 	// ---- pixels
@@ -747,13 +796,20 @@ class CanvasRenderingContext2D {
 		var glyphs = t.glyphs;
 		glyphs.path.clear();
 		glyphs.add(t.lines, x + ox, y + oy, k);
-		if (fill) {
-			if (!s.fill.ready(paint, s, this)) return;
-			core.fill(glyphs.path, paint);
-		} else {
-			if (!s.stroke.ready(paint, s, this)) return;
-			core.stroke(glyphs.path, s.line, paint);
-		}
+		effects(() -> if (fill) {
+			if (ready(s.fill)) core.fill(glyphs.path, paint);
+		} else if (ready(s.stroke)) core.stroke(glyphs.path, s.line, paint));
+	}
+
+	// the text's glyphs as a path, laid out as fillText would draw it at (x, y) (skia-canvas's outlineText)
+	public function outlineText(text:String, x = 0.0, y = 0.0):Path2D {
+		var t = Text.get();
+		t.layout(text, s);
+		var out = new Path2D();
+		t.glyphs.path.clear();
+		t.glyphs.add(t.lines, x + t.alignOffset(s), y + t.baselineOffset(s));
+		out.path.addPath(t.glyphs.path);
+		return out;
 	}
 }
 
@@ -816,6 +872,7 @@ private class DrawState {
 	public var shadowX = 0.0;
 	public var shadowY = 0.0;
 	public var filter = "none";
+	public var filters:Null<Array<helder.canvas.Filter>> = null;
 	public var line = lineStyle();
 
 	static function lineStyle():Stroke {
@@ -856,6 +913,7 @@ private class DrawState {
 		d.shadowX = shadowX;
 		d.shadowY = shadowY;
 		d.filter = filter;
+		d.filters = filters;
 		d.line = new Stroke().copyFrom(line);
 		d.cap = cap;
 		d.join = join;
@@ -1060,5 +1118,58 @@ private class Text {
 		}
 		var em = s.font.size, ea = em * a / (a + d);
 		m.set(width, -(x0 + ox), x1 + ox, -(y0 + oy), y1 + oy, a - oy, d + oy, ea - oy, em - ea + oy, a * 0.8 - oy, -oy, -d - oy);
+	}
+}
+
+// CSS's filter property as helder.canvas's filters: blur, brightness,
+// contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate,
+// sepia (null: none, or a value that does not parse)
+@:allow(helder.canvas.dom)
+private class Effects {
+	public static function parse(v:String):Null<Array<helder.canvas.Filter>> {
+		var t = StringTools.trim(v);
+		if (t == "none" || t == "") return null;
+		var re = ~/^\s*([a-z-]+)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/;
+		var out:Array<helder.canvas.Filter> = [];
+		while (StringTools.trim(t) != "") {
+			if (!re.match(t)) return null;
+			var name = re.matched(1), arg = StringTools.trim(re.matched(2));
+			t = re.matchedRight();
+			inline function amount(def:Float):Float {
+				if (arg == "") return def;
+				return StringTools.endsWith(arg, "%") ? Std.parseFloat(arg) / 100 : Std.parseFloat(arg);
+			}
+			inline function px(a:String):Float
+				return Std.parseFloat(a);
+			switch name {
+				case "blur": out.push(new helder.canvas.Filter.Blur(arg == "" ? 0 : px(arg)));
+				case "brightness": out.push(helder.canvas.Filter.ColorMatrix.brightness(amount(1)));
+				case "contrast": out.push(helder.canvas.Filter.ColorMatrix.contrast(amount(1)));
+				case "grayscale": out.push(helder.canvas.Filter.ColorMatrix.grayscale(amount(1)));
+				case "sepia": out.push(helder.canvas.Filter.ColorMatrix.sepia(amount(1)));
+				case "saturate": out.push(helder.canvas.Filter.ColorMatrix.saturate(amount(1)));
+				case "invert": out.push(helder.canvas.Filter.ColorMatrix.invert(amount(1)));
+				case "opacity": out.push(helder.canvas.Filter.ColorMatrix.opacity(amount(1)));
+				case "hue-rotate":
+					var d = Std.parseFloat(arg);
+					if (StringTools.endsWith(arg, "rad")) d *= 180 / Math.PI else if (StringTools.endsWith(arg, "turn")) d *= 360;
+					out.push(helder.canvas.Filter.ColorMatrix.hueRotate(arg == "" ? 0 : d));
+				case "drop-shadow":
+					// (lengths then a colour, or a colour first)
+					var parts = ~/\s+(?![^(]*\))/g.split(arg), lengths = [], color = 0xFF000000;
+					for (p in parts) {
+						if (~/^-?[0-9.]+(px)?$/.match(p)) lengths.push(px(p)) else {
+							var c = Colors.parse(p);
+							if (c == null) return null;
+							color = c;
+						}
+					}
+					if (lengths.length < 2) return null;
+					out.push(new helder.canvas.Filter.DropShadow(lengths[0], lengths[1], lengths.length > 2 ? lengths[2] : 0, color));
+				case _:
+					return null;
+			}
+		}
+		return out;
 	}
 }

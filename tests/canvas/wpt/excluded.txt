@@ -4,3 +4,5 @@
 2d.fillStyle.parse.current.changed: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
 2d.fillStyle.relativecolor.currentcolor: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
 2d.gradient.object.current: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
+2d.shadow.attributes.shadowColor.current.basic: helder.canvas.dom.Canvas#style is not a member of helder's the manifest lists
+2d.shadow.attributes.shadowColor.current.changed: helder.canvas.dom.Canvas#style is not a member of helder's the manifest lists

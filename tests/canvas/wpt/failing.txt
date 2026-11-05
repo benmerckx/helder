@@ -19,3 +19,6 @@
 2d.line.miter.valid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
 2d.line.width.invalid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
 2d.line.width.valid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.shadow.attributes.shadowBlur.invalid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.shadow.attributes.shadowOffset.invalid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.shadow.attributes.shadowColor.invalid: an object given for a string: helder's TypeScript does not convert it (its declared type is string)

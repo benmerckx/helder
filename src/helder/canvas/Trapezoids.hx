@@ -97,7 +97,7 @@ final class Trapezoids implements Path.Sink {
 		while (k < ys.length - 1) {
 			var ya = ys[k], yb = ys[k + 1];
 			k++;
-			if (yb <= ya + 1e-12) continue;
+			if (yb <= ya) continue;
 			band(ya, yb, evenOdd);
 		}
 	}

@@ -10,7 +10,8 @@ import helder.canvas.Paint.Shader;
 // stroked (Stroke: width, joins, caps, dashes, as outlines), images,
 // with paints (colours, gradients, patterns), opacity and blend modes;
 // a transform stack, clips (each a coverage mask), layers (saveLayer:
-// drawn apart, then composited with an opacity, a blend mode and a mask).
+// drawn apart, then composited with an opacity, a blend mode, a mask and a
+// filter: Filter's blur, drop shadow, colour matrices).
 // Coverage is analytic (Raster: each pixel's exact area), into
 // premultiplied RGBA8 (bitmap), so its pixels are the same on every
 // machine. Its buffers are made with it, or once for the deepest save:
@@ -102,14 +103,15 @@ final class Canvas implements Painter {
 
 	// what follows drawn apart, then composited with alpha, blend (null:
 	// source-over) and mask (a coverage of the canvas's size, or null) at
-	// restore(); a save as well
-	public function saveLayer(alpha = 1.0, ?blend:Blender, ?mask:Mask) {
+	// restore(), its pixels through filter first; a save as well
+	public function saveLayer(alpha = 1.0, ?blend:Blender, ?mask:Mask, ?filter:Filter) {
 		save();
 		var s = state;
 		s.layer = true;
 		s.layerAlpha = alpha;
 		s.layerBlend = blend;
 		s.layerMask = mask;
+		s.layerFilter = filter;
 		s.under = target;
 		if (s.pixels == null || s.pixels.length != width * height * 4) s.pixels = Bytes.alloc(width * height * 4);
 		s.pixels.fill(0, width * height * 4, 0);
@@ -124,7 +126,10 @@ final class Canvas implements Painter {
 		if (s.layer) {
 			target = s.under;
 			s.layer = false;
+			// (its filter on its pixels first: a blur, a shadow, a colour matrix)
+			if (s.layerFilter != null) s.layerFilter.apply(new Bitmap(width, height, s.pixels));
 			compositeLayer(s);
+			s.layerFilter = null;
 			s.layerMask = null;
 			s.layerBlend = null;
 			s.under = null;
@@ -519,6 +524,7 @@ private final class State {
 	public var layerAlpha = 1.0;
 	public var layerBlend:Null<Blender> = null;
 	public var layerMask:Null<Mask> = null;
+	public var layerFilter:Null<Filter> = null;
 	public var pixels:Null<Bytes> = null;
 	public var under:Null<Bytes> = null;
 

@@ -84,10 +84,15 @@ class WebCanvas implements Painter {
 		op(SAVE, 0);
 	}
 
-	public function saveLayer(alpha = 1.0, ?blend:Blender, ?mask:Mask) {
+	public function saveLayer(alpha = 1.0, ?blend:Blender, ?mask:Mask, ?filter:Filter) {
 		depth++;
 		if (matrices.length <= depth) matrices.push(new Matrix());
 		matrices[depth].copyFrom(matrices[depth - 1]);
+		if (filter != null) {
+			flush();
+			var css = haxe.io.Bytes.ofString(filter.css());
+			WebCanvasImports.canvas_filter(handle, hxmc.unsafe.BytesPtr.of(css, 0, css.length), css.length);
+		}
 		op(LAYER, 3);
 		num(alpha);
 		num(blend == null ? 1000 : blend.code);
@@ -309,5 +314,7 @@ class WebCanvas implements Painter {
 	static function canvas_image(width:Int, height:Int, pixels:hxmc.unsafe.Ptr):Int;
 	// straight RGBA8 (getImageData's, putImageData's)
 	static function canvas_read(canvas:Int, x:Int, y:Int, w:Int, h:Int, out:hxmc.unsafe.Ptr):Void;
+	// the next layer's filter (CSS's)
+	static function canvas_filter(canvas:Int, css:hxmc.unsafe.Ptr, bytes:Int):Void;
 	static function canvas_write(canvas:Int, x:Int, y:Int, w:Int, h:Int, pixels:hxmc.unsafe.Ptr):Void;
 }

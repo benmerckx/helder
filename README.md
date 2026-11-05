@@ -958,10 +958,11 @@ fix.
   layers as textures, colour fills batched; the canvas-gpu lane compares it
   with the CPU's on the reference scenes; *phase 3 landed*: the web back
   end, `helder.canvas.web`, the core's calls as a buffer of commands drawn
-  by the browser's own Canvas 2D (the canvas-web lane, in Chromium). Next:
-  then skia-canvas's extras: multi-page PDF and SVG export, text to
-  outlines, Path2D's boolean operations and effects, filters and shadows,
-  a window),
+  by the browser's own Canvas 2D (the canvas-web lane, in Chromium);
+  *phase 4 landed*: multi-page PDF and SVG export, text to outlines,
+  boolean operations and path effects, filters and shadows, a window.
+  Next: PDF rendering (below); one batcher with ui's renderer and
+  sprite's),
   designed to be the best of its kind rather than a copy of one: it
   learns from HTML's Canvas 2D, Skia, Vello, tiny-skia and Kha's g2
   without matching any line for line. Paths with lines, quadratic and

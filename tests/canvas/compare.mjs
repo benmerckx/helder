@@ -7,12 +7,22 @@
 // bin/canvas/contact.png (each scene: helder's, Chromium's, the
 // difference times four).
 //
-//   node tests/canvas/compare.mjs [ours dir] [ref dir] [report: its path without .md, the sheet's -contact.png]
+//   node tests/canvas/compare.mjs [ours dir] [ref dir] [report: its path without .md, the sheet's -contact.png] [white|-] [scene=share,...]
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import zlib from "node:zlib";
 
 const ours = process.argv[2] ?? "bin/canvas/ours", ref = process.argv[3] ?? "tests/canvas/ref", report = process.argv[4] ?? "bin/canvas/report";
 const OFF = 24;
+// ("white": both over white first, as a PDF page is)
+const white = process.argv[5] === "white";
+function flatten(img) {
+	for (let i = 0; i < img.w * img.h; i++) {
+		const a = img.px[i * 4 + 3] / 255;
+		for (let k = 0; k < 3; k++) img.px[i * 4 + k] = Math.round(img.px[i * 4 + k] * a + 255 * (1 - a));
+		img.px[i * 4 + 3] = 255;
+	}
+	return img;
+}
 // (the share of pixels off by more than OFF a scene may have)
 const TOLERANCE = { default: 0.01, "text-": 0.06 };
 
@@ -105,7 +115,10 @@ export function diff(a, b) {
 	return { max, mean: sum / n, off: off / n, image: d };
 }
 
+// (a lane's own: "scene=share,..." as the sixth argument, "scene=skip" not compared)
+const own = Object.fromEntries((process.argv[6] ?? "").split(",").filter(x => x).map(x => x.split("=")));
 function tolerance(name) {
+	if (own[name] !== undefined) return own[name] === "skip" ? Infinity : +own[name];
 	for (const [k, v] of Object.entries(TOLERANCE)) if (k !== "default" && name.startsWith(k)) return v;
 	return TOLERANCE.default;
 }
@@ -118,6 +131,10 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
 		let a;
 		try { a = decode(readFileSync(`${ours}/${name}.png`)); } catch (e) { rows.push(`| ${name} | missing | | | FAIL |`); failed++; continue; }
 		const b = decode(readFileSync(`${ref}/${name}.png`));
+		if (white) {
+			flatten(a);
+			flatten(b);
+		}
 		if (a.w !== b.w || a.h !== b.h) { rows.push(`| ${name} | ${a.w}x${a.h} vs ${b.w}x${b.h} | | | FAIL |`); failed++; continue; }
 		const r = diff(a, b), ok = r.off <= tolerance(name);
 		if (!ok) failed++;

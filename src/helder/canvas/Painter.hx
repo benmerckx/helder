@@ -13,7 +13,7 @@ interface Painter {
 	// the current transform: changed in place
 	var matrix(get, never):Matrix;
 	function save():Void;
-	function saveLayer(alpha:Float = 1.0, ?blend:Blender, ?mask:Mask):Void;
+	function saveLayer(alpha:Float = 1.0, ?blend:Blender, ?mask:Mask, ?filter:Filter):Void;
 	function restore():Void;
 	function restoreToCount(count:Int):Void;
 	function translate(x:Float, y:Float):Void;

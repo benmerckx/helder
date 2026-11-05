@@ -21,10 +21,14 @@ export declare class Canvas {
 	constructor(width?: number, height?: number);
 	width: number;
 	height: number;
+	// a page after the others (a PDF's next; this canvas's pixels the new page's), its context
+	newPage(width?: number, height?: number): CanvasRenderingContext2D;
+	readonly pageCount: number;
 	// "2d" (any other: null, as the browser's for a kind it lacks)
 	getContext(kind: string, options?: any): CanvasRenderingContext2D | null;
 	// the pixels as a file: "png", "jpg" or "jpeg" (also their MIME
-	// types); quality 0 to 1 for JPEG (0.92)
+	// types; quality 0 to 1 for JPEG, 0.92), or the drawing as vectors:
+	// "pdf" (every page), "svg" (the last)
 	toBuffer(format?: string, quality?: number): unknown;
 	// the pixels written to a file, its format by its extension unless given
 	saveAs(path: string, format?: string, quality?: number): void;
@@ -60,7 +64,7 @@ export declare class CanvasRenderingContext2D {
 	globalCompositeOperation: string;
 	imageSmoothingEnabled: boolean;
 	imageSmoothingQuality: string;
-	// (stored; not drawn yet: helder.canvas has no blur or shadows in this phase)
+	// shadows and filter: the draw into a layer composited through them (Filter's DropShadow, Blur, colour matrices)
 	shadowBlur: number;
 	shadowColor: string;
 	shadowOffsetX: number;
@@ -117,6 +121,8 @@ export declare class CanvasRenderingContext2D {
 	fillText(text: string, x: number, y: number, maxWidth?: number): void;
 	strokeText(text: string, x: number, y: number, maxWidth?: number): void;
 	measureText(text: string): TextMetrics;
+	// the text's glyphs as a path, laid out as fillText would draw it at (x, y) (skia-canvas's outlineText)
+	outlineText(text: string, x?: number, y?: number): Path2D;
 }
 
 // The browser's Path2D: a path of its own, filled, stroked or clipped by
@@ -126,6 +132,20 @@ export declare class Path2D {
 	constructor(init?: any);
 	// another path's subpaths, through a transform when given
 	addPath(other: Path2D, transform?: DOMMatrix): void;
+	// skia-canvas's extras: boolean operations (each a new path), simplify,
+	// and effects (rounded corners, trimmed by length, jittered), a move and a transform
+	union(other: Path2D): Path2D;
+	intersect(other: Path2D): Path2D;
+	difference(other: Path2D): Path2D;
+	xor(other: Path2D): Path2D;
+	complement(other: Path2D): Path2D;
+	simplify(rule?: string): Path2D;
+	round(radius: number): Path2D;
+	trim(start: number, end: number, inverted?: boolean): Path2D;
+	jitter(segmentLength: number, amount: number, seed?: number): Path2D;
+	dash(segments: number[], offset?: number): Path2D;
+	offset(dx: number, dy: number): Path2D;
+	transform(m: DOMMatrix): Path2D;
 	closePath(): void;
 	moveTo(x: number, y: number): void;
 	lineTo(x: number, y: number): void;

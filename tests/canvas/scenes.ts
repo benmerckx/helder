@@ -516,6 +516,55 @@ export const scenes: Scene[] = [
 		}
 	},
 	...textScenes(),
+	{
+		name: "shadows", width: W, height: H, draw: ctx => {
+			white(ctx, W, H);
+			ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+			ctx.shadowBlur = 6;
+			ctx.shadowOffsetX = 4;
+			ctx.shadowOffsetY = 4;
+			ctx.fillStyle = "#3b82f6";
+			ctx.fillRect(12, 12, 56, 40);
+			ctx.shadowColor = "#f97316";
+			ctx.shadowBlur = 0;
+			ctx.shadowOffsetX = 6;
+			ctx.shadowOffsetY = -4;
+			ctx.fillStyle = "#16a34a";
+			ctx.beginPath();
+			ctx.arc(115, 35, 22, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.shadowColor = "rgba(124, 58, 237, 0.8)";
+			ctx.shadowBlur = 3;
+			ctx.shadowOffsetX = 2;
+			ctx.shadowOffsetY = 2;
+			ctx.strokeStyle = "#111827";
+			ctx.lineWidth = 4;
+			ctx.beginPath();
+			ctx.moveTo(14, 100);
+			ctx.lineTo(80, 76);
+			ctx.lineTo(146, 104);
+			ctx.stroke();
+		}
+	},
+	{
+		name: "filters", width: W, height: H, draw: ctx => {
+			white(ctx, W, H);
+			const src = new Canvas(40, 40);
+			const s = src.getContext("2d")!;
+			const g = s.createLinearGradient(0, 0, 40, 40);
+			g.addColorStop(0, "#ef4444");
+			g.addColorStop(0.5, "#22c55e");
+			g.addColorStop(1, "#3b82f6");
+			s.fillStyle = g;
+			s.fillRect(4, 4, 32, 32);
+			const list = ["blur(2px)", "grayscale(1)", "sepia(0.8)", "hue-rotate(90deg)", "invert(1)", "brightness(1.4) contrast(0.6)", "saturate(3)", "drop-shadow(3px 3px 2px #1e3a8a)"];
+			for (let i = 0; i < list.length; i++) {
+				ctx.filter = list[i];
+				ctx.drawImage(src, (i % 4) * 40, Math.floor(i / 4) * 52 + 8);
+			}
+			ctx.filter = "none";
+		}
+	},
 ];
 
 let imageDir = "tests/canvas/images";

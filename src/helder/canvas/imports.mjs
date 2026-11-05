@@ -65,6 +65,9 @@ export default function (host) {
 			const o = host.handles.get(handle);
 			o.ctx.putImageData(new ImageData(new Uint8ClampedArray(host.bytes(p, w * h * 4).slice()), w, h), x, y);
 		},
+		canvas_filter(handle, p, n) {
+			host.handles.get(handle).filter = new TextDecoder().decode(host.bytes(p, n).slice());
+		},
 		canvas_run(handle, p, n) {
 			const o = host.handles.get(handle);
 			const f = new Float64Array(host.memory().buffer.slice(p, p + n));
@@ -117,6 +120,7 @@ export default function (host) {
 							under.setTransform(1, 0, 0, 1, 0, 0);
 							under.globalAlpha = s.layer.alpha;
 							under.globalCompositeOperation = operation(s.layer.blend);
+							if (s.layer.filter) under.filter = s.layer.filter;
 							let src = s.layer.canvas;
 							if (s.layer.mask) {
 								const t = make(o.w, o.h), tc = t.getContext("2d");
@@ -184,7 +188,8 @@ export default function (host) {
 					case 10: {
 						const canvas = make(o.w, o.h);
 						c.save();
-						o.stack.push({ layer: { canvas, ctx: canvas.getContext("2d"), alpha: f[i], blend: f[i + 1], mask: f[i + 2] } });
+						o.stack.push({ layer: { canvas, ctx: canvas.getContext("2d"), alpha: f[i], blend: f[i + 1], mask: f[i + 2], filter: o.filter } });
+						o.filter = null;
 						i += 3;
 						break;
 					}

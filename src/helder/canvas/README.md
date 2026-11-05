@@ -103,6 +103,55 @@ helder.ui's SVG rendering (`Svg.render`, `Path.render`) draws through it:
 its groups' opacities as layers, its clip paths as clips, its gradients
 (spread included) as shaders, its strokes as `Stroke`.
 
+## Extras (phase 4)
+
+- **Documents** (`helder.canvas.doc`): `Recorder`, a Painter that keeps
+  every call (its path, paint and stroke copied), `Document`, pages of
+  them; `PdfWriter.write(doc)`: a multi-page PDF 1.7, paths as PDF's,
+  colours with their opacity and blend mode in ExtGStates, linear and
+  radial gradients as shadings (stops as stitching functions, their alpha
+  a luminosity soft mask), images as image XObjects with soft masks,
+  layers as transparency groups, streams Flate-compressed;
+  `SvgWriter.write(page)`: an SVG (gradients userSpaceOnUse, clipPaths,
+  groups, mix-blend-mode, images as PNG data). What neither can say
+  (conic gradients, patterns, unbounded operators, erasing) is drawn on
+  the CPU into an image of its own. `replay(painter)` draws a recording on
+  any back end. Not written yet: shadows and filters.
+- **Text to outlines**: `Glyphs.add` (the DOM's `ctx.outlineText(text)`: a
+  Path2D).
+- **Boolean operations** (`PathOps`): `union`, `intersect`, `difference`,
+  `xor`, `simplify(path, evenOdd)`: both paths swept into bands (as
+  Trapezoids), each span inside by the operation, the outline chained
+  into closed contours (holes the other way round), collinear points
+  dropped; the result polygonal.
+- **Path effects** (`PathEffects`): `round(path, radius)`, `trim(path,
+  start, end, inverted)`, `dash(path, intervals, offset)` (as subpaths),
+  `jitter(path, segment, amount, seed)`.
+- **Filters** (`Filter`, through `saveLayer(alpha, blend, mask, filter)`):
+  `Blur` (three box blurs), `DropShadow`, `Shadow`, `ColorMatrix`
+  (grayscale, sepia, saturate, hueRotate, invert, brightness, contrast,
+  opacity), `FilterChain`; on the CPU, on the GPU (the layer read back and
+  filtered on the CPU), on the web as CSS's filter. The DOM facade's
+  `filter` and its shadows (`shadowBlur`, `shadowColor`, `shadowOffsetX/Y`:
+  the shape drawn through `Shadow` moved by the offset, then itself).
+- **A window**: `GpuCanvas(w, h, Device.create(window.surface))` and
+  `present()` each frame (examples/canvas-window).
+
+The DOM facade records every page beside its pixels: `canvas.newPage(w,
+h)`, `pageCount`, `toBuffer("pdf")` (all pages), `toBuffer("svg")` (the
+last), `saveAs("out.pdf")`; Path2D's `union`, `intersect`, `difference`,
+`xor`, `complement`, `simplify`, `round`, `trim`, `jitter`, `dash`,
+`offset`, `transform`.
+
+Tests: the canvas-doc lane (the scenes as one PDF drawn by poppler and as
+SVGs drawn by Chromium, against the CPU's pixels: all 27 within tolerance,
+the ones that need a raster fallback looser, composite's unbounded
+operators, the dots of zero-length subpaths, shadows and filters not
+compared); the shadows and filters scenes against Chromium (canvas lane);
+WPT's shadow tests (568 converted now: 545 pass, Chromium 555);
+PathOps.test.hx (areas, contours, lengths, the same jitter from a seed);
+the canvas-gpu lane runs examples/canvas-window in a window (Xvfb).
+
 ## The GPU back end: `helder.canvas.gpu`
 
 `GpuCanvas` (phase 2) is the same `Painter` as the CPU's `Canvas` (the
@@ -201,7 +250,7 @@ which an app using only the core never pulls in.
 - `Path2D` (from another or from SVG path data), `ImageData`, `DOMMatrix`
   (its 2D part), `Image` and `loadImage(path)` (helder.image's decoders),
   `FontLibrary.use(family, paths)`.
-- Not yet: shadows and `filter` (kept, not drawn), `ImageData.data` as a
+- Not yet: `ImageData.data` as a
   typed array in TypeScript (helder's TypeScript has none: a copy as
   numbers; Haxe reads `bytes`), WebP from `toBuffer`.
 
@@ -224,9 +273,7 @@ ctx.fillText("Hello", 40, 110);
 canvas.saveAs("hello.png");
 ```
 
-skia-canvas's extras are for later: multi-page PDF and SVG export,
-Path2D's boolean operations and effects (round, trim, jitter), text to
-outlines, rendering into a window.
+skia-canvas's extras are there too (see Extras above).
 
 ## Correctness
 
@@ -247,7 +294,7 @@ outlines, rendering into a window.
   within 3.2%.
 - **WPT**: web-platform-tests' Canvas 2D tests of paths, fills and strokes,
   line styles, compositing, transforms and rectangles (wpt/convert.mjs:
-  523 of their 616, the bodies as WPT wrote them on harness.ts's
+  568 of their 688, the bodies as WPT wrote them on harness.ts's
   `_assertPixel` and the others), natively: 503 pass (Chromium 510 of
   the same); the 20 failures are listed with their reasons
   (wpt/failing.txt: color-mix() and relative colours, CSS Typed OM colour

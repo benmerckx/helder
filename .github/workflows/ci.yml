@@ -102,11 +102,11 @@ jobs:
         run: |
           set -ex
           sudo apt-get update -qq
-          sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core
+          sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core poppler-utils
           bun add --no-save playwright@1.56.1
           bunx playwright install --with-deps chromium > /dev/null
       - name: gfx, 3d, audio, web and ui in Chromium
-        run: bun run test -k gfx-web 3d-web audio-web web ui-web canvas-web
+        run: bun run test -k gfx-web 3d-web audio-web web ui-web canvas-web canvas-doc
 
   # Android on an x86-64 emulator with KVM (reactivecircus/android-emulator-runner,
   # API 34, as hxmc's CI): tests/pack/android.sh (helder run --target
