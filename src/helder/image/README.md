@@ -118,6 +118,25 @@ CI's headless job runs it for 30 s), and the image lane checks every
 `hxmc.unsafe` of helder.image against a reviewed list, each with its
 reason (`tests/image/unsafe.mjs`, `unsafe.txt`).
 
+## Decoding off the main thread
+
+`ImageMemory.offHeapMemory()`, given to `JpegDecoder.decode`,
+`PngDecoder.decode` or `WebpDecoder.decode` (lossy), puts a decode's
+planes, coefficients and pixels off the GC heap (IoBuffers, each a
+Bytes view): `take` hands the result's buffer to the caller (moved, not
+copied: a job's result), `free` frees the rest. With `GcPoint.poll()` in
+the decoders' row loops (a GC point, `@:hxmc.collects`: one atomic load
+unless a collection is asked for), a decode run as a GC job no longer
+holds the other threads' collections: helder's viewer prefetching a 24 MP
+JPEG, a 24 MP WebP and a 12 MP PNG while its main thread allocates a
+frame's garbage 60 times a second (apps/viewer/tests/bench/PrefetchBench.hx)
+went from frames of p99 88 ms and max 203 ms (the collector waiting up
+to 130 ms for the decoding thread) to p99 1 to 5 ms and max 2 to 11 ms
+(waits of at most 10 ms); the JPEG's decode from 612 to 420 ms (its
+coefficients 16-bit, its pixels not copied). The JPEG, GIF and WebP
+decoders are not kernels (PngCore is: a GC-free job, `ImageJobs`): their
+port is still to come.
+
 `Exif.orientation(file)` reads EXIF's orientation (1 to 8) from a JPEG's
 APP1 or a WebP's EXIF chunk: IFD0 only, every offset within the TIFF block
 (no chain of IFDs followed: no loop, no depth); `Exif.apply` shows pixels

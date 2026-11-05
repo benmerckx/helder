@@ -87,6 +87,6 @@ function tests() {
 
 private function image(bytes:Int):Decoded
 	return {
-		width: 1, height: 1, pixelsWidth: 1, pixelsHeight: 1, frames: [{rgba: Bytes.alloc(bytes), delay: 0.0}], repetitions: 0,
+		width: 1, height: 1, pixelsWidth: 1, pixelsHeight: 1, frames: [{pixels: hxmc.unsafe.IoBuffer.alloc(bytes), delay: 0.0}], repetitions: 0,
 		format: "PNG", fileSize: bytes, error: null, errorKind: ""
 	};

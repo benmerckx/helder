@@ -34,8 +34,13 @@ class Vp8Decoder {
 	static inline var HU = 9;
 	static inline var BPS = 32;
 
-	public static function decode(data:ByteReader, at:Int, size:Int):{width:Int, height:Int, rgba:Bytes}
-		return new Vp8Decoder(data, at, size).run();
+	public static function decode(data:ByteReader, at:Int, size:Int, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
+		var d = new Vp8Decoder(data, at, size);
+		d.mem = mem ?? ImageMemory.gc;
+		return d.run();
+	}
+
+	var mem = ImageMemory.gc;
 
 	final data:ByteReader;
 	final at:Int;
@@ -92,9 +97,9 @@ class Vp8Decoder {
 		mbh = (height + 15) >> 4;
 		ys = mbw * 16;
 		uvs = mbw * 8;
-		Y = Bytes.alloc(ys * mbh * 16);
-		U = Bytes.alloc(uvs * mbh * 8);
-		V = Bytes.alloc(uvs * mbh * 8);
+		Y = mem.bytes(ys * mbh * 16);
+		U = mem.bytes(uvs * mbh * 8);
+		V = mem.bytes(uvs * mbh * 8);
 		var p = at + 10;
 		var br = new BoolDecoder(data, p, p + first);
 		header(br);
@@ -195,6 +200,7 @@ class Vp8Decoder {
 		var modes = [for (i in 0...16) 0];
 		var ws = Bytes.alloc(BPS * 17), wu = Bytes.alloc(BPS * 9), wv = Bytes.alloc(BPS * 9);
 		for (my in 0...mbh) {
+			GcPoint.poll();
 			for (i in 0...4)
 				intraL[i] = DC;
 			for (i in 0...9)
@@ -701,7 +707,7 @@ class Vp8Decoder {
 			}
 		}
 		for (my in 0...mbh)
-			for (mx in 0...mbw) {
+			if (GcPoint.yes()) for (mx in 0...mbw) {
 				var mb = my * mbw + mx, k = 2 * segments[mb] + (i4x4[mb] ? 1 : 0);
 				var limit = limits[k];
 				if (limit == 0) continue;
@@ -803,7 +809,7 @@ class Vp8Decoder {
 	// --- colours: libwebp's fancy upsampler (chroma interpolated 9:3:3:1) and YUV to RGB ---
 
 	function rgb():{width:Int, height:Int, rgba:Bytes} {
-		var out = Bytes.alloc(width * height * 4);
+		var out = mem.bytes(width * height * 4);
 		inline function mulHi(v:Int, c:Int):Int
 			return (v * c) >> 8;
 		inline function clip(v:Int):Int
@@ -817,6 +823,7 @@ class Vp8Decoder {
 		}
 		// one or two rows: top (and bottom) from chroma rows tu (above) and cu
 		function pair(top:Int, bottom:Int, tu:Int, cu:Int) {
+			GcPoint.poll();
 			var last = (width - 1) >> 1;
 			inline function uAt(r:Int, x:Int):Int
 				return U.get(r * uvs + x);

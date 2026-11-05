@@ -47,14 +47,19 @@ class JpegDecoder {
 	var markerHit = false;
 
 	// the pixels: width * height * 4 bytes, rows top to bottom, opaque
-	public static function decode(jpg:Bytes):{width:Int, height:Int, rgba:Bytes} {
+	// (mem: where its planes, coefficients and pixels are; ImageMemory)
+	public static function decode(jpg:Bytes, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
 		var r = new ByteReader(jpg);
 		if (r.length < 4 || r.u8(0) != 0xFF || r.u8(1) != 0xD8) throw ImageError.unsupported("JpegDecoder: not a JPEG file");
-		return ImageLimits.guard("JpegDecoder", () -> new JpegDecoder(jpg).run());
+		return ImageLimits.guard("JpegDecoder", () -> new JpegDecoder(jpg, mem ?? ImageMemory.gc).run());
 	}
 
-	function new(data:Bytes)
+	final mem:ImageMemory;
+
+	function new(data:Bytes, mem:ImageMemory) {
 		this.data = new ByteReader(data);
+		this.mem = mem;
+	}
 
 	function u16(p:Int):Int
 		return (data.u8(p) << 8) | data.u8(p + 1);
@@ -178,11 +183,11 @@ class JpegDecoder {
 			c.height = Std.int((height * c.v + vmax - 1) / vmax);
 			c.blocksX = mcusX * c.h;
 			c.blocksY = mcusY * c.v;
-			bytes += (c.blocksX : Float) * c.blocksY * 64 * 5 + (width : Float) * height;
+			bytes += (c.blocksX : Float) * c.blocksY * 64 * 3 + (width : Float) * height;
 		}
 		ImageLimits.memory("JpegDecoder", bytes + (width : Float) * height * 8);
 		for (c in components)
-			c.coeffs = new Vector<Int>(c.blocksX * c.blocksY * 64, 0);
+			c.coeffs = new Coeffs(mem.bytes(c.blocksX * c.blocksY * 64 * 2));
 	}
 
 	// --- scans ---
@@ -228,14 +233,17 @@ class JpegDecoder {
 			var c = scan[0];
 			var bx = Std.int((c.width + 7) / 8), by = Std.int((c.height + 7) / 8);
 			total = bx * by;
-			for (y in 0...by)
+			for (y in 0...by) {
+				GcPoint.poll();
 				for (x in 0...bx) {
 					restart(units++);
 					decodeBlock(c, y * c.blocksX + x);
 				}
+			}
 		} else {
 			total = mcusX * mcusY;
-			for (my in 0...mcusY)
+			for (my in 0...mcusY) {
+				GcPoint.poll();
 				for (mx in 0...mcusX) {
 					restart(units++);
 					for (c in scan)
@@ -243,6 +251,7 @@ class JpegDecoder {
 							for (h in 0...c.h)
 								decodeBlock(c, (my * c.v + v) * c.blocksX + mx * c.h + h);
 				}
+			}
 		}
 		// past the scan's data: the next marker
 		while (pos + 1 < data.length && !(data.u8(pos) == 0xFF && data.u8(pos + 1) != 0 && (data.u8(pos + 1) < 0xD0 || data.u8(pos + 1) > 0xD7)))
@@ -409,16 +418,16 @@ class JpegDecoder {
 		for (c in components) {
 			var q = quant[c.tq];
 			if (q == null) throw "JpegDecoder: no quantization table " + c.tq;
-			c.pixels = Bytes.alloc(c.blocksX * 8 * c.blocksY * 8);
+			c.pixels = mem.bytes(c.blocksX * 8 * c.blocksY * 8);
 			var ws = new Vector<Int>(64);
 			for (by in 0...c.blocksY)
-				for (bx in 0...c.blocksX)
+				if (GcPoint.yes()) for (bx in 0...c.blocksX)
 					idct(c.coeffs, (by * c.blocksX + bx) * 64, q, ws, c.pixels, by * 8 * c.blocksX * 8 + bx * 8, c.blocksX * 8);
 			c.coeffs = null;
 		}
 		// each component at the image's size
 		var planes = [for (c in components) upsample(c)];
-		var rgba = Bytes.alloc(width * height * 4);
+		var rgba = mem.bytes(width * height * 4);
 		var n = components.length;
 		// (jdapimin's guess: JFIF is YCbCr, else Adobe's transform, else
 		// components named R, G, B are RGB)
@@ -436,6 +445,7 @@ class JpegDecoder {
 		inline function clamp(v:Int):Int
 			return v < 0 ? 0 : v > 255 ? 255 : v;
 		for (i in 0...width * height) {
+			if (i & 0xFFFF == 0) GcPoint.poll();
 			var r:Int, g:Int, b:Int;
 			if (n == 1) {
 				r = g = b = planes[0].get(i);
@@ -476,7 +486,7 @@ class JpegDecoder {
 	function upsample(c:Component):Bytes {
 		var stride = c.blocksX * 8, src = c.pixels;
 		var rh = Std.int(hmax / c.h), rv = Std.int(vmax / c.v);
-		var out = Bytes.alloc(width * height);
+		var out = mem.bytes(width * height);
 		var cw = c.width, ch = c.height;
 		if (rh == 1 && rv == 1) {
 			for (y in 0...height)
@@ -492,6 +502,7 @@ class JpegDecoder {
 			var outW = cw * 2;
 			var row = new Vector<Int>(outW);
 			for (y in 0...height) {
+				GcPoint.poll();
 				var sy = y >> 1, nb = (y & 1) == 0 ? sy - 1 : sy + 1;
 				var last = 0, cur = at(0, sy) * 3 + at(0, nb), next = at(1, sy) * 3 + at(1, nb);
 				row[0] = (cur * 4 + 8) >> 4;
@@ -514,6 +525,7 @@ class JpegDecoder {
 		}
 		var line = new Vector<Int>(cw * rh);
 		for (y in 0...height) {
+			GcPoint.poll();
 			// the source row (h1v2 fancy: blended with its nearer neighbour)
 			var sy = Std.int(y / rv);
 			var srcRow = new Vector<Int>(cw);
@@ -546,10 +558,10 @@ class JpegDecoder {
 
 	// EXIF's orientation applied (2-8: mirrored, rotated)
 	function orient(rgba:Bytes):{width:Int, height:Int, rgba:Bytes}
-		return Exif.apply(rgba, width, height, orientation);
+		return Exif.apply(rgba, width, height, orientation, mem);
 
 	// libjpeg's jpeg_idct_islow: a block's coefficients dequantized, columns then rows, into 8x8 samples
-	static function idct(co:Vector<Int>, o:Int, q:Vector<Int>, ws:Vector<Int>, out:Bytes, at:Int, stride:Int) {
+	static function idct(co:Coeffs, o:Int, q:Vector<Int>, ws:Vector<Int>, out:Bytes, at:Int, stride:Int) {
 		inline function descale(x:Int, n:Int):Int
 			return (x + (1 << (n - 1))) >> n;
 		for (col in 0...8) {
@@ -655,7 +667,7 @@ private class Component {
 	public var height = 0;
 	public var blocksX = 0;
 	public var blocksY = 0;
-	public var coeffs:Null<Vector<Int>>;
+	public var coeffs:Null<Coeffs>;
 	public var pixels:Null<Bytes>;
 	public var dcTable = 0;
 	public var acTable = 0;
@@ -698,5 +710,19 @@ private class Huffman {
 			code <<= 1;
 		}
 		maxcode[17] = 0x7FFFFFFF;
+	}
+}
+
+// a component's coefficients: 16 bits each (libjpeg's JCOEF), signed
+abstract Coeffs(Bytes) {
+	public inline function new(b:Bytes)
+		this = b;
+
+	@:arrayAccess inline function get(i:Int):Int
+		return (this.getUInt16(i << 1) << 16) >> 16;
+
+	@:arrayAccess inline function set(i:Int, v:Int):Int {
+		this.setUInt16(i << 1, v & 0xFFFF);
+		return v;
 	}
 }

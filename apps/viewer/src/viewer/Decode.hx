@@ -2,9 +2,11 @@ package viewer;
 
 import haxe.io.Bytes;
 import helder.image.*;
+import hxmc.unsafe.IoBuffer;
 
 // A file decoded for the viewer, as a job (helder.jobs: a GC job on the
-// pool, its result copied back) or on the calling thread (tests): its
+// pool, its pixels off the GC heap, moved back: ImageMemory, not copied;
+// a still PNG a GC-free job, ImageJobs) or on the calling thread (tests): its
 // frames (one for a still image; an animated GIF's, WebP's or APNG's all),
 // upright (JpegDecoder applies EXIF's orientation, a WebP's is applied
 // here), at most MAX_SIDE a side (larger: halved until within, for the
@@ -15,7 +17,8 @@ typedef Decoded = {
 	height:Int,
 	pixelsWidth:Int,
 	pixelsHeight:Int,
-	frames:Array<{rgba:Bytes, delay:Float}>,
+	// (off the GC heap: freed by release, when the cache lets it go)
+	frames:Array<{pixels:IoBuffer, delay:Float}>,
 	repetitions:Int,
 	format:String,
 	fileSize:Int,
@@ -36,13 +39,50 @@ class Decode {
 		return decode(bytes);
 	}
 
+	// a file decoded on the pool, from a coroutine: a still PNG as a GC-free
+	// job (ImageJobs: PngCore over off-heap memory), the rest as a GC job
+	// (file); never throws
+	@:coroutine public static function job(path:String):Decoded {
+		var bytes = try sys.io.File.getBytes(path) catch (e:Dynamic) null;
+		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
+		var size = Image.size(bytes);
+		if (formatOf(bytes) == "PNG" && !apng(bytes) && size != null && size.width <= MAX_SIDE && size.height <= MAX_SIDE) {
+			var p = try ImageJobs.pixels(IoBuffer.ofBytes(bytes)) catch (e:ImageError) return failedBy(e, bytes.length, "PNG") catch (e:helder.jobs.JobError)
+				return failed("corrupt", "Damaged or cut short: " + after(e.message), bytes.length, "PNG");
+			return {
+				width: p.width,
+				height: p.height,
+				pixelsWidth: p.width,
+				pixelsHeight: p.height,
+				frames: [{pixels: p.rgba, delay: 0.0}],
+				repetitions: 0,
+				format: "PNG",
+				fileSize: bytes.length,
+				error: null,
+				errorKind: ""
+			};
+		}
+		return try helder.jobs.Jobs.run(file, path) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
+	}
+
 	public static function decode(bytes:Bytes):Decoded {
 		var format = formatOf(bytes);
 		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP)", bytes.length, "");
 		try {
 			var frames:Array<{rgba:Bytes, delay:Float}>, w:Int, h:Int, reps = 0;
-			var animated = format == "GIF" || format == "WebP" || format == "PNG";
-			if (animated) {
+			// (a still image's planes and pixels off the heap; an animation's frames on it, copied out)
+			var mem = ImageMemory.offHeapMemory();
+			var animated = format == "GIF" || (format == "WebP" && animatedWebp(bytes)) || (format == "PNG" && apng(bytes));
+			if (!animated) {
+				var d = switch format {
+					case "JPEG": JpegDecoder.decode(bytes, mem);
+					case "WebP": WebpDecoder.decode(bytes, mem);
+					case _: PngDecoder.decode(bytes, mem);
+				}
+				w = d.width;
+				h = d.height;
+				frames = [{rgba: d.rgba, delay: 0.0}];
+			} else {
 				var a = switch format {
 					case "GIF": GifDecoder.frames(bytes);
 					case "WebP": WebpDecoder.frames(bytes);
@@ -53,17 +93,12 @@ class Decode {
 				frames = a.frames;
 				reps = a.repetitions;
 				if (format == "PNG" && frames.length > 1) format = "APNG";
-			} else {
-				var d = JpegDecoder.decode(bytes);
-				w = d.width;
-				h = d.height;
-				frames = [{rgba: d.rgba, delay: 0.0}];
 			}
 			// (a WebP's EXIF orientation: libwebp leaves it to the viewer)
 			if (format == "WebP" && frames.length == 1) {
 				var o = Exif.orientation(bytes);
 				if (o != 1) {
-					var r = Exif.apply(frames[0].rgba, w, h, o);
+					var r = Exif.apply(frames[0].rgba, w, h, o, mem);
 					frames[0].rgba = r.rgba;
 					w = r.width;
 					h = r.height;
@@ -74,19 +109,22 @@ class Decode {
 				if (frames.length > 1) return failed("too large", 'An animation of ${w}×$h is larger than this viewer shows (${MAX_SIDE} a side)', bytes.length, format);
 				var rgba = frames[0].rgba;
 				while (pw > MAX_SIDE || ph > MAX_SIDE) {
-					var half = halve(rgba, pw, ph);
+					var half = halve(rgba, pw, ph, mem);
 					rgba = half.rgba;
 					pw = half.width;
 					ph = half.height;
 				}
 				frames = [{rgba: rgba, delay: 0.0}];
 			}
+			// (the frames' buffers: a still image's kept from its memory, the rest freed; an animation's copied off the heap)
+			var out = [for (f in frames) {pixels: mem.take(f.rgba), delay: f.delay}];
+			mem.free();
 			return {
 				width: w,
 				height: h,
 				pixelsWidth: pw,
 				pixelsHeight: ph,
-				frames: frames,
+				frames: out,
 				repetitions: reps,
 				format: format,
 				fileSize: bytes.length,
@@ -94,13 +132,16 @@ class Decode {
 				errorKind: ""
 			};
 		} catch (e:ImageError) {
-			return failed(Std.string(e.kind), switch e.kind {
-				case TooLarge: "Too large to open: " + after(e.message);
-				case Unsupported: "Not supported: " + after(e.message);
-				case _: "Damaged or cut short: " + after(e.message);
-			}, bytes.length, format);
+			return failedBy(e, bytes.length, format);
 		}
 	}
+
+	static function failedBy(e:ImageError, size:Int, format:String):Decoded
+		return failed(Std.string(e.kind), switch e.kind {
+			case TooLarge: "Too large to open: " + after(e.message);
+			case Unsupported: "Not supported: " + after(e.message);
+			case _: "Damaged or cut short: " + after(e.message);
+		}, size, format);
 
 	// the format by the file's signature ("" none of the viewer's)
 	public static function formatOf(b:Bytes):String {
@@ -132,8 +173,8 @@ class Decode {
 		};
 
 	// half the size, each pixel the mean of four (straight alpha weighted by it)
-	public static function halve(src:Bytes, w:Int, h:Int):{width:Int, height:Int, rgba:Bytes} {
-		var nw = (w + 1) >> 1, nh = (h + 1) >> 1, out = Bytes.alloc(nw * nh * 4);
+	public static function halve(src:Bytes, w:Int, h:Int, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
+		var nw = (w + 1) >> 1, nh = (h + 1) >> 1, out = (mem ?? ImageMemory.gc).bytes(nw * nh * 4);
 		for (y in 0...nh)
 			for (x in 0...nw) {
 				var r = 0, g = 0, b = 0, a = 0;
@@ -161,7 +202,31 @@ class Decode {
 	public static function bytesOf(d:Decoded):Float {
 		var n = 0.0;
 		for (f in d.frames)
-			n += f.rgba.length;
+			n += f.pixels.length;
 		return n;
+	}
+
+	// its pixels freed (the cache let it go)
+	public static function release(d:Decoded) {
+		for (f in d.frames)
+			f.pixels.free();
+		d.frames = [];
+	}
+
+	// (an animated WebP: VP8X's animation flag; an animated PNG: an acTL before IDAT)
+	static function animatedWebp(b:Bytes):Bool {
+		var r = new ByteReader(b);
+		return r.length >= 21 && r.string(12, 4) == "VP8X" && r.u8(20) & 2 != 0;
+	}
+
+	static function apng(b:Bytes):Bool {
+		var r = new ByteReader(b), p = 8;
+		while (p + 8 <= r.length) {
+			var n = r.be32(p), name = r.string(p + 4, 4);
+			if (name == "acTL") return true;
+			if (name == "IDAT" || n < 0) return false;
+			p += 12 + n;
+		}
+		return false;
 	}
 }

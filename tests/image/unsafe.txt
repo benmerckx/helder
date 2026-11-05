@@ -1,12 +1,19 @@
 # hxmc.unsafe in helder.image, reviewed (tests/image/unsafe.mjs checks the code
 # against it in the image lane). Each line: the file, the line's code, then
 # after " # " why it stays (a line without its reason fails).
+src/helder/image/GcPoint.hx: @:hxmc.unsafe static inline function requested():Bool  # whether a collection is asked for: one atomic load of the runtime's flag
+src/helder/image/GcPoint.hx: return hxmc.unsafe.Atomic.load32(hxmc.unsafe.Mem.sym("rt_gc_requested")) != 0;  # (the same load)
+src/helder/image/GcPoint.hx: @:hxmc.unsafe static function stopHere()  # the runtime's stop at a safepoint, reached only through stop(), a @:hxmc.collects GC point: the decoder's references rooted across it
 src/helder/image/Image.hx: var buf = hxmc.unsafe.IoBuffer.alloc(n * 4), pre = buf.view();  # premultiplied's upload copy off the GC heap (no garbage of an image's size), freed on every path, the throw's too
 src/helder/image/ImageJobs.hx: import hxmc.unsafe.IoBuffer;  # the job's input and output buffers
 src/helder/image/ImageJobs.hx: import hxmc.unsafe.Mem;  # the header's info on the job's stack (Mem.stack, getI32)
 src/helder/image/ImageJobs.hx: import hxmc.unsafe.Ptr;  # the job's buffers' addresses, given to PngCore as checked spans
 src/helder/image/ImageJobs.hx: import hxmc.unsafe.UInt8;  # the spans' element type
 src/helder/image/ImageJobs.hx: @:hxmc.unsafe @:hxmc.callback public static function png(job:Job):Int {  # a GC-free job is an unsafe callback (helder.jobs); its reads and writes go through spans of the buffers' own lengths
+src/helder/image/ImageMemory.hx: final buffers:Array<hxmc.unsafe.IoBuffer> = [];  # a decode's buffers off the heap, each freed by free() or handed to the caller by keep()
+src/helder/image/ImageMemory.hx: var b = hxmc.unsafe.IoBuffer.alloc(n), v = b.view();  # zeroed, its view a Bytes the decoders use as any (its accesses checked); only with offHeapMemory()
+src/helder/image/ImageMemory.hx: public function take(v:Bytes):hxmc.unsafe.IoBuffer {  # the result's buffer moved to the caller, who frees it
+src/helder/image/ImageMemory.hx: if (i < 0) return hxmc.unsafe.IoBuffer.ofBytes(v);  # (a result not of this memory: copied off the heap, the caller's to free)
 src/helder/image/PngCore.hx: import hxmc.unsafe.UInt8;  # the spans' element type
 src/helder/image/PngCore.hx: @:hxmc.threadLocal static var memory:hxmc.unsafe.Ptr;  # the thread's scratch (inflate's tables), made once per thread
 src/helder/image/PngCore.hx: @:hxmc.unsafe @:hxmc.kernel public static function get():Span<UInt8> {  # the scratch handed out as a span of SCRATCH bytes, its only use

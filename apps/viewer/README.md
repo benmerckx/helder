@@ -44,8 +44,15 @@ size and place, and the status line, are kept between runs (helder.os's
   each side) decoded nearest first, two at a time; over the budget the
   farthest go, those no longer wanted first, never the one shown; one
   evicted while still wanted is not decoded again until the order
-  changes. The decodes are `Decode.file` (`Decode.hx`) as helder.jobs GC
-  jobs on the pool, so flipping to a neighbour shows it at once:
+  changes. The decodes are `Decode.job` (`Decode.hx`) on helder.jobs'
+  pool, so flipping to a neighbour shows it at once: a still PNG a GC-free
+  job (ImageJobs), the rest GC jobs whose planes and pixels are off the GC
+  heap (helder.image's `ImageMemory`) and whose row loops let collections
+  in (`GcPoint`), the pixels moved back, not copied, and uploaded from
+  there, freed when the cache lets them go (`bun run test viewer` builds
+  nothing of it; `tests/bench/PrefetchBench.hx file...` measures the main
+  thread's frames meanwhile: p99 88 ms, max 203 ms before; 1 to 5 ms,
+  2 to 11 ms now, for a 24 MP JPEG, a 24 MP WebP and a 12 MP PNG);
   helder.image's decoders, every frame of a GIF, WebP or APNG, a WebP's
   EXIF orientation applied (JpegDecoder applies a JPEG's), an image past
   8192 a side halved until it fits a texture (its size stays the file's).

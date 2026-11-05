@@ -52,7 +52,7 @@ console.log(`unsafe: ${found.length} uses of hxmc.unsafe in helder.image, each r
 // other is a raw read of untrusted input, and fails.
 const own = {
 	"GifDecoder.hx": ["data", "indices", "out"], // (data: the frame's joined sub-blocks, read within its length)
-	"JpegDecoder.hx": ["out", "src"],
+	"JpegDecoder.hx": ["out", "src", "this"], // (this: Coeffs, its own buffer)
 	"WebpDecoder.hx": ["a", "canvas", "d.rgba", "inner"],
 	"Vp8Decoder.hx": ["P", "U", "V", "Y", "b", "ws"],
 	"Exif.hx": ["rgba"],

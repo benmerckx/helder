@@ -164,9 +164,9 @@ class ImageView extends helder.ui.Node {
 		var f = d.frames[viewer.frame];
 		if (d != texShown) {
 			if (texture != null) retired.push({t: texture, at: records});
-			texture = device.createTexture({width: d.pixelsWidth, height: d.pixelsHeight, format: RGBA8Srgb, mipLevels: 0, data: f.rgba});
+			texture = device.createTexture({width: d.pixelsWidth, height: d.pixelsHeight, format: RGBA8Srgb, mipLevels: 0, data: f.pixels.view()});
 		} else
-			device.writeTexture(texture, f.rgba);
+			device.writeTexture(texture, f.pixels.view());
 		device.generateMips(texture);
 		texShown = d;
 		texFrame = viewer.frame;

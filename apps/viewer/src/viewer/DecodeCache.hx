@@ -56,7 +56,12 @@ class DecodeCache {
 		var e = entries.get(path);
 		if (e == null) return;
 		entries.remove(path);
-		if (e.decoded != null) used -= e.bytes;
+		if (e.decoded != null) {
+			used -= e.bytes;
+			// (its pixels off the heap: freed now)
+			Decode.release(e.decoded);
+			e.decoded = null;
+		}
 		// (a decode under way lands in an entry no longer kept: ignored)
 		e.dropped = true;
 	}

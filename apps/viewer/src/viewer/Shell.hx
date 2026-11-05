@@ -1,7 +1,6 @@
 package viewer;
 
 import helder.async.Async;
-import helder.jobs.Jobs;
 import helder.ui.Clock;
 import helder.ui.Node;
 import helder.ui.draw.UiWindow;
@@ -51,7 +50,7 @@ class Shell implements Markup {
 				effect(() -> viewer.fullscreen(), on -> w.window.fullscreen = on);
 				if (exitAfter >= 0) Async.launch(_ -> {
 					Async.delay(exitAfter);
-					Sys.println('viewer: ${viewer.title.peek()} (${viewer.state.peek()}, ${viewer.camera.percent()}%, ${w.window.width}x${w.window.height})');
+					Sys.println('viewer: ${viewer.title.peek()} (${viewer.state.peek()}${viewer.message.peek() == "" ? "" : ": " + viewer.message.peek()}, ${viewer.camera.percent()}%, ${w.window.width}x${w.window.height})');
 					w.close();
 				});
 			}}>
@@ -67,15 +66,9 @@ class Shell implements Markup {
 		if (fonts.match("sans-serif") == null) fonts.add(helder.asset.Asset.embed("fonts/DejaVuSans-viewer.ttf"));
 	}
 
-	// (the decode on a pool's thread; a failure of the job itself an error shown)
+	// (the decode on a pool's thread: Decode.job)
 	static function jobDecode(path:String, done:Decoded->Void)
-		Async.launch(_ -> {
-			var d:Decoded = try Jobs.run(Decode.file, path) catch (e:Dynamic) {
-				width: 0, height: 0, pixelsWidth: 0, pixelsHeight: 0, frames: [], repetitions: 0, format: "", fileSize: 0,
-				error: "The decode failed: " + Std.string(e), errorKind: "corrupt"
-			};
-			done(d);
-		});
+		Async.launch(_ -> done(Decode.job(path)));
 
 	static function save(store:Null<helder.os.Store>, w:Null<UiWindow>, viewer:Viewer) {
 		if (store == null || w == null) return;

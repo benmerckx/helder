@@ -15,13 +15,14 @@ import hxmc.Span;
 class PngDecoder {
 	// the pixels: width * height * 4 bytes, rows top to bottom, straight alpha
 	// (an animated PNG's: its default image)
-	public static function decode(png:Bytes):{width:Int, height:Int, rgba:Bytes}
-		return ImageLimits.guard("PngDecoder", () -> still(png));
+	// (mem: where its pixels are; ImageMemory)
+	public static function decode(png:Bytes, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes}
+		return ImageLimits.guard("PngDecoder", () -> still(png, mem ?? ImageMemory.gc));
 
-	static function still(png:Bytes):{width:Int, height:Int, rgba:Bytes} {
+	static function still(png:Bytes, mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
 		var info = header(png);
 		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
-		var px = w * h * 4, out = Bytes.alloc(px);
+		var px = w * h * 4, out = mem.bytes(px);
 		// (decoded in the result when it is the room needed, else beside it, the pixels copied in)
 		if (PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h) == px)
 			check(PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofBytes(out)), info);
@@ -85,7 +86,7 @@ class PngDecoder {
 		var w = info.getInt32(PngCore.WIDTH), height = info.getInt32(PngCore.HEIGHT);
 		var f = animation(png);
 		if (f.frames.length == 0)
-			return {width: w, height: height, repetitions: 0, frames: [{rgba: still(png).rgba, delay: 0.0}]};
+			return {width: w, height: height, repetitions: 0, frames: [{rgba: still(png, ImageMemory.gc).rgba, delay: 0.0}]};
 		// (the canvas, the one put back, then each frame's copy and its region)
 		var budget = new DecodeBudget("PngDecoder", (w : Float) * height * 8);
 		var canvas = Bytes.alloc(w * height * 4), out = [];

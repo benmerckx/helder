@@ -84,12 +84,12 @@ class Exif {
 
 	// w x h RGBA8 pixels in orientation o shown upright: new pixels (the
 	// same when o is 1), the width and height swapped for 5 to 8
-	public static function apply(rgba:Bytes, width:Int, height:Int, o:Int):{width:Int, height:Int, rgba:Bytes} {
+	public static function apply(rgba:Bytes, width:Int, height:Int, o:Int, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
 		if (o < 2 || o > 8) return {width: width, height: height, rgba: rgba};
 		var w = swaps(o) ? height : width, h = swaps(o) ? width : height;
-		var out = Bytes.alloc(w * h * 4);
+		var out = (mem ?? ImageMemory.gc).bytes(w * h * 4);
 		for (y in 0...height)
-			for (x in 0...width) {
+			if (GcPoint.yes()) for (x in 0...width) {
 				var dx:Int, dy:Int;
 				switch o {
 					case 2: dx = width - 1 - x; dy = y;

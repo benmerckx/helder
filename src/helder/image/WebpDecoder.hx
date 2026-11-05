@@ -14,14 +14,15 @@ import haxe.io.Bytes;
 // durations (seconds) and the repetitions after the first play (ANIM's
 // loop count: 0, forever, -1).
 class WebpDecoder {
-	public static function decode(webp:Bytes):{width:Int, height:Int, rgba:Bytes} {
+	// (mem: where a lossy image's planes and pixels are; ImageMemory)
+	public static function decode(webp:Bytes, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
 		if (!isWebp(new ByteReader(webp))) throw ImageError.unsupported("WebpDecoder: not a WebP file");
-		return ImageLimits.guard("WebpDecoder", () -> still(new ByteReader(webp)));
+		return ImageLimits.guard("WebpDecoder", () -> still(new ByteReader(webp), mem ?? ImageMemory.gc));
 	}
 
 	// (each chunk within the file, every size from it checked against
 	// ImageLimits before its allocation)
-	static function still(webp:ByteReader):{width:Int, height:Int, rgba:Bytes} {
+	static function still(webp:ByteReader, mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
 		var p = 12, end = webp.length;
 		var alpha:Null<{at:Int, length:Int}> = null;
 		var width = 0, height = 0;
@@ -32,7 +33,7 @@ class WebpDecoder {
 				case "VP8L":
 					return new Lossless(webp, at, size).image();
 				case "VP8 ":
-					var d = Vp8Decoder.decode(webp, at, size);
+					var d = Vp8Decoder.decode(webp, at, size, mem);
 					if (alpha != null) Alpha.apply(webp, alpha.at, alpha.length, d.width, d.height, d.rgba);
 					return d;
 				case "VP8X":
@@ -91,7 +92,7 @@ class WebpDecoder {
 			p = at + size + (size & 1);
 		}
 		if (anmf.length == 0) {
-			var d = still(webp);
+			var d = still(webp, ImageMemory.gc);
 			return {width: d.width, height: d.height, repetitions: 0, frames: [{rgba: d.rgba, delay: 0.0}]};
 		}
 		// (the canvas, a frame's own image; then each frame's copy)
@@ -123,11 +124,11 @@ class WebpDecoder {
 		inner.blit(0, Bytes.ofString("RIFF"), 0, 4);
 		inner.blit(8, Bytes.ofString("WEBP"), 0, 4);
 		webp.blitTo(inner, 12, at + 16, size - 16);
-		var d = still(new ByteReader(inner));
+		var d = still(new ByteReader(inner), ImageMemory.gc);
 		if (fx >= width || fy >= height) return {x: 0, y: 0, w: 0, h: 0};
 		var w = Std.int(Math.min(d.width, width - fx)), h = Std.int(Math.min(d.height, height - fy));
 		for (y in 0...h)
-			for (x in 0...w) {
+			if (GcPoint.yes()) for (x in 0...w) {
 				var s = (y * d.width + x) * 4, o = ((fy + y) * width + fx + x) * 4;
 				var sa = d.rgba.get(s + 3);
 				if (!blend || sa == 255) {
@@ -185,6 +186,7 @@ private class Lossless {
 		var argb = stream(width, height);
 		var out = Bytes.alloc(width * height * 4);
 		for (i in 0...width * height) {
+			if (i & 0xFFFF == 0) GcPoint.poll();
 			var c = argb[i];
 			out.set(4 * i, (c >> 16) & 255);
 			out.set(4 * i + 1, (c >> 8) & 255);
@@ -270,6 +272,7 @@ private class Lossless {
 		inline function remember(c:Int)
 			if (cache != null) cache[(0x1E35A7BD * c) >>> (32 - cacheBits)] = c;
 		while (i < n) {
+			if (i & 0xFFFF == 0) GcPoint.poll();
 			var group = meta == null ? codes[0] : codes[meta[((Std.int(i / w)) >> metaBits) * metaW + ((i % w) >> metaBits)]];
 			var s = read(group[0]);
 			if (s < 256) {
@@ -380,7 +383,7 @@ private class Lossless {
 	static function predict(px:Array<Int>, w:Int, h:Int, b:Int, modes:Array<Int>) {
 		var bw = divUp(w, b);
 		for (y in 0...h)
-			for (x in 0...w) {
+			if (GcPoint.yes()) for (x in 0...w) {
 				var i = y * w + x;
 				var pred = if (y == 0) x == 0 ? 0xFF000000 : px[i - 1] else if (x == 0) px[i - w] else {
 					var L = px[i - 1], T = px[i - w], TL = px[i - w - 1], TR = px[i - w + 1];
@@ -448,7 +451,7 @@ private class Lossless {
 		inline function delta(t:Int, c:Int):Int
 			return (sbyte(t) * sbyte(c)) >> 5;
 		for (y in 0...h)
-			for (x in 0...w) {
+			if (GcPoint.yes()) for (x in 0...w) {
 				var i = y * w + x, m = data[(y >> b) * bw + (x >> b)];
 				var g2r = m & 255, g2b = (m >> 8) & 255, r2b = (m >> 16) & 255;
 				var c = px[i], g = (c >> 8) & 255;
@@ -465,7 +468,7 @@ private class Lossless {
 		var w = xsize, packed = divUpBits(w, b), per = 8 >> b, mask = (1 << per) - 1;
 		var out = [for (i in 0...w * h) 0];
 		for (y in 0...h)
-			for (x in 0...w) {
+			if (GcPoint.yes()) for (x in 0...w) {
 				var v = (px[y * packed + (x >> b)] >> 8) & 255;
 				var index = b == 0 ? v : (v >> ((x & ((1 << b) - 1)) * per)) & mask;
 				out[y * w + x] = index < table.length ? table[index] : 0;
@@ -519,7 +522,7 @@ private class Alpha {
 		}
 		// (the filters undone: each value plus its prediction, modulo 256)
 		for (y in 0...h)
-			for (x in 0...w) {
+			if (GcPoint.yes()) for (x in 0...w) {
 				var i = y * w + x;
 				var pred = switch filter {
 					case 1: x > 0 ? a.get(i - 1) : y > 0 ? a.get(i - w) : 0;
