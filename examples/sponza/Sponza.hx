@@ -5,7 +5,8 @@
 // data: models
 import helder.asset.Asset;
 import helder.gfx.shader.Vec3;
-import helder.os.Fetch;
+import helder.async.Async;
+import helder.async.Fetch;
 import helder.scene.*;
 import helder.scene.debug.FrameStats;
 import helder.scene.render.*;
@@ -35,7 +36,10 @@ class Sponza implements Markup {
 	static final camera = Camera.attach(eye, Camera.perspective(1.0, 0.05, 120));
 	static var renderer:Null<Renderer>;
 	static var prepared:Null<Renderer>;
-	static var fetching:Null<Fetch>;
+	// the fetch under way: its path, the bytes once here, whether it failed
+	static var fetching:Null<String>;
+	static var fetched:Null<haxe.io.Bytes>;
+	static var failed = false;
 	static var variant = "";
 	static var base = "";
 	static final stats = new FrameStats(240);
@@ -88,24 +92,30 @@ class Sponza implements Markup {
 					if (variant == "") variant = r.device.supports(BC1) ? "bc" : r.device.supports(ASTC4x4) ? "astc" : "png";
 					started = Sys.time();
 					status("fetching Sponza (" + variant + ")…");
-					fetching = Fetch.start(base + "Sponza" + (variant == "png" ? "" : "." + variant) + ".hxm3d");
+					var path = base + "Sponza" + (variant == "png" ? "" : "." + variant) + ".hxm3d";
+					fetching = path;
+					Async.launch(_ -> Fetch.bytes(path)).onCompletion((b, e) -> if (fetching == path) {
+						if (e != null) failed = true else fetched = b;
+					});
 				}
 			}
-			var f = fetching;
-			if (f != null && r != null && f.poll()) {
+			var b = fetched;
+			if (b != null && r != null) {
 				fetching = null;
-				bytes = f.bytes.length;
+				fetched = null;
+				bytes = b.length;
 				var t1 = Sys.time();
-				PackedModel.read(f.bytes, r.device).instantiate(world);
+				PackedModel.read(b, r.device).instantiate(world);
 				var sun = world.node("sun");
 				Light.attach(sun, Light.directional(new Vec3(1, 0.93, 0.82), 7));
 				sun.lookAt(new Vec3(0.25, -1, 0.3));
 				status("Sponza (" + variant + ") · " + mb(bytes) + " fetched in " + Math.round((t1 - started) * 1000) + " ms, made in "
 					+ Math.round((Sys.time() - t1) * 1000) + " ms");
 				firstFrame = Sys.time() - t0;
-			} else if (f != null && f.failed) {
+			} else if (failed) {
+				status("could not fetch " + fetching + " (node examples/sponza/fetch.mjs)");
 				fetching = null;
-				status("could not fetch " + f.path + " (node examples/sponza/fetch.mjs)");
+				failed = false;
 			}
 			var dt = last >= 0 ? Math.min(t - last, 0.1) : 0;
 			if (last >= 0) stats.add(t - last);

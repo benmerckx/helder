@@ -40,12 +40,4 @@ class Fat {
 	// (CPU_TYPE_ARM64 0x0100000C: 2^14; the others 2^12)
 	static function alignOf(s:Bytes):Int
 		return s.getInt32(4) == 0x0100000C ? 14 : 12;
-
-	// the slices' CPU types (a fat file's; a thin one's own)
-	public static function cpus(b:Bytes):Array<Int> {
-		inline function be(p:Int):Int
-			return (b.get(p) << 24) | (b.get(p + 1) << 16) | (b.get(p + 2) << 8) | b.get(p + 3);
-		if (be(0) != 0xCAFEBABE) return [b.getInt32(4)];
-		return [for (i in 0...be(4)) be(8 + 20 * i)];
-	}
 }

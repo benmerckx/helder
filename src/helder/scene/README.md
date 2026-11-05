@@ -256,8 +256,7 @@ metres). `Shapes.box`, `sphere` and
 `renderer.use(new NormalMaps(device))`, made before the models load (they
 get tangents: the file's, else computed); `renderer.use(new Sky(device))` draws
 a sky behind the scene; `renderer.use(Environment.fromImage(device, mime, bytes))`
-an equirectangular image behind it that also lights it (image-based ambient and reflections); `renderer.use(new Particles(device))` draws the
-world's `Emitter`s (simulated by `Particles.update(world, dt)`); `renderer.use(new GpuParticles(device, capacity))` particles written once and moved by the GPU (`fx.live`: the newest slots drawn, a bound on those alive; examples/particles draws a million). Programs draw at injection points:
+an equirectangular image behind it that also lights it (image-based ambient and reflections); `renderer.use(new GpuParticles(device, capacity))` draws particles written once and moved by the GPU (`fx.live`: the newest slots drawn, a bound on those alive; examples/particles draws a million). Programs draw at injection points:
 `renderer.inject(BeforeOpaque | AfterOpaque | AfterPass, (enc, frame) -> ...)`; features reach the renderer through
 `RenderFeature`, so unused ones are not linked.
 
@@ -272,7 +271,7 @@ turns the frame into the 8-bit image shown:
 ```haxe
 var post = new PostProcess(device);   // into RGBA8 targets (a <Scene>'s box's); (device, RGBA8, true): the frame
 post.bloom = 0.05;                    // the share of the light spread: no threshold, what is bright blooms
-post.toneMap = Aces;                  // Narkowicz's, the 8-bit path's (PbrShader.unaces: a display colour's light); AgX; Clamp
+post.toneMap = Aces;                  // Narkowicz's, the 8-bit path's; AgX; Clamp
 post.saturation = 1.05; post.contrast = 1.05; post.lift = ...; post.gain = ...;
 post.vignette = 0.3; post.grain = 0.03; // both 0 by default: no grain, a still dither
 post.levels = 4; post.base = 2;       // a cheaper bloom: 4 levels from a quarter of the frame (default 6 from half)

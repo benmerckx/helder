@@ -173,8 +173,6 @@ class Frontend {
 		return false;
 	}
 
-	public static function isExported(n:Node):Bool return hasModifier(n, KindExportKeyword);
-
 	static function hasModifier(n:Node, kind:Kind):Bool {
 		for (m in n.modifiers()) if (m.kind == kind) return true;
 		return false;

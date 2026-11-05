@@ -187,10 +187,6 @@ class TextLayout {
 	public inline function glyphChar(i:Int):Int
 		return lCp[oGlyph[i]];
 
-	// the characters a ligature shows (each one UTF-16 unit; else 1), the caret placed between them by equal parts
-	public inline function glyphParts(i:Int):Int
-		return parts(oGlyph[i]);
-
 	// its bidi level (odd: right to left)
 	public inline function glyphLevel(i:Int):Int
 		return lFlags[oGlyph[i]] & LEVEL;

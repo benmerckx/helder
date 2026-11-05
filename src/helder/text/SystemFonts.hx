@@ -76,9 +76,6 @@ class SystemFonts {
 		return out;
 	}
 
-	public function addFile(path:String):Array<FontFile>
-		return add(sys.io.File.getBytes(path));
-
 	// the face closest to the request, or null when there is no font at all
 	public function match(family:String, weight = 400, italic = false):Null<FontFile> {
 		scan();

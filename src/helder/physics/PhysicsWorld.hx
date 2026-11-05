@@ -67,9 +67,6 @@ class PhysicsWorld {
 		return joint;
 	}
 
-	public function unjoin(joint:Joint)
-		joints.remove(joint);
-
 	public function step(dt:Float) {
 		for (b in bodies)
 			if (!b.isStatic() && !b.sleeping) b.velocity = b.velocity + gravity * dt;

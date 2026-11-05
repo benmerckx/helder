@@ -64,7 +64,7 @@ text with, usable on its own.
   (`glyphId`, `glyphFont`, `glyphFontSet`, `glyphX`: the pen from the
   line's start; `glyphAdvance`, `glyphOffsetX` and `Y`: a mark's place;
   `glyphCluster` and `glyphLength`: the characters it shows, UTF-16
-  units; `glyphChar`, `glyphParts`, `glyphLevel`, `glyphRun`,
+  units; `glyphChar`, `glyphLevel`, `glyphRun`,
   `glyphHidden`). No object per glyph. A layout keeps its buffers:
   `wrap(maxWidth)` lays the same shaped text out at another width (as
   Skia's `SkParagraph::layout`, cosmic-text's `Buffer`), `reset` shapes

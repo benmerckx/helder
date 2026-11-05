@@ -95,9 +95,6 @@ abstract Quat(QuatData) {
 		var wa = Math.sin((1 - t) * th) / s, wb = Math.sin(t * th) / s;
 		return new Quat(a.x * wa + b.x * wb, a.y * wa + b.y * wb, a.z * wa + b.z * wb, a.w * wa + b.w * wb);
 	}
-
-	public inline function toVec4():Vec4
-		return new Vec4(this.x, this.y, this.z, this.w);
 }
 
 @:hxmc.struct @:noCompletion final class QuatData {

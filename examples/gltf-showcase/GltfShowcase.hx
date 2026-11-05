@@ -4,7 +4,8 @@
 // demo: canvas 960x600
 // data: models
 import helder.asset.Asset;
-import helder.os.Fetch;
+import helder.async.Async;
+import helder.async.Fetch;
 import helder.scene.debug.FrameStats;
 import helder.scene.render.*;
 import helder.scene.view.SceneTags.*;
@@ -32,8 +33,11 @@ class GltfShowcase implements Markup {
 	static var prepared:Null<Renderer>;
 	static var orbit:Null<helder.scene.view.OrbitControls>;
 	static var base = "";
-	// the load under way: its fetch, the model's index, when it started
-	static var fetching:Null<Fetch>;
+	// the load under way: its path, the bytes once here, whether it failed,
+	// the model's index, when it started
+	static var fetching:Null<String>;
+	static var fetched:Null<haxe.io.Bytes>;
+	static var failed = false;
 	static var pending = -1;
 	static var started = 0.0;
 	static final stats = new FrameStats(240);
@@ -69,12 +73,13 @@ class GltfShowcase implements Markup {
 				show.setup(r, envs);
 				show.environment(r, env.peek());
 			}
-			var f = fetching;
-			if (f != null && r != null && f.poll()) {
+			var b = fetched;
+			if (b != null && r != null) {
 				fetching = null;
-				var m = new Model(f.bytes, {}, {}, {}, {});
+				fetched = null;
+				var m = new Model(b, {}, {}, {}, {});
 				show.show(m, r.device);
-				bytes = f.bytes.length;
+				bytes = b.length;
 				loaded = Sys.time() - started;
 				status(Showcase.MODELS[pending].name + " · " + mb(bytes) + " · " + Math.round(loaded * 1000) + " ms");
 				var o = orbit;
@@ -88,9 +93,10 @@ class GltfShowcase implements Markup {
 					o.apply();
 				}
 				if (firstFrame < 0) firstFrame = Sys.time() - t0;
-			} else if (f != null && f.failed) {
+			} else if (failed) {
+				status("could not fetch " + fetching + " (node examples/gltf-showcase/fetch.mjs)");
 				fetching = null;
-				status("could not fetch " + f.path + " (node examples/gltf-showcase/fetch.mjs)");
+				failed = false;
 			}
 			if (last >= 0) stats.add(t - last);
 			last = t;
@@ -140,7 +146,13 @@ class GltfShowcase implements Markup {
 		pending = k;
 		started = Sys.time();
 		status("loading " + Showcase.MODELS[k].name + "…");
-		fetching = Fetch.start(base + Showcase.MODELS[k].name + ".glb");
+		var path = base + Showcase.MODELS[k].name + ".glb";
+		fetching = path;
+		fetched = null;
+		failed = false;
+		Async.launch(_ -> Fetch.bytes(path)).onCompletion((b, e) -> if (fetching == path) {
+			if (e != null) failed = true else fetched = b;
+		});
 	}
 
 	// the frames' time at a share of them (0.5: the median), in seconds

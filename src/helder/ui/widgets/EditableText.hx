@@ -329,10 +329,6 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		changed();
 	}
 
-	// types s over the selection
-	public function typeText(s:String)
-		edit(s, true);
-
 	// s over the selection (an edit: undone as one); typed: a run of typing joins into one edit
 	function edit(s:String, typed:Bool) {
 		if (readOnly) return;

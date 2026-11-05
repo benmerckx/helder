@@ -275,11 +275,6 @@ class FontFile {
 		return v;
 	}
 
-	// the left side bearing of a glyph, in font units
-	public function leftBearing(g:Int):Int {
-		return g < numHMetrics ? s16(data, hmtx + 4 * g + 2) : s16(data, hmtx + 4 * numHMetrics + 2 * (g - numHMetrics));
-	}
-
 	// the kerning between two glyphs, in font units: GPOS's kern feature
 	// (pair adjustments: the first glyph's advance), else the kern table
 	public function kerning(left:Int, right:Int):Int {

@@ -273,7 +273,7 @@ down), `type` (`Mouse`, `Touch`, `Pen`), `window` (and its `scale`), `phase`, `d
 `buttons`, `time`, `press` (its press's number: a press and its release
 within one step still count), `owner` (who took it: nobody, ui, a game
 control), and the samples the system batched before the event
-(`samples`, `sampleX(i)`, `sampleY(i)`, `sampleTime(i)`: Android's
+(`samples`, `sampleX(i)`, `sampleY(i)`: Android's
 history, iOS's coalesced touches, the browser's coalesced events and the
 moves between two frames).
 

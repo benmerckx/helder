@@ -387,18 +387,6 @@ class PbrShader implements Shaders {
 	public static function aces(x:Vec3):Vec3
 		return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0, 1);
 
-	// a display colour's light (0..1, encoded as encode's) in an HDR target:
-	// what aces and encode turn back into it (Narkowicz's curve solved for
-	// x), so an image made for the display (a painted backdrop, a ui's
-	// colour) looks as it did once a PostProcess tone maps with Aces
-	public static function unaces(display:Vec3):Vec3 {
-		var y = clamp(pow(display, vec3(2.2)), 0, 0.985);
-		var a = 2.43 * y - 2.51;
-		var b = 0.59 * y - 0.03;
-		var c = 0.14 * y;
-		return (-b - sqrt(max(b * b - 4 * a * c, vec3(0)))) / (2 * a);
-	}
-
 	// linear to sRGB (the 2.2 power: the frame's format is not an sRGB one)
 	public static function encode(c:Vec3):Vec3
 		return pow(c, vec3(1 / 2.2));

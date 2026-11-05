@@ -323,9 +323,6 @@ class Node extends Children {
 	// (`extends` or `implements` of a heritage clause)
 	public function token():Kind return (data() >> 24) & 1 == 1 ? KindImplementsKeyword : KindExtendsKeyword;
 
-	// (`new` for new.target, `import` for import.meta)
-	public function keywordToken():Kind return (data() >> 24) & 1 == 1 ? KindNewKeyword : KindImportKeyword;
-
 	public function toString():String return kind.toString() + "@" + pos;
 }
 

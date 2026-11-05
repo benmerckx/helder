@@ -10,9 +10,6 @@ import helder.ui.*;
 // as a property convert the values CSS writes its own way.
 @:build(helder.ui.view.AttrMacro.build())
 class StyleAttrs {
-	public static function isStyle(name:String):Bool
-		return NAMES.exists(camel(name));
-
 	// several values: each side's
 	static function borderWidth(style:Style, v:Dynamic) {
 		if (Std.isOfType(v, String) && StringTools.trim(v).indexOf(" ") > 0 || Std.isOfType(v, Array)) style.borders = edges(v) else {

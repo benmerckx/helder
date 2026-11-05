@@ -173,8 +173,6 @@ class Node implements Part {
 	@:allow(helder.ui.Layout) var cacheWas = -1;
 	@:allow(helder.ui.Layout) var minContentWas = Math.NaN;
 	@:allow(helder.ui.Layout) var lossy = false;
-	// (a roving tab stop, in the tab order or not: Part.tabStop)
-	var tabStopped = false;
 	// (a row's items' baseline, those aligned on it, below its top; NaN: none)
 	@:allow(helder.ui.Layout) var lb = Math.NaN;
 
@@ -982,23 +980,6 @@ class Node implements Part {
 	public function select(start:Int, end:Int) {}
 
 	// (kept wherever nodes are laid out: a Part's, which a component calls opaquely in a page too)
-	@:ifFeature("helder.ui.Node.markDirty") public function focusables():Array<Part> {
-		var out:Array<Part> = [];
-		function walk(n:Node)
-			for (c in n.children)
-				if (c.style.display != None && (c.focusable || c.tabStopped)) out.push(c) else walk(c);
-		walk(this);
-		return out;
-	}
-
-	@:ifFeature("helder.ui.Node.markDirty") public function tabStop(on:Bool) {
-		focusable = on;
-		tabStopped = true;
-	}
-
-	@:ifFeature("helder.ui.Node.markDirty") public function holdsFocus():Bool
-		return ui != null && ui.focus != null && contains(ui.focus);
-
 	@:ifFeature("helder.ui.Node.markDirty") public function editable():Bool
 		return takesText();
 

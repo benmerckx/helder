@@ -7,10 +7,9 @@ import hxmc.unsafe.*;
 
 // A file's bytes, awaited: in the browser a fetch of its URL (relative to the
 // page; cancelling the coroutine aborts it), natively the file read at once.
-// helder.os.Fetch's, as a coroutine. progress, if given, is told the
-// bytes received and how many there will be (0 while that is not known):
-// in the browser as they arrive (at most every 50 ms), and once all are
-// here.
+// progress, if given, is told the bytes received and how many there will
+// be (0 while that is not known): in the browser as they arrive (at most
+// every 50 ms), and once all are here.
 //
 //   var level = Fetch.bytes("levels/2.glb");
 //   var map = Fetch.bytes("maps/big.bin", (loaded, total) -> trace(loaded / total));

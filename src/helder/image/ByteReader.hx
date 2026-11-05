@@ -38,9 +38,6 @@ final class ByteReader {
 	public inline function be16(p:Int):Int
 		return (u8(p) << 8) | u8(p + 1);
 
-	public inline function le16(p:Int):Int
-		return u8(p) | (u8(p + 1) << 8);
-
 	public inline function le24(p:Int):Int
 		return u8(p) | (u8(p + 1) << 8) | (u8(p + 2) << 16);
 

@@ -22,9 +22,6 @@ class Motion {
 	public static function linear(k:Float):Float
 		return k;
 
-	public static function easeInOut(k:Float):Float
-		return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-
 	public static function transition(target:Void->Float, duration = 0.15, ?ease:Float->Float):Signal<Float> {
 		if (ease == null) ease = easeOut;
 		var out = signalOf(untrack(target), {ownedWrite: true});

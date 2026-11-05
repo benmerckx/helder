@@ -74,9 +74,6 @@ class Pointer {
 	public inline function sampleY(i:Int):Float
 		return sy[(first + i) % SAMPLES];
 
-	public inline function sampleTime(i:Int):Float
-		return st[(first + i) % SAMPLES];
-
 	// (a batched sample on the way to the next event)
 	@:allow(helder.os) function sample(x:Float, y:Float, time:Float) {
 		if (batched) {

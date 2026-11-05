@@ -342,8 +342,8 @@ collection only when it allocates or blocks.
     MsgWaitForMultipleObjects with an event, ALooper_addFd) instead of the
     10 ms bound;
   - **scopes owned by the app**, children cancelled with their parent;
-  - first on it: `Fetch` (an awaitable one exists, `helder.os.Fetch` to
-    follow), the next frame, asset loading.
+  - first on it: `Fetch` (done: `helder.async.Fetch`), the next frame,
+    asset loading.
 - **Background work as jobs on workers**, the same API natively and on
   the web (done, a first slice: `helder.jobs`, src/helder/jobs/README.md;
   `Jobs.run(f, input)` awaited from a coroutine, a GC-free job's output an

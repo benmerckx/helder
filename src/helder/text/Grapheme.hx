@@ -39,15 +39,6 @@ class Grapheme {
 		return out;
 	}
 
-	// whether i is a boundary
-	public static function isBoundary(s:String, i:Int):Bool {
-		if (i <= 0 || i >= s.length) return true;
-		var j = lineStart(s, i - 1);
-		while (j < i)
-			j = step(s, j);
-		return j == i;
-	}
-
 	static function lineStart(s:String, i:Int):Int {
 		var j = i;
 		while (j > 0 && s.charCodeAt(j - 1) != 10)

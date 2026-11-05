@@ -196,11 +196,6 @@ class Jni {
 		return r;
 	}
 
-	public static function staticCall(cls:Ptr, m:Ptr, a:Int64 = 0, b:Int64 = 0, c:Int64 = 0, d:Int64 = 0) {
-		JniEnv.CallStaticVoidMethodA(env, cls, m, set(a, b, c, d));
-		check();
-	}
-
 	public static inline function global(o:Ptr):Ptr
 		return JniEnv.NewGlobalRef(env, o);
 

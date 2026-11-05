@@ -209,7 +209,7 @@ enum abstract ToneMap(Int) to Int {
 	// Sobotka's AgX: hues kept, highlights to white
 	var AgX;
 	// ACES filmic, Narkowicz's fit: the 8-bit path's (PbrShader.aces), so a
-	// scene tuned there keeps its look (PbrShader.unaces: a display colour's light)
+	// scene tuned there keeps its look
 	var Aces;
 	// none: clipped at 1
 	var Clamp;

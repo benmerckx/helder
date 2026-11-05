@@ -93,9 +93,6 @@ class Node implements ICancellationToken implements IElement<Node> {
 	public function isActive():Bool
 		return !done;
 
-	public function isCancelling():Bool
-		return error != null;
-
 	function get_cancellationException():Null<CancellationException> {
 		if (error == null) return null;
 		if (error is CancellationException) return cast error;

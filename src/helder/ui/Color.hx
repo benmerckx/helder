@@ -21,10 +21,6 @@ abstract Color(Int) from Int to Int {
 	public static inline function rgba(rgb:Int, alpha:Float):Color
 		return (Std.int(clamp(alpha) * 255 + 0.5) << 24) | (rgb & 0xFFFFFF);
 
-	public static inline function fromFloats(r:Float, g:Float, b:Float, a = 1.0):Color
-		return (Std.int(clamp(a) * 255 + 0.5) << 24) | (Std.int(clamp(r) * 255 + 0.5) << 16) | (Std.int(clamp(g) * 255 + 0.5) << 8)
-			| Std.int(clamp(b) * 255 + 0.5);
-
 	public var a(get, never):Int;
 	public var r(get, never):Int;
 	public var g(get, never):Int;

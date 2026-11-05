@@ -45,13 +45,6 @@ class Keymap {
 		return this;
 	}
 
-	// several in one context
-	public function bindAll(context:Null<String>, bindings:Array<{keys:String, action:Null<EnumValue>}>):Keymap {
-		for (b in bindings)
-			bind(b.keys, b.action, context);
-		return this;
-	}
-
 	// the bindings of a JSON keymap (Actions.parse's names)
 	public static function parseJson(text:String):Array<Binding> {
 		var out = [];

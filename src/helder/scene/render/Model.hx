@@ -102,23 +102,8 @@ class Model<N, M, A, C> {
 	// its names unknown when compiling (find nodes by name: model.doc)
 	public static function load(path:String):helder.asset.Asset<Model<{}, {}, {}, {}>> {
 		var asset = new helder.asset.Asset<Model<{}, {}, {}, {}>>(path);
-		var f = helder.os.Fetch.start(path);
-		helder.asset.Assets.track(() -> {
-			if (f.poll()) {
-				try
-					asset.resolve(new Model(f.bytes, {}, {}, {}, {}))
-				catch (e:String)
-					asset.fail(e)
-				catch (e:helder.image.ImageError)
-					asset.fail(e.message);
-				return true;
-			}
-			if (f.failed) {
-				asset.fail('Model: $path not found');
-				return true;
-			}
-			return false;
-		});
+		helder.async.Async.launch(_ -> new Model(helder.async.Fetch.bytes(path), {}, {}, {}, {}))
+			.onCompletion((m, e) -> if (e == null) asset.resolve(m) else asset.fail(e.message));
 		return asset;
 	}
 	#end

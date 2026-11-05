@@ -8,7 +8,7 @@ import helder.async.Node.Body;
 // Each kind's module (ImageAsset, FontAsset, BytesAsset, helder.scene's
 // Model) gives its loader and how a reload's value takes the old one's
 // place (swap: the old object changed in place and kept, or the new one).
-// What else moves on: loads polled by a program (track, Model.load's).
+// What else moves on: loads polled by a program (track).
 class Assets {
 	static final handles = new Map<String, Asset<Dynamic>>();
 	static final reloads = new Map<String, Array<Void->Void>>();
@@ -89,7 +89,7 @@ class Assets {
 	@:noCompletion public static function key(marker:String):String
 		return marker.substring(17, marker.length - 1);
 
-	// a load polled until it returns true (Model.load's fetch)
+	// a load polled until it returns true
 	public static function track(poll:Void->Bool) {
 		if (!poll()) pending.push(poll);
 	}
