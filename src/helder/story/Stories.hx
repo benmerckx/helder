@@ -30,7 +30,9 @@ class Stories {
 	}
 
 	// a story mounted in a Ui of width x height (points) with a text engine
+	// (helder.text's own shaping and rasters: a story looks the same on every OS)
 	public static function mount(s:Story, width:Float, height:Float, text:TextEngine, ?scale:Float):{ui:Ui, controls:Controls} {
+		helder.text.Shaping.engine = helder.text.Shaping.HELDER;
 		var ui = new Ui(text, width, height);
 		if (scale != null) ui.scale = scale;
 		var c = new Controls(s.screenshot?.seed ?? 1);

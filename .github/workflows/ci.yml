@@ -76,9 +76,9 @@ jobs:
       - name: System packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji
-      - name: gfx, 3d, audio, touch, ui, window, the viewer's (Mesa llvmpipe, Xvfb)
-        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window dbus
+          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji fonts-freefont-ttf libharfbuzz0b libfreetype6 fontconfig
+      - name: gfx, 3d, audio, touch, ui, window, the viewer's (Mesa llvmpipe, Xvfb), the platform's text
+        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window dbus system-text
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: images, path: "bin/gfx/**/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png", retention-days: 7, if-no-files-found: ignore}

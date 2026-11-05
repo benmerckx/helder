@@ -36,8 +36,9 @@ text with, usable on its own.
   cut anywhere, between any letters or not around CJK, as Chromium breaks;
   tabs to stops every `TAB_SIZE`, 8, spaces, as CSS's `tab-size`), with
   `caret` and `hit` queries. Right-to-left text too: each
-  paragraph ordered by the bidi algorithm (`Bidi`: UAX #9's explicit
-  levels left out, mirrored brackets), Arabic joined (`Arabic`: each
+  paragraph ordered by the bidi algorithm (`Bidi`: UAX #9 whole, explicit
+  embeddings, overrides and isolates, bracket pairs; checked against
+  Unicode's BidiCharacterTest.txt; mirrored brackets), Arabic joined (`Arabic`: each
   letter's initial, medial, final or isolated form, then the required
   ligatures such as lam-alef), the caret at a character's leading edge.
   Emoji sequences (VS16, skin tones, zero width joiners, flags, keycaps)
@@ -108,28 +109,44 @@ changed font is put in the same `FontFile` (`replace`: a new `id`, so
 atlases draw its glyphs again; `FontFile.generation`, which ui's text
 engine reports, lays its texts out again).
 
-Limits, for now: no explicit bidi embeddings (LRE, RLI and the like), no
-multiple or reverse chained substitutions, lookup flags (marks skipped),
-`ccmp` and `locl`, no
+Limits of helder's own engine: no multiple or reverse chained
+substitutions, lookup flags (marks skipped), `ccmp` and `locl`, no
 cursive attachment or Indic shaping, marks not reordered by combining
-class, no hinting, grayscale anti-aliasing. The same
-pixels on every machine, which makes golden-image tests portable; the
-platforms' shapers are the planned upgrade.
+class, no hinting, grayscale anti-aliasing. The same pixels on every
+machine, which makes golden-image tests portable; the platform's engine
+(below) does the rest.
 
 Tests: `bun run test text` (`tests/text/TextTest.hx`).
 
-## The platform's own stack (a first slice)
+## The platform's own stack
 
-On Linux, `SystemFonts.fallbackFor` asks fontconfig (`linux/Fontconfig`:
-the character's charset matched as the desktop matches it, dlopen'ed)
-when none of its own fallback lists has a character: any script the
-system has a font for. `linux/HarfBuzz` shapes a font's text through
-libharfbuzz (dlopen'ed): glyphs, clusters, advances and offsets in visual
-order. `linux/HarfBuzz.test.hx` compares helder's own shaping with it on
-fontconfig's face for each script: Latin, Hebrew, Arabic, CJK and Thai
-the same glyphs; Devanagari not (HarfBuzz's reordering and conjuncts,
-which helder's engine does not do). Next (the roadmap's "Text on each
-platform's own stack"): TextLayout shaping complex scripts through
-HarfBuzz on Linux, DirectWrite (IDWriteTextAnalyzer, IDWriteFontFallback)
-on Windows and Core Text on macOS; then native rasterising.
+`Shaping` chooses the engine. The platform's (`Shaping.SYSTEM`, an app's
+default) shapes the scripts helder's own does not (`Shaping.complex`:
+Devanagari and the other Indic scripts, Sinhala, Tibetan, Myanmar, Khmer,
+Balinese, Javanese...: reordering, conjuncts, split vowels) and
+rasterises glyphs; fallback and discovery ask it too. Behind one
+interface, `TextBackend`:
 
+- Linux (`linux/LinuxText`): fontconfig's fallback and families, HarfBuzz's
+  shaping, FreeType's rasters (unhinted, grayscale); each library loaded
+  at run time (helder.os.Dl), none: helder's own for that part.
+
+TextLayout gives such a run (one face, one text run) to the back end and
+takes its glyphs in visual order: ids, advances and offsets, each
+cluster's characters from its first UTF-16 unit to the next cluster's;
+line breaking, carets, selection and drawing stay helder's. GlyphAtlas
+takes the platform's coverage into the same R8 atlas (colour glyphs stay
+helder's own: CBDT, sbix, COLR).
+
+helder's own engine stays (`Shaping.HELDER`): `helder test` builds with
+it (`-D helder.text.engine=helder`), the repository's lanes run with
+`HELDER_TEXT_ENGINE=helder` (stories and store screenshots too), so
+goldens do not vary by OS; per font, `FontFile.engine`.
+
+Tests: `linux/HarfBuzz.test.hx` (TextLayout's glyphs as HarfBuzz's for
+Latin, Hebrew, Arabic, CJK, Thai, Devanagari, Bengali and Tamil; carets
+and lines over shaped clusters; helder's engine chosen per app and per
+font), `Bidi.test.hx`, and the system-text lane
+(`tests/text/SystemTextTest.hx`, natively on each OS: each script's
+fallback, a family found, the reordered and split vowels, rasters; every
+script drawn with both engines, `bin/text/system-<os>.png`).

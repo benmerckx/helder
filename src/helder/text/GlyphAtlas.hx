@@ -94,6 +94,9 @@ class GlyphAtlas {
 
 	function rasterize(font:FontFile, glyph:Int, size:Float, sub:Int, oblique:Bool, blur:Float):Null<AtlasGlyph> {
 		var scale = size / font.unitsPerEm, dx = sub / SUBPIXELS;
+		// (the platform's raster, where the face's engine is the platform's: FreeType, DirectWrite, Core Text)
+		var be = oblique || font.bitmapsOnly ? null : Shaping.backendFor(font);
+		if (be != null && be.rasterize(font, glyph, size, dx, native)) return placeNative(blur);
 		if (!font.box(glyph)) return new AtlasGlyph(0, 0, 0, 0, 0, 0);
 		var bx0 = font.boxX0, by0 = font.boxY0, bx1 = font.boxX1, by1 = font.boxY1;
 		var k = oblique ? SKEW : 0.0;
@@ -123,6 +126,27 @@ class GlyphAtlas {
 		blurInto(sharp, w, h, pad, blur, sy * width + sx);
 		touch(sx, sy, w + 2 * pad, h + 2 * pad);
 		return new AtlasGlyph(sx, sy, w + 2 * pad, h + 2 * pad, x0 - pad, y0 - pad);
+	}
+
+	final native = new Shaping.GlyphBitmap();
+
+	// (the platform's bitmap into the atlas, blurred or not)
+	function placeNative(blur:Float):Null<AtlasGlyph> {
+		var b = native, w = b.width, h = b.height;
+		if (w == 0 || h == 0) return new AtlasGlyph(0, 0, 0, 0, 0, 0);
+		var pad = blur > 0 ? Math.ceil(3 * blur) : 0;
+		var spot = place(w + 2 * pad, h + 2 * pad);
+		if (spot < 0) return null;
+		var sx = spot & 0xFFFF, sy = spot >>> 16;
+		if (pad == 0) {
+			for (y in 0...h)
+				pixels.blit((sy + y) * width + sx, b.pixels, y * w, w);
+			touch(sx, sy, w, h);
+			return new AtlasGlyph(sx, sy, w, h, b.left, b.top);
+		}
+		blurInto(b.pixels, w, h, pad, blur, sy * width + sx);
+		touch(sx, sy, w + 2 * pad, h + 2 * pad);
+		return new AtlasGlyph(sx, sy, w + 2 * pad, h + 2 * pad, b.left - pad, b.top - pad);
 	}
 
 	// a w x h coverage bitmap blurred into the atlas at offset, pad more on

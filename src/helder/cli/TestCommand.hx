@@ -122,7 +122,8 @@ class TestCommand {
 	}
 
 	@:coroutine static function target(t:String, p:Project, cp:Array<String>, runner:Array<String>, map:Mapper, server:Null<Int>):{ok:Bool, summary:String} {
-		var connect = server == null ? [] : ["--connect", Std.string(server)];
+		// (helder.text's own engine: the same glyphs and pixels on every OS, helder.text.Shaping)
+		var connect = (server == null ? [] : ["--connect", Std.string(server)]).concat(["-D", "helder.text.engine=helder"]);
 		var t0 = haxe.Timer.stamp();
 		var out:Output;
 		switch t {

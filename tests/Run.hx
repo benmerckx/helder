@@ -46,6 +46,7 @@ class Run {
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
 		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
+		{name: "system-text", about: "helder.text on the platform's own stack (tests/text/SystemTextTest.hx, natively: Linux's fontconfig, HarfBuzz and FreeType, Windows' DirectWrite, macOS's Core Text): each script's fallback face, a family found, Devanagari, Bengali and Tamil shaped (reordered and split vowels), TextLayout through it, glyphs rasterised; each script drawn with the platform's engine and helder's (bin/text/system-<os>.png; GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemText},
 		{name: "system-images", about: "helder.os's system decoders (tests/os/SystemImagesTest.hx: Windows' WIC, macOS's ImageIO): a TIFF of a known gradient, plain and LZW, its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a side; ImageLimits before any pixel; a file that is no image (GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemImages},
 		{name: "dbus", about: "helder.os's D-Bus client against a real dbus-daemon (Linux: dbus-run-session): Hello, ListNames, a service's half, then xdg-desktop-portal's FileChooser OpenFile against a stand-in portal (its arguments, its Response's URI as the path picked; tests/os/DBusTest.hx)", run: dbus},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
@@ -75,6 +76,8 @@ class Run {
 	];
 
 	static function main() {
+		// (helder.text's own engine for every lane's program: goldens the same on every OS; system-text's the platform's)
+		if (Sys.getEnv("HELDER_TEXT_ENGINE") == null) Sys.putEnv("HELDER_TEXT_ENGINE", "helder");
 		var args = Sys.args();
 		var keepGoing = args.remove("-k");
 		if (args.length == 0) args = ["headless"];
@@ -282,6 +285,12 @@ class Run {
 	}
 
 	// (Windows and macOS; a Windows target from Linux under Wine; macOS: a HEIC made by sips)
+	static function systemText() {
+		native('bin/text/$GFX_TARGET/SystemTextTest', cps(["src", "tests/text"]).concat(["-main", "SystemTextTest"]), GFX_TARGET);
+		var exe = exePath('bin/text/$GFX_TARGET/SystemTextTest', GFX_TARGET), env = ["HELDER_TEXT_ENGINE" => "system"];
+		if (GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-")) run("wine", [exe], env) else run(exe, [], env);
+	}
+
 	static function systemImages() {
 		if (GFX_TARGET.startsWith("linux-")) {
 			Sys.println("system-images: no system decoders on Linux (GFX_TARGET=windows-x86_64: WIC under Wine)");

@@ -31,6 +31,21 @@ class FontFile {
 	var variedAdvances:Null<IntTable<Float>> = null;
 	var tables = new Map<String, Int>();
 	var lengths = new Map<String, Int>();
+	// which engine shapes and rasterises it (Shaping: DEFAULT the app's, HELDER, SYSTEM)
+	public var engine = Shaping.DEFAULT;
+	// the file it was read from (null: bytes given)
+	public var path:Null<String> = null;
+	// the face's index in its file (a collection's)
+	public var faceIndex(get, never):Int;
+
+	inline function get_faceIndex():Int
+		return index;
+
+	// a variable font's instance other than the default (the platforms' shapers given the default's: helder's own shapes it)
+	public var varied(get, never):Bool;
+
+	inline function get_varied():Bool
+		return coords != null;
 
 	public var unitsPerEm(default, null) = 1000;
 	public var ascender(default, null) = 0;

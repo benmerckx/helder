@@ -83,8 +83,11 @@ class SystemFonts {
 	public function match(family:String, weight = 400, italic = false):Null<FontFile> {
 		scan();
 		var names = GENERIC.exists(family.toLowerCase()) ? GENERIC.get(family.toLowerCase()) : [family].concat(GENERIC.get("sans-serif"));
+		var generic = GENERIC.exists(family.toLowerCase());
 		for (name in names) {
 			var f = best(name, weight, italic);
+			// (a family by name the directories did not have: the platform's)
+			if (f == null && !generic && name == family) f = platformFamily(family, weight, italic);
 			if (f != null) return f;
 		}
 		// anything
@@ -129,33 +132,59 @@ class SystemFonts {
 				break;
 			}
 		}
-		// (none of those: the desktop's own fallback, fontconfig's, on Linux)
-		if (found == null) found = fontconfig(cp);
+		// (none of those: the system's own fallback: fontconfig's, DirectWrite's, Core Text's)
+		if (found == null) found = platformFallback(cp);
 		moreFound.set(cp, found);
 		return found;
 	}
 
-	// (Linux's alone: a constant condition, Mem.os() and Mem.target() known
-	// when compiling, so that no other target links fontconfig)
-	function fontconfig(cp:Int):Null<FontFile> {
-		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		return if (hxmc.unsafe.Mem.os() == 0 && hxmc.unsafe.Mem.target() < 9 && hxmc.unsafe.Mem.platform() == 0) fontconfigLinux(cp) else null;
-		#else
-		return null;
-		#end
+	// the platform's fallback for a character (Shaping.backend: fontconfig,
+	// IDWriteFontFallback, CTFontCreateForString), its face loaded once
+	function platformFallback(cp:Int):Null<FontFile> {
+		if (scannedNone()) return null;
+		var b = Shaping.backend();
+		if (b == null) return null;
+		var m = b.fallback(cp);
+		return m == null ? null : fileFace(m.path, m.index, cp);
 	}
 
-	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-	function fontconfigLinux(cp:Int):Null<FontFile> {
-		if (scannedNone()) return null;
-		var m = helder.text.linux.Fontconfig.fileFor(cp);
-		if (m == null) return null;
-		var key = m.path + "#" + m.index;
-		if (!loaded.exists(key)) loaded.set(key, try FontFile.parse(sys.io.File.getBytes(m.path), m.index) catch (e:Dynamic) null);
+	// (a face of a file the platform named: loaded once; -1: the face of a collection with cp)
+	function fileFace(path:String, index:Int, cp:Int):Null<FontFile> {
+		var key = path + "#" + index;
+		if (!loaded.exists(key)) {
+			var f:Null<FontFile> = null;
+			try {
+				var data = sys.io.File.getBytes(path);
+				if (index >= 0) f = FontFile.parse(data, index) else for (i in 0...FontFile.faceCount(data)) {
+					var g = try FontFile.parse(data, i) catch (e:Dynamic) null;
+					if (g != null && (cp < 0 || g.glyph(cp) != 0)) {
+						f = g;
+						break;
+					}
+				}
+			} catch (e:Dynamic) {}
+			if (f != null) f.path = path;
+			loaded.set(key, f);
+		}
 		var f = loaded.get(key);
-		return f != null && f.glyph(cp) != 0 ? f : null;
+		return f != null && (cp < 0 || f.glyph(cp) != 0) ? f : null;
 	}
-	#end
+
+	// a family the scan did not find, as the platform finds it (fontconfig, DirectWrite's system collection, Core Text's descriptors)
+	function platformFamily(name:String, weight:Int, italic:Bool):Null<FontFile> {
+		if (scannedNone()) return null;
+		var key = name.toLowerCase() + "@" + weight + (italic ? "i" : "");
+		if (platformFamilies.exists(key)) return platformFamilies.get(key);
+		var b = Shaping.backend(), f:Null<FontFile> = null;
+		if (b != null) {
+			var m = b.find(name, weight, italic);
+			if (m != null) f = fileFace(m.path, m.index, -1);
+		}
+		platformFamilies.set(key, f);
+		return f;
+	}
+
+	final platformFamilies = new Map<String, Null<FontFile>>();
 
 	// (HELDER_NO_SYSTEM_FONTS: none of the system's, fontconfig's neither)
 	static function scannedNone():Bool {
@@ -236,6 +265,7 @@ class SystemFonts {
 		if (loaded.exists(fi.path)) return loaded.get(fi.path);
 		if (loaded.exists(key)) return loaded.get(key);
 		var f = try FontFile.parse(sys.io.File.getBytes(fi.path), fi.index) catch (e:Dynamic) null;
+		if (f != null) f.path = fi.path;
 		loaded.set(key, f);
 		return f;
 	}

@@ -648,22 +648,123 @@ class TextLayout {
 		if (top >= 0x600) Arabic.shape(this);
 		gsub(letterSpacing);
 		if (emoji != null) colorLigatures();
+		// (the scripts helder's engine does not shape: the platform's shaper, where there is one)
+		shapedOffsets = 0;
+		if (top >= 0x900) systemShape();
 		for (g in 0...count)
-			if (ignorable(lCp[g])) lFlags[g] |= HIDDEN;
+			if (ignorable(lCp[g]) && lFlags[g] & SHAPED == 0) lFlags[g] |= HIDDEN;
 		var prev = -1;
 		for (g in 0...count) {
 			var c = lCp[g];
 			if (c == 10 || c == 13) {
 				lAdvance[g] = 0;
+			} else if (lFlags[g] & SHAPED != 0) {
+				// (the platform's advances, kerning and all)
 			} else {
 				var f = fontOf(g), fonts = setOf(lRun[g]);
 				lAdvance[g] = hidden(g) ? 0 : (f.bitmapsOnly ? f.advanceAt(lId[g], fonts.size) : f.advance(lId[g]) * fonts.scale(f)) * (c == 9 ? TAB_SIZE : 1);
-				if (prev >= 0 && lFace[prev] == lFace[g] && lRun[prev] == lRun[g] && lCp[prev] != 10 && kerns(fonts))
+				if (prev >= 0 && lFace[prev] == lFace[g] && lRun[prev] == lRun[g] && lCp[prev] != 10 && lFlags[prev] & SHAPED == 0 && kerns(fonts))
 					lAdvance[prev] += f.kerning(lId[prev], lId[g]) * fonts.scale(f);
 			}
 			prev = g;
 		}
 		marks();
+		// (the platform's offsets: each shaped glyph's own, as a mark attached to itself)
+		if (shapedOffsets > 0) {
+			if (!hasMarks) markRoom();
+			for (k in 0...shapedOffsets) {
+				var g = shapedAt[k];
+				lAttach[g] = g;
+				lAx[g] = shapedX[k];
+				lAy[g] = shapedY[k];
+			}
+		}
+	}
+
+	// (a glyph the platform's shaper made: its advance and offset its, not looked up again)
+	static inline var SHAPED = 0x800;
+	var shapedOut:Null<Shaping.ShapedGlyphs> = null;
+	var shapedOffsets = 0;
+	final shapedAt:Array<Int> = [];
+	final shapedX:Array<Float> = [];
+	final shapedY:Array<Float> = [];
+
+	// each run of a script that needs it (Shaping.complex: Indic, Khmer,
+	// Myanmar...) in one face and text run, shaped by the platform's shaper
+	// (Shaping.backendFor the face: HarfBuzz, DirectWrite, Core Text; none,
+	// or helder's engine chosen: left as shaped): its glyphs in place of the
+	// run's, in visual order (left to right), each cluster's characters the
+	// UTF-16 units from its cluster to the next one's
+	function systemShape() {
+		var i = 0;
+		while (i < count) {
+			if (!Shaping.complex(lCp[i])) {
+				i++;
+				continue;
+			}
+			var face = lFace[i], f = faces[face], run = lRun[i], j = i + 1;
+			while (j < count && lFace[j] == face && lRun[j] == run && (Shaping.complex(lCp[j]) || Shaping.joins(lCp[j]) || Bidi.classOf(lCp[j]) == Bidi.NSM))
+				j++;
+			var be = f.hasColor || f.bitmapsOnly ? null : Shaping.backendFor(f);
+			if (be == null) {
+				i = j;
+				continue;
+			}
+			var start = lCluster[i], end = lCluster[j - 1] + lLength[j - 1];
+			if (shapedOut == null) shapedOut = new Shaping.ShapedGlyphs();
+			var out = shapedOut;
+			if (!be.shape(f, text, start, end, false, out) || out.count == 0) {
+				i = j;
+				continue;
+			}
+			// (the run's glyphs out, the shaper's in: the rest moved)
+			var m = out.count, delta = m - (j - i);
+			if (delta > 0) {
+				room(count + delta);
+				var k = count - 1;
+				while (k >= j) {
+					move1(k, k + delta);
+					k--;
+				}
+			} else if (delta < 0) for (k in j...count)
+				move1(k, k + delta);
+			count += delta;
+			var sc = setOf(run).scale(f), next = end;
+			var k = m - 1;
+			while (k >= 0) {
+				var g = i + k, cl = out.clusters[k];
+				if (cl < start || cl >= end) cl = start;
+				if (k < m - 1 && out.clusters[k + 1] > cl && out.clusters[k + 1] <= end) next = out.clusters[k + 1];
+				lFace[g] = face;
+				lId[g] = out.ids[k];
+				lCp[g] = StringTools.fastCodeAt(text, cl);
+				lCluster[g] = cl;
+				lLength[g] = next > cl ? next - cl : 1;
+				lRun[g] = run;
+				lFlags[g] = SHAPED;
+				lAdvance[g] = out.advances[k] * sc;
+				if (out.dx[k] != 0 || out.dy[k] != 0) {
+					shapedAt[shapedOffsets] = g;
+					shapedX[shapedOffsets] = out.dx[k] * sc;
+					shapedY[shapedOffsets] = -out.dy[k] * sc;
+					shapedOffsets++;
+				}
+				k--;
+			}
+			i += m;
+		}
+	}
+
+	// (shaped glyph src's columns to dst)
+	inline function move1(src:Int, dst:Int) {
+		lFace[dst] = lFace[src];
+		lId[dst] = lId[src];
+		lCp[dst] = lCp[src];
+		lCluster[dst] = lCluster[src];
+		lLength[dst] = lLength[src];
+		lRun[dst] = lRun[src];
+		lFlags[dst] = lFlags[src];
+		lAdvance[dst] = lAdvance[src];
 	}
 
 	// (kerning unless turned off: FontSet.features' kern 0)
@@ -830,7 +931,7 @@ class TextLayout {
 
 	// default ignorable characters (variation selectors, joiners, tags...): not drawn, no advance, as HarfBuzz hides them
 	static inline function ignorable(c:Int):Bool
-		return c >= 0xFE00 && c <= 0xFE0F || c >= 0x200B && c <= 0x200F || c >= 0x2060 && c <= 0x2064 || c >= 0xE0000 && c <= 0xE0FFF || c == 0x34F
+		return c >= 0xFE00 && c <= 0xFE0F || c >= 0x200B && c <= 0x200F || c >= 0x2060 && c <= 0x2064 || c >= 0x202A && c <= 0x202E || c >= 0x2066 && c <= 0x2069 || c >= 0xE0000 && c <= 0xE0FFF || c == 0x34F
 			|| c >= 0x180B && c <= 0x180D || c == 0xAD;
 
 	// GPOS's mark positioning (the features mark and mkmk, for the base's
@@ -842,7 +943,7 @@ class TextLayout {
 		// (which glyphs are marks: only they attach, the others are passed over)
 		var any = false;
 		for (i in 0...count)
-			if (lCp[i] != 10 && lCp[i] != 13 && isMark(i)) {
+			if (lCp[i] != 10 && lCp[i] != 13 && lFlags[i] & SHAPED == 0 && isMark(i)) {
 				lFlags[i] |= MARK;
 				any = true;
 			}
@@ -908,7 +1009,7 @@ class TextLayout {
 			start = end + 1;
 		}
 		for (i in 0...n) {
-			if (level(i) & 1 == 0) continue;
+			if (level(i) & 1 == 0 || lFlags[i] & SHAPED != 0) continue;
 			var m = Bidi.mirror(lCp[i]);
 			if (m != lCp[i]) {
 				var id = fontOf(i).glyph(m);
@@ -958,7 +1059,7 @@ class TextLayout {
 
 	// may a word be cut before glyph i (not before a mark or what is not shown)?
 	inline function within(i:Int):Bool
-		return !hidden(i) && !isMark(i) && lCp[i] != 10;
+		return !hidden(i) && !isMark(i) && lCp[i] != 10 && !(lFlags[i] & SHAPED != 0 && i > 0 && lCluster[i] == lCluster[i - 1]);
 
 	// (UAX 14's closing punctuation, infix separators, exclamations and quotes: no break before; opening and quotes: none after)
 	static function closes(c:Int):Bool
