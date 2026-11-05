@@ -20,7 +20,7 @@ class WebCanvas implements Painter {
 	public var matrix(get, never):Matrix;
 
 	final handle:Int;
-	final buf:Bytes = Bytes.alloc(1 << 16);
+	var buf:Bytes = Bytes.alloc(1 << 16);
 	var used = 0;
 	final matrices:Array<Matrix> = [new Matrix()];
 	var depth = 0;
@@ -39,8 +39,12 @@ class WebCanvas implements Painter {
 
 	// ---- the buffer
 
+	// (n numbers more without a flush between them: a path's whole, the buffer grown for one past it)
 	inline function room(n:Int)
-		if (used + n * 8 > buf.length) flush();
+		if (used + n * 8 > buf.length) {
+			flush();
+			if (n * 8 > buf.length) buf = Bytes.alloc(n * 8);
+		}
 
 	inline function num(v:Float) {
 		buf.setDouble(used, v);
@@ -149,6 +153,7 @@ class WebCanvas implements Painter {
 
 	function sendPath(p:Path) {
 		var pts = p.points, pi = 0;
+		room(2 + p.verbCount * 7);
 		op(PATH, 1);
 		num(p.verbCount);
 		for (i in 0...p.verbCount) {
@@ -244,6 +249,7 @@ class WebCanvas implements Painter {
 		num(style.cap.kind);
 		num(style.miterLimit);
 		var d = style.dash;
+		room(3 + (d == null ? 0 : d.intervals.length));
 		op(DASH, 2);
 		num(d == null ? 0 : d.intervals.length);
 		num(d == null ? 0 : d.offset);

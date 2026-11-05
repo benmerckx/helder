@@ -71,8 +71,10 @@ export default function (host) {
 		canvas_run(handle, p, n) {
 			const o = host.handles.get(handle);
 			const f = new Float64Array(host.memory().buffer.slice(p, p + n));
-			let i = 0, path = null, paint = null, line = null, dash = [], dashOffset = 0;
-			const m = [1, 0, 0, 1, 0, 0];
+			// (the decoding state kept between runs: a flush may come between a paint and its fill)
+			const st = o.run ??= { path: null, paint: null, line: null, dash: [], dashOffset: 0, m: [1, 0, 0, 1, 0, 0] };
+			let i = 0, { path, paint, line, dash, dashOffset } = st;
+			const m = st.m;
 			const ctx = () => (o.stack.length > 0 && o.stack[o.stack.length - 1].layer) ? o.stack[o.stack.length - 1].layer.ctx : o.ctx;
 			const top = () => {
 				for (let k = o.stack.length - 1; k >= 0; k--) if (o.stack[k].layer) return o.stack[k].layer.ctx;
@@ -120,7 +122,16 @@ export default function (host) {
 							under.setTransform(1, 0, 0, 1, 0, 0);
 							under.globalAlpha = s.layer.alpha;
 							under.globalCompositeOperation = operation(s.layer.blend);
-							if (s.layer.filter) under.filter = s.layer.filter;
+							// (Filter.Shadow, its shadow alone: CSS's drop-shadow cannot leave the source out, so canvas's
+							// shadow of the layer drawn far off to the left, the shadow offset back onto it)
+							const shadow = s.layer.filter && /^drop-shadow\(0 0 ([\d.e+-]+)px (rgba\([^)]*\))\) opacity\(0\)$/.exec(s.layer.filter);
+							if (shadow) {
+								const far = 2 * (o.w + o.h) + 1000;
+								under.shadowColor = shadow[2];
+								under.shadowBlur = 2 * Number(shadow[1]);
+								under.shadowOffsetX = far;
+								under.translate(-far, 0);
+							} else if (s.layer.filter) under.filter = s.layer.filter;
 							let src = s.layer.canvas;
 							if (s.layer.mask) {
 								const t = make(o.w, o.h), tc = t.getContext("2d");
@@ -223,6 +234,7 @@ export default function (host) {
 					default: throw new Error("hxmc_canvas: an unknown command " + code);
 				}
 			}
+			Object.assign(st, { path, paint, line, dash, dashOffset });
 		},
 	};
 	return { hxmc_canvas };
