@@ -1,0 +1,21 @@
+# The converted WPT tests helder.canvas fails (wpt/check.mjs: a failure not listed, or a listed one that passes, fails the lane), and why
+2d.path.arc.selfintersect.1: a stroke 8 times wider than its arc's radius: the outline's inner side, made by offsetting, reaches past the swept region
+2d.path.ellipse.basics: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.path.isPointInStroke.scaleddashes: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.fillStyle.CSSHSL: CSS Typed OM colour objects (CSSRGB, CSSHSL) are not taken
+2d.fillStyle.CSSRGB: CSS Typed OM colour objects (CSSRGB, CSSHSL) are not taken
+2d.fillStyle.colorObject: CSS Typed OM colour objects (CSSRGB, CSSHSL) are not taken
+2d.fillStyle.colorObject.transparency: CSS Typed OM colour objects (CSSRGB, CSSHSL) are not taken
+2d.fillStyle.colormix: CSS Color 5's color-mix() and relative colours are not parsed
+2d.fillStyle.relativecolor: CSS Color 5's color-mix() and relative colours are not parsed
+2d.gradient.colormix: CSS Color 5's color-mix() and relative colours are not parsed
+2d.gradient.relativecolor: CSS Color 5's color-mix() and relative colours are not parsed
+2d.pattern.repeat.undefined: createPattern's repetition undefined: helder's facade cannot tell it from null
+2d.strokeStyle.colorObject: CSS Typed OM colour objects (CSSRGB, CSSHSL) are not taken
+2d.strokeStyle.colorObject.transparency: CSS Typed OM colour objects (CSSRGB, CSSHSL) are not taken
+2d.strokeStyle.colormix: CSS Color 5's color-mix() and relative colours are not parsed
+2d.strokeStyle.relativecolor: CSS Color 5's color-mix() and relative colours are not parsed
+2d.line.miter.invalid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.line.miter.valid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.line.width.invalid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)
+2d.line.width.valid: a boolean or a string given for a number: helder's TypeScript does not convert it (its declared type is number)

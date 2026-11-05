@@ -1,8 +1,5 @@
 package helder.ui;
 
-import haxe.ds.Vector;
-import haxe.io.Bytes;
-import helder.text.Rasterizer;
 import helder.image.Image;
 
 // An SVG document for icons and drawings: parsed once (Svg.parse), drawn
@@ -965,83 +962,64 @@ class SvgParse {
 	}
 }
 
-// RGBA in floats, premultiplied, drawn into by shapes and groups
+// A drawing's groups and shapes on helder.canvas (its CPU rasterizer:
+// analytic coverage, strokes as outlines, gradients, clips as masks, a
+// group's or a shape's opacity as a layer)
 class SvgCanvas {
-	final width:Int;
-	final height:Int;
+	final canvas:helder.canvas.Canvas;
 	final current:Color;
-	var layer:Vector<Float>;
-	final raster:Rasterizer;
-	final coverage:Bytes;
+	final path = new helder.canvas.Path();
+	final paint = new helder.canvas.Paint();
+	final line = new helder.canvas.Stroke();
 
 	public function new(width:Int, height:Int, current:Color) {
-		this.width = width;
-		this.height = height;
+		canvas = new helder.canvas.Canvas(width, height);
 		this.current = current;
-		layer = blank();
-		raster = new Rasterizer(width, height);
-		coverage = Bytes.alloc(width * height);
 	}
 
-	function blank():Vector<Float> {
-		var v = new Vector<Float>(width * height * 4);
-		for (i in 0...v.length)
-			v[i] = 0;
-		return v;
+	// SVG's path commands (0 move, 1 line, 2 cubic, 3 close) as a canvas path
+	static function into(p:Array<Float>, out:helder.canvas.Path):helder.canvas.Path {
+		out.clear();
+		var i = 0;
+		while (i < p.length)
+			switch Std.int(p[i]) {
+				case 0:
+					out.moveTo(p[i + 1], p[i + 2]);
+					i += 3;
+				case 1:
+					out.lineTo(p[i + 1], p[i + 2]);
+					i += 3;
+				case 2:
+					out.cubicTo(p[i + 1], p[i + 2], p[i + 3], p[i + 4], p[i + 5], p[i + 6]);
+					i += 7;
+				case _:
+					out.close();
+					i++;
+			}
+		return out;
 	}
 
-	// the clip in force: each pixel's coverage by it (null: none)
-	var mask:Null<Bytes> = null;
+	static inline function core(m:Matrix):helder.canvas.Matrix
+		return new helder.canvas.Matrix(m.a, m.b, m.c, m.d, m.e, m.f);
 
 	public function group(g:SvgGroup, m:Matrix) {
 		var mm = m.times(g.matrix);
 		if (g.opacity <= 0) return;
-		var savedMask = mask;
+		canvas.save();
 		if (g.clip != null) {
-			raster.clear();
+			// (the clip's shapes in one path, by the first one's rule)
+			var clip = new helder.canvas.Path(), one = new helder.canvas.Path();
 			for (c in g.clip)
-				fillPath(c.path, mm.times(c.matrix));
-			var own = Bytes.alloc(width * height);
-			raster.writeTo(own, 0, width, g.clip[0].evenOdd);
-			if (mask != null)
-				for (i in 0...width * height)
-					own.set(i, Std.int((own.get(i) * mask.get(i) + 127) / 255));
-			mask = own;
+				clip.addPath(into(c.path, one), core(mm.times(c.matrix)));
+			canvas.resetTransform();
+			canvas.clip(clip, g.clip[0].evenOdd);
 		}
-		var saved = layer;
-		if (g.opacity < 1) layer = blank();
+		if (g.opacity < 1) canvas.saveLayer(g.opacity);
 		for (c in g.children) {
 			if (Std.isOfType(c, SvgGroup)) group(cast c, mm) else shape(cast c, mm);
 		}
-		if (g.opacity < 1) {
-			var own = layer;
-			layer = saved;
-			composite(own, g.opacity);
-		}
-		mask = savedMask;
-	}
-
-	// the coverage cut by the clip in force
-	function clipped() {
-		if (mask != null)
-			for (i in 0...width * height)
-				coverage.set(i, Std.int((coverage.get(i) * mask.get(i) + 127) / 255));
-	}
-
-	// over the layer: another, its alpha times opacity
-	function composite(src:Vector<Float>, opacity:Float) {
-		var i = 0;
-		while (i < src.length) {
-			var a = src[i + 3] * opacity;
-			if (a > 0) {
-				var k = 1 - a;
-				layer[i] = src[i] * opacity + layer[i] * k;
-				layer[i + 1] = src[i + 1] * opacity + layer[i + 1] * k;
-				layer[i + 2] = src[i + 2] * opacity + layer[i + 2] * k;
-				layer[i + 3] = a + layer[i + 3] * k;
-			}
-			i += 4;
-		}
+		if (g.opacity < 1) canvas.restore();
+		canvas.restore();
 	}
 
 	function shape(s:SvgShape, m:Matrix) {
@@ -1051,46 +1029,61 @@ class SvgCanvas {
 		if (fill == None && stroke == None) return;
 		// (both, at an opacity: composited as one)
 		var own = s.opacity < 1 && fill != None && stroke != None;
-		var saved = layer, alpha = own ? 1.0 : s.opacity;
-		if (own) layer = blank();
-		if (fill != None) {
-			raster.clear();
-			fillPath(s.path, mm);
-			raster.writeTo(coverage, 0, width, st.evenOdd);
-			clipped();
-			paintWith(fill, st.fillOpacity * alpha, s.path, mm);
+		var alpha = own ? 1.0 : s.opacity;
+		if (own) canvas.saveLayer(s.opacity);
+		canvas.setTransform(mm.a, mm.b, mm.c, mm.d, mm.e, mm.f);
+		into(s.path, path);
+		if (fill != None && paintWith(fill, st.fillOpacity * alpha, s.path)) canvas.fill(path, paint, st.evenOdd);
+		if (stroke != None && paintWith(stroke, st.strokeOpacity * alpha, s.path)) {
+			line.width = st.strokeWidth;
+			line.cap = st.cap == 1 ? helder.canvas.Stroke.Cap.round : st.cap == 2 ? helder.canvas.Stroke.Cap.square : helder.canvas.Stroke.Cap.butt;
+			line.join = st.join == 1 ? helder.canvas.Stroke.Join.round : st.join == 2 ? helder.canvas.Stroke.Join.bevel : helder.canvas.Stroke.Join.miter;
+			line.miterLimit = st.miterLimit;
+			line.dash = st.dashes == null ? null : new helder.canvas.Stroke.Dash(st.dashes, st.dashOffset);
+			canvas.stroke(path, line, paint);
 		}
-		if (stroke != None) {
-			raster.clear();
-			new SvgStroker(raster, mm, st.strokeWidth / 2, st.cap, st.join, st.miterLimit, st.dashes, st.dashOffset).path(s.path);
-			raster.writeTo(coverage, 0, width);
-			clipped();
-			paintWith(stroke, st.strokeOpacity * alpha, s.path, mm);
-		}
-		if (own) {
-			var mine = layer;
-			layer = saved;
-			composite(mine, s.opacity);
-		}
+		if (own) canvas.restore();
 	}
 
-	// the coverage painted with a paint
-	function paintWith(p:SvgPaint, opacity:Float, path:Array<Float>, m:Matrix)
+	// the paint set to p at opacity (false: it draws nothing)
+	function paintWith(p:SvgPaint, opacity:Float, shapePath:Array<Float>):Bool {
+		paint.alpha = opacity;
+		paint.shader = null;
 		switch p {
 			case None:
-			case Rgba(c): paint(c, opacity);
-			case Current: paint(current, opacity);
+				return false;
+			case Rgba(c):
+				paint.color = c;
+			case Current:
+				paint.color = current;
 			case Gradient(g):
-				// (the gradient's space: the user units' (or the box's), then its transform)
-				var gm = m;
-				if (g.boundingBox) {
-					var b = bounds(path);
-					if (b[2] <= b[0] || b[3] <= b[1]) return;
-					gm = gm.times(new Matrix(b[2] - b[0], 0, 0, b[3] - b[1], b[0], b[1]));
+				var gr:helder.canvas.Gradient;
+				if (g.linear) gr = new helder.canvas.Gradient.LinearGradient(g.x1, g.y1, g.x2, g.y2) else {
+					// (a focus outside the circle: moved onto it, just inside)
+					var fx = g.fx, fy = g.fy, ex = fx - g.cx, ey = fy - g.cy, el = Math.sqrt(ex * ex + ey * ey);
+					if (el > g.r * 0.999) {
+						fx = g.cx + ex / el * g.r * 0.999;
+						fy = g.cy + ey / el * g.r * 0.999;
+					}
+					gr = new helder.canvas.Gradient.RadialGradient(fx, fy, 0, g.cx, g.cy, g.r);
 				}
-				var inv = gm.times(g.matrix).inverse();
-				if (inv != null) paintGradient(g, opacity, inv);
+				for (k in 0...g.offsets.length)
+					gr.addStop(g.offsets[k], g.colors[k]);
+				gr.spread = g.spread;
+				// (the gradient's space: the user units' (or the box's), then its transform)
+				var gm = Matrix.identity();
+				if (g.boundingBox) {
+					var b = bounds(shapePath);
+					if (b[2] <= b[0] || b[3] <= b[1]) return false;
+					gm = new Matrix(b[2] - b[0], 0, 0, b[3] - b[1], b[0], b[1]);
+				}
+				gm = gm.times(g.matrix);
+				gr.matrix.set(gm.a, gm.b, gm.c, gm.d, gm.e, gm.f);
+				paint.color = 0xFF000000;
+				paint.shader = gr;
 		}
+		return true;
+	}
 
 	// a path's bounds in its units: x0, y0, x1, y1 (curves sampled)
 	static function bounds(p:Array<Float>):Array<Float> {
@@ -1124,414 +1117,7 @@ class SvgCanvas {
 		return [x0, y0, x1, y1];
 	}
 
-	// the coverage painted with a gradient: each pixel's centre taken back
-	// into its space (inv), its colour there
-	function paintGradient(g:SvgGradient, opacity:Float, inv:Matrix) {
-		var dx = g.x2 - g.x1, dy = g.y2 - g.y1, len2 = dx * dx + dy * dy;
-		// (a focus outside the circle: moved onto it, just inside)
-		var fx = g.fx, fy = g.fy, ex = fx - g.cx, ey = fy - g.cy, el = Math.sqrt(ex * ex + ey * ey);
-		if (el > g.r * 0.999) {
-			fx = g.cx + ex / el * g.r * 0.999;
-			fy = g.cy + ey / el * g.r * 0.999;
-		}
-		for (y in 0...height)
-			for (x in 0...width) {
-				var i = y * width + x, cov = coverage.get(i);
-				if (cov == 0) continue;
-				var u = inv.x(x + 0.5, y + 0.5), v = inv.y(x + 0.5, y + 0.5), t;
-				if (g.linear) t = len2 <= 0 ? 1 : ((u - g.x1) * dx + (v - g.y1) * dy) / len2 else {
-					// (where on the ray from the focus through the point the circle is: t = 1 there)
-					var px = u - fx, py = v - fy, qx = fx - g.cx, qy = fy - g.cy;
-					var a = px * px + py * py, b = 2 * (px * qx + py * qy), c = qx * qx + qy * qy - g.r * g.r;
-					if (a <= 1e-18) t = 0 else {
-						var s = (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a);
-						t = s <= 0 ? 1 : 1 / s;
-					}
-				}
-				var col = g.at(t);
-				var sa = col.a / 255 * opacity * cov / 255;
-				if (sa <= 0) continue;
-				var k = 1 - sa, o = i * 4;
-				layer[o] = col.r / 255 * sa + layer[o] * k;
-				layer[o + 1] = col.g / 255 * sa + layer[o + 1] * k;
-				layer[o + 2] = col.b / 255 * sa + layer[o + 2] * k;
-				layer[o + 3] = sa + layer[o + 3] * k;
-			}
-	}
-
-	// a cubic curve from the pen, in pixels, as lines within a twentieth
-	// of a pixel (finer than the rasterizer's own, for glyphs)
-	var penX = 0.0;
-	var penY = 0.0;
-
-	function cubic(x1:Float, y1:Float, x2:Float, y2:Float, x3:Float, y3:Float) {
-		var ax = penX - 2 * x1 + x2, ay = penY - 2 * y1 + y2, bx = x1 - 2 * x2 + x3, by = y1 - 2 * y2 + y3;
-		var dev = Math.sqrt(Math.max(ax * ax + ay * ay, bx * bx + by * by));
-		var n = 1 + Math.floor(Math.sqrt(dev * 0.75 / 0.05));
-		for (k in 1...n + 1) {
-			var t = k / n, u = 1 - t;
-			var a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
-			raster.lineTo(a * penX + b * x1 + c * x2 + d * x3, a * penY + b * y1 + c * y2 + d * y3);
-		}
-		penX = x3;
-		penY = y3;
-	}
-
-	// the path's subpaths into the rasterizer, each closed (a fill closes them)
-	function fillPath(p:Array<Float>, m:Matrix) {
-		var i = 0, open = false;
-		while (i < p.length) {
-			switch Std.int(p[i]) {
-				case 0:
-					if (open) raster.close();
-					raster.moveTo(penX = m.x(p[i + 1], p[i + 2]), penY = m.y(p[i + 1], p[i + 2]));
-					open = true;
-					i += 3;
-				case 1:
-					raster.lineTo(penX = m.x(p[i + 1], p[i + 2]), penY = m.y(p[i + 1], p[i + 2]));
-					i += 3;
-				case 2:
-					cubic(m.x(p[i + 1], p[i + 2]), m.y(p[i + 1], p[i + 2]), m.x(p[i + 3], p[i + 4]), m.y(p[i + 3], p[i + 4]), m.x(p[i + 5], p[i + 6]),
-						m.y(p[i + 5], p[i + 6]));
-					i += 7;
-				case _:
-					raster.close();
-					i++;
-			}
-		}
-		if (open) raster.close();
-	}
-
-	// the coverage painted in a colour over the layer
-	function paint(c:Color, opacity:Float) {
-		var a = c.a / 255 * opacity;
-		if (a <= 0) return;
-		var r = c.r / 255, g = c.g / 255, b = c.b / 255;
-		for (i in 0...width * height) {
-			var cov = coverage.get(i);
-			if (cov == 0) continue;
-			var sa = a * cov / 255, k = 1 - sa, o = i * 4;
-			layer[o] = r * sa + layer[o] * k;
-			layer[o + 1] = g * sa + layer[o + 1] * k;
-			layer[o + 2] = b * sa + layer[o + 2] * k;
-			layer[o + 3] = sa + layer[o + 3] * k;
-		}
-	}
-
 	// straight RGBA8
-	public function image():Image {
-		var img = new Image(width, height), px = img.pixels;
-		for (i in 0...width * height) {
-			var o = i * 4, a = layer[o + 3];
-			if (a <= 0) continue;
-			inline function ch(v:Float):Int
-				return Std.int(Math.max(0, Math.min(255, Math.round(v / a * 255))));
-			px.set(o, ch(layer[o]));
-			px.set(o + 1, ch(layer[o + 1]));
-			px.set(o + 2, ch(layer[o + 2]));
-			px.set(o + 3, Std.int(Math.round(Math.min(1, a) * 255)));
-		}
-		return img;
-	}
-}
-
-// a stroke's outline, as one path a subpath (two for a closed one: its
-// sides as loops wound against each other): each side offset by half the
-// width, joined on the outer side of a turn (miter, bevel, round arc) and
-// through the point on the inner side (the overlap wound the same way, so
-// the nonzero rule fills it once), the open ends capped; made in user units
-// (curves flattened finely enough for the transform), drawn through it
-class SvgStroker {
-	final raster:Rasterizer;
-	final m:Matrix;
-	final hw:Float;
-	final cap:Int;
-	final join:Int;
-	final miterLimit:Float;
-	// the flattening tolerance in user units
-	final tolerance:Float;
-	final dashes:Null<Array<Float>>;
-	final dashOffset:Float;
-	// the outline being made
-	var ox:Array<Float> = [];
-	var oy:Array<Float> = [];
-
-	public function new(raster, m, hw, cap, join, miterLimit, ?dashes:Array<Float>, dashOffset = 0.0) {
-		this.raster = raster;
-		this.m = m;
-		this.hw = hw;
-		this.cap = cap;
-		this.join = join;
-		this.miterLimit = miterLimit;
-		this.dashes = dashes;
-		this.dashOffset = dashOffset;
-		var s = m.scale();
-		tolerance = 0.05 / (s > 0 ? s : 1);
-	}
-
-	public function path(p:Array<Float>) {
-		var xs:Array<Float> = [], ys:Array<Float> = [];
-		var i = 0, closed = false;
-		function flush() {
-			if (xs.length > 0) subpath(xs, ys, closed);
-			xs = [];
-			ys = [];
-			closed = false;
-		}
-		while (i < p.length) {
-			switch Std.int(p[i]) {
-				case 0:
-					flush();
-					xs.push(p[i + 1]);
-					ys.push(p[i + 2]);
-					i += 3;
-				case 1:
-					xs.push(p[i + 1]);
-					ys.push(p[i + 2]);
-					i += 3;
-				case 2:
-					var x0 = xs[xs.length - 1], y0 = ys[ys.length - 1];
-					var x1 = p[i + 1], y1 = p[i + 2], x2 = p[i + 3], y2 = p[i + 4], x3 = p[i + 5], y3 = p[i + 6];
-					var ax = x0 - 2 * x1 + x2, ay = y0 - 2 * y1 + y2, bx = x1 - 2 * x2 + x3, by = y1 - 2 * y2 + y3;
-					var dev = Math.sqrt(Math.max(ax * ax + ay * ay, bx * bx + by * by));
-					var n = 1 + Math.floor(Math.sqrt(dev * 0.75 / tolerance));
-					for (k in 1...n + 1) {
-						var t = k / n, u = 1 - t;
-						var a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
-						xs.push(a * x0 + b * x1 + c * x2 + d * x3);
-						ys.push(a * y0 + b * y1 + c * y2 + d * y3);
-					}
-					i += 7;
-				case _:
-					closed = true;
-					var sx = xs.length > 0 ? xs[0] : 0.0, sy = ys.length > 0 ? ys[0] : 0.0;
-					flush();
-					// (drawing on after a close: from where the subpath began)
-					xs.push(sx);
-					ys.push(sy);
-					i++;
-					// (a move next replaces that start)
-					if (i < p.length && Std.int(p[i]) == 0) {
-						xs = [];
-						ys = [];
-					}
-			}
-		}
-		// (a lone point left by a close is no subpath)
-		if (xs.length > 1 || closed) flush();
-	}
-
-	function subpath(xs:Array<Float>, ys:Array<Float>, closed:Bool) {
-		if (dashes == null) outline(xs, ys, closed) else dashed(xs, ys, closed);
-	}
-
-	// the dashes along a subpath (from its start, at the offset into the
-	// pattern), each stroked as an open subpath
-	function dashed(xs:Array<Float>, ys:Array<Float>, closed:Bool) {
-		var px = xs.copy(), py = ys.copy();
-		if (closed) {
-			px.push(xs[0]);
-			py.push(ys[0]);
-		}
-		var total = 0.0;
-		for (d in dashes)
-			total += d;
-		var pos = dashOffset % total;
-		if (pos < 0) pos += total;
-		var k = 0;
-		// (a dash ending where the offset puts the start is past; a zero length one there is not)
-		while (pos > dashes[k] || (pos == dashes[k] && dashes[k] > 0)) {
-			pos -= dashes[k];
-			k = (k + 1) % dashes.length;
-		}
-		var remain = dashes[k] - pos, on = k % 2 == 0;
-		var cx:Array<Float> = [], cy:Array<Float> = [];
-		if (on) {
-			cx.push(px[0]);
-			cy.push(py[0]);
-		}
-		for (i in 0...px.length - 1) {
-			var ax = px[i], ay = py[i], sx = px[i + 1] - ax, sy = py[i + 1] - ay, len = Math.sqrt(sx * sx + sy * sy), done = 0.0;
-			while (len - done > remain) {
-				done += remain;
-				var x = ax + sx * done / len, y = ay + sy * done / len;
-				cx.push(x);
-				cy.push(y);
-				if (on) outline(cx, cy, false);
-				cx = on ? [] : [x];
-				cy = on ? [] : [y];
-				on = !on;
-				k = (k + 1) % dashes.length;
-				remain = dashes[k];
-			}
-			remain -= len - done;
-			if (on) {
-				cx.push(px[i + 1]);
-				cy.push(py[i + 1]);
-			}
-		}
-		if (on && cx.length > 0) outline(cx, cy, false);
-	}
-
-	function outline(xs0:Array<Float>, ys0:Array<Float>, closed:Bool) {
-		// (points that repeat dropped)
-		var xs = [xs0[0]], ys = [ys0[0]];
-		for (k in 1...xs0.length)
-			if (Math.abs(xs0[k] - xs[xs.length - 1]) > 1e-9 || Math.abs(ys0[k] - ys[ys.length - 1]) > 1e-9) {
-				xs.push(xs0[k]);
-				ys.push(ys0[k]);
-			}
-		if (closed && xs.length > 1 && Math.abs(xs[0] - xs[xs.length - 1]) <= 1e-9 && Math.abs(ys[0] - ys[ys.length - 1]) <= 1e-9) {
-			xs.pop();
-			ys.pop();
-		}
-		var n = xs.length;
-		if (n == 1) {
-			// a zero length subpath: a dot for round and square caps
-			if (cap == 1) {
-				arc(xs[0], ys[0], 0, 2 * Math.PI);
-				emit();
-			} else if (cap == 2) {
-				point(xs[0] - hw, ys[0] - hw);
-				point(xs[0] + hw, ys[0] - hw);
-				point(xs[0] + hw, ys[0] + hw);
-				point(xs[0] - hw, ys[0] + hw);
-				emit();
-			}
-			return;
-		}
-		if (closed && n == 2) closed = false;
-		// the segments' directions
-		var segs = closed ? n : n - 1;
-		var dx = [], dy = [], len = [];
-		for (k in 0...segs) {
-			var b = (k + 1) % n, ex = xs[b] - xs[k], ey = ys[b] - ys[k], l = Math.sqrt(ex * ex + ey * ey);
-			dx.push(ex / l);
-			dy.push(ey / l);
-			len.push(l);
-		}
-		// (the normal of a direction: it turned a quarter, (-dy, dx))
-		if (closed) {
-			for (s in [1.0, -1.0]) {
-				for (k in 0...n)
-					joinAt(xs[k], ys[k], dx[(k + n - 1) % n], dy[(k + n - 1) % n], dx[k], dy[k], s, len[(k + n - 1) % n], len[k]);
-				// (the right side backwards: the loops wound against each other)
-				if (s < 0) {
-					ox.reverse();
-					oy.reverse();
-				}
-				emit();
-			}
-			return;
-		}
-		// left side forwards, the end's cap, right side backwards, the start's cap
-		point(xs[0] - dy[0] * hw, ys[0] + dx[0] * hw);
-		for (k in 1...n - 1)
-			joinAt(xs[k], ys[k], dx[k - 1], dy[k - 1], dx[k], dy[k], 1, len[k - 1], len[k]);
-		capAt(xs[n - 1], ys[n - 1], dx[segs - 1], dy[segs - 1]);
-		var k = n - 2;
-		while (k >= 1) {
-			// (backwards: the directions reversed, the side still the right one)
-			joinAt(xs[k], ys[k], -dx[k], -dy[k], -dx[k - 1], -dy[k - 1], 1, len[k], len[k - 1]);
-			k--;
-		}
-		capAt(xs[0], ys[0], -dx[0], -dy[0]);
-		emit();
-	}
-
-	inline function point(x:Float, y:Float) {
-		ox.push(x);
-		oy.push(y);
-	}
-
-	// the outline so far, closed, into the rasterizer
-	function emit() {
-		if (ox.length > 2) {
-			raster.moveTo(m.x(ox[0], oy[0]), m.y(ox[0], oy[0]));
-			for (k in 1...ox.length)
-				raster.lineTo(m.x(ox[k], oy[k]), m.y(ox[k], oy[k]));
-			raster.close();
-		}
-		ox = [];
-		oy = [];
-	}
-
-	// the side s (1: left, -1: right) at (x, y) between the directions in and
-	// out, of segments lenIn and lenOut long
-	function joinAt(x:Float, y:Float, ix:Float, iy:Float, jx:Float, jy:Float, s:Float, lenIn:Float, lenOut:Float) {
-		var ax = x - iy * hw * s, ay = y + ix * hw * s, bx = x - jy * hw * s, by = y + jx * hw * s;
-		var cross = ix * jy - iy * jx, dot = ix * jx + iy * jy;
-		if (Math.abs(cross) < 1e-9 && dot > 0) {
-			point(ax, ay);
-			return;
-		}
-		// (a turn toward this side: the inner one; where the sides cross when
-		// that is within both segments, else through the point)
-		if (cross * s > 0) {
-			var cosHalf = Math.sqrt(Math.max(0, (1 + dot) / 2)), sinHalf = Math.sqrt(Math.max(0, (1 - dot) / 2));
-			if (cosHalf > 1e-9 && hw * sinHalf / cosHalf <= Math.min(lenIn, lenOut)) {
-				var mx = -iy - jy, my = ix + jx, ml = Math.sqrt(mx * mx + my * my);
-				var l = hw / cosHalf;
-				point(x + mx / ml * l * s, y + my / ml * l * s);
-				return;
-			}
-			point(ax, ay);
-			point(x, y);
-			point(bx, by);
-			return;
-		}
-		point(ax, ay);
-		switch join {
-			case 1:
-				var from = Math.atan2(ay - y, ax - x), turn = Math.atan2(cross, dot);
-				arcPoints(x, y, from, turn);
-			case 0:
-				// (the miter's length over the stroke's width: 1 / sin(half the angle between the segments))
-				var cosHalf = Math.sqrt(Math.max(0, (1 + dot) / 2));
-				if (cosHalf > 1e-9 && 1 / cosHalf <= miterLimit) {
-					var mx = -iy - jy, my = ix + jx, ml = Math.sqrt(mx * mx + my * my);
-					if (ml > 1e-12) {
-						var len = hw / cosHalf;
-						point(x + mx / ml * len * s, y + my / ml * len * s);
-					}
-				}
-			case _:
-		}
-		point(bx, by);
-	}
-
-	// the cap at the end (x, y), the path heading (dx, dy) there: from the
-	// left side's end to the right side's
-	function capAt(x:Float, y:Float, dx:Float, dy:Float) {
-		var lx = x - dy * hw, ly = y + dx * hw, rx = x + dy * hw, ry = y - dx * hw;
-		point(lx, ly);
-		switch cap {
-			case 1:
-				arcPoints(x, y, Math.atan2(ly - y, lx - x), -Math.PI);
-			case 2:
-				point(lx + dx * hw, ly + dy * hw);
-				point(rx + dx * hw, ry + dy * hw);
-			case _:
-		}
-		point(rx, ry);
-	}
-
-	// the points of an arc of the stroke's radius around (x, y), from the
-	// angle from, turning by turn (its ends not included)
-	function arcPoints(x:Float, y:Float, from:Float, turn:Float) {
-		var step = hw > tolerance ? 2 * Math.acos(1 - tolerance / hw) : Math.PI / 2;
-		var steps = Std.int(Math.ceil(Math.abs(turn) / step));
-		// (the points a little outside the circle: the chords as much outside it as in)
-		var r = steps > 0 ? hw * (1 + 1 / Math.cos(Math.abs(turn) / steps / 2)) / 2 : hw;
-		for (k in 1...steps) {
-			var t = from + turn * k / steps;
-			point(x + Math.cos(t) * r, y + Math.sin(t) * r);
-		}
-	}
-
-	// a whole circle's points
-	function arc(x:Float, y:Float, from:Float, turn:Float) {
-		point(x + Math.cos(from) * hw, y + Math.sin(from) * hw);
-		arcPoints(x, y, from, turn);
-	}
+	public function image():Image
+		return canvas.bitmap.toImage();
 }

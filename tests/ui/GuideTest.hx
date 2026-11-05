@@ -377,9 +377,9 @@ class GuideTest implements Markup {
 		ui.update();
 		ui.paint(new Recording());
 		var b = ui.root.find("search"), img:ImageNode = cast b.children[0];
-		// (the circle's top: the stroke in the button's colour)
+		// (the circle's top: the stroke in the button's colour; within 2 of it, its edge's pixel unpremultiplied from helder.canvas's RGBA8)
 		var px = img.image.pixels, o = (1 * 16 + 7) * 4;
-		check("icons: an svg drawn in the node's colour, at its size", img.image.width == 16 && px.get(o + 2) == 0xEB && px.get(o + 3) > 128,
+		check("icons: an svg drawn in the node's colour, at its size", img.image.width == 16 && Math.abs(px.get(o + 2) - 0xEB) <= 2 && px.get(o + 3) > 128,
 			img.image.width + " " + px.get(o + 2) + " " + px.get(o + 3));
 		click(ui, "search");
 		check("icons: the button", clicks == 1);

@@ -19,6 +19,9 @@
     "./web": {
       "types": "./src/helder/web/index.d.ts"
     },
+    "./canvas": {
+      "types": "./src/helder/canvas/index.d.ts"
+    },
     "./package.json": "./package.json",
     "./*": "./*"
   },

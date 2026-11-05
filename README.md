@@ -70,7 +70,8 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `os` | windows, input, the app loop and audio: X11, Wayland, Cocoa, Win32, Android, UIKit, the browser |
 | `gfx` | a portable GPU API: GL/GLES, Metal, D3D11, WebGPU, WebGL2; shaders written in Haxe |
 | `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas |
-| `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames |
+| `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames; PNG and JPEG encoded |
+| `canvas` | 2D drawing on the CPU: paths, fills, strokes, gradients, patterns, clips, layers, blend modes, images, text, analytic antialiasing; `canvas.dom`, the browser's Canvas 2D on it for Haxe and TypeScript (src/helder/canvas/README.md) |
 | `view` | signals and JSX-like markup, compiled to direct calls on the renderer each subtree's tag chooses |
 | `ui` | flexbox layout, events, focus and accessibility, actions and keymaps, menus, drawn on gfx or as the platform's controls |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
@@ -924,7 +925,17 @@ fix.
     Java, through JNI).
   Shaping and fallback first (the correctness gain), native rasterising
   after.
-- **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**,
+- **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**
+  (*phase 1 landed*, src/helder/canvas/README.md: the core API and its CPU
+  back end, analytic coverage into premultiplied RGBA8, typed so `-dce
+  full` keeps only what an app uses; the DOM facade, `helder.canvas.dom`
+  and `helder/canvas` for TypeScript, as skia-canvas has it; helder.ui's
+  SVG rendering on it; the canvas lane: 25 reference scenes against
+  Chromium's canvas, 503 of 523 converted WPT tests. Next: phase 2, the GPU
+  back end; phase 3, a back end on the browser's own canvas for the web;
+  then skia-canvas's extras: multi-page PDF and SVG export, text to
+  outlines, Path2D's boolean operations and effects, filters and shadows,
+  a window),
   designed to be the best of its kind rather than a copy of one: it
   learns from HTML's Canvas 2D, Skia, Vello, tiny-skia and Kha's g2
   without matching any line for line. Paths with lines, quadratic and

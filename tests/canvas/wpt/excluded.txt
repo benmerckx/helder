@@ -1,0 +1,6 @@
+# WPT tests convert.mjs leaves out by name: their code calls what helder.canvas.dom does not have (helder TypeScript rejects it when compiling), or reads a value only the browser gives
+2d.fillStyle.colormix.currentcolor: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
+2d.fillStyle.parse.current.basic: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
+2d.fillStyle.parse.current.changed: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
+2d.fillStyle.relativecolor.currentcolor: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists
+2d.gradient.object.current: helder.canvas.dom.Canvas#setAttribute is not a member of helder's the manifest lists

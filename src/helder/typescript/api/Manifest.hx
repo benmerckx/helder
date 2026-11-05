@@ -157,7 +157,8 @@ class Manifest {
 				any = true;
 			}
 			if (m.set != null) {
-				keep.push(macro @:privateAccess o.$n = null);
+				// (any type: the setter given what the getter gives, never run)
+				keep.push(macro @:privateAccess o.$n = cast null);
 				any = true;
 			}
 		}
