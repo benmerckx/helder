@@ -210,9 +210,33 @@ class JpegDecoder {
 			bytes += (c.blocksX : Float) * c.blocksY * 64 * 3 + (width : Float) * height;
 		}
 		ImageLimits.memory("JpegDecoder", bytes + (width : Float) * height * 8);
+		// (scaled to 2x2 or 1x1 blocks and sequential: each block's reduced IDCT as it is
+		// decoded, into its component's samples, no coefficients kept; else all of them,
+		// for the IDCT after, in strips over threads)
+		direct = !progressive && bs < 8;
 		for (c in components)
-			c.coeffs = new Coeffs(mem.bytes(c.blocksX * c.blocksY * 64 * 2));
+			if (blockSize(c) > 2) direct = false;
+		for (c in components) {
+			c.bs = blockSize(c);
+			if (direct) c.pixels = mem.bytes(c.blocksX * c.bs * c.blocksY * c.bs) else c.coeffs = new Coeffs(mem.bytes(c.blocksX * c.blocksY * 64 * 2));
+		}
 	}
+
+	// (scaled: a subsampled component at a larger block where that spares it
+	// upsampling, as libjpeg's jpeg_core_output_dimensions)
+	function blockSize(c:Component):Int {
+		var nb = bs;
+		while (nb < 8 && (hmax * bs) % (c.h * nb * 2) == 0 && (vmax * bs) % (c.v * nb * 2) == 0)
+			nb *= 2;
+		return nb;
+	}
+
+	var direct = false;
+	// (direct: a block's coefficients, the natural order, and which were set)
+	final block = new Coeffs(Bytes.alloc(128));
+	final touched = new Vector<Int>(64);
+	var wsf = new Vector<Float>(64);
+	final ws2 = new Vector<Int>(16);
 
 	// --- scans ---
 
@@ -249,6 +273,8 @@ class JpegDecoder {
 		bitBuf = bitCount = 0;
 		eobrun = 0;
 		markerHit = false;
+		if (direct) for (c in scan)
+			if (quant[c.tq] == null) throw "JpegDecoder: no quantization table " + c.tq;
 		var decodeBlock:(Component, Int) -> Void = if (!progressive) baseline else if (ss == 0) (ah == 0 ? (c, b) -> dcFirst(c, b, al) : (c, b) -> dcRefine(c, b, al)) else
 			(ah == 0 ? (c, b) -> acFirst(c, b, ss, se, al) : (c, b) -> acRefine(c, b, ss, se, al));
 		var units = 0, total:Int;
@@ -261,7 +287,7 @@ class JpegDecoder {
 				GcPoint.poll();
 				for (x in 0...bx) {
 					restart(units++);
-					decodeBlock(c, y * c.blocksX + x);
+					if (direct) baselineDirect(c, x, y) else decodeBlock(c, y * c.blocksX + x);
 				}
 			}
 		} else {
@@ -273,7 +299,7 @@ class JpegDecoder {
 					for (c in scan)
 						for (v in 0...c.v)
 							for (h in 0...c.h)
-								decodeBlock(c, (my * c.v + v) * c.blocksX + mx * c.h + h);
+								if (direct) baselineDirect(c, mx * c.h + h, my * c.v + v) else decodeBlock(c, (my * c.v + v) * c.blocksX + mx * c.h + h);
 				}
 			}
 		}
@@ -349,9 +375,19 @@ class JpegDecoder {
 		var t = huff(dcTables[c.dcTable]);
 		c.pred += extend(bits(t), t);
 		co[o] = c.pred;
-		var ac = acTables[c.acTable];
+		var ac = acTables[c.acTable], fastAc = ac.fastAc;
 		var k = 1;
 		while (k < 64) {
+			if (bitCount < 16) fill();
+			var f = fastAc[(bitBuf >>> (bitCount - 9)) & 511];
+			if (f != 0) {
+				bitCount -= f & 15;
+				k += (f >> 4) & 15;
+				if (k > 63) break;
+				co[o + ZIGZAG[k]] = f >> 8;
+				k++;
+				continue;
+			}
 			var rs = huff(ac), s = rs & 15, r = rs >> 4;
 			if (s == 0) {
 				if (r != 15) break;
@@ -363,6 +399,151 @@ class JpegDecoder {
 			co[o + ZIGZAG[k]] = extend(bits(s), s);
 			k++;
 		}
+	}
+
+	// a sequential block decoded at a reduced scale, its samples written now:
+	// at 1/8 its DC alone (its AC codes read past), else its coefficients
+	// into one block's buffer for the reduced IDCT (2x2: libjpeg's
+	// jpeg_idct_2x2, the same integers; 4x4: reduced), then cleared again
+	function baselineDirect(c:Component, bx:Int, by:Int) {
+		var t = huff(dcTables[c.dcTable]);
+		c.pred += extend(bits(t), t);
+		var ac = acTables[c.acTable], q = quant[c.tq], nb = c.bs;
+		var stride = c.blocksX * nb, at = by * nb * stride + bx * nb;
+		var k = 1, fastAc = ac.fastAc;
+		if (nb == 1) {
+			// (the bit reader's state in locals for the loop: it is most of the work)
+			var buf = bitBuf, cnt = bitCount, p = pos, len = data.length;
+			while (k < 64) {
+				if (cnt < 16) {
+					while (cnt <= 24) {
+						var x = 0;
+						if (!markerHit && p < len) {
+							x = data.u8(p);
+							if (x == 0xFF) {
+								if ((p + 1 < len ? data.u8(p + 1) : 0) == 0) p += 2 else {
+									markerHit = true;
+									x = 0;
+								}
+							} else p++;
+						}
+						buf = (buf << 8) | x;
+						cnt += 8;
+					}
+				}
+				var f = fastAc[(buf >>> (cnt - 9)) & 511];
+				if (f != 0) {
+					cnt -= f & 15;
+					k += ((f >> 4) & 15) + 1;
+					continue;
+				}
+				bitBuf = buf;
+				bitCount = cnt;
+				pos = p;
+				var rs = huff(ac), s = rs & 15, r = rs >> 4;
+				if (s == 0) {
+					if (r != 15) {
+						buf = bitBuf;
+						cnt = bitCount;
+						p = pos;
+						break;
+					}
+					k += 16;
+				} else {
+					k += r + 1;
+					if (bitCount < s) fill();
+					bitCount -= s;
+				}
+				buf = bitBuf;
+				cnt = bitCount;
+				p = pos;
+			}
+			bitBuf = buf;
+			bitCount = cnt;
+			pos = p;
+			// (libjpeg's jpeg_idct_1x1)
+			var v = ((c.pred * q[0] + 4) >> 3) + 128;
+			c.pixels.set(at, v < 0 ? 0 : v > 255 ? 255 : v);
+			return;
+		}
+		var co = block, n = 0;
+		co[0] = c.pred;
+		touched[n++] = 0;
+		while (k < 64) {
+			if (bitCount < 16) fill();
+			var f = fastAc[(bitBuf >>> (bitCount - 9)) & 511];
+			if (f != 0) {
+				bitCount -= f & 15;
+				k += (f >> 4) & 15;
+				if (k > 63) break;
+				var z = ZIGZAG[k];
+				co[z] = f >> 8;
+				touched[n++] = z;
+				k++;
+				continue;
+			}
+			var rs = huff(ac), s = rs & 15, r = rs >> 4;
+			if (s == 0) {
+				if (r != 15) break;
+				k += 16;
+				continue;
+			}
+			k += r;
+			if (k > 63) break;
+			var z = ZIGZAG[k];
+			co[z] = extend(bits(s), s);
+			touched[n++] = z;
+			k++;
+		}
+		if (nb == 2) idct2x2(co, q, ws2, c.pixels, at, stride) else reduced(co, 0, q, nb, table4, wsf, c.pixels, at, stride);
+		for (i in 0...n)
+			co[touched[i]] = 0;
+	}
+
+	static final table4 = reducedTable(4);
+
+	// libjpeg's jpeg_idct_2x2 (jidctred.c, islow's constants): columns 0, 1,
+	// 3, 5 and 7, then two rows; 2, 4 and 6 have no part in it. (Its sums
+	// within 32 bits for a valid JPEG's coefficients, whose 8-bit samples'
+	// dequantized values are within 2^11: libjpeg's are 64-bit.)
+	static function idct2x2(co:Coeffs, q:Vector<Int>, ws:Vector<Int>, out:Bytes, at:Int, stride:Int) {
+		inline function column(col:Int) {
+			var c1 = co[8 + col], c3 = co[24 + col], c5 = co[40 + col], c7 = co[56 + col];
+			if (c1 == 0 && c3 == 0 && c5 == 0 && c7 == 0) {
+				var dc = (co[col] * q[col]) << 2;
+				ws[col] = dc;
+				ws[8 + col] = dc;
+			} else {
+				var tmp10 = (co[col] * q[col]) << 15;
+				var tmp0 = c7 * q[56 + col] * -5906 + c5 * q[40 + col] * 6967 + c3 * q[24 + col] * -10426 + c1 * q[8 + col] * 29692;
+				ws[col] = (tmp10 + tmp0 + 4096) >> 13;
+				ws[8 + col] = (tmp10 - tmp0 + 4096) >> 13;
+			}
+		}
+		column(0);
+		column(1);
+		column(3);
+		column(5);
+		column(7);
+		inline function sample(v:Int):Int {
+			var x = v + 128;
+			return x < 0 ? 0 : x > 255 ? 255 : x;
+		}
+		inline function row(w:Int, o:Int) {
+			var w1 = ws[w + 1], w3 = ws[w + 3], w5 = ws[w + 5], w7 = ws[w + 7];
+			if (w1 == 0 && w3 == 0 && w5 == 0 && w7 == 0) {
+				var v = sample((ws[w] + 16) >> 5);
+				out.set(o, v);
+				out.set(o + 1, v);
+			} else {
+				var tmp10 = ws[w] << 15;
+				var tmp0 = w7 * -5906 + w5 * 6967 + w3 * -10426 + w1 * 29692;
+				out.set(o, sample((tmp10 + tmp0 + (1 << 19)) >> 20));
+				out.set(o + 1, sample((tmp10 - tmp0 + (1 << 19)) >> 20));
+			}
+		}
+		row(0, at);
+		row(8, at + stride);
 	}
 
 	function dcFirst(c:Component, b:Int, al:Int) {
@@ -440,11 +621,9 @@ class JpegDecoder {
 
 	function output():{width:Int, height:Int, rgba:Bytes} {
 		for (c in components) {
-			// (scaled: a subsampled component at a larger block where that
-			// spares it upsampling, as libjpeg's jpeg_core_output_dimensions)
-			var nb = bs;
-			while (nb < 8 && (hmax * bs) % (c.h * nb * 2) == 0 && (vmax * bs) % (c.v * nb * 2) == 0)
-				nb *= 2;
+			// (decoded directly: its samples there already)
+			if (direct) continue;
+			var nb = blockSize(c);
 			c.bs = nb;
 			var table = nb < 8 ? reducedTable(nb) : null;
 			var q = quant[c.tq];
@@ -883,6 +1062,8 @@ private class Component {
 // -1: longer), the longer ones by length (maxcode, mincode, valptr)
 private class Huffman {
 	public final fast = new Vector<Int>(512, -1);
+	// (an AC code and its value's bits within 9: value << 8 | run << 4 | the bits taken; 0: not)
+	public final fastAc = new Vector<Int>(512, 0);
 	public final maxcode = new Vector<Int>(18, -1);
 	public final mincode = new Vector<Int>(17, 0);
 	public final valptr = new Vector<Int>(17, 0);
@@ -908,6 +1089,16 @@ private class Huffman {
 			code <<= 1;
 		}
 		maxcode[17] = 0x7FFFFFFF;
+		// (stb_image's fast AC: a short code and its value's bits read at once)
+		for (look in 0...512) {
+			var e = fast[look];
+			if (e < 0) continue;
+			var l = e >> 8, rs = e & 255, r = rs >> 4, s = rs & 15;
+			if (s == 0 || l + s > 9) continue;
+			var v = (look >> (9 - l - s)) & ((1 << s) - 1);
+			if (v < 1 << (s - 1)) v -= (1 << s) - 1;
+			fastAc[look] = (v << 8) | (r << 4) | (l + s);
+		}
 	}
 }
 

@@ -141,11 +141,17 @@ port is still to come.
 
 `JpegDecoder.decode(file, mem, scale)` decodes at 1/2, 1/4 or 1/8 of the
 size (`scaleFor(width, height, w, h)`: the largest reduction still at
-least w x h), each block's IDCT reduced as libjpeg's jidctred (the
-8-point IDCT sampled at the groups' centres, from every coefficient; a
+least w x h), each block's IDCT reduced as libjpeg's jidctred (a
 subsampled component at a larger block where that spares it upsampling,
-as libjpeg does): within 40 to 54 dB of libjpeg-turbo's own scaled
-decodes of a photo. `JpegDecoder.threads` splits the IDCT, the upsampling
+as libjpeg does). A sequential JPEG whose blocks all reduce to 2x2 or 1x1
+(1/8, and 1/4 without subsampling) is decoded straight into its samples:
+each block's IDCT as it is read (1x1: its DC, its AC codes read past;
+2x2: jpeg_idct_2x2's integers), no coefficients kept, the AC codes and
+their values read by one lookup where they fit in 9 bits (stb_image's
+fast AC): at 1/8 the same pixels as libjpeg-turbo's. Otherwise each
+block's 4x4 or 8x8 samples (the 8-point IDCT sampled at the groups'
+centres, from every coefficient: within 40 to 54 dB of libjpeg-turbo's
+scaled decodes) after the scans. `JpegDecoder.threads` splits the IDCT, the upsampling
 (a component a thread) and the colours over threads (`Strips`); the IDCT
 (`idctSimd`) and the YCbCr conversion run four lanes at once (hxmc.simd:
 jpeg_idct_islow's and jdcolor's integer arithmetic lane by lane, the same
@@ -156,15 +162,16 @@ JPEG and a 12 MP PNG, ms:
 
 | | helder.image | vips | Bun.Image |
 | --- | ---: | ---: | ---: |
-| JPEG decoded, 1 thread / 4 | 317 / 198 | 99 (avg: decode and a mean) | 112 (with its re-encode) |
-| JPEG at 1/8 | 74 | | |
-| JPEG to a 256 px thumbnail | 75 | 56 (vipsthumbnail, its process too) | 26 |
-| JPEG to 50% | 130 (at 1/2) | 129 | 682 |
-| PNG decoded | 293 | 237 | 1029 (with its re-encode) |
+| JPEG decoded, 1 thread / 4 | 305 / 181 | 97 (avg: decode and a mean) | 112 (with its re-encode) |
+| JPEG at 1/8 | 37 (was 74) | | |
+| JPEG to a 256 px thumbnail | 37 (was 75) | 54 (vipsthumbnail, its process too) | 26 |
+| JPEG to 50% | 115 (at 1/2) | 124 | 692 |
+| PNG decoded | 282 | 236 | 1059 (with its re-encode) |
 
 Before: the JPEG 612 ms, no reduced decode. Left: the entropy decoding
-(some 66 ms of the JPEG's), the upsampling (111 ms) in SIMD; GIF and WebP
-in strips.
+(nearly all of the thumbnail's 37 ms, Bun's libjpeg-turbo some 20; one
+thread, as a JPEG without restart markers must be), the upsampling
+(111 ms of the whole decode) in SIMD; GIF and WebP in strips.
 
 `Exif.orientation(file)` reads EXIF's orientation (1 to 8) from a JPEG's
 APP1 or a WebP's EXIF chunk: IFD0 only, every offset within the TIFF block

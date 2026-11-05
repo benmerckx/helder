@@ -7,7 +7,8 @@ import sys.io.File;
 // lane, natively): the seed corpus (tests/image's PNG suite, JPEG, GIF,
 // WebP and APNG cases) mutated (bits flipped, bytes set to edge values,
 // header ints made huge, runs cut, repeated or spliced from another seed),
-// each input decoded by Image.decode and AnimatedImage.decode with
+// each input decoded by Image.decode and AnimatedImage.decode (a JPEG
+// also at 1/8 or 1/4) with
 // ImageLimits lowered to a small budget. Passes only if every input ends
 // in a decode or an ImageError, each within the time budget, every read
 // past the end the checked reader (ByteReader) refused surfacing as an
@@ -57,11 +58,14 @@ class Fuzz {
 			current = input;
 			// (kept for a crash the process cannot report: a native fault)
 			File.saveBytes("bin/image/fuzz/current.bin", input);
-			for (animated in [false, true]) {
+			// (a JPEG a third time, at 1/8 or 1/4: the reduced decodes' own paths)
+			var jpeg = input.length > 2 && input.get(0) == 0xFF && input.get(1) == 0xD8;
+			for (pass in 0...(jpeg ? 3 : 2)) {
+				var animated = pass == 1;
 				started = Sys.time();
 				var before = ByteReader.refused;
 				try {
-					if (animated) AnimatedImage.decode(input) else Image.decode(input);
+					if (pass == 2) JpegDecoder.decode(input, null, next(2) == 0 ? 8 : 4) else if (animated) AnimatedImage.decode(input) else Image.decode(input);
 					decoded++;
 					// (a read past the end the reader refused, yet a decode: swallowed somewhere)
 					if (ByteReader.refused != before) {
