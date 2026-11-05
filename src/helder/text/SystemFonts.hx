@@ -135,19 +135,27 @@ class SystemFonts {
 		return found;
 	}
 
+	// (Linux's alone: a constant condition, Mem.os() and Mem.target() known
+	// when compiling, so that no other target links fontconfig)
 	function fontconfig(cp:Int):Null<FontFile> {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (hxmc.unsafe.Mem.os() != 0 || hxmc.unsafe.Mem.target() >= 9 || scannedNone()) return null;
+		return if (hxmc.unsafe.Mem.os() == 0 && hxmc.unsafe.Mem.target() < 9 && hxmc.unsafe.Mem.platform() == 0) fontconfigLinux(cp) else null;
+		#else
+		return null;
+		#end
+	}
+
+	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+	function fontconfigLinux(cp:Int):Null<FontFile> {
+		if (scannedNone()) return null;
 		var m = helder.text.linux.Fontconfig.fileFor(cp);
 		if (m == null) return null;
 		var key = m.path + "#" + m.index;
 		if (!loaded.exists(key)) loaded.set(key, try FontFile.parse(sys.io.File.getBytes(m.path), m.index) catch (e:Dynamic) null);
 		var f = loaded.get(key);
 		return f != null && f.glyph(cp) != 0 ? f : null;
-		#else
-		return null;
-		#end
 	}
+	#end
 
 	// (HELDER_NO_SYSTEM_FONTS: none of the system's, fontconfig's neither)
 	static function scannedNone():Bool {
