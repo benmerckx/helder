@@ -16,6 +16,16 @@ function tests() {
 			equals(FolderModel.compare("x", "x"), 0);
 			assert(FolderModel.compare("file99999999999999999999.png", "file100000000000000000000.png") < 0, "long runs by length");
 		});
+		test("file names in any script (tests/fixtures/scripts): each listed, opened, decoded", () -> {
+			var dir = "tests/fixtures/scripts", m = new FolderModel();
+			m.setEntries(FileSystem.readDirectory(dir));
+			equals(m.files.length, 10);
+			for (name in ["مرحبا بالعالم.png", "שלום עולם.png", "हिन्दी चित्र.png", "ภาพถ่ายทะเล.png", "日本の写真.png", "🎉 party 🎈.png", "photo של יום ٢٠٢٦.png"]) {
+				assert(m.files.contains(name), name);
+				var d = Decode.decode(File.getBytes('$dir/$name'));
+				equals([d.width, d.height], [480, 320], name);
+			}
+		});
 		test("images only, by extension", () -> {
 			var m = new FolderModel();
 			m.setEntries(["notes.txt", "b.JPG", "a.webp", "c.gif", "d.png", "e.jpeg", ".hidden"]);

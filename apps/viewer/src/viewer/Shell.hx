@@ -188,7 +188,7 @@ class Shell implements Markup {
 						<VirtualList each={viewer.pickerEntries} itemHeight={28} height={360}>{(entry, i) ->
 							<view:button tag={"entry-" + i} role="button" focusable height={28} padding="0 8" justify="center" radius={6}
 								background={i % 2 == 0 ? "#26262a" : "#232326"} onPress={() -> viewer.pick(entry())}>
-								<text color={StringTools.endsWith(entry(), "/") ? "#93c5fd" : "#e4e4e7"} max-lines={1}>{entry()}</text>
+								<text color={StringTools.endsWith(entry(), "/") ? "#93c5fd" : "#e4e4e7"} max-lines={1} dir={helder.ui.Dir.Ltr}>{entry()}</text>
 							</view:button>
 						}</VirtualList>
 					</view>

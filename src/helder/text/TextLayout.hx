@@ -729,8 +729,15 @@ class TextLayout {
 			} else if (delta < 0) for (k in j...count)
 				move1(k, k + delta);
 			count += delta;
+			// (clusters made monotonic, as HarfBuzz's are: a glyph moved before its base, Core
+			// Text's reordered vowel sign at its own index, in the cluster of what follows it)
+			var k = m - 2;
+			while (k >= 0) {
+				if (out.clusters[k] > out.clusters[k + 1]) out.clusters[k] = out.clusters[k + 1];
+				k--;
+			}
 			var sc = setOf(run).scale(f), next = end;
-			var k = m - 1;
+			k = m - 1;
 			while (k >= 0) {
 				var g = i + k, cl = out.clusters[k];
 				if (cl < start || cl >= end) cl = start;

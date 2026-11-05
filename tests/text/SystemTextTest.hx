@@ -49,7 +49,9 @@ class SystemTextTest {
 			if (f == null && s.name == "Emoji") f = fonts.emojiFor(s.cp);
 			Sys.println('     ${s.name}: ${be.name()} falls back to ${m == null ? "nothing" : m.path + "#" + m.index}; laid out in ${f == null ? "none" : f.family}');
 			if (f != null) faces.set(s.name, f);
-			if (s.name != "Emoji" && s.name != "Thai" && s.name != "Bengali" && s.name != "Tamil") check(s.name + ": a fallback face", m != null, null, s.name != "Latin");
+			// (Linux's CI has no CJK font: there, none is not a failure)
+			var required = ["Latin", "Hebrew", "Arabic", "Devanagari"].concat(Sys.systemName() == "Linux" ? [] : ["CJK"]);
+			if (required.contains(s.name)) check(s.name + ": a fallback face", m != null, null, s.name != "Latin");
 		}
 		// discovery: a family the system has
 		// (Wine's prefix may have only its own and DejaVu)

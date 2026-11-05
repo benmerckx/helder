@@ -48,6 +48,11 @@ class FontSet {
 		if (primary.glyph(cp) != 0) return primary;
 		for (f in fallbacks)
 			if (f.glyph(cp) != 0) return f;
+		// (a pictograph shown as an emoji by default: a colour face before the system's other fallbacks)
+		if (emoji != null && cp >= 0x1F300 && cp <= 0x1FAFF) {
+			var f = emoji(cp);
+			if (f != null) return f;
+		}
 		if (more != null) {
 			var f = more(cp);
 			if (f != null) return f;

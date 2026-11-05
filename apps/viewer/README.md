@@ -3,9 +3,9 @@
 helder's image viewer: a native app for Windows, macOS and Linux, built
 on helder alone (helder.os's window, helder.gfx, helder.ui, helder.image's
 decoders, helder.jobs). PNG (and APNG), JPEG, GIF and WebP, animations
-played; on Windows and macOS also what the system decodes (helder.os's
-SystemImages: WIC, ImageIO): TIFF, HEIC, AVIF, RAW where the system has
-their codecs.
+played; also what the system decodes (helder.os's SystemImages: WIC,
+ImageIO, Linux's libtiff, libheif, libavif and libraw where installed):
+TIFF, HEIC, AVIF, RAW where the system has their codecs, upright.
 
 ```sh
 bun run helder build apps/viewer                 # bin/<target>/viewer (--target windows-x86_64, macos-arm64)
@@ -112,8 +112,20 @@ DejaVu Sans, only then). CI runs the tests in its
 headless job, the window on Linux (gfx), macOS and Windows (the desktop
 jobs).
 
+## Text in any script
+
+File names, the title and the status line in any script: helder.text's
+platform engine (HarfBuzz and FreeType on Linux, DirectWrite, Core Text)
+shapes the scripts its own does not (Devanagari, Bengali, Tamil...) and
+falls back to the system's fonts (fontconfig, IDWriteFontFallback, Core
+Text's cascade), an emoji to a colour face; the picker's names are laid
+out left to right (`dir`: an extension stays at the end of a Hebrew or
+Arabic name, the name itself right to left inside it, UAX #9).
+`tests/fixtures/scripts`: Arabic, Hebrew, Devanagari, Bengali, Tamil,
+Thai, CJK, emoji and mixed names (FolderModel.test.hx lists and decodes
+them).
+
 ## Not yet
 
-Next: Linux's system decoders (libheif, libraw where installed), WIC's
-EXIF orientation, the text of file names in any script (helder.text's
-platform back ends).
+On Linux, libraw's and HEVC's paths (HEIC needs libheif's libde265 plugin)
+have no fixture in the tests; colour management.
