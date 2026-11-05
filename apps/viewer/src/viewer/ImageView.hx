@@ -27,8 +27,13 @@ class ImageView extends helder.ui.Node {
 	final retired:Array<{t:Texture, at:Int}> = [];
 	var records = 0;
 	var queued = -1;
-	// the image's texture: what it shows (a decode and its frame)
-	var texture:Null<Texture>;
+	// the image's textures: tiles of at most TILE a side (a larger image's
+	// past one texture's limit), each with MARGIN pixels of its neighbours
+	// around it (so that filtering and the mip levels read across a seam);
+	// what they show (a decode and its frame)
+	public static inline var TILE = 4096;
+	static inline var MARGIN = 64;
+	final tiles:Array<Tile> = [];
 	var texShown:Null<viewer.Decode.Decoded> = null;
 	var texFrame = -1;
 	var pipeline:Null<Pipeline>;
@@ -36,7 +41,7 @@ class ImageView extends helder.ui.Node {
 	var indices:Null<helder.gfx.Buffer>;
 	var linear:Null<Sampler>;
 	var nearest:Null<Sampler>;
-	final uniforms = Bytes.alloc(32);
+
 	// device pixels a point (the renderer's), for the pointer's points
 	var density = 1.0;
 	// (a drag: where it was, its speed; the last press, for a double click)
@@ -161,13 +166,29 @@ class ImageView extends helder.ui.Node {
 		var d = viewer.shown;
 		if (d == null) return;
 		if (d == texShown && viewer.frame == texFrame) return;
-		var f = d.frames[viewer.frame];
+		var f = d.frames[viewer.frame], pw = d.pixelsWidth, ph = d.pixelsHeight;
+		var src = f.pixels.view();
 		if (d != texShown) {
-			if (texture != null) retired.push({t: texture, at: records});
-			texture = device.createTexture({width: d.pixelsWidth, height: d.pixelsHeight, format: RGBA8Srgb, mipLevels: 0, data: f.pixels.view()});
+			for (t in tiles)
+				retired.push({t: t.texture, at: records});
+			tiles.resize(0);
+			var step = TILE - 2 * MARGIN;
+			var nx = pw <= TILE ? 1 : Math.ceil(pw / step), ny = ph <= TILE ? 1 : Math.ceil(ph / step);
+			for (j in 0...ny)
+				for (i in 0...nx) {
+					var x0 = nx == 1 ? 0 : i * step, y0 = ny == 1 ? 0 : j * step;
+					var x1 = nx == 1 ? pw : Std.int(Math.min(pw, x0 + step)), y1 = ny == 1 ? ph : Std.int(Math.min(ph, y0 + step));
+					var tx = Std.int(Math.max(0, x0 - MARGIN)), ty = Std.int(Math.max(0, y0 - MARGIN));
+					var tw = Std.int(Math.min(pw, x1 + MARGIN)) - tx, th = Std.int(Math.min(ph, y1 + MARGIN)) - ty;
+					var t = new Tile(x0, y0, x1, y1, tx, ty, tw, th);
+					t.texture = device.createTexture({width: tw, height: th, format: RGBA8Srgb, mipLevels: 0, data: t.pixels(src, pw)});
+					tiles.push(t);
+				}
 		} else
-			device.writeTexture(texture, f.pixels.view());
-		device.generateMips(texture);
+			for (t in tiles)
+				device.writeTexture(t.texture, t.pixels(src, pw));
+		for (t in tiles)
+			device.generateMips(t.texture);
 		texShown = d;
 		texFrame = viewer.frame;
 	}
@@ -180,19 +201,27 @@ class ImageView extends helder.ui.Node {
 		var clear = new Color(((bg >> 16) & 255) / 255, ((bg >> 8) & 255) / 255, (bg & 255) / 255, 1);
 		enc.beginPass({colors: [{load: Clear, clear: clear, texture: t}]});
 		var d = viewer.shown;
-		if (d != null && texture != null && texShown == d) {
+		if (d != null && tiles.length > 0 && texShown == d) {
 			var c = viewer.camera, rect = c.rect();
-			// (device pixels to clip space: y up)
-			PhotoShader.writePhotoView({
-				rect: helder.gfx.shader.ShaderMath.vec4(rect.x / tw * 2 - 1, 1 - rect.y / th * 2, (rect.x + rect.width) / tw * 2 - 1, 1 - (rect.y + rect.height) / th * 2),
-				background: helder.gfx.shader.ShaderMath.vec4(lin(bg >> 16), lin(bg >> 8), lin(bg), 1)
-			}, uniforms);
+			// (the decoded pixels' size on the view: a JPEG decoded smaller is magnified the more)
+			var kx = rect.width / d.pixelsWidth, ky = rect.height / d.pixelsHeight;
 			enc.setPipeline(pipeline);
-			enc.setUniforms(0, uniforms);
-			enc.setTexture(1, texture, c.scale >= 2 ? nearest : linear);
 			enc.setVertexBuffer(0, corners);
 			enc.setIndexBuffer(indices, UInt16);
-			enc.drawIndexed(6);
+			for (t in tiles) {
+				var x0 = rect.x + t.x0 * kx, y0 = rect.y + t.y0 * ky, x1 = rect.x + t.x1 * kx, y1 = rect.y + t.y1 * ky;
+				// (off the view: not drawn)
+				if (x1 < 0 || y1 < 0 || x0 > tw || y0 > th) continue;
+				// (device pixels to clip space: y up)
+				PhotoShader.writePhotoView({
+					rect: helder.gfx.shader.ShaderMath.vec4(x0 / tw * 2 - 1, 1 - y0 / th * 2, x1 / tw * 2 - 1, 1 - y1 / th * 2),
+					uv: helder.gfx.shader.ShaderMath.vec4((t.x0 - t.tx) / t.tw, (t.y0 - t.ty) / t.th, (t.x1 - t.tx) / t.tw, (t.y1 - t.ty) / t.th),
+					background: helder.gfx.shader.ShaderMath.vec4(lin(bg >> 16), lin(bg >> 8), lin(bg), 1)
+				}, t.uniforms);
+				enc.setUniforms(0, t.uniforms);
+				enc.setTexture(1, t.texture, kx >= 2 ? nearest : linear);
+				enc.drawIndexed(6);
+			}
 		}
 		enc.endPass();
 	}
@@ -215,5 +244,40 @@ class ImageView extends helder.ui.Node {
 			frame.style.height = r.height / k;
 		}
 		if (ui != null) ui.requestFrame();
+	}
+}
+
+// (a tile: the decoded pixels' region it draws, [x0, x1) x [y0, y1), and
+// its texture's, tx, ty, tw x th: the region and its margin)
+private class Tile {
+	public final x0:Int;
+	public final y0:Int;
+	public final x1:Int;
+	public final y1:Int;
+	public final tx:Int;
+	public final ty:Int;
+	public final tw:Int;
+	public final th:Int;
+	public var texture:Null<Texture>;
+	public final uniforms = Bytes.alloc(48);
+
+	public function new(x0, y0, x1, y1, tx, ty, tw, th) {
+		this.x0 = x0;
+		this.y0 = y0;
+		this.x1 = x1;
+		this.y1 = y1;
+		this.tx = tx;
+		this.ty = ty;
+		this.tw = tw;
+		this.th = th;
+	}
+
+	// its texture's pixels out of the image's (pw wide): the image itself when it is the whole
+	public function pixels(src:Bytes, pw:Int):Bytes {
+		if (tx == 0 && ty == 0 && tw == pw && src.length == tw * th * 4) return src;
+		var b = Bytes.alloc(tw * th * 4);
+		for (y in 0...th)
+			b.blit(4 * y * tw, src, 4 * ((ty + y) * pw + tx), 4 * tw);
+		return b;
 	}
 }

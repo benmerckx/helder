@@ -44,7 +44,7 @@ class Run {
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
 		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked (Linux: Xvfb)", run: window},
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
-		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font)", run: viewerWindow},
+		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
@@ -234,6 +234,14 @@ class Run {
 		said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("(shown") < 0) throw new Failed('without system fonts, the viewer did not show the photo: $said');
+		// (an image past a texture's side: in tiles)
+		mkdirs("bin/viewer");
+		run(NODE, ["apps/viewer/tests/bigpng.mjs", "bin/viewer/wide.png", "9000", "2000"]);
+		var wide = '$wine$exe --exit-after 4 bin/viewer/wide.png';
+		if (Sys.systemName() == "Linux") shell('xvfb-run -a $wide > $out') else shell('$wide > $out');
+		said = File.getContent(out);
+		Sys.print(said);
+		if (said.indexOf("9000×2000 (shown") < 0) throw new Failed('the viewer did not show a 9000x2000 PNG in tiles: $said');
 	}
 
 	// (Linux: Xvfb; a Windows target on another host: under Wine)

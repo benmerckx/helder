@@ -53,7 +53,7 @@ class Viewer {
 	var wheelAcc = 0.0;
 	var wheelAt = -1.0;
 
-	public function new(decode:(path:String, done:Decoded->Void) -> Void, ?budget:Float) {
+	public function new(decode:(path:String, side:Int, done:Decoded->Void) -> Void, ?budget:Float) {
 		cache = new DecodeCache(decode, budget ?? 768 * 1048576.0);
 		cache.onReady = p -> if (p == folder.current) show();
 		empty();
@@ -109,8 +109,11 @@ class Viewer {
 		}
 	}
 
-	// (what is shown and what is decoded ahead)
+	// (what is shown and what is decoded ahead: JPEGs at the view's size, its larger side)
 	function refresh() {
+		// (before the window's first frame its size is not known: a screen's)
+		var side = Std.int(Math.max(camera.viewWidth, camera.viewHeight));
+		cache.side = side <= 1 ? 1920 : side;
 		cache.want([for (i in folder.around(prefetch)) folder.path(i)]);
 		show();
 	}
@@ -172,11 +175,17 @@ class Viewer {
 		var parts = [folder.name, '${folder.index + 1} / $n'];
 		if (d != null) parts.push('${d.width}×${d.height}');
 		title(parts.join(" · "));
-		status(d == null ? parts.slice(0, 2).join(" · ") : '${camera.percent()}% · ${d.width}×${d.height} · ${d.format}' + (d.frames.length > 1 ? ' · ${d.frames.length} frames' : "") + ' · ${size(d.fileSize)} · ${folder.index + 1} / $n');
+		status(d == null ? parts.slice(0, 2).join(" · ") : '${camera.percent()}% · ${d.width}×${d.height} · ${d.format}' + (d.frames.length > 1 ? ' · ${d.frames.length} frames' : "") + (d.pixelsWidth < d.width ? ' · decoded at 1/${Math.round(d.width / d.pixelsWidth)}' : "") + ' · ${size(d.fileSize)} · ${folder.index + 1} / $n');
 	}
 
-	// (the camera or the frame moved: the view draws again)
+	// (the camera or the frame moved: the view draws again; zoomed past the
+	// pixels a smaller decode has, the whole of it asked for)
 	function changed() {
+		var d = shown;
+		if (d != null && d.pixelsWidth < d.width && camera.scale * d.width / d.pixelsWidth > 1.01) {
+			var need = Math.ceil(Math.max(d.width, d.height) * camera.scale);
+			cache.refine(shownPath, need >= Math.max(d.width, d.height) ? 0 : need);
+		}
 		updateTitle();
 		version(v -> v + 1);
 	}

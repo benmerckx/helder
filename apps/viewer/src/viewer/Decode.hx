@@ -9,8 +9,11 @@ import hxmc.unsafe.IoBuffer;
 // a still PNG a GC-free job, ImageJobs) or on the calling thread (tests): its
 // frames (one for a still image; an animated GIF's, WebP's or APNG's all),
 // upright (JpegDecoder applies EXIF's orientation, a WebP's is applied
-// here), at most MAX_SIDE a side (larger: halved until within, for the
-// GPU; width and height stay the file's), or the error that stopped it.
+// here), a JPEG at the size it is shown (a side asked for: decoded at
+// 1/2, 1/4 or 1/8 while still at least that), at most MAX_PIXELS (larger:
+// halved until within, the GPU's budget; ImageView tiles what is past a
+// texture's side), or the error that stopped it. width and height stay the
+// image's; pixelsWidth and pixelsHeight are what was decoded.
 typedef Decoded = {
 	// the image's size as shown (upright), its pixels' (maybe halved)
 	width:Int,
@@ -29,24 +32,26 @@ typedef Decoded = {
 }
 
 class Decode {
-	// (the largest texture side every desktop GPU takes)
+	// (the pixels a still image may have on the GPU: 128 MP, 512 MB and its mips)
+	public static inline var MAX_PIXELS = 134217728;
+	// (an animation's side: its frames one texture each)
 	public static inline var MAX_SIDE = 8192;
 
-	// the job: a path in, a Decoded out
-	public static function file(path:String):Decoded {
-		var bytes = try sys.io.File.getBytes(path) catch (e:Dynamic) null;
+	// the job: a path in (and the side it is shown at: 0, all of it), a Decoded out
+	public static function file(req:{path:String, side:Int}):Decoded {
+		var bytes = try sys.io.File.getBytes(req.path) catch (e:Dynamic) null;
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
-		return decode(bytes);
+		return decode(bytes, req.side);
 	}
 
 	// a file decoded on the pool, from a coroutine: a still PNG as a GC-free
 	// job (ImageJobs: PngCore over off-heap memory), the rest as a GC job
 	// (file); never throws
-	@:coroutine public static function job(path:String):Decoded {
+	@:coroutine public static function job(path:String, side = 0):Decoded {
 		var bytes = try sys.io.File.getBytes(path) catch (e:Dynamic) null;
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
 		var size = Image.size(bytes);
-		if (formatOf(bytes) == "PNG" && !apng(bytes) && size != null && size.width <= MAX_SIDE && size.height <= MAX_SIDE) {
+		if (formatOf(bytes) == "PNG" && !apng(bytes) && size != null && (size.width : Float) * size.height <= MAX_PIXELS) {
 			var p = try ImageJobs.pixels(IoBuffer.ofBytes(bytes)) catch (e:ImageError) return failedBy(e, bytes.length, "PNG") catch (e:helder.jobs.JobError)
 				return failed("corrupt", "Damaged or cut short: " + after(e.message), bytes.length, "PNG");
 			return {
@@ -62,20 +67,29 @@ class Decode {
 				errorKind: ""
 			};
 		}
-		return try helder.jobs.Jobs.run(file, path) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
+		return try helder.jobs.Jobs.run(file, {path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
 	}
 
-	public static function decode(bytes:Bytes):Decoded {
+	public static function decode(bytes:Bytes, side = 0):Decoded {
 		var format = formatOf(bytes);
 		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP)", bytes.length, "");
 		try {
 			var frames:Array<{rgba:Bytes, delay:Float}>, w:Int, h:Int, reps = 0;
+			// (the image's own size, when it was decoded smaller)
+			var full:Null<{width:Int, height:Int}> = null;
 			// (a still image's planes and pixels off the heap; an animation's frames on it, copied out)
 			var mem = ImageMemory.offHeapMemory();
 			var animated = format == "GIF" || (format == "WebP" && animatedWebp(bytes)) || (format == "PNG" && apng(bytes));
 			if (!animated) {
 				var d = switch format {
-					case "JPEG": JpegDecoder.decode(bytes, mem);
+					case "JPEG":
+						// (at the size shown: the largest reduction still covering the side, either way round: EXIF may turn it)
+						var sz = Image.size(bytes);
+						var scale = side <= 0 || sz == null ? 1 : JpegDecoder.scaleFor(Std.int(Math.max(sz.width, sz.height)), Std.int(Math.max(sz.width, sz.height)), side, side);
+						var d = JpegDecoder.decode(bytes, mem, scale);
+						// (Image.size: the size shown, EXIF's turn applied)
+						if (scale > 1) full = sz;
+						d;
 					case "WebP": WebpDecoder.decode(bytes, mem);
 					case _: PngDecoder.decode(bytes, mem);
 				}
@@ -105,10 +119,14 @@ class Decode {
 				}
 			}
 			var pw = w, ph = h;
-			if (w > MAX_SIDE || h > MAX_SIDE) {
-				if (frames.length > 1) return failed("too large", 'An animation of ${w}×$h is larger than this viewer shows (${MAX_SIDE} a side)', bytes.length, format);
+			if (full != null) {
+				w = full.width;
+				h = full.height;
+			}
+			if (frames.length > 1 && (w > MAX_SIDE || h > MAX_SIDE)) return failed("too large", 'An animation of ${w}×$h is larger than this viewer shows (${MAX_SIDE} a side)', bytes.length, format);
+			if ((pw : Float) * ph > MAX_PIXELS) {
 				var rgba = frames[0].rgba;
-				while (pw > MAX_SIDE || ph > MAX_SIDE) {
+				while ((pw : Float) * ph > MAX_PIXELS) {
 					var half = halve(rgba, pw, ph, mem);
 					rgba = half.rgba;
 					pw = half.width;

@@ -54,8 +54,12 @@ size and place, and the status line, are kept between runs (helder.os's
   thread's frames meanwhile: p99 88 ms, max 203 ms before; 1 to 5 ms,
   2 to 11 ms now, for a 24 MP JPEG, a 24 MP WebP and a 12 MP PNG);
   helder.image's decoders, every frame of a GIF, WebP or APNG, a WebP's
-  EXIF orientation applied (JpegDecoder applies a JPEG's), an image past
-  8192 a side halved until it fits a texture (its size stays the file's).
+  EXIF orientation applied (JpegDecoder applies a JPEG's). A JPEG is
+  decoded at the size it is shown (the view's larger side: 1/2, 1/4 or
+  1/8 while still covering it; the status line says "decoded at 1/4"),
+  and again larger when a zoom needs its pixels (`refine`: the smaller
+  one shown meanwhile); a still image past 128 MP on the GPU is halved
+  until within (its size stays the file's).
 - **ViewCamera** (`ViewCamera.hx`): the scale (device pixels per image
   pixel) and the image point at the view's centre; fitted by default
   (the whole image, never above 100%, centred), zooms about a point that
@@ -63,8 +67,10 @@ size and place, and the status line, are kept between runs (helder.os's
   image, a glide.
 - **ImageView** (`ImageView.hx`, `PhotoShader.hx`): the image in ui's
   layout, drawn into a texture of its box before ui's pass (as
-  helder.sprite's SpriteBox): the image an `RGBA8Srgb` texture with every
-  mip level (generated), read trilinearly, so a photo fitted to the
+  helder.sprite's SpriteBox): the image in `RGBA8Srgb` textures with every
+  mip level (generated), tiles of at most 4096 a side past that (each
+  with 64 pixels of its neighbours around it, drawn without them: no seam
+  where filtering and the mips read across; off the view, not drawn), read trilinearly, so a photo fitted to the
   window is filtered and averaged in linear light, and nearest from 200%
   up; composed over the dark background in linear light and written as
   sRGB. An animation's frame written into the texture as it changes.
@@ -93,7 +99,8 @@ helder.image's (`src/helder/image/Exif.test.hx`), the drops helder.os's
 (`bun run test window`). `bun run test viewer-window`: the viewer in a
 real window on the GPU (Linux under Xvfb; `GFX_TARGET=windows-x86_64`
 under Wine), the fixtures' photo opened, decoded on helder.jobs and
-shown, closed after 3 s (`--exit-after`), then again with no system font
+shown, closed after 3 s (`--exit-after`), a 9000x2000 PNG in tiles
+(`tests/bigpng.mjs`), then again with no system font
 found (`HELDER_NO_SYSTEM_FONTS=1`: helder.text looks for none, and the
 viewer adds its own, `fonts/DejaVuSans-viewer.ttf`, a 41 KB subset of
 DejaVu Sans, only then). CI runs the tests in its
@@ -102,9 +109,6 @@ jobs).
 
 ## Not yet
 
-Next: speed (GC-free decoders as jobs for JPEG, GIF and WebP: a GC job
-holds the heap's collections for its longest loop; textures uploaded
-without a copy), large images (tiles and a decode at the size shown),
-native dialogs and "Open with" (the file associations, a second launch
+Next: native dialogs and "Open with" (the file associations, a second launch
 handing its file to the first), the platforms' own codecs (WIC,
 ImageIO, HEIC and AVIF where the system has them).

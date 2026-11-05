@@ -33,7 +33,7 @@ function stories() {
 
 // (decoded at once; the phone's view in device pixels)
 private function viewer():Viewer {
-	var v = new Viewer((path, done) -> done(Decode.file(path)));
+	var v = new Viewer((path, side, done) -> done(Decode.file({path: path, side: side})));
 	v.camera.setView(390, 844);
 	return v;
 }

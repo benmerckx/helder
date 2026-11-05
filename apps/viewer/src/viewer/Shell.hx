@@ -69,8 +69,8 @@ class Shell implements Markup {
 	}
 
 	// (the decode on a pool's thread: Decode.job)
-	static function jobDecode(path:String, done:Decoded->Void)
-		Async.launch(_ -> done(Decode.job(path)));
+	static function jobDecode(path:String, side:Int, done:Decoded->Void)
+		Async.launch(_ -> done(Decode.job(path, side)));
 
 	static function save(store:Null<helder.os.Store>, w:Null<UiWindow>, viewer:Viewer) {
 		if (store == null || w == null) return;

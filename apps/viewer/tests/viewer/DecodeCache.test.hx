@@ -13,7 +13,7 @@ function tests() {
 		// (decodes that land when told: each a frame of size bytes)
 		var pending:Array<{path:String, done:Decoded->Void}> = [];
 		var decoded:Array<String> = [];
-		function decode(path:String, done:Decoded->Void) {
+		function decode(path:String, side:Int, done:Decoded->Void) {
 			decoded.push(path);
 			pending.push({path: path, done: done});
 		}
@@ -72,6 +72,24 @@ function tests() {
 			equals(decoded, ["a", "b", "c"]);
 			equals(pending.length, 0);
 			equals(c.used <= 250, true);
+		});
+		test("refine: decoded again at a larger side, the smaller one kept meanwhile", () -> {
+			var sides = [];
+			var c = new DecodeCache((path, side, done) -> {
+				sides.push(side);
+				var w = side == 0 ? 1000 : side;
+				done({width: 1000, height: 1000, pixelsWidth: w, pixelsHeight: w, frames: [{pixels: hxmc.unsafe.IoBuffer.alloc(16), delay: 0.0}], repetitions: 0, format: "JPEG", fileSize: 1, error: null, errorKind: ""});
+			}, 1000);
+			c.side = 250;
+			c.want(["a"]);
+			equals(c.get("a").pixelsWidth, 250);
+			equals(c.refine("a", 200), false);
+			equals(c.refine("a", 500), true);
+			equals(c.get("a").pixelsWidth, 500);
+			equals(c.refine("a", 0), true);
+			equals(c.get("a").pixelsWidth, 1000);
+			equals(c.refine("a", 0), false);
+			equals(sides, [250, 500, 0]);
 		});
 		test("dropped (changed on disk): decoded again when wanted", () -> {
 			var c = new DecodeCache(decode, 1000);

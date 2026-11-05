@@ -24,7 +24,7 @@ function tests() {
 			return "";
 		}
 		test("open, flip, zoom, the status line, the picker", () -> {
-			var viewer = new Viewer((path, done) -> done(Decode.file(path)));
+			var viewer = new Viewer((path, side, done) -> done(Decode.file({path: path, side: side})));
 			var ui = new Ui(new StoryText(), 800, 600);
 			Render.render(Shell.view(viewer), ui.root);
 			Shell.attach(ui.root, viewer, false);
@@ -101,6 +101,15 @@ function tests() {
 			equals(viewer.fullscreen.peek(), true);
 			ui.keyDown(Key.ESCAPE, 0);
 			equals(viewer.fullscreen.peek(), false);
+			// (decoded at the size shown: a small view, the photo at 1/4; at 100% decoded again whole)
+			viewer.camera.setView(300, 200);
+			viewer.cache.clear();
+			viewer.open(dir + "/photo 2.jpg");
+			helder.view.graph.Graph.flush();
+			equals([viewer.shown.width, viewer.shown.pixelsWidth], [1242, 311]);
+			viewer.actual();
+			equals([viewer.shown.width, viewer.shown.pixelsWidth], [1242, 1242]);
+			viewer.camera.setView(800, 600);
 			// (a file that is not there: its message, nothing else)
 			equals(viewer.open(dir + "/missing.png"), false);
 			helder.view.graph.Graph.flush();

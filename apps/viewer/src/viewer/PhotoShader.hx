@@ -19,13 +19,15 @@ import helder.gfx.shader.ShaderMath.*;
 @:structInit @:publicFields class PhotoView {
 	// the quad's left, top, right and bottom in clip space
 	var rect:Vec4;
+	// its texture coordinates: left, top, right, bottom (a tile's part of its texture)
+	var uv:Vec4;
 	// the background, linear
 	var background:Vec4;
 }
 
 class PhotoShader implements Shaders {
 	@:vertex static function vs(v:PhotoVertex, view:PhotoView):PhotoVaryings
-		return {pos: vec4(mix(view.rect.x, view.rect.z, v.corner.x), mix(view.rect.y, view.rect.w, v.corner.y), 0, 1), uv: v.corner};
+		return {pos: vec4(mix(view.rect.x, view.rect.z, v.corner.x), mix(view.rect.y, view.rect.w, v.corner.y), 0, 1), uv: vec2(mix(view.uv.x, view.uv.z, v.corner.x), mix(view.uv.y, view.uv.w, v.corner.y))};
 
 	@:fragment static function fs(i:PhotoVaryings, view:PhotoView, image:Texture2D):Vec4 {
 		var c = sample(image, i.uv);

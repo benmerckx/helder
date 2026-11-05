@@ -8,7 +8,10 @@ import viewer.Decode.Decoded;
 // helder.jobs in the app, at once in tests), and when the kept pixels pass
 // the budget the ones farthest from the image shown go first (those no
 // longer wanted before them); the image shown is never evicted. drop
-// forgets a file (changed on disk).
+// forgets a file (changed on disk). side is the side decodes are asked at
+// (a JPEG decoded smaller, at the size shown: 0 all of it); refine decodes
+// the one shown again whole when the view needs its pixels (a zoom), the
+// smaller one shown meanwhile.
 class DecodeCache {
 	public var budget:Float;
 	// decodes at a time
@@ -18,12 +21,14 @@ class DecodeCache {
 	// called when a decode lands (the shell redraws)
 	public var onReady:Null<String->Void>;
 
-	final decode:(path:String, done:Decoded->Void) -> Void;
+	final decode:(path:String, side:Int, done:Decoded->Void) -> Void;
+	// the side new decodes are asked at (0: whole)
+	public var side = 0;
 	final entries = new Map<String, Entry>();
 	var order:Array<String> = [];
 	var running = 0;
 
-	public function new(decode:(path:String, done:Decoded->Void) -> Void, budget = 768 * 1048576.0) {
+	public function new(decode:(path:String, side:Int, done:Decoded->Void) -> Void, budget = 768 * 1048576.0) {
 		this.decode = decode;
 		this.budget = budget;
 	}
@@ -50,6 +55,32 @@ class DecodeCache {
 			if (!entries.exists(p)) entries.set(p, new Entry(p));
 		evict();
 		pump();
+	}
+
+	// path's decode again at a larger side (0: whole), when it was decoded
+	// smaller than that (true: one started)
+	public function refine(path:String, side:Int):Bool {
+		var e = entries.get(path);
+		if (e == null || e.decoded == null || e.refining || e.side == 0 || (side > 0 && side <= e.side)) return false;
+		var d0 = e.decoded;
+		if (d0.pixelsWidth >= d0.width) return false;
+		e.refining = true;
+		decode(path, side, d -> {
+			e.refining = false;
+			if (e.dropped || entries.get(path) != e || d.error != null) {
+				Decode.release(d);
+				return;
+			}
+			Decode.release(e.decoded);
+			used -= e.bytes;
+			e.decoded = d;
+			e.side = side;
+			e.bytes = Decode.bytesOf(d);
+			used += e.bytes;
+			evict();
+			if (onReady != null && entries.get(path) == e) onReady(path);
+		});
+		return true;
 	}
 
 	public function drop(path:String) {
@@ -79,7 +110,8 @@ class DecodeCache {
 			e.started = true;
 			e.running = true;
 			running++;
-			decode(p, d -> {
+			e.side = side;
+			decode(p, side, d -> {
 				running--;
 				e.running = false;
 				if (!e.dropped) {
@@ -129,6 +161,8 @@ private class Entry {
 	public final path:String;
 	public var started = false;
 	public var running = false;
+	public var refining = false;
+	public var side = 0;
 	public var evicted = false;
 	public var dropped = false;
 	public var decoded:Null<Decoded> = null;
