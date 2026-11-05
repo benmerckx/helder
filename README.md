@@ -886,6 +886,32 @@ fix.
     binding expects one (the prototype goes through a signal);
   - measured against the same scene written by hand, at thousands of
     nodes.
+- **Text on each platform's own stack, layout helder's** (the split
+  GPUI makes): helder.text gains back ends for the three jobs a platform
+  does best, while line layout, wrapping, carets, selection and drawing
+  stay helder's (one model, one GPU glyph atlas):
+  - **fonts and fallback**: the system's fonts and their fallback chains
+    (emoji, CJK, any script the app's own font lacks): DirectWrite's
+    system collection and IDWriteFontFallback on Windows (COM interop),
+    Core Text's descriptors and cascade lists on macOS and iOS (the
+    Objective-C and Core Foundation interop), fontconfig on Linux;
+  - **shaping** text into positioned glyphs (complex scripts, bidi,
+    ligatures, OpenType features, variable fonts): IDWriteTextAnalyzer,
+    CTLine and CTTypesetter, HarfBuzz on Linux (C interop);
+  - **rasterising** glyphs into the atlas (each platform's hinting and
+    antialiasing, colour emoji): DirectWrite's glyph run analysis,
+    CTFontDrawGlyphs (or the glyphs' outlines), FreeType on Linux;
+  - not the platforms' full layout engines (CTFramesetter,
+    IDWriteTextLayout): they differ too much to share one API, and
+    helder keeps the control (wrapping, inline views, editing, caching
+    shaped runs);
+  - **helder's own engine kept** for bundled fonts and for
+    determinism: tests, stories, store screenshots and games; chosen per
+    app or per font through the same API. Android and the web bundle
+    HarfBuzz where the platform's text is out of reach (Android's is
+    Java, through JNI).
+  Shaping and fallback first (the correctness gain), native rasterising
+  after.
 - **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**,
   designed to be the best of its kind rather than a copy of one: it
   learns from HTML's Canvas 2D, Skia, Vello, tiny-skia and Kha's g2
