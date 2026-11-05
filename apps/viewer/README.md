@@ -6,7 +6,7 @@ decoders, helder.jobs). PNG (and APNG), JPEG, GIF and WebP, animations
 played.
 
 ```sh
-bun run helder build apps/viewer                 # bin/<target>/viewer (--target windows-x86_64, macos-arm64, web)
+bun run helder build apps/viewer                 # bin/<target>/viewer (--target windows-x86_64, macos-arm64)
 apps/viewer/bin/linux-x86_64/viewer photo.jpg    # a file: its folder, at it
 apps/viewer/bin/linux-x86_64/viewer ~/Pictures   # a folder: its first image
 bun run test viewer viewer-window                # its tests; a real window on the GPU
@@ -68,9 +68,9 @@ size and place, and the status line, are kept between runs (helder.os's
 
 ## Tests
 
-`bun run test viewer` (`helder test` in this directory, natively, as
-wasm32-wasi and on Eval; on Windows not as wasm32-wasi, whose directory
-listings come back empty under node's WASI there): `tests/viewer/FolderModel.test.hx` (natural
+`bun run test viewer` (`helder test` in this directory, natively, and on
+Eval the camera's maths; the viewer is a desktop app, not built for the
+web): `tests/viewer/FolderModel.test.hx` (natural
 order, opening a file or a folder, wrapping, the watch: added, removed,
 changed), `DecodeCache.test.hx` (the order, two at a time, eviction by
 distance, a budget too small for every neighbour, a changed file),
@@ -86,13 +86,15 @@ helder.image's (`src/helder/image/Exif.test.hx`), the drops helder.os's
 (`bun run test window`). `bun run test viewer-window`: the viewer in a
 real window on the GPU (Linux under Xvfb; `GFX_TARGET=windows-x86_64`
 under Wine), the fixtures' photo opened, decoded on helder.jobs and
-shown, closed after 3 s (`--exit-after`). CI runs the tests in its
+shown, closed after 3 s (`--exit-after`), then again with no system font
+found (`HELDER_NO_SYSTEM_FONTS=1`: helder.text looks for none, and the
+viewer adds its own, `fonts/DejaVuSans-viewer.ttf`, a 41 KB subset of
+DejaVu Sans, only then). CI runs the tests in its
 headless job, the window on Linux (gfx), macOS and Windows (the desktop
 jobs).
 
 ## Not yet
 
-The web build compiles and shows its empty state (no files there yet).
 Next: speed (GC-free decoders as jobs for JPEG, GIF and WebP: a GC job
 holds the heap's collections for its longest loop; textures uploaded
 without a copy), large images (tiles and a decode at the size shown),

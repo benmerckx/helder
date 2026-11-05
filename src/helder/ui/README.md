@@ -406,7 +406,9 @@ its body do (`ui.body`).
 ## Fonts
 
 Text is shaped and rasterized by `helder.text` with the system's fonts
-(`sans-serif` by default). Colour emoji come from the system's emoji font,
+(`sans-serif` by default). `HELDER_NO_SYSTEM_FONTS=1` makes
+`helder.text.SystemFonts` look for none (only the fonts added: a
+program's fallback tested as on a bare system). Colour emoji come from the system's emoji font,
 drawn from its bitmaps (scaled down as a browser does) or colour layers. In a browser, give the page's fonts to `run`
 (`fonts: [...]` with `src/helder/text/imports.mjs`).
 

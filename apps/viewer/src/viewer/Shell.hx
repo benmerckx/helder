@@ -27,6 +27,7 @@ class Shell implements Markup {
 			var v = store == null ? null : Std.parseInt(store.get(k) ?? "");
 			return v == null ? d : v;
 		}
+		fallbackFont();
 		var viewer = new Viewer(jobDecode);
 		viewer.mod = mac ? "Cmd" : "Ctrl";
 		viewer.statusOn(num("status", 0) == 1);
@@ -56,6 +57,14 @@ class Shell implements Markup {
 			}}>
 			{view(viewer)}
 		</Surface>);
+	}
+
+	// the viewer's own font (DejaVu Sans, a subset: fonts/README.md), added
+	// only when the system has none it finds (a bare Wine prefix, a minimal
+	// container): never stopped for lack of one
+	public static function fallbackFont() {
+		var fonts = helder.text.SystemFonts.get();
+		if (fonts.match("sans-serif") == null) fonts.add(helder.asset.Asset.embed("fonts/DejaVuSans-viewer.ttf"));
 	}
 
 	// (the decode on a pool's thread; a failure of the job itself an error shown)

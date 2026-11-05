@@ -238,6 +238,10 @@ class SystemFonts {
 			return;
 		}
 		#end
+		// (HELDER_NO_SYSTEM_FONTS set: the system's not looked for, only the
+		// fonts added: a program's fallback tested as on a bare system)
+		var none = Sys.getEnv("HELDER_NO_SYSTEM_FONTS");
+		if (none != null && none != "" && none != "0") return;
 		var seen = new Map<String, Bool>();
 		function walk(dir:String, depth:Int) {
 			if (depth > 6 || seen.exists(dir)) return;
