@@ -110,6 +110,16 @@ class Node implements Part {
 	public var theme(default, set):Null<StyleSheet> = null;
 	// what draws the controls of this subtree (Host: Auto, the parent's; Ui.hostOf)
 	public var host:Host = Auto;
+	// what it is to the keymap (helder.ui.actions: "Editor mode=full"; markup's key-context)
+	public var keyContext:Null<helder.ui.actions.KeyContext> = null;
+	// its handlers of actions dispatched through it (on; markup's actions)
+	public var actionHandlers:Null<Array<helder.ui.actions.Actions.ActionHandler>> = null;
+	// Tab's order among the focusable (as the DOM's tabindex): those above 0
+	// first, in its order, then 0's in tree order; below 0: focusable by a
+	// click or focus(), passed over by Tab
+	public var tabIndex = 0;
+	// (its FocusHandle, kept by the Ui)
+	@:allow(helder.ui) var focusHandle:Null<FocusHandle> = null;
 	var attrs:Null<Map<String, String>> = null;
 	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
 	var themedIds:Null<Array<Int>> = null;
@@ -283,6 +293,27 @@ class Node implements Part {
 	function set_focusable(v:Bool):Bool {
 		if (v != focusable) Ui.accessEpoch++;
 		return focusable = v;
+	}
+
+	// handles e's actions dispatched through it (Ui.dispatchAction: from the focus
+	// up): handle true takes one, false lets it bubble; state what a menu
+	// shows it as (default: Enabled). Returns what removes it.
+	public function on<T:EnumValue>(e:Enum<T>, handle:T->Bool, ?state:T->helder.ui.actions.Actions.ActionState):Void->Void {
+		var h = helder.ui.actions.Actions.ActionHandler.of(e, handle, state);
+		if (actionHandlers == null) actionHandlers = [];
+		actionHandlers.push(h);
+		return () -> actionHandlers.remove(h);
+	}
+
+	// it or a descendant has the focus (CSS's :focus-within)
+	public function focusWithin():Bool {
+		if (ui == null || ui.focus == null) return false;
+		var n = ui.focus;
+		while (n != null) {
+			if (n == this) return true;
+			n = n.parent;
+		}
+		return false;
 	}
 
 	function set_semantics(v:Null<helder.ui.access.Semantics>):Null<helder.ui.access.Semantics> {

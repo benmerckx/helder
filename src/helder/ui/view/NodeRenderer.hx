@@ -200,6 +200,24 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	@:attribute static function focusable(n:Node, name:String, v:Dynamic)
 		n.focusable = v == true || v == "true";
 
+	// what it is to the keymap (helder.ui.actions.KeyContext: "Editor mode=full")
+	@:attribute static function keyContext(n:Node, name:String, v:Dynamic)
+		n.keyContext = v == null || v == "" ? null : Std.isOfType(v, String) ? helder.ui.actions.KeyContext.parse(v) : v;
+
+	// its action handlers (Actions.handle(ViewerAction, a -> ...), one or an array)
+	@:attribute static function actions(n:Node, name:String, v:Dynamic)
+		n.actionHandlers = v == null ? null : Std.isOfType(v, Array) ? [for (h in (v : Array<Dynamic>)) (h : helder.ui.actions.Actions.ActionHandler)] : [(v : helder.ui.actions.Actions.ActionHandler)];
+
+	// a FocusHandle tied to it (made focusable)
+	@:attribute static function trackFocus(n:Node, name:String, v:Dynamic)
+		if (v != null) (v : FocusHandle).track(n);
+
+	// Tab's order (Node.tabIndex: as the DOM's tabindex)
+	@:attribute static function tabIndex(n:Node, name:String, v:Dynamic) {
+		n.tabIndex = v == null ? 0 : Std.isOfType(v, String) ? Std.parseInt(v) ?? 0 : v;
+		if (n.tabIndex >= 0 || v != null) n.focusable = true;
+	}
+
 	@:attribute static function selectable(n:Node, name:String, v:Dynamic)
 		if (Std.isOfType(n, TextNode)) (cast n : TextNode).selectable = v == true || v == "true" else noAttribute(n, name);
 

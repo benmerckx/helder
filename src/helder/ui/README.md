@@ -286,6 +286,57 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   focused node does not take the key, scoped to a subtree or to a modal
   popup; `UiFlow.Hotkey` in markup, and menu items' `shortcut`.
 
+## Actions and keymaps
+
+`helder.ui.actions`, modelled on Zed's GPUI. An action is a value of an
+enum an app or a library declares (`enum ViewerAction { Next; ZoomTo(percent:Float); }`,
+`Actions.declare("viewer", ViewerAction)`: `viewer::ZoomTo` in a
+keymap). `Ui.dispatchAction(a)` sends it from the focused node up its
+ancestors (a popup's: on to the node it is anchored to, else where the
+focus was when it opened) to the root, then to the window's handlers
+(`Ui.on`), then the app's (`Actions.on`): each handler (`Node.on(ViewerAction,
+a -> ..., ?state)`) takes it (true) or lets it bubble (false); its state
+(`Enabled`, `Disabled`, `Checked`, `Unchecked`, `Unhandled`) is what a
+menu shows. `StandardAction` is every app's (Quit, CloseWindow,
+ToggleFullscreen: the window's; Copy: the selection's; About, Undo, Cut,
+Paste...: the menus' roles).
+
+A node's key context (`Node.keyContext`, `KeyContext.parse("Editor mode=full read_only")`)
+joins the context stack of the focus (root first). A binding
+(`Keymap.bind("secondary-k secondary-s", ZoomIn, "Viewer && !picker")`)
+matches by GPUI's predicates: names, `key == value`, `!=`, `!`, `&&`,
+`||`, parentheses and `a > b` (b inside a). Keystrokes as GPUI writes
+them: `ctrl-shift-s`, `alt-enter`, `f11`, `ctrl--`, `secondary-o`
+(Command on macOS, Control elsewhere); several separated by spaces are a
+chord, which waits `Keymap.timeout` (1 s) for its next keystroke
+(`Ui.pendingKeys`), then runs what its keys alone are bound to. Of the
+bindings that match, the one whose context holds deepest wins, then the
+later; one whose action no handler on the path takes is passed over.
+`Keymap.global` is the app's default keymap; `loadUser(path)` adds a JSON
+file over it (`[{"context": "Viewer", "bindings": {"secondary-k z": "viewer::ZoomIn", "1": ["viewer::ZoomTo", 100], "f11": null}}]`:
+null unbinds), read again when it changes (a window polls it each
+second; a bad file keeps the last good bindings, `error` says why).
+`keysFor(action, ?stack)` and `label(action)` (`"Ctrl+O"`, `"⌘K ⌘S"`)
+are what a menu or a tooltip shows. Keys a typing field takes (no
+Control, Alt or Command) stay its own; the keymap runs after the focus's
+`onKeyDown` handlers, before `Ui.shortcut`'s.
+
+Focus: `FocusHandle` (made before its node, tied by `track-focus`):
+`focus()`, `blur()`, `isFocused()`, `containsFocus()` and the signals
+`focused` and `within`; `Node.focusWithin()`; `Node.tabIndex` orders Tab
+and Shift+Tab as the DOM's tabindex does (above 0 first, below 0 left
+out). A popup gives the focus back to where it was when it closes. In
+markup:
+
+```haxe
+<view key-context="Viewer" actions={[Actions.handle(ViewerAction, a -> switch a {
+	case ZoomIn: camera.zoomIn(); true;
+	case _: false;
+}, a -> a == ZoomIn && camera.canZoom() ? Enabled : Disabled)]}>
+	<view track-focus={handle} tab-index={1}/>
+</view>
+```
+
 ## Markup
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
@@ -315,6 +366,10 @@ Attributes:
   (`onPan={g -> x(g.tx)}`, `onInput={e -> name(e.text)}`); another type, a
   Dynamic value or a name not there is a compile error at the attribute
   (helder.view's README);
+- `key-context="Viewer zoomed"` (what the node is to the keymap),
+  `actions={[Actions.handle(ViewerAction, a -> ...)]}` (its action
+  handlers), `track-focus={handle}` (a `FocusHandle` tied to it),
+  `tab-index={1}` (Tab's order): see Actions and keymaps below;
 - `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`);
   `id` none here (a page's element's, where a page's renderer realises
   the element).

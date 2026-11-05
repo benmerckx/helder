@@ -176,6 +176,13 @@ class Ui {
 		overlay = new Node("overlay");
 		overlay.attach(this);
 		touchScroll = @:privateAccess new TouchScroll(this);
+		// (Copy: the selected text, while there is some)
+		on(helder.ui.actions.Actions.StandardAction, a -> switch a {
+			case Copy if (selectedText() != ""):
+				clipboard.write(selectedText());
+				true;
+			case _: false;
+		}, a -> a == Copy && selectedText() != "" ? Enabled : Unhandled);
 		#if hxmc.dev
 		DevTree.add(this);
 		#end
@@ -1040,6 +1047,164 @@ class Ui {
 		requestFrame();
 	}
 
+	// --- actions (helder.ui.actions) ---
+
+	// the bindings its keys are matched against (default: the app's)
+	public var keymap:helder.ui.actions.Keymap = helder.ui.actions.Keymap.global;
+	// the window's handlers: after the tree's, before the app's
+	public final actionHandlers:Array<helder.ui.actions.Actions.ActionHandler> = [];
+	// the chord typed so far (a binding's first keystrokes: waiting for the
+	// next, Keymap.timeout), what its keys alone run when it times out
+	public final pendingKeys:Array<{key:Int, mods:Int}> = [];
+	var pendingAction:Null<EnumValue> = null;
+	var pendingFrom:Null<Node> = null;
+	var pendingSerial = 0;
+
+	// a window's handler of e's actions (Node.on's)
+	public function on<T:EnumValue>(e:Enum<T>, handle:T->Bool, ?state:T->helder.ui.actions.Actions.ActionState):Void->Void {
+		var h = helder.ui.actions.Actions.ActionHandler.of(e, handle, state);
+		actionHandlers.push(h);
+		return () -> actionHandlers.remove(h);
+	}
+
+	// a node's parent on the dispatch path: a popup's, the node it is
+	// anchored to (else where the focus was when it opened)
+	public static function parentOf(n:Node):Null<Node> {
+		if (n.parent != null && Std.isOfType(n, Popup) && n.parent.parent == null) {
+			var p:Popup = cast n;
+			return p.anchor != null ? p.anchor : p.returnFocus;
+		}
+		return n.parent;
+	}
+
+	// the key contexts from the root to from (default: the focus), outermost first
+	public function contextStack(?from:Node):Array<helder.ui.actions.KeyContext> {
+		var out = [];
+		var n = from != null ? from : focus;
+		while (n != null) {
+			if (n.keyContext != null) out.unshift(n.keyContext);
+			n = parentOf(n);
+		}
+		return out;
+	}
+
+	// the handler that would take an action from (default: the focus), the
+	// tree's up to the root, the window's, the app's (null: none)
+	function handlerOf(a:EnumValue, from:Null<Node>):Null<helder.ui.actions.Actions.ActionHandler> {
+		var n = from != null ? from : focus;
+		while (n != null) {
+			if (n.actionHandlers != null)
+				for (h in n.actionHandlers)
+					if (h.takes(a) && h.state(a) != Unhandled) return h;
+			n = parentOf(n);
+		}
+		for (h in actionHandlers)
+			if (h.takes(a) && h.state(a) != Unhandled) return h;
+		for (h in helder.ui.actions.Actions.app)
+			if (h.takes(a) && h.state(a) != Unhandled) return h;
+		return null;
+	}
+
+	// what a menu shows an action as, from (default: the focus): the state
+	// of the first handler on the path that takes it
+	public function actionState(a:EnumValue, ?from:Node):helder.ui.actions.Actions.ActionState {
+		var h = handlerOf(a, from);
+		return h == null ? Unhandled : h.state(a);
+	}
+
+	// dispatches an action from (default: the focus) up the tree, then to
+	// the window's and the app's handlers, until one takes it (true); a
+	// disabled one's is not run
+	public function dispatchAction(a:EnumValue, ?from:Node):Bool {
+		var n = from != null ? from : focus;
+		inline function tryAll(hs:Array<helder.ui.actions.Actions.ActionHandler>):Bool {
+			var taken = false;
+			for (h in hs.copy())
+				if (h.takes(a)) {
+					var st = h.state(a);
+					if (st == Unhandled) continue;
+					if (!st.enabled) {
+						taken = true;
+						break;
+					}
+					if (h.run(a)) {
+						taken = true;
+						break;
+					}
+				}
+			return taken;
+		}
+		var done = false;
+		while (n != null && !done) {
+			if (n.actionHandlers != null && tryAll(n.actionHandlers)) done = true;
+			n = parentOf(n);
+		}
+		if (!done && tryAll(actionHandlers)) done = true;
+		if (!done && tryAll(helder.ui.actions.Actions.app)) done = true;
+		if (done) {
+			requestFrame();
+			helder.view.graph.Graph.flush();
+		}
+		return done;
+	}
+
+	// a key through the keymap (true: taken: an action run, or a chord begun or continued)
+	function runKeymap(key:Int, mods:Int):Bool {
+		if (modOf(key) != 0) return false;
+		var typing = focus != null && focus.takesText();
+		var stack = contextStack();
+		var typed = pendingKeys.copy();
+		typed.push({key: key, mods: mods});
+		var m = keymap.match(typed, stack);
+		// (no binding goes on from the chord: it is dropped, the key tried alone)
+		if (m.exact.length == 0 && !m.longer && pendingKeys.length > 0) {
+			clearPending();
+			typed = [{key: key, mods: mods}];
+			m = keymap.match(typed, stack);
+		}
+		if (typed.length == 1 && typing && mods & (Key.MOD_CONTROL | Key.MOD_ALT | Key.MOD_META) == 0 && key < 0xFF00) return false;
+		// (the best binding whose action some handler takes; an unbound one stops the search)
+		var best:Null<EnumValue> = null, bestDepth = -1;
+		for (b in m.exact) {
+			if (b.action == null) break;
+			if (handlerOf(b.action, null) != null) {
+				best = b.action;
+				bestDepth = b.depth(stack);
+				break;
+			}
+		}
+		if (m.longer && m.longerDepth >= bestDepth) {
+			pendingKeys.resize(0);
+			for (t in typed)
+				pendingKeys.push(t);
+			pendingAction = best;
+			pendingFrom = focus;
+			var serial = ++pendingSerial, start = -1.0;
+			Clock.add(t -> {
+				if (serial != pendingSerial) return false;
+				if (start < 0) start = t;
+				if (t - start < helder.ui.actions.Keymap.timeout) return true;
+				var a = pendingAction, from = pendingFrom;
+				clearPending();
+				if (a != null) dispatchAction(a, from != null && from.ui == this ? from : null);
+				return false;
+			});
+			requestFrame();
+			return true;
+		}
+		clearPending();
+		if (best == null) return false;
+		dispatchAction(best);
+		return true;
+	}
+
+	function clearPending() {
+		pendingKeys.resize(0);
+		pendingAction = null;
+		pendingFrom = null;
+		pendingSerial++;
+	}
+
 	// the shortcuts, the latest first to match
 	final shortcuts:Array<{keys:Shortcut, action:Void->Void, scope:Null<Node>}> = [];
 
@@ -1100,6 +1265,7 @@ class Ui {
 				}
 			}
 		}
+		if (!e.defaultPrevented && !e.stopped && runKeymap(key, mods)) return;
 		if (!e.defaultPrevented && !e.stopped && runShortcut(key, mods)) return;
 		if (!e.defaultPrevented && !e.stopped && keyScroll(key, mods)) return;
 		// (Control or Command and C: the selected text copied, when the focus took no such key)
@@ -1262,6 +1428,23 @@ class Ui {
 			if (n.onFocus != null) n.onFocus(Event.of(Focus, n, pointerX, pointerY));
 			bubble(Event.of(FocusIn, n, pointerX, pointerY));
 		}
+		// (the handles on either path: focused, within)
+		var p = old;
+		while (p != null) {
+			if (p.focusHandle != null) {
+				p.focusHandle.focused(false);
+				p.focusHandle.within(false);
+			}
+			p = parentOf(p);
+		}
+		p = n;
+		while (p != null) {
+			if (p.focusHandle != null) {
+				p.focusHandle.focused(p == n);
+				p.focusHandle.within(true);
+			}
+			p = parentOf(p);
+		}
 	}
 
 	// the next (1) or previous (-1) focusable node in tree order, wrapping
@@ -1279,6 +1462,26 @@ class Ui {
 			collect(root);
 			collect(overlay);
 		}
+		// (tabIndex: above 0 first in its order, then 0's in tree order; below 0 left out)
+		var ordered = [for (n in all) if (n.tabIndex > 0) n];
+		haxe.ds.ArraySort.sort(ordered, (a, b) -> a.tabIndex - b.tabIndex);
+		for (n in all)
+			if (n.tabIndex == 0) ordered.push(n);
+		if (focus != null && focus.tabIndex < 0 && all.contains(focus)) {
+			// (from a node Tab passes over: on from its place in the tree)
+			var at = all.indexOf(focus), next:Null<Node> = null;
+			var k = at;
+			for (_ in 1...all.length) {
+				k = (k + dir + all.length) % all.length;
+				if (all[k].tabIndex >= 0) {
+					next = all[k];
+					break;
+				}
+			}
+			if (next != null) setFocus(next);
+			return;
+		}
+		all = ordered;
 		if (all.length == 0) return;
 		var i = focus == null ? (dir > 0 ? -1 : 0) : all.indexOf(focus);
 		setFocus(all[(i + dir + all.length) % all.length]);

@@ -103,6 +103,7 @@ class UiWindow {
 		window = new helder.os.Window(title, width, height);
 		// (shortcuts labelled as macOS's menus do)
 		Shortcut.mac = Mem.os() == 1;
+		helder.ui.actions.Keymap.mac = Mem.os() == 1;
 		// (Android: text fields get the soft keyboard and the input method)
 		if (Mem.target() >= 9) helder.os.android.TextInput.enable();
 		device = Device.create(window.surface, {antialias: antialias});
@@ -121,6 +122,24 @@ class UiWindow {
 		// (macOS': NSTextFields over the window; not iOS's, whose Mem.os() is macOS's too: no AppKit there)
 		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
 		open.push(this);
+		// (the window's standard actions: closed as by its close button, fullscreen; Quit: every window asked)
+		ui.on(helder.ui.actions.Actions.StandardAction, a -> switch a {
+			case CloseWindow:
+				handle(closeEvent());
+				true;
+			case ToggleFullscreen:
+				window.fullscreen = !window.fullscreen;
+				true;
+			case Quit:
+				for (w in open.copy())
+					w.handle(closeEvent());
+				true;
+			case _: false;
+		}, a -> switch a {
+			case CloseWindow | Quit: Enabled;
+			case ToggleFullscreen: window.fullscreen ? Checked : Unchecked;
+			case _: Unhandled;
+		});
 		#if hxmc.dev_host
 		// (helder dev's host, at a hand-over: what the system keeps of this build's code given back)
 		helder.dev.Hot.onDispose(handOver);
@@ -326,6 +345,12 @@ class UiWindow {
 		updateCursor();
 	}
 
+	static function closeEvent():OsEvent {
+		var e = new OsEvent();
+		e.kind = Close;
+		return e;
+	}
+
 	// (once: a <Surface>'s owner closes it too)
 	public function close() {
 		if (open.indexOf(this) < 0) return;
@@ -357,6 +382,9 @@ class UiWindow {
 			var now = haxe.Timer.stamp();
 			if (now - darkAsked > 1) {
 				darkAsked = now;
+				// (the user's keymap file, read again when it changed: the menus' labels too)
+				if (helder.ui.actions.Keymap.global.poll()) for (w in open)
+					w.ui.requestFrame();
 				var d = App.prefersDark();
 				if (d != dark.peek()) {
 					dark(d);
