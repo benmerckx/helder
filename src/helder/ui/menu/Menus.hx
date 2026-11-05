@@ -2,7 +2,6 @@ package helder.ui.menu;
 
 import helder.ui.Node;
 import helder.ui.PlatformMenuItem;
-import helder.ui.Shortcut;
 import helder.ui.TextNode;
 import helder.ui.Ui;
 import helder.ui.actions.Actions;
@@ -48,7 +47,7 @@ class Menus {
 		var state = ui.actionState(action, from);
 		var keys = ui.keymap.keysFor(action, stack);
 		var shortcut = keys.length == 0 ? null : [for (k in keys[0]) k.label()].join(" ");
-		var single = keys.length > 0 && keys[0].length == 1 ? new Shortcut(keys[0][0].key, keys[0][0].held(), false) : null;
+		var single = keys.length > 0 && keys[0].length == 1 ? new helder.ui.actions.Keystroke(keys[0][0].key, keys[0][0].held()) : null;
 		// (macOS's editing roles: its text editors' own copy: and paste: first, enabled)
 		var edit = Keymap.mac && role != null && [Undo, Redo, Cut, Copy, Paste, SelectAll].contains(role);
 		var r:PlatformMenuItem = {id: id, label: label, disabled: !edit && !state.enabled};
@@ -79,6 +78,11 @@ class Menus {
 // set again whenever its labels or states change (checked before each
 // update); a drawn one's menus are resolved as they open: Alt or F10 opens
 // the first, Left and Right move along the bar, a hover moves while one is open.
+// the drawn menu bar's own action (F10 by default: menu::OpenMenuBar in a keymap)
+enum MenuBarAction {
+	OpenMenuBar;
+}
+
 class MenuBar {
 	public final ui:Ui;
 	public var menus(default, null):Array<Menu>;
@@ -104,7 +108,14 @@ class MenuBar {
 		refresh = update;
 		build();
 		ui.beforeUpdate.push(refresh);
-		removeKey = ui.shortcut("F10", () -> if (!native && menus.length > 0) show(0));
+		// (F10: the keymap's binding of OpenMenuBar, the first time a bar is made for it)
+		Actions.declare("menu", MenuBarAction);
+		if (!Lambda.exists(ui.keymap.bindings(), b -> b.action != null && Actions.equals(b.action, OpenMenuBar))) ui.keymap.bind("f10", OpenMenuBar);
+		removeKey = ui.on(MenuBarAction, _ -> {
+			if (native || menus.length == 0 || @:privateAccess ui.modal() != null) return false;
+			show(0);
+			true;
+		});
 		update();
 	}
 

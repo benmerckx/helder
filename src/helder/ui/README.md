@@ -255,7 +255,7 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   from `Style`'s properties: a property added to `Style` is an
   attribute), and what is ui's own: the control flow components
   `VirtualList` (only the rows in view made: a list of 100000 rows scrolls
-  as one of 20), `Popover` and `Hotkey` (`UiFlow`), and `Motion`:
+  as one of 20), `Popover` (`UiFlow`), and `Motion`:
   `transition`, `spring` and `color` are signals moving toward a target
   as the `Clock` ticks (a window ticks it each frame and keeps drawing
   while anything moves; `Clock.finish()` ends every animation, for tests). Signals (`signal`,
@@ -281,10 +281,8 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   window), in a corner of the window (notifications), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
   Escape asks them to close. In markup, `UiFlow.Popover` puts its children
   in one while `open` is true.
-- **Shortcuts**: `Ui.shortcut("Mod+S", action, ?scope)` (`Shortcut`: Mod is
-  Control or Command; labels in each platform's notation), run when the
-  focused node does not take the key, scoped to a subtree or to a modal
-  popup; `UiFlow.Hotkey` in markup, and menu items' `shortcut`.
+- **Shortcuts**: the keymap's bindings to actions (below), run when the
+  focused node does not take the key; menu items show them.
 
 ## Actions and keymaps
 
@@ -319,7 +317,7 @@ second; a bad file keeps the last good bindings, `error` says why).
 `keysFor(action, ?stack)` and `label(action)` (`"Ctrl+O"`, `"⌘K ⌘S"`)
 are what a menu or a tooltip shows. Keys a typing field takes (no
 Control, Alt or Command) stay its own; the keymap runs after the focus's
-`onKeyDown` handlers, before `Ui.shortcut`'s.
+`onKeyDown` handlers.
 
 Focus: `FocusHandle` (made before its node, tied by `track-focus`):
 `focus()`, `blur()`, `isFocused()`, `containsFocus()` and the signals

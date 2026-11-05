@@ -19,7 +19,7 @@ import helder.image.Image;
 // Index, Switch and Match, Show's branches kept, Errored; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of plain controls in markup (Plain), its actions and
-// changes; a Popover and a Hotkey; the neutral elements; a field's
+// changes; a Popover; the neutral elements; a field's
 // password, right to left; a part's states as signals; a VirtualList of
 // 100000 rows scrolled
 class MarkupTest implements Markup {
@@ -240,7 +240,7 @@ class MarkupTest implements Markup {
 
 	// UiFlow's Popover (its children in a popup while open: under the node
 	// the markup puts it in, or at a point; Escape or a press outside asks
-	// it to close) and Hotkey (a shortcut while it is mounted)
+	// it to close)
 	static function popovers() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var open = signal(false), at = signal(false), dismissed = 0;
@@ -279,14 +279,6 @@ class MarkupTest implements Markup {
 		flush();
 		ui.update();
 		check("popover: closed again", ui.overlay.find("at") == null);
-		var on = signal(true), saved = 0;
-		var dispose = Render.render(<view><Show when={on}><Hotkey keys="Mod+S" action={() -> saved++}/></Show></view>, ui.root);
-		ui.keyDown("s".code, Key.MOD_CONTROL);
-		on(false);
-		flush();
-		ui.keyDown("s".code, Key.MOD_CONTROL);
-		dispose();
-		check("hotkey: while mounted", saved == 1, '$saved');
 	}
 
 	static function neutral() {

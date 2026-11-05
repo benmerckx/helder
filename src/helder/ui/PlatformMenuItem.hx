@@ -7,5 +7,5 @@ package helder.ui;
 // role: a standard item's (helder.ui.menu.MenuRole: "about", "quit",
 // "copy", "window" for a menu bar's window menu...), which a platform puts
 // in its own place or gives its own behaviour (macOS).
-typedef PlatformMenuItem = {id:Int, label:String, ?shortcut:String, ?keys:Shortcut, ?disabled:Bool, ?checked:Bool, ?separator:Bool,
+typedef PlatformMenuItem = {id:Int, label:String, ?shortcut:String, ?keys:helder.ui.actions.Keystroke, ?disabled:Bool, ?checked:Bool, ?separator:Bool,
 	?items:Array<PlatformMenuItem>, ?role:String};

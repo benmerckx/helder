@@ -1,7 +1,6 @@
 package helder.ui.actions;
 
 import helder.ui.Key;
-import helder.ui.Shortcut;
 
 // One key with its modifiers, as a keymap writes it (Zed's GPUI): "ctrl-s",
 // "cmd-shift-p", "alt-enter", "f11", "escape", "ctrl--" (the minus key),
@@ -9,7 +8,7 @@ import helder.ui.Shortcut;
 // sequence is keystrokes separated by spaces: "secondary-k secondary-s" (a
 // chord: Keymap waits for the rest). Modifiers: ctrl (control), alt
 // (option), shift, cmd (meta, super, win, command), secondary. Keys: a
-// character ("s", "/", "=", "-", "+"), and Shortcut's names in lower case
+// character ("s", "/", "=", "-", "+"), and these names, in any case
 // (enter, escape, tab, space, backspace, delete, insert, home, end, pageup,
 // pagedown, up, down, left, right, menu, f1 to f24). Letters match with or
 // without Shift's capital (a key's code is its unshifted character).
@@ -101,11 +100,30 @@ class Keystroke {
 
 	// as the platform's menus show it: "Ctrl+Shift+S", "⇧⌘S" (Keymap.mac)
 	public function label():String {
-		var was = Shortcut.mac;
-		Shortcut.mac = Keymap.mac;
-		var s = new Shortcut(key, held(), false).label();
-		Shortcut.mac = was;
-		return s;
+		var mac = Keymap.mac, m = held();
+		var ctrl = m & Key.MOD_CONTROL != 0, meta = m & Key.MOD_META != 0, shift = m & Key.MOD_SHIFT != 0, alt = m & Key.MOD_ALT != 0;
+		var k = switch key {
+			case Key.ENTER: mac ? "↩" : "Enter";
+			case Key.ESCAPE: mac ? "⎋" : "Esc";
+			case Key.TAB: mac ? "⇥" : "Tab";
+			case Key.SPACE: "Space";
+			case Key.BACKSPACE: mac ? "⌫" : "Backspace";
+			case Key.DELETE: mac ? "⌦" : "Del";
+			case Key.INSERT: "Ins";
+			case Key.HOME: mac ? "↖" : "Home";
+			case Key.END: mac ? "↘" : "End";
+			case Key.PAGE_UP: mac ? "⇞" : "PgUp";
+			case Key.PAGE_DOWN: mac ? "⇟" : "PgDn";
+			case Key.UP: "↑";
+			case Key.DOWN: "↓";
+			case Key.LEFT: "←";
+			case Key.RIGHT: "→";
+			case Key.MENU: "Menu";
+			case k if (k >= Key.F1 && k < Key.F1 + 24): "F" + (k - Key.F1 + 1);
+			case k: String.fromCharCode(k).toUpperCase();
+		}
+		if (mac) return (ctrl ? "⌃" : "") + (alt ? "⌥" : "") + (shift ? "⇧" : "") + (meta ? "⌘" : "") + k;
+		return (ctrl ? "Ctrl+" : "") + (alt ? "Alt+" : "") + (shift ? "Shift+" : "") + (meta ? "Meta+" : "") + k;
 	}
 
 	// as a keymap writes it: "secondary-shift-s"

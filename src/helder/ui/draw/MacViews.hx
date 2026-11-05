@@ -289,7 +289,7 @@ class MacViews implements PlatformViews {
 			Msg.vBool(item, ObjC.sel("setEnabled:"), it.disabled != true);
 			// (NSEventModifierFlagShift 1 << 17, Control 1 << 18, Option 1 << 19, Command 1 << 20)
 			if (equivalent != "")
-				Msg.vInt(item, ObjC.sel("setKeyEquivalentModifierMask:"), (k.mod || k.mods & Key.MOD_META != 0 ? 1 << 20 : 0)
+				Msg.vInt(item, ObjC.sel("setKeyEquivalentModifierMask:"), (k.mods & Key.MOD_META != 0 ? 1 << 20 : 0)
 					| (k.mods & Key.MOD_SHIFT != 0 ? 1 << 17 : 0) | (k.mods & Key.MOD_CONTROL != 0 ? 1 << 18 : 0) | (k.mods & Key.MOD_ALT != 0 ? 1 << 19 : 0));
 			if (it.checked == true) Msg.vInt(item, ObjC.sel("setState:"), 1);
 			if (it.items != null) {

@@ -3,6 +3,8 @@
 // tags: ui, view, styles
 // demo: canvas 860x560
 import helder.ui.*;
+import helder.ui.actions.Actions;
+import helder.ui.actions.Keymap;
 import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.ui.view.UiFlow.*;
@@ -19,14 +21,16 @@ import helder.view.graph.Read;
 // Up and Down move the selection), the selected message read in the third
 // pane (which marks it read). The toolbar archives, deletes (a line at the
 // bottom offers to undo) or marks it unread again, and switches dark mode;
-// the same actions have shortcuts (Hotkey: E, Delete, Mod+Shift+U), from
-// anywhere but the search field. Its look is Mail.sheet: rules by slot and
+// the same actions have shortcuts (MailAction, bound in the keymap: E,
+// Delete, secondary-shift-u), from anywhere but the search field. Its look is Mail.sheet: rules by slot and
 // state, colours with a light and a dark value (the window's Ui.dark, at
 // first the system's). In a window:
 //
 //   haxe -lib helder -cp examples/mail -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
 	static function main() {
+		Actions.declare("mail", MailAction);
+		Keymap.global.bind("e", Archive).bind("delete", Delete).bind("secondary-shift-u", MarkUnread);
 		UiWindow.run(<Surface title="Mail" width={860} height={560} theme={sheet}>{new Mail().view()}</Surface>);
 	}
 
@@ -148,10 +152,14 @@ class Mail implements Markup {
 			text-wrap="nowrap" text-overflow="ellipsis">{text}</text>;
 
 	public function view():View
-		return <view slot="body" ref={n -> root = n} grow={1} font-family="DejaVu Sans" font-size={13}>
-			<Hotkey keys="E" action={() -> moveTo("Archive")}/>
-			<Hotkey keys="Delete" action={() -> moveTo("Trash")}/>
-			<Hotkey keys="Mod+Shift+U" action={markUnread}/>
+		return <view slot="body" ref={n -> root = n} grow={1} font-family="DejaVu Sans" font-size={13} actions={[Actions.handle(MailAction, a -> {
+			switch a {
+				case Archive: moveTo("Archive");
+				case Delete: moveTo("Trash");
+				case MarkUnread: markUnread();
+			}
+			true;
+		})]}>
 			<view slot="bar" direction="row" align-items="center" column-gap={8} padding="8 12">
 				<text font-weight={700} font-size={15} padding="0 8 0 0">Mail</text>
 				<Button tag="archive" label="Archive" onClick={() -> moveTo("Archive")}/>
@@ -296,4 +304,11 @@ class Message {
 		this.folder = signal(folder);
 		this.unread = signal(unread);
 	}
+}
+
+// the toolbar's actions, as the keymap binds them
+enum MailAction {
+	Archive;
+	Delete;
+	MarkUnread;
 }

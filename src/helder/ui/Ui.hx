@@ -1216,38 +1216,6 @@ class Ui {
 		pendingSerial++;
 	}
 
-	// the shortcuts, the latest first to match
-	final shortcuts:Array<{keys:Shortcut, action:Void->Void, scope:Null<Node>}> = [];
-
-	// runs action when keys (Shortcut.parse: "Mod+S") are pressed and the focused node's handlers
-	// neither stopped the key nor prevented its default: anywhere, or while
-	// the focus is inside scope (in this Ui). Under a modal popup only a
-	// scope inside it counts; keys without Control, Alt or Command that
-	// type (a character) not while the focus takes text. The latest added
-	// wins. Returns what removes it.
-	public function shortcut(keys:String, action:Void->Void, ?scope:Node):Void->Void {
-		var s = {keys: Shortcut.parse(keys), action: action, scope: scope};
-		shortcuts.push(s);
-		return () -> shortcuts.remove(s);
-	}
-
-	// the shortcut a key press is (run): true when one was
-	function runShortcut(key:Int, mods:Int):Bool {
-		var typing = focus != null && focus.takesText();
-		if (typing && mods & (Key.MOD_CONTROL | Key.MOD_ALT | Key.MOD_META) == 0 && key < 0xFF00) return false;
-		var top = modal();
-		var i = shortcuts.length;
-		while (--i >= 0) {
-			var s = shortcuts[i];
-			if (!s.keys.matches(key, mods)) continue;
-			if (s.scope != null && (s.scope.ui != this || focus == null || !contains(s.scope, focus))) continue;
-			if (top != null && (s.scope == null || !contains(top, s.scope))) continue;
-			s.action();
-			return true;
-		}
-		return false;
-	}
-
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function keyDown(key:Int, mods:Int) {
 		inputEpoch++;
@@ -1278,7 +1246,6 @@ class Ui {
 			}
 		}
 		if (!e.defaultPrevented && !e.stopped && runKeymap(key, mods)) return;
-		if (!e.defaultPrevented && !e.stopped && runShortcut(key, mods)) return;
 		if (!e.defaultPrevented && !e.stopped && keyScroll(key, mods)) return;
 		// (Control or Command and C: the selected text copied, when the focus took no such key)
 		if (!e.defaultPrevented && !e.stopped && (key == "c".code || key == "C".code) && mods & (Key.MOD_CONTROL | Key.MOD_META) != 0 && selectedText() != "") {

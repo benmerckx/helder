@@ -11,7 +11,6 @@ import helder.view.graph.Owner;
 // helder.ui.view.UiFlow.*), beside helder.view.Flow's:
 //
 //   <Popover open={open} placement="below">{...}</Popover>
-//   <Hotkey keys="Mod+S" action={save}/>
 //   <VirtualList each={rows} itemHeight={20} height={300}>{(row, i) -> ...}</VirtualList>
 class UiFlow {
 	// the children in a popup (helder.ui.Popup: a layer over the tree), open
@@ -24,12 +23,6 @@ class UiFlow {
 	public static function Popover(props:{open:Read<Bool>, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?slot:String,
 			?onDismiss:Void->Void, ?dismissOnOutside:Bool, ?onOpen:helder.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any}):Any
 		return new PopoverMount(props);
-
-	// a keyboard shortcut while it is mounted (Ui.shortcut): keys
-	// (helder.ui.Shortcut: "Mod+S", "Shift+F10") run action anywhere in the
-	// window, or, local, while the focus is inside the node the markup puts it in
-	public static function Hotkey(props:{keys:String, action:Void->Void, ?local:Bool}):Any
-		return new HotkeyMount(props);
 
 	// the window's menu bar (helder.ui.menu.MenuBar): the platform's, or
 	// drawn here (put it first in the window's content); ref: the bar
@@ -94,27 +87,6 @@ class PopoverMount implements Mountable<Node> {
 		return [marker];
 	}
 }
-
-// Hotkey: a hidden marker; the shortcut added to its Ui once mounted
-class HotkeyMount implements Mountable<Node> {
-	final props:{keys:String, action:Void->Void, ?local:Bool};
-
-	public function new(props)
-		this.props = props;
-
-	public function mount(parent:Node, before:Null<Node>):Array<Node> {
-		var marker = anchorAt(parent, before, "hotkey");
-		// (a mistake in keys thrown at once)
-		Shortcut.parse(props.keys);
-		var remove:Null<Void->Void> = null;
-		Graph.onSettled(() -> {
-			if (marker.ui != null) remove = marker.ui.shortcut(props.keys, () -> props.action(), props.local == true ? parent : null);
-		});
-		Graph.onCleanup(() -> if (remove != null) remove());
-		return [marker];
-	}
-}
-
 
 // a hidden node marking where content goes (before it)
 function anchorAt(parent:Node, before:Null<Node>, tag:String):Node {

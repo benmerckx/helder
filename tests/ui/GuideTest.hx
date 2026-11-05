@@ -387,13 +387,18 @@ class GuideTest implements Markup {
 
 	// "Keyboard shortcuts"
 	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
-		return <view row-gap={8}>
-			<Hotkey keys="Mod+S" action={props.onSave}/>
-			<Hotkey keys="Mod+Shift+K" action={() -> props.text("")}/>
+		return <view row-gap={8} key-context="Editor" actions={[helder.ui.actions.Actions.handle(EditorAction, a -> {
+			switch a {
+				case Save: props.onSave();
+				case Clear: props.text("");
+			}
+			true;
+		})]}>
 			<field:textarea value={props.text} onInput={e -> props.text(e.text)}/>
 		</view>;
 
 	static function shortcuts() {
+		helder.ui.actions.Keymap.global.bind("secondary-s", Save, "Editor").bind("secondary-shift-k", Clear, "Editor");
 		var ui = window(), text = signal("draft"), saved = 0;
 		Render.render(<Editor text={text} onSave={() -> saved++}/>, ui.root);
 		ui.update();
@@ -403,8 +408,8 @@ class GuideTest implements Markup {
 		find(ui.root);
 		ui.setFocus(area);
 		ui.keyDown("s".code, Key.MOD_CONTROL);
-		ui.keyDown("k".code, Key.MOD_META | Key.MOD_SHIFT);
-		check("shortcuts: two Hotkeys, the focus in the text", saved == 1 && text() == "", saved + " " + text());
+		ui.keyDown("k".code, Key.MOD_CONTROL | Key.MOD_SHIFT);
+		check("shortcuts: two bindings, the focus in the text", saved == 1 && text() == "", saved + " " + text());
 	}
 
 	// "Drag and drop": a list sorted by dragging
@@ -505,4 +510,9 @@ class Sparkline extends Node {
 			canvas.rect(x + i * w + 1, y + height - h, w - 2, h, 2, Color.parse("#3b82f6"), 0, 0);
 		}
 	}
+}
+
+enum EditorAction {
+	Save;
+	Clear;
 }

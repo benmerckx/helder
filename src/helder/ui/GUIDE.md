@@ -37,7 +37,7 @@ import helder.view.graph.Graph.*;     // signal, memo, effect, flush, context, u
 import helder.view.graph.Signal;
 import helder.view.graph.Read;
 import helder.ui.view.*;              // Motion, NodeRenderer
-import helder.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
+import helder.ui.view.UiFlow.*;       // Popover, VirtualList
 import helder.view.Flow.*;            // For, Repeat, Show, Switch, Match, Provider, Errored, Loading
 ```
 
@@ -399,19 +399,30 @@ static function Confirm(props:{onYes:Void->Void}):View {
 
 ## Keyboard shortcuts
 
-A `Hotkey` runs its action when its keys are pressed anywhere in the
-window, for as long as it is mounted; with `local`, only while the
-focus is inside the node it is in. `Mod` is Control, or Command on a
-Mac. A key the focused node takes first (a text field's Control+C, a
-letter typed into it) is not a shortcut, and under a modal dialog only
-the dialog's own shortcuts work. `Ui.shortcut(keys, action)` adds one
-from code.
+A shortcut is a key binding of the keymap (`helder.ui.actions`) to an
+action, a value of an enum of your own. `Keymap.global.bind(keys,
+action, ?context)` binds it, once; a node's `actions` handle it while
+the focus is inside that node, and `key-context` names the node for a
+binding's context. `secondary` is Control, or Command on a Mac. A key
+the focused node takes first (a text field's Control+C, a letter typed
+into it) is not a shortcut. The menus show the same bindings
+(`Keymap.label(action)`: "Ctrl+S", "⌘S"), and a user's JSON keymap can
+change them.
 
 ```haxe
+enum EditorAction { Save; Clear; }
+
+// (once, when the program starts)
+Keymap.global.bind("secondary-s", Save, "Editor").bind("secondary-shift-k", Clear, "Editor");
+
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
-	return <view row-gap={8}>
-		<Hotkey keys="Mod+S" action={props.onSave}/>
-		<Hotkey keys="Mod+Shift+K" action={() -> props.text("")}/>
+	return <view row-gap={8} key-context="Editor" actions={[Actions.handle(EditorAction, a -> {
+		switch a {
+			case Save: props.onSave();
+			case Clear: props.text("");
+		}
+		true;
+	})]}>
 		<field:textarea value={props.text} onInput={e -> props.text(e.text)}/>
 	</view>;
 ```
