@@ -273,7 +273,9 @@ class Run {
 		shell('lipo -archs $app/Contents/MacOS/viewer | grep -q "x86_64 arm64\\|arm64 x86_64"');
 		var report = FileSystem.fullPath("bin") + "/viewer-app.txt";
 		if (FileSystem.exists(report)) FileSystem.deleteFile(report);
-		shell('open -W -n -a "$app" "apps/viewer/tests/fixtures/folder/photo 2.jpg" --args --new --exit-after 5 --report "$report"');
+		// (absolute: open -a takes a relative path for an application's name)
+		var abs = FileSystem.fullPath(app), photo = FileSystem.fullPath("apps/viewer/tests/fixtures/folder/photo 2.jpg");
+		shell('open -W -n -a "$abs" "$photo" --args --new --exit-after 5 --report "$report"');
 		var said = FileSystem.exists(report) ? File.getContent(report) : "(no report)";
 		Sys.print(said);
 		if (said.indexOf("viewer: photo 2.jpg") < 0) throw new Failed('the bundle, opened with a file, did not show it: $said');
