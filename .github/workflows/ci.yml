@@ -236,7 +236,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/rt" && cd "$RUNNER_TEMP/rt" && npm pack "@hxmc/darwin-x64@$v" > /dev/null && tar xzf hxmc-darwin-x64-*.tgz
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
       - name: window, the viewer (its tests, its builds, a real window, its app bundle)
-        run: bun run test -k window viewer viewer-window viewer-app
+        run: bun run test -k window viewer viewer-window viewer-app system-images
 
   desktop-windows:
     runs-on: windows-2025
@@ -255,8 +255,8 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: window, the viewer (its tests, its builds, a real window)
-        run: bun run test -k window viewer viewer-window
+      - name: window, the viewer (its tests, its builds, a real window), the system's decoders
+        run: bun run test -k window viewer viewer-window system-images
 
   publish-npm:
     needs: headless

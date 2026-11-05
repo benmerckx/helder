@@ -41,7 +41,37 @@ class Decode {
 	public static function file(req:{path:String, side:Int}):Decoded {
 		var bytes = try sys.io.File.getBytes(req.path) catch (e:Dynamic) null;
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
+		// (none of helder.image's: the system's decoders, TIFF, HEIC, AVIF, RAW, where there are some)
+		if (formatOf(bytes) == "" && helder.os.SystemImages.supports(req.path)) return system(req.path, req.side, bytes.length);
 		return decode(bytes, req.side);
+	}
+
+	// (helder.os's SystemImages: WIC, ImageIO; ImageLimits before any pixel; upright, scaled where the system scales)
+	static function system(path:String, side:Int, size:Int):Decoded {
+		var ext = path.substr(path.lastIndexOf(".") + 1).toUpperCase();
+		var format = ext == "TIF" ? "TIFF" : ext == "HEIF" ? "HEIC" : ext;
+		return try {
+			var d = helder.os.SystemImages.decode(path, side);
+			var rgba = d.rgba, pw = d.pixelsWidth, ph = d.pixelsHeight;
+			if ((pw : Float) * ph > MAX_PIXELS) {
+				var r = Resize.toFit(rgba, pw, ph, Std.int(Math.sqrt(MAX_PIXELS * pw / ph)), Std.int(Math.sqrt(MAX_PIXELS * ph / pw)));
+				rgba = r.rgba;
+				pw = r.width;
+				ph = r.height;
+			}
+			{
+				width: d.width,
+				height: d.height,
+				pixelsWidth: pw,
+				pixelsHeight: ph,
+				frames: [{pixels: IoBuffer.ofBytes(rgba), delay: 0.0}],
+				repetitions: 0,
+				format: format,
+				fileSize: size,
+				error: null,
+				errorKind: ""
+			};
+		} catch (e:ImageError) failedBy(e, size, format);
 	}
 
 	// a file decoded on the pool, from a coroutine: a still PNG as a GC-free
@@ -72,7 +102,7 @@ class Decode {
 
 	public static function decode(bytes:Bytes, side = 0):Decoded {
 		var format = formatOf(bytes);
-		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP)", bytes.length, "");
+		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP" + (helder.os.SystemImages.available() ? "; the system's: TIFF, HEIC, AVIF, RAW" : "") + ")", bytes.length, "");
 		try {
 			var frames:Array<{rgba:Bytes, delay:Float}>, w:Int, h:Int, reps = 0;
 			// (the image's own size, when it was decoded smaller)

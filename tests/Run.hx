@@ -46,6 +46,7 @@ class Run {
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
 		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
+		{name: "system-images", about: "helder.os's system decoders (tests/os/SystemImagesTest.hx: Windows' WIC, macOS's ImageIO): a TIFF of a known gradient, plain and LZW, its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a side; ImageLimits before any pixel; a file that is no image (GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemImages},
 		{name: "dbus", about: "helder.os's D-Bus client against a real dbus-daemon (Linux: dbus-run-session): Hello, ListNames, a service's half, then xdg-desktop-portal's FileChooser OpenFile against a stand-in portal (its arguments, its Response's URI as the path picked; tests/os/DBusTest.hx)", run: dbus},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
@@ -276,6 +277,21 @@ class Run {
 		var said = FileSystem.exists(report) ? File.getContent(report) : "(no report)";
 		Sys.print(said);
 		if (said.indexOf("viewer: photo 2.jpg") < 0) throw new Failed('the bundle, opened with a file, did not show it: $said');
+	}
+
+	// (Windows and macOS; a Windows target from Linux under Wine; macOS: a HEIC made by sips)
+	static function systemImages() {
+		if (GFX_TARGET.startsWith("linux-")) {
+			Sys.println("system-images: no system decoders on Linux (GFX_TARGET=windows-x86_64: WIC under Wine)");
+			return;
+		}
+		native('bin/os/$GFX_TARGET/SystemImagesTest', cps(["src", "tests/os"]).concat(["-main", "SystemImagesTest"]), GFX_TARGET);
+		var exe = exePath('bin/os/$GFX_TARGET/SystemImagesTest', GFX_TARGET), args = ["tests/os/images"];
+		if (GFX_TARGET.startsWith("macos-")) {
+			run("sips", ["-s", "format", "heic", "tests/os/images/gradient-lzw.tif", "--out", "bin/os/gradient.heic"]);
+			args.push("bin/os/gradient.heic");
+		}
+		if (GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-")) run("wine", [exe].concat(args)) else run(exe, args);
 	}
 
 	// (Linux: a private session bus, dbus-run-session)

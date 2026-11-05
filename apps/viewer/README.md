@@ -3,7 +3,9 @@
 helder's image viewer: a native app for Windows, macOS and Linux, built
 on helder alone (helder.os's window, helder.gfx, helder.ui, helder.image's
 decoders, helder.jobs). PNG (and APNG), JPEG, GIF and WebP, animations
-played.
+played; on Windows and macOS also what the system decodes (helder.os's
+SystemImages: WIC, ImageIO): TIFF, HEIC, AVIF, RAW where the system has
+their codecs.
 
 ```sh
 bun run helder build apps/viewer                 # bin/<target>/viewer (--target windows-x86_64, macos-arm64)
@@ -112,5 +114,6 @@ jobs).
 
 ## Not yet
 
-Next: the platforms' own codecs (WIC,
-ImageIO, HEIC and AVIF where the system has them).
+Next: Linux's system decoders (libheif, libraw where installed), WIC's
+EXIF orientation, the text of file names in any script (helder.text's
+platform back ends).

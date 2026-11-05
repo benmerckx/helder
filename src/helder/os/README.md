@@ -117,6 +117,22 @@ helder.webmanifest's `file_handlers`). Tests: the window lane
 dbus lane (tests/os/DBusTest.hx: a real dbus-daemon, the portal's
 OpenFile against a stand-in portal).
 
+### The system's image decoders
+
+`SystemImages.decode(path, side)`: what helder.image does not read,
+through the system: Windows' WIC (COM: the factory's decoder from the
+file, its first frame converted to 32bppRGBA), macOS's ImageIO (an image
+source, its size from its properties, then a thumbnail of at most `side`
+with its EXIF orientation applied, drawn into an sRGB bitmap,
+unpremultiplied). TIFF, HEIC and HEIF, AVIF and the cameras' RAW files
+where the system has their codecs (Windows: its HEIF, AV1 and Raw Image
+extensions). ImageLimits is checked on the size the system reports,
+before any pixel; errors are ImageErrors (Unsupported: no codec for it).
+None on Linux yet (`available()`). Tests: `bun run test system-images`
+(tests/os/SystemImagesTest.hx: a TIFF of a known gradient, plain and LZW,
+its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a
+side; the limits first; under Wine with GFX_TARGET=windows-x86_64).
+
 ### A phone's screen and the display's frames
 
 ```haxe

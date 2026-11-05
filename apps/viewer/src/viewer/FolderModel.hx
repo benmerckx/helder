@@ -11,7 +11,8 @@ using StringTools;
 // removed, the image shown kept by name (or the one now at its place), and
 // the files whose size or time changed are named (to decode again).
 class FolderModel {
-	public static final EXTENSIONS = ["png", "apng", "jpg", "jpeg", "jfif", "gif", "webp"];
+	// (helder.image's, and the system's where it has decoders: helder.os.SystemImages)
+	public static final EXTENSIONS = ["png", "apng", "jpg", "jpeg", "jfif", "gif", "webp"].concat(helder.os.SystemImages.available() ? helder.os.SystemImages.EXTENSIONS : []);
 
 	public var dir(default, null) = "";
 	public var files(default, null):Array<String> = [];
