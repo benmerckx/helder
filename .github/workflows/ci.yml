@@ -233,7 +233,9 @@ jobs:
       - name: macOS x86-64's runtime objects (the universal bundle's second slice)
         run: |
           v=$(node -p "require('./node_modules/@hxmc/cli/package.json').version")
-          mkdir -p "$RUNNER_TEMP/rt" && cd "$RUNNER_TEMP/rt" && npm pack "@hxmc/darwin-x64@$v" > /dev/null && tar xzf hxmc-darwin-x64-*.tgz
+          mkdir -p "$RUNNER_TEMP/rt" && (cd "$RUNNER_TEMP/rt" && npm pack "@hxmc/darwin-x64@$v" > /dev/null && tar xzf hxmc-darwin-x64-*.tgz)
+          # (HXMC_RT_DIR is where helder's compiler looks then: arm64's objects there too)
+          cp -R node_modules/@hxmc/darwin-arm64/macos-arm64 "$RUNNER_TEMP/rt/package/"
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
       - name: window, the viewer (its tests, its builds, a real window, its app bundle)
         run: bun run test -k window viewer viewer-window viewer-app system-images
