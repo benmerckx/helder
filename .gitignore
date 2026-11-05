@@ -4,3 +4,4 @@
 *.tgz
 /.claude/worktrees/
 /examples/*/models/
+/apps/*/bin/

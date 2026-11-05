@@ -1,0 +1,37 @@
+// helder.test snapshots: `helder test -u` rewrites them
+
+--- story Viewer/100%: Viewer/100% (4 lines)
+Node#root 0,0 390x844
+  Node#viewer 0,0 390x844
+    ImageView#photo 0,0 390x844
+      Node#image-rect -426,-102 1242x1048
+
+--- story Viewer/empty: Viewer/empty (6 lines)
+Node#root 0,0 390x844
+  Node#viewer 0,0 390x844
+    ImageView#photo 0,0 390x844
+    Node#message 0,0 390x844
+      TextNode#title 140,399 110x22 "No image open"
+      TextNode#detail 81,429 228x16 "Drop an image here, or press Ctrl+O"
+
+--- story Viewer/error: Viewer/error (6 lines)
+Node#root 0,0 390x844
+  Node#viewer 0,0 390x844
+    ImageView#photo 0,0 390x844
+    Node#message 0,0 390x844
+      TextNode#title 55,389 280x42 "Damaged or cut short: a truncated segment"
+      TextNode#detail 114,439 162x16 "broken.jpg · JPEG · 300 B"
+
+--- story Viewer/fit: Viewer/fit (4 lines)
+Node#root 0,0 390x844
+  Node#viewer 0,0 390x844
+    ImageView#photo 0,0 390x844
+      Node#image-rect 0,257 390x330
+
+--- story Viewer/status line: Viewer/status line (6 lines)
+Node#root 0,0 390x844
+  Node#viewer 0,0 390x844
+    ImageView#photo 0,0 390x844
+      Node#image-rect 0,257 390x330
+    Node#status 0,816 390x28
+      TextNode#text 12,822 254x16 "31% · 1242×1048 · JPEG · 197 KB · 5 / 6"

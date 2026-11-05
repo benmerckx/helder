@@ -147,7 +147,8 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	public function hold() {
 		held++;
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (wakeRead < 0 && !Io.Handle.WINDOWS) {
+		// (Mem.os(), known when compiling: no pipe linked on Windows)
+		if (wakeRead < 0 && hxmc.unsafe.Mem.os() != 2) {
 			var fds = Wake.pipe();
 			if (fds >= 0) {
 				wakeRead = fds & 0xFFFF;
@@ -411,7 +412,18 @@ private class Call implements IDispatchObject {
 }
 
 #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-// (the wake pipe: non-blocking, not inherited by children)
+// (the wake pipe: non-blocking, not inherited by children; none on Windows,
+// whose loop polls: no POSIX call linked there, where the C library has none)
+#if (hxmc.target == "windows-x86_64" || hxmc.target == "windows-arm64")
+private class Wake {
+	public static function pipe():Int
+		return -1;
+
+	public static function write(fd:Int) {}
+
+	public static function drain(fd:Int) {}
+}
+#else
 private class Wake {
 	// both ends, read | write << 16; -1 on a failure
 	@:hxmc.unsafe public static function pipe():Int {
@@ -440,6 +452,7 @@ private class Wake {
 		while (hxmc.unsafe.Posix.read(fd, b, 64) > 0) {}
 	}
 }
+#end
 #end
 
 // (helder.view's graph on this loop: a write flushes when the task running

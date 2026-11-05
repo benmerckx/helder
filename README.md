@@ -86,7 +86,8 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop, the web, Android and iOS |
 | `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, resources.arsc (icons, the splash theme), DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
 
-`examples/` has a program per folder; `tests/Run.hx` has the checks, and
+`examples/` has a program per folder, `apps/` whole apps (`apps/viewer`:
+an image viewer, apps/viewer/README.md); `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
 checkout (bin/cli/helder, rebuilt when its sources change):
 
@@ -378,6 +379,27 @@ collection only when it allocates or blocks.
     removed: 1.4x faster, a quarter of the garbage, 83 KB smaller). Left:
     JPEG, GIF and WebP still decode on the calling thread, and scene's
     `Images` hook is synchronous (textures made as a model loads).
+  - **decoders against hostile files** (done): `ImageLimits` (pixels,
+    sides, a decode's memory; settable) checked by every decoder after
+    its header, sizes from headers that cannot wrap, `ImageError`
+    (unsupported, corrupt, too large) the one thing a decoder throws;
+    `Exif`'s orientation for JPEG and WebP; hostile headers per decoder
+    in the test lane, a time-boxed fuzzer (image-fuzz, CI's headless
+    job), `hxmc.unsafe`'s uses against a reviewed list (src/helder/image/README.md).
+- **An image viewer, `apps/viewer`**: an app of helder alone on Windows,
+  macOS and Linux (apps/viewer/README.md). Phase 1 done: a file or folder
+  from the command line, a drop (helder.os's `Drop`: WM_DROPFILES,
+  macOS's dragging destination, XDND) or an in-app picker; fitted
+  (never past 100%), sRGB-correct trilinear mipmaps, animations played,
+  EXIF applied; folder navigation in natural order, watched, the
+  neighbours decoded ahead on helder.jobs; zoom about the cursor
+  snapping to 100%, pan with a glide; fullscreen (helder.os's
+  `Window.fullscreen`), the window's place kept (`position`, `moveTo`);
+  errors in place. Next: 2. speed (GC-free decodes for JPEG, GIF and
+  WebP, uploads without a copy), 3. large images (tiles, decodes at the
+  size shown), 4. native dialogs and "Open with" (file associations, a
+  second launch handing over its file), 5. the platforms' codecs (WIC,
+  ImageIO; HEIC and AVIF where the system has them).
   - **next: text's shaping and glyph rasterizing**, the spiky part of
     text (a cold atlas about 5 ms; a relayout of 10k nodes is 0.008 ms): a
     new paragraph shaped and its glyphs drawn into the atlas as GC-free

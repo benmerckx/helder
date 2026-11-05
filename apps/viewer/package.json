@@ -1,0 +1,8 @@
+{
+  "name": "viewer",
+  "private": true,
+  "description": "helder's image viewer: a file or a folder, its images in natural order",
+  "helder": {
+    "main": "Main"
+  }
+}

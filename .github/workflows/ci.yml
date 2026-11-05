@@ -77,8 +77,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji
-      - name: gfx, 3d, audio, touch, ui, window (Mesa llvmpipe, Xvfb)
-        run: bun run test -k gfx 3d audio touch ui-draw window
+      - name: gfx, 3d, audio, touch, ui, window, the viewer's (Mesa llvmpipe, Xvfb)
+        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: images, path: "bin/gfx/**/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png", retention-days: 7, if-no-files-found: ignore}
@@ -230,8 +230,8 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: window
-        run: bun run test -k window
+      - name: window, the viewer (its tests, its builds, a real window)
+        run: bun run test -k window viewer viewer-window
 
   desktop-windows:
     runs-on: windows-2025
@@ -250,8 +250,8 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: window
-        run: bun run test -k window
+      - name: window, the viewer (its tests, its builds, a real window)
+        run: bun run test -k window viewer viewer-window
 
   publish-npm:
     needs: headless

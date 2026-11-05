@@ -27,14 +27,17 @@ class WindowTest {
 		var window = new Window("WindowTest", 200, 150);
 		var dropped:Null<{files:Array<String>, x:Int, y:Int}> = null;
 		var start = haxe.Timer.stamp(), step = 0, frames = 0;
-		var want = Mem.os() == 2 ? ["C:\\photos\\a b.png", "C:\\photos\\é.jpg"] : ["/tmp/photos/a b.png", "/tmp/photos/é.jpg"];
+		// (macOS gives a path's characters decomposed, as its file systems
+		// keep them: é as e and its accent; ASCII there)
+		var want = Mem.os() == 2 ? ["C:\\photos\\a b.png", "C:\\photos\\é.jpg"] : Mem.os() == 1 ? ["/tmp/photos/a b.png", "/tmp/photos/c.jpg"] : ["/tmp/photos/a b.png", "/tmp/photos/é.jpg"];
 		var source:Null<DropSource> = null;
 		App.run(() -> {
 			frames++;
 			var t = haxe.Timer.stamp() - start;
 			if (step == 0 && frames > 3) {
 				step = 1;
-				window.moveTo(40, 50);
+				// (clear of macOS's menu bar, which a window's frame stays under)
+				window.moveTo(120, 160);
 				source = new DropSource(window, want, 20, 30);
 			}
 			if (step == 1) source.pump();
@@ -45,10 +48,11 @@ class WindowTest {
 				if (dropped != null && Mem.os() != 1) check("a drop: where", dropped.x == 20 && dropped.y == 30, '${dropped.x}, ${dropped.y}');
 				source.finish(check);
 				var p = window.position();
-				check("moveTo, position", p != null && p.x == 40 && p.y == 50, p == null ? "null" : '${p.x}, ${p.y}');
+				check("moveTo, position", p != null && p.x == 120 && p.y == 160, p == null ? "null" : '${p.x}, ${p.y}');
 				window.fullscreen = true;
 			}
 			if (step == 2 && t > 6.5) {
+				step = 3;
 				// (asked: a window manager, Windows and macOS's spaces may take a while; X11 without one never)
 				Sys.println('WindowTest: fullscreen ${window.fullscreen}, ${window.width}x${window.height}');
 				window.fullscreen = false;

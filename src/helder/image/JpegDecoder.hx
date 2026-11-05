@@ -39,6 +39,7 @@ class JpegDecoder {
 	var jfif = false;
 	var orientation = 1;
 	var frameRead = false;
+	var scans = 0;
 	// the bit reader
 	var bitBuf = 0;
 	var bitCount = 0;
@@ -100,6 +101,8 @@ class JpegDecoder {
 			pos = end;
 		}
 		if (!frameRead) throw "JpegDecoder: no frame";
+		// (a file cut before its first scan: nothing of the image, not a grey one)
+		if (scans == 0) throw "JpegDecoder: no image data";
 		return output();
 	}
 
@@ -187,6 +190,7 @@ class JpegDecoder {
 		if (!frameRead) throw "JpegDecoder: a scan before the frame";
 		var n = data.get(p);
 		if (n < 1 || n > 4 || p + 4 + 2 * n > end) throw "JpegDecoder: a scan header cut short";
+		scans++;
 		var scan:Array<Component> = [];
 		for (i in 0...n) {
 			var id = data.get(p + 1 + 2 * i), t = data.get(p + 2 + 2 * i);
