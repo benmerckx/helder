@@ -576,8 +576,11 @@ radios, menu items, a tree's items of a level), a table's rows and
 columns and each cell's row and column; a text input's node has its
 caret, its selection and whether it is read only. In a browser the window
 mirrors it as ARIA elements inside its canvas (the canvas's fallback
-content: in the page's accessibility tree, not drawn): load
-`src/helder/ui/imports.mjs` with the others. On macOS the window gives it to
+content: in the page's accessibility tree, not drawn; a set's place,
+a table's rows and columns and a cell's, read-only as ARIA's attributes):
+load `src/helder/ui/imports.mjs` with the others (a page without helder.ui
+loads none of it; the ui-web lane reads the fixture's mirror through
+Chromium's own tree, `tests/ui/web-access.mjs`). On macOS the window gives it to
 NSAccessibility (`MacAccess`: an element per node, its role, label, value
 and frame; a text input's characters, selection and lines; a table's
 rows, columns and headers, a row's and an item's index; press,

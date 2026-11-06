@@ -75,7 +75,7 @@ class Run {
 		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, a tap and a drag without mouse events or scrolls, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
-		{name: "ui-web", about: "the todo example and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
+		{name: "ui-web", about: "the todo example, text editors and the accessibility fixture's ARIA mirror (web-access.mjs) as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
@@ -1001,6 +1001,9 @@ class Run {
 		run(NODE, ["tests/ui/web.mjs", '$b/WebTodo.wasm', b]);
 		wasm('$b/WebField.wasm', uiCp().concat(["-main", "WebField"]));
 		run(NODE, ["tests/ui/web-field.mjs", '$b/WebField.wasm']);
+		// (the ARIA mirror of the fixture: Playwright's snapshot, Chromium's tree, a screen reader's clicks)
+		wasm('$b/WebAccessPage.wasm', uiCp().concat(["-main", "WebAccessPage"]));
+		run(NODE, ["tests/ui/web-access.mjs", '$b/WebAccessPage.wasm']);
 	}
 
 	// (each program run twice, the second from the first's snapshot)

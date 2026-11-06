@@ -7,7 +7,8 @@
 // as elements inside its canvas: a canvas's children are its fallback
 // content, not drawn but in the page's accessibility tree, focusable, and
 // their events reach the canvas's listeners by bubbling. Each node is a
-// div with its ARIA role, name and states, its children in order; the
+// div with its ARIA role, name and states (a set's place, a table's rows
+// and columns and a cell's, read-only), its children in order; the
 // node with the keyboard focus gets the page's focus (keys still reach the
 // program). An activation (a screen reader's click) or a focus moved by
 // assistive technology comes back as an action (AccessAction). While a
@@ -109,6 +110,14 @@ export default function (host) {
 		set('aria-valuemin', n.valueMin);
 		set('aria-valuemax', n.valueMax);
 		set('aria-valuetext', n.valueText);
+		set('aria-readonly', n.readOnly ? 'true' : null);
+		// (a set's place, a table's size and a cell's place: ARIA's are from 1)
+		set('aria-posinset', n.posInSet);
+		set('aria-setsize', n.setSize);
+		set('aria-rowcount', n.rowCount);
+		set('aria-colcount', n.colCount);
+		set('aria-rowindex', n.rowIndex === undefined ? null : n.rowIndex + 1);
+		set('aria-colindex', n.colIndex === undefined ? null : n.colIndex + 1);
 		set('tabindex', n.focusable ? '-1' : null);
 		e.hxmcValue = n.value;
 		e.hxmcChildren = n.children;
@@ -161,7 +170,7 @@ export default function (host) {
 					const copy = (k) => (f.hasAttribute(k) ? input.setAttribute(k, f.getAttribute(k)) : input.removeAttribute(k));
 					if (role === 'textbox') input.removeAttribute('role');
 					else input.setAttribute('role', role);
-					for (const k of ['aria-expanded', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-valuetext']) copy(k);
+					for (const k of ['aria-expanded', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-valuetext', 'aria-readonly']) copy(k);
 					if (f.getAttribute('aria-multiline')) input.setAttribute('aria-multiline', 'true');
 					else input.removeAttribute('aria-multiline');
 				} else if (f && document.activeElement !== f) f.focus({ preventScroll: true });
