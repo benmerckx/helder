@@ -32,7 +32,8 @@ class Motion {
 			to = t;
 			// (the start is the next tick's time: the clock may have been idle)
 			start = -1;
-			if (duration <= 0) {
+			// (reduced motion: travel jumps, Clock.reducedMotion)
+			if (duration <= 0 || Clock.reducedMotion) {
 				out(to);
 				return;
 			}
@@ -61,6 +62,12 @@ class Motion {
 		renderEffect(target, (t:Float) -> {
 			if (t == to && !running) return;
 			to = t;
+			if (Clock.reducedMotion) {
+				x = to;
+				v = 0;
+				out(to);
+				return;
+			}
 			if (running) return;
 			running = true;
 			last = -1;

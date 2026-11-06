@@ -14,6 +14,7 @@ npx helder dev                    # this machine, with live reload
 npx helder dev --target web       # a page, with live reload
 npx helder build                  # bin/<target>/<name>, its compile time and size
 npx helder inspect --tree         # a running dev build's ui tree (--log, --frames)
+npx helder run --headless --script demo.json --snap out.png --tree tree.json   # no window: scripted, its frame and nodes
 npx helder devices                # where it can run: this machine, a browser, phones
 npx helder build --target android # an APK, signed with your debug key (no SDK)
 npx helder dev --target android   # on the device or emulator adb reaches: installed once, live reloads
@@ -133,6 +134,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `jobs` | background work awaited from a coroutine: GC-free jobs and GC jobs on a pool's threads or a browser's workers, channels, the sendable check |
 | `dev` | the dev host and state kept across a reload |
 | `devtools` | the devtools protocol (JSON-RPC on the dev connection) and its agent in dev builds: log, frame stats, the ui tree |
+| `headless` | any app without a display: offscreen on the real renderer, a virtual clock, a script's input; its frames, node tree, motion and video (`helder run --headless`) |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
 | `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop, the web, Android and iOS |
 | `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, resources.arsc (icons, the splash theme), DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
@@ -168,6 +170,44 @@ textures, frame p50 and p99) and what the Play button fetched, gzipped;
 the real devices' rows are slots in `page.json`. The performance demos
 have one each: `instancing`, `bunnymark`, `particles`, `physics-stress`,
 `planet`.
+
+## Agents
+
+An agent (or a test) checks its own work on a helder app without a
+display: `helder run --headless` builds the app (Haxe or TypeScript, UI or
+scene) for a headless run and runs it offscreen with the real renderer
+(Linux: Mesa's llvmpipe), on a virtual clock, driven by a script, writing
+what it was asked for (src/helder/cli/README.md, "Headless runs"):
+
+```sh
+# what the app looks like now, and what is in it
+bun run helder run --headless examples/todo --snap bin/todo.png --tree bin/todo.json
+# driven: typed into, a button and a checkbox pressed, a filter; a frame at a mark
+bun run helder run --headless examples/todo --script tests/headless/todo.json \
+  --snap bin/toggled.png --at mark:toggled --tree bin/end.json
+# a scene at a time; a screencast with the keys and presses drawn over it
+bun run helder run --headless examples/glow --snap bin/glow.png --at 0.5 --size 320x240
+bun run helder run --headless examples/todo --script tests/headless/todo.json --video bin/todo.mp4 --keys --pointer
+```
+
+1. **Look**: `--snap` writes a PNG (at `--at`, a time or a script's mark),
+   which an agent reads as an image; `--size`, `--scale` and `--theme`
+   show it as another screen or appearance would.
+2. **Drive it by meaning, not pixels**: a script's steps aim at a node by
+   its `tag`, a path of tags (`list/checkbox`), or its `role` and `label`
+   (`{"type": "tap", "role": "checkbox", "label": "Buy milk"}`), so they
+   survive a layout change; a step whose node is not there fails, naming
+   the tags that are.
+3. **Assert on the tree**: `--tree` is every node shown, as JSON: its tag
+   and path, role, label, text and value, checked, its rect as drawn,
+   opacity, fill and text colour, hover, press and focus, and whether it
+   is moving. Read it instead of guessing from pixels; `--trace` has the
+   tagged nodes' rects and opacity each frame, for motion.
+4. **Keep it**: the same script gives the same bytes (a virtual clock,
+   Math.random seeded by `--seed`, helder's own text engine, a fixed
+   locale), so a frame can be a golden and a tree an assertion in a
+   check: the `headless-run` lane (tests/headless) does this for the todo
+   examples in both languages and a scene.
 
 ## Roadmap
 
@@ -1081,7 +1121,10 @@ fix.
     UITextInput, text attributes.
 - **After Rune** (anomalyco/rune, a Rust GPU UI framework built to be
   written and checked by agents):
-  - **Headless agent tooling for every app**: `helder run --headless` with
+  - **Headless agent tooling for every app** (*landed*: helder.headless,
+    src/helder/cli/README.md's "Headless runs", the Agents section above;
+    natively, not yet in wasm; resizes on GL only; no multi-window
+    composite): `helder run --headless` with
     the real renderer and a virtual clock: `--snap out.png --at 0.4`
     (`--size`, `--scale`, `--theme`), `--tree tree.json` (each node's tag,
     role, label, text, presented rect, opacity, colours, hover and press),

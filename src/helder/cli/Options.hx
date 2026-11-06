@@ -381,7 +381,8 @@ class Options {
 			for (o in opts) out.push(line(o, width(opts)));
 			out = out.concat([
 				"",
-				"the commands' own: dev --port, --host; test -t, -w, -u, --timeout (its --target",
+				"the commands' own: dev --port, --host; run --headless and its (helder run --help);",
+				"test -t, -w, -u, --timeout (its --target",
 				"takes host, wasm, all: both, or interp: the files with @:test.interp, or several:",
 				"host,interp); inspect --tree, --state, --log, --frames, --port",
 			]);

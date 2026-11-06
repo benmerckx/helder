@@ -21,6 +21,7 @@ helder build examples/counter --target web    # bin/web/Counter.wasm, .html and 
 helder run tests/cli/tally -- 3               # built, then run with arguments
 helder test                                   # the *.test.hx files (src/helder/test)
 helder inspect --tree                         # a running helder dev's ui tree (--log, --frames, --state)
+helder run --headless --script s.json --snap a.png --tree t.json   # no display: scripted, a frame and the node tree
 helder devices                                # this machine, a browser, Android devices, iOS simulators
 helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key (or the release key)
 helder build --target android --bundle        # bin/android/<name>.aab for Google Play, signed with the release key
@@ -56,7 +57,8 @@ form; `helder test`'s takes a list (`host,wasm`; `all`: host and wasm;
 bun's `-t`/`--test-name-pattern`. The first word is a command or an entry
 (`helder examples/todo/Todo.hx` is dev's); `helder` alone prints the help.
 Each command has its own options beside the common ones: dev `--port`,
-`--host`; test `-t`, `-w`, `-u`, `--timeout`; inspect `--tree`, `--state`,
+`--host`; run `--headless` and its own (`--snap`, `--tree`, `--script`,
+..., below: "Headless runs"); test `-t`, `-w`, `-u`, `--timeout`; inspect `--tree`, `--state`,
 `--log`, `--frames`, `--port`. One parser (`Options.hx`) reads them all,
 and writes `helder help` and `helder <command> --help` from the same
 table; a mistake is one line, `helder <command>: <what>` (an unknown
@@ -558,6 +560,126 @@ there does not end the session: it keeps serving, and the next build
 installs and starts the app again (`closed the app on <device> ended; the
 next change starts it again` when simctl's launch ends; on Android the
 sign is that no app is connected when a build is done).
+
+## Headless runs
+
+`helder run --headless [entry] [options]` (`HeadlessCommand.hx`,
+src/helder/headless) runs any app, Haxe or TypeScript, a UI (`UiWindow`)
+or a scene (helder.gfx, helder.scene), without a display, so an agent or
+a test can see and drive it. It is run's flag rather than a command of
+its own because it is a run of the same program (the same entry, built
+the same way, its arguments after `--`); only where it draws and what
+drives it differ, as Rune's tools are its programs' flags.
+
+```sh
+helder run --headless examples/todo --snap out.png [--at 0.4|end|mark:end+0.5] [--size 480x560] [--scale 2] [--theme dark] [--reduced-motion]
+helder run --headless examples/todo --tree tree.json [--at T]
+helder run --headless examples/todo --script demo.json --snap a.png --at mark:added --snap b.png --at end
+helder run --headless examples/todo --script demo.json --frames 30 --every 3 --start 0.2 -o frames/
+helder run --headless examples/todo --script demo.json --video demo.mp4 [--fps 60] [--duration 3|auto] --keys [--keys-at top-right] --pointer
+helder run --headless examples/todo --script demo.json --trace run.jsonl
+helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
+```
+
+- **The build**: `-D helder.headless` into `bin/headless/<name>` (a
+  release build's otherwise; a build without the define has none of it:
+  each hook is behind it, or behind a constant that folds). Its options go
+  to it as JSON in `HELDER_HEADLESS`, which is what `helder.headless.Headless`
+  reads (the built program runs headless again with the same variable).
+  With `--headless`, `-o/--out` is the frames' directory.
+- **The windows**: helder.os's `Window` is a `HeadlessWindow`: a headless
+  `Surface` of the window's size in points (`--size`, else the program's)
+  times `--scale` (1), which the real renderer draws into offscreen
+  (helder.gfx: Linux's GL on an EGL pbuffer of Mesa's surfaceless
+  platform, Metal's and D3D11's offscreen targets); `Device.endFrame` reads
+  the first window's frame back for the outputs. `App.prefersDark` is
+  `--theme`'s (light by default); `--reduced-motion` sets helder.ui's
+  `Clock.reducedMotion` (Style's transitions of transform and shadow, and
+  Motion's transition and spring, jump; fades and colours still ease).
+  `FileDialog.open` takes the script's next `file-dialog` answer.
+- **The clock**: `App.run` never waits: each turn is frame n at n / fps
+  seconds (`--fps`, 60) of a virtual clock (`helder.headless.Time`), which
+  `App.frame`, helder.ui's `Clock` and events (`Ui.now`), Pointers'
+  times and helder.async's timers read; the script's events due by a
+  frame are handled before it, each at its own time. The run ends at the
+  last time an output needs (`--at`, the frames', the video's), or at the
+  script's end without one; a program that closes its window before then
+  fails the run, naming what was not written.
+- **Times** (`--at`, `--start`): seconds; `end` (the default: the
+  script's `end` mark, else a second after its last step ends, else 1 s);
+  `mark:<name>`, `mark:<name>+0.5`, `mark:<name>-0.2`. Each `--at` is the
+  time of the `--snap`s and `--tree`s before it that have none (one before
+  them all: theirs).
+- **Scripts** (`--script`, `Script.hx`): a JSON list, or `{"events":
+  [...]}`, of steps `{"t": seconds, "type": ...}`: `move`, `down`, `up`
+  (`button`: left, middle, right), `tap` (`hold`, 0.05 s), `double-click`
+  (`hold`, `gap`: 0.15 s), `drag` (`dx`, `dy` points over `dur`, 0.3 s),
+  `wheel` (`dx`, `dy` points), `key` (`name`: Enter, Escape, Tab,
+  Backspace, Delete, Space, ArrowLeft..., Home, End, PageUp, F1...,
+  or one character; with `shift`, `ctrl`, `alt`, `cmd`, `secondary`:
+  Command on a Mac, Control elsewhere; a character typed when no Control,
+  Alt or Command is held), `key-up`, `type` (`text`, a key a character,
+  `every` seconds apart), `resize` (`width`, `height` or `dw`, `dh` points,
+  over `dur`, eased), `menu-pick` (`id` or `label`: the open pop-up menu's
+  item; `menu-cancel`), `file-dialog` (`path`: the next file dialog's
+  answer, whenever it opens; `file-dialog-cancel`), `mark` (`name`).
+  Pointer steps aim at `x`, `y` (points), or at a node: `tag`, a `path`
+  of tags (`list/checkbox`: a descendant chain, as CSS's), `role` (ARIA's:
+  `button`, `checkbox`, `textbox`) and `label` (its accessible name, else
+  its text), each given narrowing it; `index` the n-th match (0); at its
+  centre, or `ox`, `oy` from its top left; without any, where the pointer
+  is. A node is found when its step comes, as the tree is then; one not
+  there fails the run (`helder headless: step 6 (tap at 1 s): no node
+  checkbox (tags shown: draft, add, list, ...)`), as does one not shown, a
+  window without a node tree (a scene's: aim at x, y), a menu-pick with no
+  menu open.
+- **`--tree`** (helder.ui's `UiInspector`): `{time, frame, size, pointer,
+  nodes}`, each node displayed in tree order (the root's children, then
+  the overlay's popups): `id` (stable for the run), `tag`, `path` (its
+  tags from the root down), `parent`, `depth`, `role`, `label`, `text`,
+  `value`, `checked`, `disabled` (the accessibility tree's), `rect`
+  ([x, y, width, height] where it is drawn, in points: through its
+  ancestors' scrolling and transforms), `opacity` (through its
+  ancestors'), `fill` and `color` (`#rrggbb`, `#rrggbbaa`), `hover`,
+  `press`, `focus`, `moving` (a transition running on it, or its rect or
+  opacity changed since the frame before). A scene has `"nodes": null`.
+- **`--trace`**: a JSON line a frame, `{t, frame, nodes}`, each tagged
+  node (a tag other than view, text, span, b, i, scroll) with its `rect`,
+  `opacity` and `moving`.
+- **`--frames N -o dir`**: `frame_0000.png`... from `--start`, every
+  `--every`-th written (named by their frame); `-o` without `--frames`:
+  `--duration`'s (auto: to the end). A sequence keeps its first frame's
+  size (a window resized during it cropped or padded).
+- **`--video`**: helder has no encoder yet: the run writes its frames as
+  PNGs beside the video (`<name>.frames/`), then ffmpeg (on the PATH;
+  without it the command says so before building) encodes them, `.mp4`
+  as H.264 yuv420p with `+faststart`, `.webm` VP9, `.mov` ProRes 4444, and
+  the frames are removed. `--frames N` or `--duration` (auto: to the end)
+  from `--start`. A platform encoder (Media Foundation, AVFoundation) is
+  for later.
+- **`--keys`, `--pointer`** (`Overlay.hx`): keycaps of the script's keys
+  (typing within a second one cap, a key again within a second counted:
+  `↓ ×2`; ⌃⌥⇧⌘, named keys as ↩ ⎋ ⇥ ⌫ ␣ ← →), springing in and fading out
+  1.5 s after their last key, three at most, at `--keys-at` (bottom-left,
+  bottom, bottom-right, top-left, top, top-right) in `--keys-theme`'s
+  colours (else `--theme`'s); a ripple at each press. Drawn on the CPU
+  (helder.canvas) over the frame after the app's, so they are in `--snap`,
+  the frames and the video, never in `--tree` or `--trace`.
+- **Determinism**: the same script gives byte-identical outputs on one
+  machine (the headless-run lane checks it): the virtual clock;
+  Math.random and Std.random seeded (`--seed`, 1: hxmc's xoshiro256**
+  state from it); text by helder's own engine (helder.text, the fonts
+  found on the machine: DejaVu Sans for the examples); Linux's GL forced
+  to llvmpipe (`LIBGL_ALWAYS_SOFTWARE`), no `DISPLAY`; `LC_ALL` and `LANG`
+  C.UTF-8, `TZ` UTC. Across machines, Mesa's releases and the fonts
+  installed move text's edges a little: compare with a tolerance.
+- **Not yet**: wasm (a headless run is native: its outputs are files),
+  phones; a window resized by a script on Metal and D3D11 (their offscreen
+  targets keep their first size; GL's pbuffer is made again); several
+  windows composited (the first window's frame and nodes are the
+  outputs); the time `Sys.time()` and `Date.now()` read stays the system's
+  (a program animating from them is not frame exact: `App.frame.time` is
+  the clock), as do haxe.Timer's delays.
 
 ## Output
 

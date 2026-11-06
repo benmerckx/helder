@@ -190,6 +190,7 @@ class App {
 		// (a headless run: the script's events, then a frame at the run's virtual time, its outputs taken)
 		if (!running || windows.length == 0) {
 			running = false;
+			helder.headless.Headless.run.finish();
 			return false;
 		}
 		Pointers.step();

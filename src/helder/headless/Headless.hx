@@ -45,7 +45,8 @@ class Headless {
 	final script:Script;
 	final snaps:Array<{path:String, at:Float, done:Bool}> = [];
 	final trees:Array<{path:String, at:Float, done:Bool}> = [];
-	final sequences:Array<{dir:String, start:Float, count:Int, every:Int, written:Int}> = [];
+	// (a sequence's frames all of its first's size: a window resized during it cropped or padded, top left kept)
+	final sequences:Array<{dir:String, start:Float, count:Int, every:Int, written:Int, width:Int, height:Int}> = [];
 	final trace:Null<String>;
 	final overlay:Null<Overlay>;
 	// when the run ends (s)
@@ -116,7 +117,7 @@ class Headless {
 			if (count < 1) count = 1;
 			var every:Int = s.every != null ? Std.int(s.every) : 1;
 			if (every < 1) fail('--every $every: 1 or more');
-			sequences.push({dir: s.dir, start: start, count: count, every: every, written: 0});
+			sequences.push({dir: s.dir, start: start, count: count, every: every, written: 0, width: 0, height: 0});
 			ends.push(start + (count - 1) / fps);
 		}
 		trace = Reflect.field(o, "trace");
@@ -488,7 +489,11 @@ class Headless {
 		for (q in sequences)
 			if (q.written < q.count && q.start <= t + eps) {
 				var i = q.written++;
-				if (i % q.every == 0) writePng(q.dir + "/frame_" + StringTools.lpad(Std.string(i), "0", 4) + ".png", t);
+				if (q.width == 0) {
+					q.width = pixelsWidth;
+					q.height = pixelsHeight;
+				}
+				if (i % q.every == 0) writePng(q.dir + "/frame_" + StringTools.lpad(Std.string(i), "0", 4) + ".png", t, q.width, q.height);
 			}
 		if (trace != null) traceFrame(t, nodes);
 		if (nodes != null) {
@@ -524,7 +529,8 @@ class Headless {
 		}
 	}
 
-	function writePng(path:String, t:Float) {
+	// the frame (keycaps and ripples over it) as an opaque PNG; at w x h pixels when given (cropped or padded with black)
+	function writePng(path:String, t:Float, w = 0, h = 0) {
 		if (pixels == null) fail('$path: no frame was drawn by ${round(t)} s');
 		var out = pixels;
 		if (overlay != null) {
@@ -532,8 +538,18 @@ class Headless {
 			out.blit(0, pixels, 0, pixels.length);
 			overlay.draw(out, pixelsWidth, pixelsHeight, windows[0].scale, t, dark);
 		}
+		if (w == 0) {
+			w = pixelsWidth;
+			h = pixelsHeight;
+		}
+		if (w != pixelsWidth || h != pixelsHeight) {
+			var fit = Bytes.alloc(w * h * 4), cw = Std.int(Math.min(w, pixelsWidth));
+			for (y in 0...Std.int(Math.min(h, pixelsHeight)))
+				fit.blit(y * w * 4, out, y * pixelsWidth * 4, cw * 4);
+			out = fit;
+		}
 		mkdirs(haxe.io.Path.directory(path));
-		sys.io.File.saveBytes(path, helder.image.PngEncoder.encode(out, pixelsWidth, pixelsHeight, true));
+		sys.io.File.saveBytes(path, helder.image.PngEncoder.encode(out, w, h, true));
 	}
 
 	function writeTree(path:String, t:Float, nodes:Null<Array<InspectedNode>>) {

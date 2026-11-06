@@ -1,0 +1,17 @@
+{
+  "events": [
+    {"t": 0.2, "type": "tap", "tag": "draft"},
+    {"t": 0.3, "type": "type", "text": "Buy milk"},
+    {"t": 0.4, "type": "key", "name": "Enter"},
+    {"t": 0.5, "type": "type", "text": "Write the docs", "every": 0.02},
+    {"t": 0.9, "type": "tap", "tag": "add"},
+    {"t": 1.0, "type": "tap", "tag": "draft"},
+    {"t": 1.1, "type": "type", "text": "Ship it"},
+    {"t": 1.2, "type": "key", "name": "Enter"},
+    {"t": 1.3, "type": "mark", "name": "added"},
+    {"t": 1.5, "type": "tap", "role": "checkbox", "label": "Buy milk"},
+    {"t": 1.7, "type": "mark", "name": "toggled"},
+    {"t": 1.8, "type": "tap", "tag": "filter-active"},
+    {"t": 2.2, "type": "mark", "name": "end"}
+  ]
+}

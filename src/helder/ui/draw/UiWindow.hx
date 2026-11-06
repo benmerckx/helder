@@ -129,6 +129,7 @@ class UiWindow {
 		// (a headless run: the ui's events and clock the run's virtual time, the first window's nodes its tree)
 		Ui.now = () -> helder.headless.Time.now;
 		var run = helder.headless.Headless.run;
+		Clock.reducedMotion = run.reducedMotion;
 		if (run.inspector == null) run.inspector = new UiInspector(ui);
 		#end
 		// (the window's standard actions: closed as by its close button, fullscreen; Quit: every window asked)

@@ -76,6 +76,7 @@ class Run {
 		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, a tap and a drag without mouse events or scrolls, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
+		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
 		{name: "ui-web", about: "the todo example, text editors and the accessibility fixture's ARIA mirror (web-access.mjs) as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
@@ -940,6 +941,32 @@ class Run {
 		run(compiler, ["tests/3d/ts/frames.ts", "-o", exe].concat(cp).concat(targetArgs(t)));
 		for (s in ["glow", "tsscene"])
 			shell('LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY $exe $s tests/3d/$s.png bin/3d/$t/ts-$s.png');
+	}
+
+	// (each run twice, into bin/headless-run/1 and 2: the same bytes)
+	static function headlessRun() {
+		var h = helderCli(), b = "bin/headless-run";
+		rmrf(b);
+		for (pass in ["1", "2"]) {
+			var o = '$b/$pass';
+			for (app in ["todo", "ts-todo"])
+				run(h, [
+					"run", "--headless", 'examples/$app', "--script", "tests/headless/todo.json", "--snap", '$o/$app-toggled.png', "--tree", '$o/$app-toggled.json',
+					"--at", "mark:toggled", "--tree", '$o/$app-end.json', "--trace", '$o/$app.jsonl'
+				]);
+			run(h, [
+				"run", "--headless", "examples/todo", "--script", "tests/headless/todo.json", "--frames", "6", "--every", "2", "--start", "0.3", "-o", '$o/frames', "--keys",
+				"--pointer"
+			]);
+			run(h, ["run", "--headless", "examples/glow", "--size", "320x240", "--snap", '$o/glow.png', "--at", "0.5"]);
+		}
+		exe('$b/Check', cps(["src", "tests/headless"]).concat(["-main", "Check"]));
+		run(exePath('$b/Check', HOST), [b].concat(BLESS ? ["--bless"] : []));
+		// (a video: where ffmpeg is installed)
+		if (Sys.command("sh", ["-c", "command -v ffmpeg >/dev/null"]) == 0) {
+			run(h, ["run", "--headless", "examples/todo", "--script", "tests/headless/todo.json", "--video", '$b/todo.mp4', "--keys", "--pointer"]);
+			if (!FileSystem.exists('$b/todo.mp4') || FileSystem.exists('$b/todo.frames')) throw new Failed('$b/todo.mp4: not written, or its frames left');
+		} else Sys.println("headless-run: no ffmpeg: --video not checked");
 	}
 
 	static function sceneWeb() {
