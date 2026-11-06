@@ -917,6 +917,35 @@ fix.
       TestFlight through Transporter (on Linux too) or the API's own
       build upload where it is available;
     - optional store metadata (texts, screenshots) through the same APIs.
+  - **Desktop stores**, after the direct packages (`helder build --package`,
+    `helder publish --notarize`), with `--dry-run` building, signing and
+    checking everything but the upload:
+    - **Mac App Store** (`--mac-app-store`): the app sandboxed (its
+      entitlements in the signature: app-sandbox, user-selected files,
+      application and team identifiers), a Mac App Store provisioning
+      profile embedded, signed by an Apple Distribution identity; a flat
+      installer package (`.pkg`: xar with the Distribution, PackageInfo,
+      the Bom and a cpio payload) of our own, signed by a Mac Installer
+      Distribution identity; the icon from an asset catalog, a privacy
+      manifest; uploaded through the build upload API as TestFlight's
+      (platform `MAC_OS`), the listing and macOS screenshot sizes from
+      stories, the review submission. The viewer's folder browsing under
+      the sandbox: an "Open Folder" granting access, kept as
+      security-scoped bookmarks;
+    - **Microsoft Store** (`--msstore`): an MSIX of our own (`AppxManifest.xml`
+      with the identity, file type associations and `runFullTrust`, the
+      logo assets at their scales, `[Content_Types].xml`, `AppxBlockMap.xml`'s
+      SHA-256 per 64 KB block), signed by the Store on submission (by
+      Authenticode for installs outside it); submitted through Partner
+      Center's submission API (an Entra ID app's token, a submission, the
+      package to its blob URL, committed), the listing and screenshots
+      with it. A full-trust MSIX is not sandboxed for files.
+    - Secrets, all optional as the others: `HELDER_MAC_APPSTORE_IDENTITY`,
+      `HELDER_MAC_INSTALLER_IDENTITY`, `HELDER_MAC_PROFILE` (the App Store
+      Connect key reused); `HELDER_MSSTORE_TENANT_ID`, `_CLIENT_ID`,
+      `_CLIENT_SECRET`, `_SELLER_ID` and the app's Store ID. Done once by
+      hand: the store records, certificates and profiles, Partner Center's
+      name reservation and age rating.
   - **Store screenshots from stories** (*landed*: helder.story's
     `.story.hx` stories, tested by their trees, and `helder publish
     --screenshots`, `--listing`: src/helder/story/README.md; the rest of
