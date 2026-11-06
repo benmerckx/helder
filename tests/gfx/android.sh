@@ -139,7 +139,8 @@ echo "android.sh: let go: angle $free1, then $free2"
 check "the cube turning again once let go" $?
 ups=$(grep -c "event PointerUp" "$log")
 lines=$(wc -l < "$log")
-adb shell input swipe $x0 $y0 $((x0 + W / 2)) $y0 60
+# (as the touchscreen's events, its lift with its last move: tests/os/android-swipe.mjs)
+node tests/os/android-swipe.mjs $x0 $y0 $((x0 + W / 2)) $y0 4
 wait_count "event PointerUp [0-9]* touch" $((ups + 1)) 20
 check "a fling: its release" $?
 # (the speed the release gave it, logged with it: the spin's lines every 20
