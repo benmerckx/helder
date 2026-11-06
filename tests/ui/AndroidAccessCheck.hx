@@ -21,7 +21,12 @@ class AndroidAccessCheck {
 		var frames = 0, told = false;
 		w.onFrame = () -> {
 			if (++frames == 1) Sys.println("access: a first frame");
-			if (frames == 3) Sys.println("access: ready");
+			if (frames == 3) {
+				Sys.println("access: ready");
+				#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
+				Sys.println("access: the delegate " + (helder.ui.draw.AndroidAccess.state == "" ? "not installed" : helder.ui.draw.AndroidAccess.state));
+				#end
+			}
 			// (a few frames: the layout settled; then frames as the tree asks them, a service's first question one)
 			if (frames < 3) w.ui.requestFrame();
 			#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")

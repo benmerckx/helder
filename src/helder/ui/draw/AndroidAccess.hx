@@ -42,6 +42,8 @@ class AndroidAccess {
 	static var jargs:Ptr = Ptr.nil();
 	static var location:Ptr = Ptr.nil();
 	static var asked = false;
+	// where the delegate went (tests): "" until it did
+	public static var state = "";
 	static final lock = new sys.thread.Mutex();
 	static var queue:Array<{id:Int, action:AccessAction, value:Null<String>}> = [];
 
@@ -71,11 +73,21 @@ class AndroidAccess {
 	// (the main thread) the delegate on the content view
 	static function install() {
 		if (!host.isNull()) return;
+		// (NativeActivity's NativeContentView, the content's one child; else the window's decor view)
 		var content = Jni.obj(Jni.activity, m("android.app.Activity", "findViewById", "(I)Landroid/view/View;"), 0x1020002); // android.R.id.content
-		if (content.isNull()) return;
-		var v = Jni.int(content, m("android.view.ViewGroup", "getChildCount", "()I")) > 0 ? Jni.obj(content, m("android.view.ViewGroup", "getChildAt",
-			"(I)Landroid/view/View;"), 0) : content;
+		var v = content.isNull() ? Ptr.nil() : Jni.int(content, m("android.view.ViewGroup", "getChildCount", "()I")) > 0 ? Jni.obj(content,
+			m("android.view.ViewGroup", "getChildAt", "(I)Landroid/view/View;"), 0) : content;
+		if (v.isNull()) {
+			var win = Jni.obj(Jni.activity, m("android.app.Activity", "getWindow", "()Landroid/view/Window;"));
+			v = win.isNull() ? Ptr.nil() : Jni.obj(win, m("android.view.Window", "getDecorView", "()Landroid/view/View;"));
+		}
+		if (v.isNull()) {
+			state = "no view";
+			return;
+		}
 		host = Jni.global(v);
+		state = "on " + Jni.fromString(Jni.obj(Jni.obj(v, m("java.lang.Object", "getClass", "()Ljava/lang/Class;")), m("java.lang.Class", "getName",
+			"()Ljava/lang/String;")));
 		var p = cls("org.hxmc.AccessProvider"), d = cls("org.hxmc.AccessDelegate");
 		Jni.registerNatives(p, [
 			{name: "createAccessibilityNodeInfo", sig: "(I)Landroid/view/accessibility/AccessibilityNodeInfo;", fn: Callback.addr(nodeInfo)},
