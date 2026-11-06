@@ -139,7 +139,7 @@ jobs:
           export BUNDLETOOL="$RUNNER_TEMP/bundletool.jar"
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           bun run test pack
-      - name: The device tests' apps (tests/gfx/android: the cube and its touches; tests/os/AndroidTouchTest.hx: a drawn ui's fling)
+      - name: The device tests' apps (tests/gfx/android, the cube and its touches; tests/os/AndroidTouchTest.hx, a drawn ui's fling)
         env:
           HXMC_RT_DIR: ${{ github.workspace }}/bin/pack/rt
           HELDER_CACHE: ${{ github.workspace }}/bin/pack/cache
