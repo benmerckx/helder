@@ -244,9 +244,10 @@ class Reps {
 		when(b, ENot(ELocal(done)), miss);
 	}
 
-	// (k an index of nums: then with it as an Int)
+	// (k, a number or a loop's Int64 counter, an index of nums: then with it as an Int)
 	static function inRange(b:Builder, nums:Ex, k:Ex, then:Ex->Void) {
-		if (Ir.typeOf(k) == TI32) when(b, EBin(Ge, k, EInt(0)), () -> when(b, EBin(Lt, k, EArrLen(nums)), () -> then(k)));
+		if (Ir.typeOf(k) == TI64) when(b, EBin(LGe, k, EConv(I2L, EInt(0))), () -> when(b, EBin(LLt, k, EConv(I2L, EArrLen(nums))), () -> then(b.temp(EConv(L2I, k)))));
+		else if (Ir.typeOf(k) == TI32) when(b, EBin(Ge, k, EInt(0)), () -> when(b, EBin(Lt, k, EArrLen(nums)), () -> then(k)));
 		else when(b, EBin(FGe, k, EF64(0)), () -> when(b, EBin(FLt, k, EConv(I2F, EArrLen(nums))), () -> {
 			var i = b.temp(EConv(F2I, k));
 			when(b, EBin(FEq, EConv(I2F, i), k), () -> then(i));
@@ -266,7 +267,7 @@ class Reps {
 		return ELocal(l);
 	}
 
-	static function index(b:Builder, k:Ex):Ex return Ir.typeOf(k) == TI32 ? EConv(I2F, k) : k;
+	static function index(b:Builder, k:Ex):Ex return Ir.typeOf(k) == TI32 ? EConv(I2F, k) : Ir.typeOf(k) == TI64 ? b.temp(EConv(L2F, k)) : k;
 
 	// `a[k] = v` with v a number: in place where a is a number array and k one
 	// of its indices or its length (a is extensible), else as any write

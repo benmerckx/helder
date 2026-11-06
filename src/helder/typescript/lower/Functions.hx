@@ -310,7 +310,7 @@ abstract class Functions extends Core {
 		b = new Builder(p, f);
 		env = [];
 		for (name in outer.keys()) if (outer.get(name).global != null) env.set(name, outer.get(name));
-		for (name in outer.keys()) if (outer.get(name).local != null || outer.get(name).outer != null) env.set(name, {ty: outer.get(name).ty, outer: name});
+		for (name in outer.keys()) if (outer.get(name).local != null || outer.get(name).int != null || outer.get(name).outer != null) env.set(name, {ty: outer.get(name).ty, outer: name});
 		for (i in 0...names.length) {
 			var v = b.temp(ECapture(li, i, ELocal(f.args[0])));
 			env.set(names[i], {ty: outer.get(names[i]).ty, cell: v});

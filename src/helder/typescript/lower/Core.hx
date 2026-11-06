@@ -13,8 +13,9 @@ import helder.typescript.lower.Api;
 
 // A binding's storage: a global (module scope), a box (captured by a
 // closure), or a plain local; `outer`: an enclosing function's plain local,
-// which no closure can see (Captures)
-typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int, ?local:Local, ?outer:String, ?buffer:Local};
+// which no closure can see (Captures); `int`: a loop's counter, a number
+// held as an Int64 (Statements.intCounter), written only by its loop's step
+typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int, ?local:Local, ?outer:String, ?buffer:Local, ?int:Local};
 
 // A source file's top-level scope: its bindings (globals), direct functions
 // and exports. Imports alias the exporting module's bindings, so they are live.
@@ -203,6 +204,7 @@ abstract class Core {
 
 	function read(v:Binding):Ex {
 		if (v.global != null) return EGlobal(v.global, v.ty);
+		if (v.int != null) return EConv(L2F, ELocal(v.int));
 		// (a plain local's value now: later writes do not change it)
 		if (v.local != null) return b.temp(ELocal(v.local));
 		if (v.outer != null) throw "TSHX004: a closure uses a binding it does not capture: " + v.outer;
@@ -211,6 +213,7 @@ abstract class Core {
 
 	function set(v:Binding, e:Ex) {
 		e = store(e, v.ty);
+		if (v.int != null) throw "TSHX004: a loop counter written outside its step";
 		if (v.outer != null) throw "TSHX004: a closure uses a binding it does not capture: " + v.outer;
 		b.out.push(v.global != null ? SSetGlobal(v.global, e) : v.local != null ? SSet(v.local, e) : SBoxSet(v.ty, v.cell, e));
 	}

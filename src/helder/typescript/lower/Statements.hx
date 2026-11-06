@@ -87,12 +87,18 @@ abstract class Statements extends Functions {
 				var oldEnv = env;
 				env = env.copy();
 				var f = n;
-				if (f.initializer() != null) {
+				var counter = intCounter(f), count:Null<Local> = null;
+				if (counter != null) {
+					count = b.local(counter.name.text, TI64);
+					b.out.push(SSet(count, counter.start));
+					env.set(counter.name.text, {ty: TF64, int: count});
+				}
+				else if (f.initializer() != null) {
 					if (f.initializer().kind == KindVariableDeclarationList) variableList(f.initializer(), false); else expr(f.initializer());
 				}
 				loop(labels, f.statement(), f.condition() == null ? null : () -> exitUnless(f.condition()), () -> {
 					// (a fresh binding per iteration for closures that captured it)
-					if (f.initializer() != null && f.initializer().kind == KindVariableDeclarationList)
+					if (counter == null && f.initializer() != null && f.initializer().kind == KindVariableDeclarationList)
 						for (d in f.initializer().declarations()) {
 							var binding = get(d.name().text, d);
 							if (binding.local == null) switch (binding.cell) {
@@ -100,7 +106,8 @@ abstract class Statements extends Functions {
 								case _: fail(d, "loop binding must be local");
 							}
 						}
-					if (f.incrementor() != null) expr(f.incrementor());
+					if (counter != null) b.out.push(SSet(count, EBin(LAdd, ELocal(count), EConv(I2L, EInt(counter.step)))));
+					else if (f.incrementor() != null) expr(f.incrementor());
 				}, null);
 				env = oldEnv;
 			case KindForOfStatement | KindForInStatement:
@@ -118,8 +125,8 @@ abstract class Statements extends Functions {
 					fast = b.local("indexed", TBool);
 					b.out.push(SSet(fast, bool(false)));
 					b.out.push(SIf(EInstOf(reps.arrayClass, any(input)), b.block(() -> b.out.push(SSet(fast, b.runtime("libArrayIterable", [any(input)])))), new Vector(0)));
-					index = b.local("index", TF64);
-					b.out.push(SSet(index, EF64(0)));
+					index = b.local("index", TI64);
+					b.out.push(SSet(index, EConv(I2L, EInt(0))));
 				}
 				var iterator = b.local("iterator", TRef(RAny));
 				var open = b.block(() -> b.out.push(SSet(iterator, b.runtime(awaiting ? "libAsyncIterator" : "libIterator", [any(input)]))));
@@ -137,9 +144,9 @@ abstract class Statements extends Functions {
 					if (indexed) {
 						var l = b.local("element", numbers ? TF64 : TRef(RAny));
 						b.out.push(SIf(ELocal(fast), b.block(() -> {
-							b.out.push(SIf(EBin(FGe, ELocal(index), reps.arrayLength(b, input)), Vector.fromArrayCopy([SBreak]), new Vector(0)));
-							b.out.push(SSet(l, numbers ? reps.arrayGetNumber(b, input, ELocal(index), g -> store(g, TF64)) : reps.arrayGet(b, input, ELocal(index))));
-							b.out.push(SSet(index, EBin(FAdd, ELocal(index), EF64(1))));
+							b.out.push(SIf(EBin(FGe, EConv(L2F, ELocal(index)), reps.arrayLength(b, input)), Vector.fromArrayCopy([SBreak]), new Vector(0)));
+							b.out.push(SSet(l, numbers ? reps.arrayGetNumber(b, input, ELocal(index), g -> store(g, TF64)) : reps.arrayGet(b, input, b.temp(EConv(L2F, ELocal(index))))));
+							b.out.push(SSet(index, EBin(LAdd, ELocal(index), EConv(I2L, EInt(1)))));
 						}), b.block(() -> {
 							var v = b.runtime("libIterate", [ELocal(iterator)]);
 							b.out.push(SIf(b.runtime("libFinished", [v]), Vector.fromArrayCopy([SBreak]), new Vector(0)));
@@ -467,6 +474,92 @@ abstract class Statements extends Functions {
 				env.set(name, bind(d.name(), t, store(e, t)));
 			}
 		}
+	}
+
+	// ---- loop counters as integers
+	// A for loop's counter held as an Int64 (`for (let i = 0; i < n; i++)`):
+	// a let of a number, its initial value an integer (a literal below 2^31
+	// in magnitude, another counter, one plus or minus such a literal),
+	// stepped by one in the incrementor and written nowhere else, captured by
+	// no closure, outside generators and async functions. Its values are
+	// exactly the double's: counting by one from below 2^31, it would reach
+	// 2^53, where a double's steps stop being one, only after 2^52 steps. It
+	// is read as a number (L2F), and as an integer where that is faster
+	// (an index, a remainder: intOf).
+	function intCounter(f:Node):Null<{name:Node, start:Ex, step:Int}> {
+		var init = f.initializer(), inc = f.incrementor();
+		if (init == null || inc == null || init.kind != KindVariableDeclarationList || init.flags & NodeFlags.BlockScoped == 0 || b.resumable != null || sharing) return null;
+		var ds = init.declarations();
+		if (ds.length != 1 || ds[0].name().kind != KindIdentifier || ds[0].initializer() == null || bindingType(ds[0]) != TF64) return null;
+		var name = ds[0].name();
+		if (captures.shared(name)) return null;
+		var start = intExpr(ds[0].initializer());
+		if (start == null) return null;
+		var step = 0;
+		var target:Null<Node> = null;
+		switch inc.kind {
+			case KindPostfixUnaryExpression | KindPrefixUnaryExpression if (inc.unaryOperator() == KindPlusPlusToken || inc.unaryOperator() == KindMinusMinusToken):
+				target = inc.operand();
+				step = inc.unaryOperator() == KindPlusPlusToken ? 1 : -1;
+			case KindBinaryExpression if ((inc.operatorToken().kind == KindPlusEqualsToken || inc.operatorToken().kind == KindMinusEqualsToken) && strip(inc.right()).kind == KindNumericLiteral && Std.parseFloat(strip(inc.right()).text) == 1):
+				target = inc.left();
+				step = inc.operatorToken().kind == KindPlusEqualsToken ? 1 : -1;
+			case _:
+		}
+		if (target == null || strip(target).kind != KindIdentifier || strip(target).text != name.text) return null;
+		if (writes(f.condition(), name.text) || writes(f.statement(), name.text)) return null;
+		return {name: name, start: start, step: step};
+	}
+
+	// (an integer expression as an Int64, built of no statement: a literal, a counter, one plus or minus a literal)
+	function intExpr(n:Node):Null<Ex> {
+		n = strip(n);
+		switch n.kind {
+			case KindNumericLiteral:
+				var v = Std.parseFloat(n.text);
+				return Math.ffloor(v) == v && Math.abs(v) < 2147483648.0 ? EConv(I2L, EInt(Std.int(v))) : null;
+			case KindPrefixUnaryExpression if (n.unaryOperator() == KindMinusToken && strip(n.operand()).kind == KindNumericLiteral):
+				var v = Std.parseFloat(strip(n.operand()).text);
+				// (-0 is no integer of an Int64)
+				return v != 0 && Math.ffloor(v) == v && v < 2147483648.0 ? EConv(I2L, EInt(-Std.int(v))) : null;
+			case KindIdentifier if (env.exists(n.text) && env.get(n.text).int != null): return ELocal(env.get(n.text).int);
+			case KindBinaryExpression if (n.operatorToken().kind == KindPlusToken || n.operatorToken().kind == KindMinusToken):
+				var a = intExpr(n.left()), z = strip(n.right());
+				if (a == null || z.kind != KindNumericLiteral || !a.match(ELocal(_))) return null;
+				var v = Std.parseFloat(z.text);
+				if (Math.ffloor(v) != v || v >= 2147483648.0) return null;
+				return EBin(n.operatorToken().kind == KindPlusToken ? LAdd : LSub, a, EConv(I2L, EInt(Std.int(v))));
+			case _: return null;
+		}
+	}
+
+	// a counter's value as an Int64, where n is one (else null)
+	function intOf(n:Node):Null<Ex> {
+		n = strip(n);
+		return n.kind == KindIdentifier && env.exists(n.text) && env.get(n.text).int != null ? ELocal(env.get(n.text).int) : null;
+	}
+
+	// whether n assigns name (=, a compound assignment, ++ and --, a
+	// destructuring assignment's target, for-in or for-of's)
+	static function writes(n:Null<Node>, name:String):Bool {
+		if (n == null) return false;
+		if (n.kind == KindIdentifier && n.text == name) {
+			var c = n, p = n.parent;
+			while (p != null && (p.kind == KindParenthesizedExpression || p.kind == KindArrayLiteralExpression || p.kind == KindObjectLiteralExpression
+				|| p.kind == KindShorthandPropertyAssignment || p.kind == KindSpreadElement || p.kind == KindSpreadAssignment || p.kind == KindNonNullExpression
+				|| p.kind == KindPropertyAssignment && p.initializer() == c
+				|| p.kind == KindBinaryExpression && p.operatorToken().kind == KindEqualsToken && p.left() == c && p.parent != null && (p.parent.kind == KindArrayLiteralExpression || p.parent.kind == KindPropertyAssignment))) {
+				c = p;
+				p = p.parent;
+			}
+			if (p != null) {
+				if (p.kind == KindBinaryExpression && p.operatorToken().kind >= KindFirstAssignment && p.operatorToken().kind <= KindLastAssignment && p.left() == c) return true;
+				if ((p.kind == KindPrefixUnaryExpression || p.kind == KindPostfixUnaryExpression) && (p.unaryOperator() == KindPlusPlusToken || p.unaryOperator() == KindMinusMinusToken)) return true;
+				if ((p.kind == KindForOfStatement || p.kind == KindForInStatement) && p.initializer() == c) return true;
+			}
+		}
+		for (c in n.children()) if (writes(c, name)) return true;
+		return false;
 	}
 
 	// ---- strings loops only append to

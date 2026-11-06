@@ -302,6 +302,13 @@ abstract class Expressions extends Statements {
 		}
 		if (op >= KindFirstAssignment && op <= KindLastAssignment) return assign(n);
 		if (op == KindInKeyword && x.left().kind == KindPrivateIdentifier) return b.runtime("libPrivateHas", [any(expr(x.right())), EStr(brand(x.left()))]);
+		// (a loop counter's remainder: on its Int64)
+		if (op == KindPercentToken && intOf(x.left()) != null) {
+			typedOperations++;
+			var counter = intOf(x.left());
+			var divisor = intOf(x.right());
+			return divisor != null ? remainderInt(counter, divisor) : remainderOf(counter, numeric(x.right(), false));
+		}
 		var a = numericOperator(op, n) ? numeric(x.left(), false) : expr(x.left());
 		if (op == KindAmpersandAmpersandToken || op == KindBarBarToken || op == KindQuestionQuestionToken) {
 			// (the result, the left or the right value, in a slot of the expression's type)
@@ -398,6 +405,45 @@ abstract class Expressions extends Statements {
 	// division; others take exact binary long division. Both are inline: a call
 	// in a loop makes hxmc keep the loop's variables in memory. Variable
 	// divisors go through the runtime's JS-exact helper.
+	// x % c of an Int64 x (a loop counter: below 2^53 in magnitude): for a
+	// literal c, x's magnitude below 2^31, a multiply and shift as remainder's;
+	// else remainder's on x's double
+	function remainderOf(x:Ex, z:Ex):Ex {
+		var c = switch (z) {
+			case EF64(v) if (v >= 1 && v <= 2147483647 && Math.ffloor(v) == v): Std.int(v);
+			case _: return remainder(b.temp(EConv(L2F, x)), z);
+		};
+		var shift = 31;
+		while (Math.pow(2, shift - 31) < c) shift++;
+		var m = Math.ffloor(Math.pow(2, shift) / c) + 1;
+		var high = Std.int(Math.ffloor(m / 4294967296.0)), low = Std.int(m - high * 4294967296.0);
+		var mLong = EBin(LOr, EBin(LShl, EConv(I2L, EInt(high)), EInt(32)), EBin(LAnd, EConv(I2L, EInt(low)), EBin(LUShr, EConv(I2L, EInt(-1)), EInt(32))));
+		var l = b.local("remainder", TF64);
+		var negative = EBin(LLt, x, EConv(I2L, EInt(0)));
+		var magnitude = b.local("magnitude", TI64);
+		b.out.push(SIf(negative, Vector.fromArrayCopy([SSet(magnitude, EBin(LSub, EConv(I2L, EInt(0)), x))]), Vector.fromArrayCopy([SSet(magnitude, x)])));
+		b.out.push(SIf(EBin(LLt, ELocal(magnitude), EBin(LShl, EConv(I2L, EInt(1)), EInt(31))), b.block(() -> {
+			var q = b.temp(EBin(LShr, EBin(LMul, ELocal(magnitude), mLong), EInt(shift)));
+			var r = b.temp(EConv(L2F, EBin(LSub, ELocal(magnitude), EBin(LMul, q, EConv(I2L, EInt(c))))));
+			// (the dividend's sign, -0 included)
+			b.out.push(SIf(negative, Vector.fromArrayCopy([SSet(l, EConv(FNeg, r))]), Vector.fromArrayCopy([SSet(l, r)])));
+		}), b.block(() -> b.out.push(SSet(l, remainder(b.temp(EConv(L2F, x)), z))))));
+		return ELocal(l);
+	}
+
+	// x % y of two Int64s (loop counters): the truncated remainder, the dividend's sign (-0 included); NaN for y 0
+	function remainderInt(x:Ex, y:Ex):Ex {
+		var l = b.local("remainder", TF64);
+		var zero = EConv(I2L, EInt(0));
+		b.out.push(SIf(EBin(LEq, y, zero), Vector.fromArrayCopy([SSet(l, EF64(Math.NaN))]), b.block(() -> {
+			var r = b.temp(EConv(L2F, EBin(LMod, x, y)));
+			b.out.push(SSet(l, r));
+			// (a zero remainder of a negative dividend is -0)
+			b.out.push(SIf(EBin(LLt, x, zero), Vector.fromArrayCopy([SIf(EBin(FEq, r, EF64(0)), Vector.fromArrayCopy([SSet(l, EConv(FNeg, EF64(0)))]), new Vector(0))]), new Vector(0)));
+		})));
+		return ELocal(l);
+	}
+
 	function remainder(a:Ex, z:Ex):Ex {
 		var x = b.temp(b.coerce(a, TF64));
 		var c = switch (z) {
@@ -535,7 +581,7 @@ abstract class Expressions extends Statements {
 		typed++;
 		typedOperations++;
 		var obj = b.temp(expr(inner.expression()));
-		var k = b.temp(number(expr(inner.argumentExpression())));
+		var k = intOf(inner.argumentExpression()) ?? b.temp(number(expr(inner.argumentExpression())));
 		return reps.arrayGetNumber(b, obj, k, g -> slot ? store(g, TF64) : number(g));
 	}
 
@@ -550,7 +596,7 @@ abstract class Expressions extends Statements {
 	// a number array's element as a target whose value is read as a number (x[k] += 1, x[k]++)
 	function numberTarget(n:Node):{read:() -> Ex, write:Ex->Void} {
 		var obj = b.temp(expr(n.expression()));
-		var key = b.temp(number(expr(n.argumentExpression())));
+		var key = intOf(n.argumentExpression()) ?? b.temp(number(expr(n.argumentExpression())));
 		return {
 			read: () -> reps.arrayGetNumber(b, obj, key, g -> number(g)),
 			write: (e) -> Ir.typeOf(e) == TF64 ? reps.arraySetNumber(b, obj, key, e) : reps.arraySet(b, obj, key, e)
