@@ -477,8 +477,12 @@ class Ui {
 
 	// the mouse moved (id 0), or a finger or a pen (id: its slot) to x, y
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
-	public function pointerMove(x:Float, y:Float, id = 0, pressure = 1.0) {
+	// (at: when it happened, on this clock (eventTime: an event's own time); the gestures' velocities
+	// are from those, so a slow frame between a flick's last move and its lift is not a pause)
+	public function pointerMove(x:Float, y:Float, id = 0, pressure = 1.0, at = -1.0) {
+		eventAt = at;
 		pointerMoveNow(x, y, id, pressure);
+		eventAt = -1;
 		helder.view.graph.Graph.flush();
 	}
 
@@ -588,9 +592,11 @@ class Ui {
 	// a box drawing a world under the ui), so that the game's controls leave
 	// it alone (helder.os's Pointer.owner, UiWindow's)
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
-	public function pointerDown(x:Float, y:Float, button:Int, id = 0, type:PointerType = Mouse, pressure = 1.0):Bool {
+	public function pointerDown(x:Float, y:Float, button:Int, id = 0, type:PointerType = Mouse, pressure = 1.0, at = -1.0):Bool {
 		inputEpoch++;
+		eventAt = at;
 		var r = pointerDownNow(x, y, button, id, type, pressure);
+		eventAt = -1;
 		helder.view.graph.Graph.flush();
 		return r;
 	}
@@ -637,9 +643,11 @@ class Ui {
 
 	// the mouse's button released (id 0), or a finger or a pen lifted
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
-	public function pointerUp(x:Float, y:Float, button:Int, id = 0) {
+	public function pointerUp(x:Float, y:Float, button:Int, id = 0, at = -1.0) {
 		inputEpoch++;
+		eventAt = at;
 		pointerUpNow(x, y, button, id);
+		eventAt = -1;
 		helder.view.graph.Graph.flush();
 	}
 
@@ -881,7 +889,7 @@ class Ui {
 		}
 		if (scroll && @:privateAccess touchScroll.join(id, type, button)) a.push(touchScroll);
 		if (a.length == 0) return;
-		var t = now(), list = snapshot(id);
+		var t = eventAt >= 0 ? eventAt : now(), list = snapshot(id);
 		for (g in list)
 			if (a.indexOf(g) >= 0) @:privateAccess g.down(id, x, y, t);
 	}
@@ -889,7 +897,7 @@ class Ui {
 	function moveArena(id:Int, x:Float, y:Float) {
 		var a = arenas[id];
 		if (a.length == 0) return;
-		var t = now(), list = snapshot(id);
+		var t = eventAt >= 0 ? eventAt : now(), list = snapshot(id);
 		for (g in list)
 			if (a.indexOf(g) >= 0) @:privateAccess g.move(id, x, y, t);
 	}
@@ -901,7 +909,7 @@ class Ui {
 			winners[id] = null;
 			return;
 		}
-		var t = now(), list = snapshot(id);
+		var t = eventAt >= 0 ? eventAt : now(), list = snapshot(id);
 		for (g in list)
 			if (a.indexOf(g) >= 0) @:privateAccess g.up(id, t, cancelled);
 		a.resize(0);
@@ -990,6 +998,23 @@ class Ui {
 	var selY = 0.0;
 	// the time (seconds; tests replace it)
 	public static var now:Void->Float = haxe.Timer.stamp;
+
+	// the event being handled's time on now's clock (pointerDown's, pointerMove's, pointerUp's at;
+	// < 0: now's)
+	var eventAt = -1.0;
+	// (the least lag seen from an event's own clock to now's: the two clocks' offset)
+	var eventLag = 1e18;
+
+	// an event's own time (ms, the system's clock: helder.os.Pointer.time) on now's clock: spaced as
+	// the system spaced them, never after now (0: none known, now)
+	public function eventTime(ms:Float):Float {
+		if (ms <= 0) return now();
+		var n = now(), lag = n - ms / 1000;
+		// (the least lag, or anew when the event's clock went back or jumped: a second behind is none)
+		if (lag < eventLag || lag - eventLag > 1) eventLag = lag;
+		var t = ms / 1000 + eventLag;
+		return t > n ? n : t;
+	}
 
 	// the selected text (empty: none)
 	public function selectedText():String {

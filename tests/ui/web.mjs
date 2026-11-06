@@ -185,14 +185,21 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	const wheel = (await boxes()).line.split(' | ')[3];
 	// touch: a finger dragged up over the list, held, let go (it scrolls the
 	// distance, no glide); a tap on the first checkbox (it toggles)
-	const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
-	await touch('touchStart', [{ x: at.left.x, y: at.left.y - 80 }]);
+	// (each event stamped with the time a finger would make it, ms after the gesture's start, as a
+	// touch screen stamps its samples: the page's velocity is from those, so how long the runner takes
+	// to deliver each one (a slow frame of WebGPU's, a CDP round trip) does not change the gesture)
+	let t0 = 0;
+	const touch = (type, points, ms) => {
+		if (type === 'touchStart') t0 = Date.now() / 1000;
+		return cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points, ...(ms === undefined ? {} : { timestamp: t0 + ms / 1000 }) });
+	};
+	await touch('touchStart', [{ x: at.left.x, y: at.left.y - 80 }], 0);
 	for (let k = 1; k <= 10; k++) {
-		await touch('touchMove', [{ x: at.left.x, y: at.left.y - 80 - 10 * k }]);
+		await touch('touchMove', [{ x: at.left.x, y: at.left.y - 80 - 10 * k }], 16 * k);
 		await p.waitForTimeout(16);
 	}
 	await p.waitForTimeout(200);
-	await touch('touchEnd', []);
+	await touch('touchEnd', [], 16 * 10 + 200);
 	await settle();
 	const dragged = (await boxes()).line.split(' | ')[3];
 	const { m: cb } = await boxes();
@@ -200,14 +207,13 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	await touch('touchEnd', []);
 	await settle();
 	const tapped = (await boxes()).line.split(' | ')[1];
-	// a flick: let go moving, it glides on past its 90 pixels (how far
-	// depends on how fast the runner delivers the moves: past 100 is enough)
-	await touch('touchStart', [{ x: at.left.x, y: at.left.y - 60 }]);
+	// a flick: let go moving (8 ms after its last move), it glides on past its 90 pixels
+	await touch('touchStart', [{ x: at.left.x, y: at.left.y - 60 }], 0);
 	for (let k = 1; k <= 3; k++) {
-		await touch('touchMove', [{ x: at.left.x, y: at.left.y - 60 - 30 * k }]);
+		await touch('touchMove', [{ x: at.left.x, y: at.left.y - 60 - 30 * k }], 16 * k);
 		await p.waitForTimeout(16);
 	}
-	await touch('touchEnd', []);
+	await touch('touchEnd', [], 16 * 3 + 8);
 	await p.waitForTimeout(1500);
 	const flicked = Number((await boxes()).line.split(' | ')[3].split(' ')[1]) - 227.5;
 	// the system's appearance: the page's colour scheme made dark, the window asks within a second

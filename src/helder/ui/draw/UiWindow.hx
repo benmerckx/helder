@@ -318,11 +318,11 @@ class UiWindow {
 			case PointerDown if (e.pointer.type != helder.os.PointerType.Mouse):
 				var p = e.pointer;
 				// (a press on the ui's own nodes is the ui's: a game's controls leave it alone)
-				if (ui.pointerDown(p.x / k, p.y / k, 1, p.id, p.type, p.pressure)) p.owner = helder.os.PointerOwner.Ui;
+				if (ui.pointerDown(p.x / k, p.y / k, 1, p.id, p.type, p.pressure, ui.eventTime(p.time))) p.owner = helder.os.PointerOwner.Ui;
 			case PointerMove if (e.pointer.type != helder.os.PointerType.Mouse):
-				ui.pointerMove(e.pointer.x / k, e.pointer.y / k, e.pointer.id, e.pointer.pressure);
+				ui.pointerMove(e.pointer.x / k, e.pointer.y / k, e.pointer.id, e.pointer.pressure, ui.eventTime(e.pointer.time));
 			case PointerUp if (e.pointer.type != helder.os.PointerType.Mouse):
-				ui.pointerUp(e.pointer.x / k, e.pointer.y / k, 1, e.pointer.id);
+				ui.pointerUp(e.pointer.x / k, e.pointer.y / k, 1, e.pointer.id, ui.eventTime(e.pointer.time));
 			case PointerCancel if (e.pointer.type != helder.os.PointerType.Mouse):
 				ui.pointerCancel(e.pointer.id);
 			case KeyDown:
