@@ -1,8 +1,9 @@
 // A swipe on the emulator's touchscreen as a finger's: the kernel's input
 // events of its multi-touch device (virtio_input_multi_touch_1, display 0's),
 // written as root (the emulator's userdebug image: su), a step at a time,
-// each a write of its own, so InputReader reads them as the hardware's,
-// timed by the kernel as they come. Its last move and its lift are one
+// each a write of its own at least a frame after the last (60-90 ms on CI's
+// emulator, a cat's and a sleep's), so InputReader reads them as the
+// hardware's, timed by the kernel as they come. Its last move and its lift are one
 // write: let go moving, as a flick is. `adb shell input swipe` is no
 // fling: each of its events waits until the window finished it, so its
 // moves come as the system's frames allow and its lift a pause after the
