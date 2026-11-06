@@ -33,8 +33,10 @@ import helder.os.Pointers;
 // zones first, then TouchDelta's look zones), if nobody had it (not the
 // ui's: a press on a ui button is the ui's, Pointer.owner), and held by it
 // until it lifts or is cancelled (a cancel lets go: the player stops). A
-// zone shared by bindings is one control (equal zones). Nothing
-// is allocated per event or per step.
+// zone shared by bindings is one control (equal zones). The first finger
+// or pen down that no control took (nor the ui) is the mouse's left
+// button while it is down: Mouse(1) held, the Region bindings under it.
+// Nothing is allocated per event or per step.
 class InputMap {
 	final names:Array<String> = [];
 	final bindings:Array<Array<Binding>> = [];
@@ -69,6 +71,8 @@ class InputMap {
 	final looks:Array<LookZone> = [];
 	final claims:Array<Null<TouchControl>> = [for (_ in 0...Pointers.MAX) null];
 	final seen:Array<Int> = [for (_ in 0...Pointers.MAX) 0];
+	// the slot of the finger or pen that is the left button (-1: none)
+	var finger = -1;
 
 	public function new() {}
 
@@ -254,7 +258,23 @@ class InputMap {
 				var old = claims[i];
 				claims[i] = null;
 				if (old != null) @:privateAccess old.lift(p, true);
+				if (finger == i) fingerUp(p);
 				if (p.owner == helder.os.PointerOwner.None) claims[i] = offer(p, ww, wh, s);
+				// (the first one down that nobody took: the left button and the
+				// regions, as the mouse's while it is down)
+				if (claims[i] == null && finger < 0 && p.primary && p.owner == helder.os.PointerOwner.None) {
+					finger = i;
+					setSize(ww, wh);
+					if (buttons.indexOf(1) < 0) {
+						buttons.push(1);
+						mouseChanged(1, true);
+					}
+					pointerDown = true;
+					pointer(p.startX, p.startY);
+				}
+			}
+			if (finger == i) {
+				if (p.down) pointer(p.x, p.y) else fingerUp(p);
 			}
 			var c = claims[i];
 			if (c == null) continue;
@@ -263,6 +283,14 @@ class InputMap {
 				claims[i] = null;
 			}
 		}
+	}
+
+	// (the finger that was the left button lifted, or cancelled)
+	function fingerUp(p:Pointer) {
+		finger = -1;
+		if (buttons.remove(1)) mouseChanged(1, false);
+		pointerDown = false;
+		pointer(p.x, p.y);
 	}
 
 	// (the first control that takes p's press: the sticks, buttons and Touch zones, then the look zones)

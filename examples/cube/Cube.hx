@@ -8,13 +8,12 @@ import helder.gfx.*;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.os.*;
-import helder.os.Event.Mods;
 
 // A rotating cube in a window, textured, lit and depth-tested, over a
-// blended backdrop and a soft shadow (drag to turn it, or scroll sideways:
-// a touch drag on a phone, a trackpad's swipe, a sideways wheel; it
-// stops spinning while held, and carries on at the drag's speed when let
-// go; Escape closes):
+// blended backdrop and a soft shadow (drag to turn it, with the mouse, a
+// finger or a pen, or scroll sideways: a trackpad's swipe, a sideways
+// wheel; it stops spinning while held, and carries on at the drag's speed
+// when let go; Escape closes):
 //
 //   haxe -cp src -cp examples -main Cube
 //     --custom-target hxmc=cube -D hxmc.libc=glibc
@@ -174,9 +173,12 @@ class Cube {
 
 // The cube's turn (Cube.main): SPEED radians a second of its own, unless
 // held (grab, release): then only the drag turns it, at once, and time
-// does not; let go, it carries on at the drag's last speed (a flick), or
-// from rest, easing back to its own speed in about a second. A scroll's
-// nudge turns it and starts it from rest again.
+// does not; let go moving (its last move within 100 ms), it carries on at
+// the drag's speed (a flick), else from rest, easing back to its own speed
+// in about a second. The drag's speed is the moves' own (their times, ms:
+// a pointer's), so that moves batched into one event, and a lift right
+// after them, still flick. A scroll's nudge turns it and starts it from
+// rest again.
 class Spin {
 	public static inline var SPEED = 0.6;
 	static inline var FLICK = 12.0;
@@ -185,14 +187,14 @@ class Spin {
 	public var held(default, null) = false;
 
 	final own:Float;
-	var speed:Float;
-	// while held: the drag's turn since the last advance, its speed
-	var dragged = 0.0;
+	// its speed now (radians a second)
+	public var speed(default, null):Float;
+	// while held: the drag's speed (radians a second, smoothed) and its last move's time (ms)
 	var dragSpeed = 0.0;
-	// (input: the mouse dragging from x, a finger's scrolls)
-	var from = 0;
-	var dragging = false;
-	var touching = false;
+	var movedAt = 0.0;
+	// (input: the pointer dragging it (its slot; -1: none), from x)
+	var following = -1;
+	var from = 0.0;
 
 	public function new(own:Float) {
 		this.own = own;
@@ -201,32 +203,32 @@ class Spin {
 
 	// dt seconds have passed
 	public function advance(dt:Float) {
-		if (dt <= 0) return;
-		if (held) {
-			// (smoothed: a finger resting brings it to 0 in a few frames)
-			dragSpeed = 0.6 * (dragged / dt) + 0.4 * dragSpeed;
-			dragged = 0;
-			return;
-		}
+		if (dt <= 0 || held) return;
 		speed += (own - speed) * (1 - Math.exp(-2 * dt));
 		angle += speed * dt;
 	}
 
-	public function grab() {
+	// held from time (ms)
+	public function grab(time:Float) {
 		held = true;
-		dragged = dragSpeed = 0;
+		dragSpeed = 0;
+		movedAt = time;
 	}
 
-	public function drag(by:Float) {
+	// dragged by radians at time (ms)
+	public function drag(by:Float, time:Float) {
 		angle += by;
-		dragged += by;
+		var dt = Math.max(1, time - movedAt) / 1000;
+		dragSpeed = 0.8 * (by / dt) + 0.2 * dragSpeed;
+		movedAt = time;
 	}
 
-	// let go: with the drag's speed (flick), or from rest
-	public function release(flick:Bool) {
+	// let go at time (ms): with the drag's speed if it moved within 100 ms
+	// and flick (not a cancel), else from rest
+	public function release(flick:Bool, time:Float) {
 		if (!held) return;
 		held = false;
-		speed = flick ? Math.max(-FLICK, Math.min(FLICK, dragSpeed)) : 0;
+		speed = flick && time - movedAt <= 100 ? Math.max(-FLICK, Math.min(FLICK, dragSpeed)) : 0;
 	}
 
 	public function nudge(by:Float) {
@@ -234,38 +236,32 @@ class Spin {
 		speed = 0;
 	}
 
-	// a window's event: what the mouse drags and what scrolls sideways turn
-	// it, the content following the finger or the trackpad (a scroll to the
-	// right turns it left); not while the mouse drags, the same gesture. A
-	// touch drag comes as scrolls (a browser's, Android's, iOS's), with
-	// Mods.TOUCH while the finger is down
+	// a window's event: a pointer's drag turns it (the mouse's left button,
+	// or the first finger or pen down: helder.os's pointer events, the
+	// content following it), held still under a pointer resting, flicked
+	// on at the drag's speed when let go moving (from rest when the system
+	// took it: a browser panning the page); what scrolls sideways nudges it (a
+	// trackpad, a sideways wheel: a scroll to the right turns it left), not
+	// while a pointer drags it
 	public function input(e:Event, window:Window) {
+		var p = e.pointer;
 		switch e.kind {
-			case MouseDown if (e.button == 1):
-				from = e.x;
-				dragging = true;
-				grab();
+			case PointerDown if (following < 0 && (p.type == Mouse ? p.buttons & 1 != 0 : p.primary)):
+				following = p.id;
+				from = p.x;
+				grab(p.time);
 				window.cursor = Grabbing;
-			case MouseUp if (e.button == 1 && dragging):
-				dragging = false;
-				release(true);
-				window.cursor = Grab;
 			// (also off the window: a browser's canvas captures the press)
-			case MouseMove if (dragging):
-				drag((e.x - from) / window.width * Math.PI);
-				from = e.x;
-			case Scroll if (!dragging):
+			case PointerMove if (p.id == following):
+				drag((p.x - from) / window.width * Math.PI, p.time);
+				from = p.x;
+			case PointerUp | PointerCancel if (p.id == following):
+				following = -1;
+				release(e.kind == PointerUp, p.time);
+				window.cursor = Grab;
+			case Scroll if (following < 0):
 				var by = -e.deltaX / window.width * Math.PI;
-				if ((e.mods & Mods.TOUCH) != 0) {
-					if (!touching) grab();
-					touching = true;
-					drag(by);
-				} else {
-					// (the finger let go: its glide carries on, as scrolls)
-					if (touching) release(false);
-					touching = false;
-					if (by != 0) nudge(by);
-				}
+				if (by != 0) nudge(by);
 			case _:
 		}
 	}

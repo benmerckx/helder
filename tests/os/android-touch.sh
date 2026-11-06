@@ -1,11 +1,11 @@
 #!/bin/sh
 # Touch in a drawn UI on the device or emulator adb reaches (CI's android
-# job, after android.sh, whose AndroidTest checks a drag held on the cube):
-# AndroidTouchTest.apk (AndroidTouchTest.hx: a header over a scroll box),
-# its lines from logcat (tag hxmc). A fling (a quick swipe up, from low in
-# the box to over the header): the box follows the finger the whole way
-# (the drag's scrolls at where it started), and glides on once let go;
-# Back closes the window.
+# job, after tests/gfx/android.sh, whose AndroidTest checks a drag held on
+# the cube): AndroidTouchTest.apk (AndroidTouchTest.hx: a header over a
+# scroll box), its lines from logcat (tag hxmc). A fling (a quick swipe up,
+# from low in the box to over the header): the finger its pointer's events
+# alone, the box following it the whole way (ui's own drag, at where it
+# started), gliding on once let go; Back closes the window.
 #   sh tests/os/android-touch.sh <AndroidTouchTest.apk> [out dir]
 set -u
 apk=$1
@@ -42,7 +42,7 @@ adb wait-for-device
 adb logcat -c
 adb install -r "$apk"
 check "install AndroidTouchTest" $?
-adb shell am start -W -n org.hxmc.touchtest/android.app.NativeActivity
+adb shell am start -W -n org.helder.androidtouchtest/android.app.NativeActivity
 wait_for "AndroidTouchTest: ready" 60
 check "the window" $?
 sleep 1
@@ -56,8 +56,8 @@ wait_for "AndroidTouchTest: let go" 20
 check "a fling: its release" $?
 wait_for "AndroidTouchTest: settled" 30
 check "the box settled" $?
-grep -q "AndroidTouchTest: ok: the drag's scrolls at where it started" "$log"
-check "the drag's scrolls at where it started" $?
+grep -q "AndroidTouchTest: ok: the finger: its pointer.s events alone" "$log"
+check "the finger: its pointer's events alone (no scrolls, no mouse events)" $?
 grep -q "AndroidTouchTest: ok: the box followed the finger the whole drag" "$log"
 check "the box followed the finger over the header" $?
 grep -q "AndroidTouchTest: ok: the fling glides on once let go" "$log"

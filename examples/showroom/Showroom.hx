@@ -67,14 +67,15 @@ class Showroom {
 		eye.lookAt(new Vec3(0, 0.6, 0));
 		var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 60));
 		var clock = new FixedStep(1 / 60);
-		var turn = 0.0, drag = false, from = 0, last = Sys.time();
+		// (the pointer turning it: the mouse's left button, the first finger or pen; -1: none)
+		var turn = 0.0, drag = -1, from = 0.0, last = Sys.time();
 		HotWorld.keep(world, "showroom.world");
 		App.run(() -> {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), dt -> {
 				animator.update(dt);
 				tiles.rotation = Quat.fromEuler(0.3, clock.time * 0.5, 0);
-				if (!drag) turn += 0.1 * dt;
+				if (drag < 0) turn += 0.1 * dt;
 			});
 			last = now;
 			rig.rotation = Quat.axisAngle(new Vec3(0, 1, 0), turn);
@@ -85,14 +86,14 @@ class Showroom {
 		}, e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
-			case MouseDown if (e.button == 1):
-				drag = true;
-				from = e.x;
-			case MouseUp if (e.button == 1):
-				drag = false;
-			case MouseMove if (drag):
-				turn -= (e.x - from) / window.width * Math.PI;
-				from = e.x;
+			case PointerDown if (drag < 0 && (e.pointer.type == Mouse ? e.pointer.buttons & 1 != 0 : e.pointer.primary)):
+				drag = e.pointer.id;
+				from = e.pointer.x;
+			case PointerUp | PointerCancel if (e.pointer.id == drag):
+				drag = -1;
+			case PointerMove if (e.pointer.id == drag):
+				turn -= (e.pointer.x - from) / window.width * Math.PI;
+				from = e.pointer.x;
 			case _:
 		});
 	}

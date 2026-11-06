@@ -8,9 +8,12 @@
 #     (GfxTest's rule); the window has a size, and its frame is lit;
 #   - 120 frames drawn in the window;
 #   - a tap on the Simulator's window (SimTap: a click posted as an HID
-#     event, the simulator's touch) comes back as MouseDown and MouseUp;
-#     a fling (SimTap's quick drag) as scrolls at where it started with
-#     Mods.TOUCH, a scroll of nothing without it, then its glide's;
+#     event, the simulator's touch) comes back as a touch's PointerDown and
+#     PointerUp, without mouse events or scrolls; a drag held on the cube
+#     (SimTap's drag, resting before the lift) turns it with the finger,
+#     still while the finger rests, turning again once let go; a fling
+#     (SimTap's quick drag) flicks it on at the drag's speed; never a mouse
+#     event or a scroll (a touch is its pointer's alone);
 #   - a screenshot (simctl io) to <out>/cube-ios.png;
 #   - another app (Settings) sends it to the background (Suspend), launching
 #     it again brings it back (Resume) and frames go on;
@@ -87,24 +90,53 @@ check "screenshot" $?
 if [ -n "$tap" ]; then
 	sleep 2
 	"$tap"
-	wait_for "event MouseUp" 20
-	check "a tap: MouseDown and MouseUp" $?
-	grep -q "event MouseDown" "$stdout"
-	check "the tap: MouseDown" $?
-	# a fling (a quick drag up): its scrolls at where it started with
-	# Mods.TOUCH, a scroll of nothing without it once let go, then the
-	# glide's scrolls
-	"$tap" 0.5 0.7 0.5 0.35
-	wait_for "event Scroll .* by 0,0 mods 0" 20
-	check "a fling: scrolls, then its release" $?
-	sleep 3
-	grep "event Scroll .* mods 16" "$stdout" | grep -o "Scroll [0-9]*,[0-9]* by [0-9.e-]*,[0-9.e-]* " | sed "s/ by .*//" | sort -u > "$out/drag-at.txt"
-	[ "$(wc -l < "$out/drag-at.txt")" -eq 1 ]
-	check "the fling's scrolls with Mods.TOUCH, at where it started" $?
-	glides=$(grep "event Scroll" "$stdout" | awk '/by 0,0 mods 0/ {r = 1; next} r && / mods 0[[:space:]]*$/ {g++} END {print g + 0}')
-	echo "ios.sh: the fling's glide: $glides scrolls"
-	[ "$glides" -ge 3 ]
-	check "the fling glides on after the finger lifted" $?
+	wait_for "event PointerUp [0-9]* touch" 20
+	check "a tap: a touch's PointerDown and PointerUp" $?
+	grep -q "event PointerDown [0-9]* touch .* primary" "$stdout"
+	check "the tap: its PointerDown, the primary pointer" $?
+	! grep -q "event MouseDown\|event MouseUp\|event Scroll" "$stdout"
+	check "the tap: no mouse events, no scrolls (a touch is its pointer's alone)" $?
+	# a drag held on the cube (SimTap's drag sideways, a quarter of the
+	# screen, resting 4 s before the lift): the cube turned by the finger's
+	# pointer, held still while it rests, turning again once let go; then a
+	# fling (a quick drag sideways): flicked on at the drag's speed after
+	# the lift. No scrolls, no mouse events: the pointers alone.
+	angle() {
+		grep -o "IosTest: spin $1 angle -*[0-9]*" "$stdout" | tail -1 | grep -o -- "-*[0-9]*$"
+	}
+	ups=$(grep -c "event PointerUp" "$stdout")
+	before=$(angle free)
+	"$tap" 0.3 0.55 0.55 0.55 4 &
+	sleep 2
+	held1=$(angle held)
+	sleep 1
+	held2=$(angle held)
+	wait
+	echo "ios.sh: before $before, held: angle $held1, then $held2"
+	grep -q "event PointerMove [0-9]* touch" "$stdout"
+	check "a drag: the finger's PointerMoves" $?
+	[ -n "$held1" ] && [ "$held1" = "$held2" ]
+	check "the cube held still under the resting finger" $?
+	[ -n "$before" ] && [ -n "$held1" ] && [ $((held1 - before)) -ge 400 ]
+	check "the cube turned with the finger (a quarter of the screen: about 785 mrad)" $?
+	sleep 1
+	[ "$(grep -c "event PointerUp" "$stdout")" -gt "$ups" ]
+	check "let go: its PointerUp" $?
+	free1=$(angle free)
+	sleep 2
+	free2=$(angle free)
+	echo "ios.sh: let go: angle $free1, then $free2"
+	[ -n "$free1" ] && [ "$free1" != "$free2" ]
+	check "the cube turning again once let go" $?
+	lines=$(wc -l < "$stdout")
+	"$tap" 0.3 0.55 0.7 0.55
+	sleep 1
+	flick=$(tail -n +$((lines + 1)) "$stdout" | awk '/event PointerUp [0-9]* touch/ {r = 1; next} r && /IosTest: spin free/ {print; exit}' | grep -o -- "speed -*[0-9]*" | grep -o -- "-*[0-9]*$")
+	echo "ios.sh: the fling's speed after it: $flick mrad/s (its own 600)"
+	[ -n "$flick" ] && [ "$flick" -ge 1500 ]
+	check "a fling carries the cube on at the drag's speed" $?
+	! grep -q "event MouseDown\|event MouseUp\|event Scroll" "$stdout"
+	check "the drags: no mouse events, no scrolls" $?
 fi
 xcrun simctl launch "$udid" com.apple.Preferences > /dev/null
 wait_for "event Suspend" 30

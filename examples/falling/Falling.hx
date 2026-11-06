@@ -96,7 +96,8 @@ class Falling {
 		}, e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
-			case MouseDown: scene.drop();
+			// (a click, a finger or a pen down)
+			case PointerDown: scene.drop();
 			case _:
 		});
 	}

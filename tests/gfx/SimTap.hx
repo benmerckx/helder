@@ -6,13 +6,16 @@ import hxmc.unsafe.*;
 // click (down, up) at a fraction of it posted as the HID system's events
 // (CGEventPost), which the simulator turns into a touch; with a second
 // point, a quick drag to it (a fling: down, dragged in 10 steps 10 ms
-// apart, up). Needs the permission to post events (the runner's).
-//   SimTap [fx fy [tx ty]]   (default 0.5 0.55: the screen's middle, under the title bar)
+// apart, up); with a time too, held there that many seconds before the
+// lift (a drag that rests). Needs the permission to post events (the
+// runner's).
+//   SimTap [fx fy [tx ty [hold]]]   (default 0.5 0.55: the screen's middle, under the title bar)
 class SimTap {
 	static function main() {
 		var args = Sys.args();
 		var fx = args.length > 1 ? Std.parseFloat(args[0]) : 0.5, fy = args.length > 1 ? Std.parseFloat(args[1]) : 0.55;
 		var tx = args.length > 3 ? Std.parseFloat(args[2]) : fx, ty = args.length > 3 ? Std.parseFloat(args[3]) : fy;
+		var hold = args.length > 4 ? Std.parseFloat(args[4]) : 0.0;
 		var list = CG.CGWindowListCopyWindowInfo(1, 0); // (kCGWindowListOptionOnScreenOnly)
 		var ownerKey = cf("kCGWindowOwnerName"), boundsKey = cf("kCGWindowBounds");
 		var rect:Ptr<Float> = LibC.malloc(32);
@@ -53,6 +56,10 @@ class SimTap {
 				post(p, 6);
 			}
 			Sys.println('SimTap: dragged to ${p.value.x},${p.value.y}');
+			if (hold > 0) {
+				Sys.sleep(hold);
+				Sys.println('SimTap: held $hold s');
+			}
 		} else Sys.sleep(0.1);
 		post(p, 2);
 	}

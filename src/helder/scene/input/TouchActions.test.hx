@@ -146,6 +146,44 @@ function tests() {
 			a.step();
 			assert(move.pointer == p.id && q.owner == None, "the second finger in the stick's zone: nobody's");
 		});
+		test("a finger no control took: the left button and the regions while it is down", () -> {
+			var b = new InputMap();
+			b.setSize(400, 300);
+			b.bind("fire", Mouse(1)).bind("jump", Region(0.5, 0.5, 1, 1)).bind("grab", Touch(Zone.rect(0, 0, 0.25, 0.25)));
+			var p = down(1, 300, 250);
+			b.step();
+			assert(b.pressed("fire") && b.held("fire") && b.pressed("jump") && b.held("jump") && p.owner == None, "down in the region: both held, the finger nobody's");
+			to(p, 100, 250);
+			b.step();
+			assert(b.held("fire") && !b.held("jump") && b.released("jump"), "slid out of the region: it lets go, the button held");
+			var q = down(2, 300, 250);
+			b.step();
+			assert(!b.held("jump") && !b.pressed("fire"), "a second finger: not the button");
+			up(p);
+			b.step();
+			assert(!b.held("fire") && b.released("fire"), "lifted: the button let go");
+			up(q);
+			var t = down(1, 300, 250);
+			up(t);
+			b.step();
+			assert(b.pressed("fire") && b.released("fire") && b.pressed("jump") && !b.held("jump"), "a tap within a step: pressed and released");
+			var g = down(1, 20, 20);
+			b.step();
+			assert(b.held("grab") && !b.held("fire") && !b.pressed("fire"), "a finger in a touch zone: the zone's, not the button");
+			up(g);
+			b.step();
+			var u = down(1, 300, 250);
+			u.owner = Ui;
+			b.step();
+			assert(!b.pressed("fire") && !b.pressed("jump"), "a press on ui: not the button");
+			up(u, true);
+			b.step();
+			var c = down(1, 300, 250);
+			b.step();
+			up(c, true);
+			b.step();
+			assert(b.released("fire") && !b.held("fire") && !b.held("jump"), "cancelled: let go");
+		});
 		test("nothing allocated per step", () -> {
 			function round(k:Int) {
 				var p = down(k, 100, 250), q = down(k + 1, 300, 50), r = down(k + 2, 350, 240);

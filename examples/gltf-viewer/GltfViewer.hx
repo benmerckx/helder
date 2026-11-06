@@ -15,8 +15,9 @@ import helder.scene.render.*;
 // The sample scene (sample.glb, made by tests/3d/SampleModel.hx)
 // in a window: referenced with Model.of (checked and typed when compiling,
 // built into the program), instantiated into a World, drawn by Renderer. The camera circles the scene on a node of
-// its own (drag sideways, or hold the arrows, to turn it: the arrows are an
-// input action, InputMap; Escape closes); the simulation (the
+// its own (drag sideways with the mouse, a finger or a pen, a finger's
+// flick gliding on, scroll sideways, or hold the arrows, to turn it: the
+// arrows are an input action, InputMap; Escape closes); the simulation (the
 // moon's orbit, the turn) runs at a fixed 60 steps a second (FixedStep).
 //
 //   haxe -cp src -cp examples
@@ -46,7 +47,9 @@ class GltfViewer {
 		var clock = new FixedStep(1 / 60);
 		// (the arrows, or A and D, turn it too: an action read each step)
 		var actions = new InputMap().bind("turn", KeyAxis(0xFF51, 0xFF53)).bind("turn", KeyAxis(0x61, 0x64));
-		var turn = 0.0, speed = 0.25, drag = false, from = 0, last = Sys.time();
+		// (the pointer turning it: the mouse's left button, the first finger or pen; -1: none; a flick's glide)
+		var turn = 0.0, speed = 0.25, drag = -1, from = 0.0, last = Sys.time();
+		var glide = new Glide();
 		window.cursor = Grab;
 		window.scrollsAt = (x, y, dx, dy) -> Math.abs(dx) > Math.abs(dy);
 		// (under `hxmc dev`: the camera rig's and the scene's transforms carried across a rebuild)
@@ -58,10 +61,11 @@ class GltfViewer {
 				actions.step();
 				animator.update(dt * 0.25);
 				var keys = actions.axis("turn");
-				if (!drag) turn += (keys != 0 ? -1.5 * keys : speed) * dt;
+				if (drag < 0) turn += (keys != 0 ? -1.5 * keys : speed) * dt;
 				orbit.rotation = Quat.axisAngle(new Vec3(0, 1, 0), clock.time * 0.8) * new Quat(ox, oy, oz, ow);
 			});
 			last = now;
+			if (glide.step(now * 1000)) turn -= glide.dx / window.width * Math.PI;
 			rig.rotation = Quat.axisAngle(new Vec3(0, 1, 0), turn);
 			var enc = device.beginFrame();
 			if (enc == null) return;
@@ -72,16 +76,21 @@ class GltfViewer {
 			switch e.kind {
 				case Close: window.close();
 				case KeyDown if (e.key == 0xFF1B): window.close();
-				case MouseDown if (e.button == 1):
-					drag = true;
-					from = e.x;
+				case PointerDown if (drag < 0 && (e.pointer.type == Mouse ? e.pointer.buttons & 1 != 0 : e.pointer.primary)):
+					drag = e.pointer.id;
+					from = e.pointer.x;
+					glide.start(e.pointer.time);
 					window.cursor = Grabbing;
-				case MouseUp if (e.button == 1):
-					drag = false;
+				case PointerUp | PointerCancel if (e.pointer.id == drag):
+					drag = -1;
+					// (a finger or a pen let go moving glides on; not the mouse, nor a cancel)
+					if (e.kind == PointerUp && e.pointer.type != Mouse) glide.release(e.pointer.time);
 					window.cursor = Grab;
-				case MouseMove if (drag):
-					turn -= (e.x - from) / window.width * Math.PI;
-					from = e.x;
+				case PointerMove if (e.pointer.id == drag):
+					var by = e.pointer.x - from;
+					turn -= by / window.width * Math.PI;
+					glide.move(by, 0, e.pointer.time);
+					from = e.pointer.x;
 				case Scroll:
 					turn += e.deltaX / window.width * Math.PI;
 				case _:

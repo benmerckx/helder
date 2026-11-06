@@ -88,7 +88,8 @@ class Chains {
 		}, e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
-			case MouseDown: scene.swing();
+			// (a click, a finger or a pen down)
+			case PointerDown: scene.swing();
 			case _:
 		});
 	}

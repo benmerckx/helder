@@ -9,7 +9,7 @@
 #   screen fixture (tests/pack/Screen.hx: its window, safe area and the
 #   display's frames, a rotation, the background), helder dev's loop there
 #   (tests/os/dev/dev-android.mjs), the cube's window and touches
-#   (tests/gfx/android.sh);
+#   (tests/gfx/android.sh), a drawn ui's touch fling (tests/os/android-touch.sh);
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
 #   runner (helder run, simctl), the screen fixture, codesign --verify and
 #   plutil; the cube's window and touches (tests/gfx/ios.sh: SimTap's clicks).
@@ -139,11 +139,13 @@ jobs:
           export BUNDLETOOL="$RUNNER_TEMP/bundletool.jar"
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           bun run test pack
-      - name: The device tests' apps (tests/gfx/android/AndroidTest.hx, the cube and its touches)
+      - name: The device tests' apps (tests/gfx/android: the cube and its touches; tests/os/AndroidTouchTest.hx: a drawn ui's fling)
         env:
           HXMC_RT_DIR: ${{ github.workspace }}/bin/pack/rt
           HELDER_CACHE: ${{ github.workspace }}/bin/pack/cache
-        run: bin/cli/helder build tests/gfx/android --target android-x86_64 -o bin/pack/AndroidTest.apk
+        run: |
+          bin/cli/helder build tests/gfx/android --target android-x86_64 -o bin/pack/AndroidTest.apk
+          bin/cli/helder build tests/os/AndroidTouchTest.hx --target android-x86_64 -o bin/pack/AndroidTouchTest.apk
       - name: KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -167,6 +169,7 @@ jobs:
             sh tests/pack/android.sh bin/cli/helder bin/pack/android
             node tests/os/dev/dev-android.mjs bin/cli/helder bin/pack/dev-emulator
             sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx
+            sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -203,6 +206,8 @@ jobs:
       - name: Hello on a simulator
         run: sh tests/pack/ios.sh bin/cli/helder bin/pack/ios
       - name: The cube and its touches on a simulator (tests/gfx/ios.sh, SimTap's clicks)
+        # (also when Hello's step failed: their checks are their own)
+        if: ${{ !cancelled() }}
         run: |
           bin/cli/helder build tests/gfx/ios --target ios-sim -o bin/pack/IosTest.app
           bin/cli/helder build tests/gfx/SimTap.hx -o bin/pack/SimTap

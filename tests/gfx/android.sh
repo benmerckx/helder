@@ -8,10 +8,12 @@
 #     (GfxTest's rule); the activity's window, waited for, has a size, and
 #     its frame is lit;
 #   - 120 frames drawn in the window;
-#   - a tap and a key come back as events (MouseDown, KeyDown of a);
-#   - a drag held on the cube: scrolls at where it started with Mods.TOUCH,
-#     the cube still while the finger rests, a scroll of nothing once let
-#     go and the cube turning again; a fling glides on after the lift;
+#   - a tap and a key come back as events (a touch's PointerDown and
+#     PointerUp, KeyDown of a), the tap without mouse events or scrolls;
+#   - a drag held on the cube: its pointer turns the cube with the finger,
+#     still while the finger rests, turning again once let go; a fling
+#     flicks it on at the drag's speed after the lift; never a mouse event
+#     or a scroll (a touch is its pointer's alone);
 #   - Home takes the window (Suspend), starting the activity again gives it
 #     back (Resume) and frames go on;
 #   - a relaunch (the font scale changed: a configuration change the
@@ -87,40 +89,47 @@ adb shell input tap 300 300
 adb shell input keyevent KEYCODE_A
 wait_for "event KeyDown .* key 97" 20
 check "a tap and a key as events" $?
-grep -q "event MouseDown" "$log"
-check "the tap: MouseDown" $?
+grep -q "event PointerDown [0-9]* touch .* primary" "$log" && grep -q "event PointerUp [0-9]* touch" "$log"
+check "the tap: a touch's PointerDown and PointerUp" $?
+! grep -q "event MouseDown\|event MouseUp\|event Scroll" "$log"
+check "the tap: no mouse events, no scrolls (a touch is its pointer's alone)" $?
 # a drag on the cube, held (input motionevent: down, moved, resting, up):
-# its scrolls at where it started with Mods.TOUCH, the cube held still while
-# the finger rests, a scroll of nothing without it once let go, the cube
-# turning again; then a fling (a quick swipe): the drag glides on after the
-# finger lifted (scrolls without Mods.TOUCH)
+# the cube turned by the finger's pointer (a quarter of the window: a
+# quarter turn), held still while the finger rests, turning again once
+# let go; then a fling (a quick swipe): flicked on at the drag's speed
+# after the finger lifted. No scrolls, no mouse events: the pointers alone.
 angle() {
 	adb logcat -d -s hxmc:I helder.os:D > "$log" 2>/dev/null
 	grep -o "AndroidTest: spin $1 angle -*[0-9]*" "$log" | tail -1 | grep -o -- "-*[0-9]*$"
+}
+speed() {
+	adb logcat -d -s hxmc:I helder.os:D > "$log" 2>/dev/null
+	grep -o "AndroidTest: spin free angle -*[0-9]* speed -*[0-9]*" "$log" | tail -1 | grep -o -- "-*[0-9]*$"
 }
 size=$(grep -o "AndroidTest: window [0-9]*x[0-9]*" "$log" | head -1 | grep -o "[0-9]*x[0-9]*$")
 W=${size%x*}
 H=${size#*x}
 x0=$((W / 4))
 y0=$((H / 2))
+ups=$(grep -c "event PointerUp" "$log")
+before=$(angle free)
 adb shell input motionevent DOWN $x0 $y0
 adb shell input motionevent MOVE $((x0 + W / 8)) $y0
 adb shell input motionevent MOVE $((x0 + W / 4)) $y0
-wait_count "event Scroll .* mods 16" 2 20
-check "a drag: scrolls with Mods.TOUCH" $?
-grep "event Scroll .* mods 16" "$log" | grep -o "Scroll [0-9]*,[0-9]* by -[0-9.]*,0 " | sed "s/ by .*//" | sort -u > "$out/drag-at.txt"
-[ "$(wc -l < "$out/drag-at.txt")" -eq 1 ]
-check "the drag's scrolls at where it started, the content following the finger" $?
+wait_count "event PointerMove [0-9]* touch" 2 20
+check "a drag: the finger's PointerMoves" $?
 sleep 2
 held1=$(angle held)
 sleep 2
 held2=$(angle held)
-echo "android.sh: held: angle $held1, then $held2"
+echo "android.sh: before $before, held: angle $held1, then $held2"
 [ -n "$held1" ] && [ "$held1" = "$held2" ]
 check "the cube held still under the resting finger" $?
+[ -n "$before" ] && [ -n "$held1" ] && [ $((held1 - before)) -ge 600 ]
+check "the cube turned with the finger (a quarter of the window: about 785 mrad)" $?
 adb shell input motionevent UP $((x0 + W / 4)) $y0
-wait_for "event Scroll .* by 0,0 mods 0" 20
-check "let go: a scroll of nothing without Mods.TOUCH" $?
+wait_count "event PointerUp [0-9]* touch" $((ups + 1)) 20
+check "let go: its PointerUp" $?
 sleep 1
 free1=$(angle free)
 sleep 2
@@ -128,16 +137,20 @@ free2=$(angle free)
 echo "android.sh: let go: angle $free1, then $free2"
 [ -n "$free1" ] && [ "$free1" != "$free2" ]
 check "the cube turning again once let go" $?
-released=$(grep -c "event Scroll .* by 0,0 mods 0" "$log")
+ups=$(grep -c "event PointerUp" "$log")
+lines=$(wc -l < "$log")
 adb shell input swipe $x0 $y0 $((x0 + W / 2)) $y0 60
-wait_count "event Scroll .* by 0,0 mods 0" $((released + 1)) 20
+wait_count "event PointerUp [0-9]* touch" $((ups + 1)) 20
 check "a fling: its release" $?
-sleep 3
+# (the spin's first line after the release: within 20 frames)
+sleep 1
 adb logcat -d -s hxmc:I helder.os:D > "$log" 2>/dev/null
-glides=$(grep "event Scroll" "$log" | awk -v n=$((released + 1)) '/by 0,0 mods 0/ {r++; next} r >= n && / mods 0[[:space:]]*$/ {g++} END {print g + 0}')
-echo "android.sh: the fling's glide: $glides scrolls"
-[ "$glides" -ge 3 ]
-check "the fling glides on after the finger lifted" $?
+flick=$(tail -n +$((lines + 1)) "$log" | awk '/event PointerUp [0-9]* touch/ {r = 1; next} r && /AndroidTest: spin free/ {print; exit}' | grep -o -- "speed -*[0-9]*" | grep -o -- "-*[0-9]*$")
+echo "android.sh: the fling's speed after it: $flick mrad/s (its own 600)"
+[ -n "$flick" ] && [ "$flick" -ge 1500 ]
+check "the fling carries the cube on at the drag's speed" $?
+! grep -q "event MouseDown\|event MouseUp\|event Scroll" "$log"
+check "the drags: no mouse events, no scrolls" $?
 adb exec-out screencap -p > "$out/cube-android.png"
 check "screenshot" $?
 adb shell input keyevent KEYCODE_HOME

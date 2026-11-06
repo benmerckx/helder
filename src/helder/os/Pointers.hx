@@ -48,9 +48,10 @@ class Pointers {
 
 	// whether a touch also sends what it did before pointers (a tap's
 	// MouseMove, MouseDown and MouseUp, a drag's Scrolls: TouchDrag), for
-	// the first finger: on by default
+	// the first finger: off by default (a touch is its pointer's events
+	// alone), going away
 	// (the browser's side decides a tap's click itself: CanvasWindow tells it before each frame's events)
-	public static var emulate = true;
+	public static var emulate = false;
 
 	// the pointer of slot id (0 the mouse)
 	public static inline function get(id:Int):Pointer
