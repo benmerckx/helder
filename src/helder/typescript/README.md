@@ -126,7 +126,12 @@ The checker's types decide how values are represented (`Reps.hx`): a
 top-level class whose fields have plain names, extending nothing or another
 such class) is an object of its own hxmc class under the runtime's
 JsObject, its fields in typed slots; an array is the runtime's JsArray,
-its length and dense elements read in place. Everything else is a dynamic
+its length and dense elements read in place. A branded
+number (`number & {__brand: "m"}`: an intersection with a number among its
+parts) is an F64 as well, a branded string a String, and a type parameter
+constrained to one (`T extends number`) its constraint's representation
+(Types: an intersection's parts, a type parameter's base constraint), so
+units and generics over numbers cost nothing. Everything else is a dynamic
 JavaScript value. Bindings, parameters, direct functions' results and
 fields of those types are typed slots, and code on them is plain native
 code: arithmetic on F64s, fields at fixed offsets, for-of over an array by
@@ -435,4 +440,14 @@ an await), `bytes.ts` (Bytes as typed arrays: ImageData, a PNG).
 The lane needs node 24 or later.
 
 `node tests/typescript/bench.mjs [names]` times the programs of `bench/`
-compiled by helder's compiler against node (median of 5 runs each).
+compiled by helder's compiler against node and against their Haxe
+versions (`bench/<Name>.hx`, by the same compiler), median of 5 runs each.
+Linux x86-64, TypeScript's time over Haxe's: binary-trees 2.05, branded
+21.5 (46.5 before branded numbers and constrained parameters were typed:
+229 ms from 495), fibonacci 1.09, nbody 2.60, numeric-loop 3.89, primes
+2.43, strings 2.82, vectors 2.03. What is left is mostly numbers in arrays
+(a JavaScript array's elements are values, each a number boxed: Haxe's
+Array<Float> holds them unboxed), integer loops (a TS number is a double;
+Haxe's Int an int32) and allocation; small functions are inlined by hxmc's
+inliner already (hxmc.Inline, on the IR this frontend makes: fibonacci is
+at Haxe's speed).

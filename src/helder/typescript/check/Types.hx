@@ -15,6 +15,10 @@ class TsType {
 	// a union's members; an array's element type
 	public var members:Null<Array<TsType>> = null;
 	public var element:Null<TsType> = null;
+	// an intersection's parts (number & {__brand}: a branded number); a type
+	// parameter's constraint (T extends number)
+	public var parts:Null<Array<TsType>> = null;
+	public var constraint:Null<TsType> = null;
 	// whether its values are functions (it has call signatures; a union: every
 	// member does), when asked for while the program was checked (Types.callable)
 	public var isCallable:Null<Bool> = null;
@@ -42,6 +46,7 @@ class Types {
 	final stringLike:Int;
 	final booleanLiteral:Int;
 	final union:Int;
+	final intersection:Int;
 	final object:Int;
 	final typeParameter:Int;
 	final classFlag:Int;
@@ -63,6 +68,7 @@ class Types {
 		stringLike = tables.typeFlags.get("String") | tables.typeFlags.get("StringLiteral") | tables.typeFlags.get("TemplateLiteral") | tables.typeFlags.get("StringMapping");
 		booleanLiteral = tables.typeFlags.get("BooleanLiteral");
 		union = tables.typeFlags.get("Union");
+		intersection = tables.typeFlags.get("Intersection");
 		object = tables.typeFlags.get("Object");
 		typeParameter = tables.typeFlags.get("TypeParameter");
 		classFlag = tables.objectFlags.get("Class");
@@ -108,6 +114,14 @@ class Types {
 				var members:Array<Dynamic> = request("getTypesOfType", t.id);
 				t.members = [for (m in members ?? []) add(m)];
 			}
+			else if (t.flags & intersection != 0) {
+				var parts:Array<Dynamic> = request("getTypesOfType", t.id);
+				t.parts = [for (m in parts ?? []) add(m)];
+			}
+			else if (t.flags & typeParameter != 0 && !t.isThis) {
+				var c:Dynamic = tsgo.call("getBaseConstraintOfType", {snapshot: at.snapshot, project: at.project, type: t.id});
+				if (c != null && c.id != t.id) t.constraint = add(c);
+			}
 			else if (t.flags & object != 0 && t.objectFlags & reference != 0
 				&& tsgo.call("isArrayType", {snapshot: at.snapshot, project: at.project, type: t.id}) == true) {
 				var args:Array<Dynamic> = tsgo.call("getTypeArguments", {snapshot: at.snapshot, project: at.project, type: t.id});
@@ -135,6 +149,9 @@ class Types {
 	public function isNumber(t:Null<TsType>):Bool {
 		if (t == null) return false;
 		if (t.members != null) return Lambda.foreach(t.members, isNumber);
+		// (a branded number, number & {__brand}; T extends number)
+		if (t.parts != null) return Lambda.exists(t.parts, isNumber);
+		if (t.constraint != null) return isNumber(t.constraint);
 		return t.flags & (number | numberLiteral) != 0 && t.flags & union == 0;
 	}
 
@@ -142,6 +159,8 @@ class Types {
 	public function isBoolean(t:Null<TsType>):Bool {
 		if (t == null) return false;
 		if (t.members != null) return Lambda.foreach(t.members, isBoolean);
+		if (t.parts != null) return Lambda.exists(t.parts, isBoolean);
+		if (t.constraint != null) return isBoolean(t.constraint);
 		return t.flags & (boolean | booleanLiteral) != 0;
 	}
 
@@ -149,6 +168,8 @@ class Types {
 	public function isString(t:Null<TsType>):Bool {
 		if (t == null) return false;
 		if (t.members != null) return Lambda.foreach(t.members, isString);
+		if (t.parts != null) return Lambda.exists(t.parts, isString);
+		if (t.constraint != null) return isString(t.constraint);
 		return t.flags & stringLike != 0 && t.flags & union == 0;
 	}
 

@@ -387,7 +387,11 @@ Still to come:
       pointers and buffers, on hxmc's extern machinery; objc, com and jni
       not yet);
     - small functions inlined and generics over numbers specialised, branded
-      number types free (hot paths in TS near Haxe's speed);
+      number types free (hot paths in TS near Haxe's speed) (branded
+      numbers and `T extends number` typed as numbers; small functions are
+      hxmc's inliner's; bench/ against Haxe: src/helder/typescript/README.md,
+      "Tests"; not yet: numbers in arrays unboxed, unconstrained generics
+      specialised, integer loops);
     - BigInt; the `bench/` programs against the same in Haxe, not only
       against node.
     Kept Haxe's: the GC-free tier (`hxmc.unsafe`), definitions' handlers
