@@ -10,7 +10,7 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
-import type {Map} from "./frame-check";
+import type {Asset} from "helder/asset";
 import type {Mat4, Quat, Vec2, Vec3, Vec4} from "helder/gfx";
 import type {Node} from "helder/scene";
 
@@ -305,7 +305,7 @@ export declare class Material {
 	// replaced), null: the standard one; the blocks of its own, by their
 	// parameters' names (its slots' parameters the standard ones are not)
 	shader: MaterialShader | null;
-	uniforms: Map<string, Uint8Array> | null;
+	uniforms: unknown | null;
 	// a clear coat over the surface (KHR_materials_clearcoat): how much (0
 	// to 1) and its roughness; a polished dielectric layer (f0 0.04) whose
 	// reflection, from the sun and the environment, is added over the base
@@ -376,7 +376,7 @@ export declare class Model<N, M, A, C> {
 	// a model whose path is known only at run time: loaded in the background
 	// (in the browser fetched, relative to the page; natively read at once),
 	// its names unknown when compiling (find nodes by name: model.doc)
-	static load(path: string): unknown;
+	static load(path: string): Asset<Model<{}, {}, {}, {}>>;
 	// the model's scene as nodes of world (under parent, by default the root)
 	instantiate(world: World, device: Device, parent?: Node, made?: Node[]): Node;
 	// the model's GPU meshes released

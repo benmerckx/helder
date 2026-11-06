@@ -7,9 +7,7 @@
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
 import type {Device, Encoder} from "helder/scene/runtime";
 
-declare const __haxe: {FrameCheck: "FrameCheck", __module: "FramesTypeScript"};
-
-export type Map<K, V> = unknown;
+declare const __haxe: {FrameCheck: "frames.FrameCheck", __module: "frames.FramesTypeScript"};
 
 // helder/scene's frames drawn by TypeScript (tests/3d/ts/frames.ts), as
 // RenderTest draws Haxe's: headless, 256 x 192, against a golden image by

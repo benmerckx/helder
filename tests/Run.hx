@@ -934,7 +934,7 @@ class Run {
 	static function sceneTs(t:String) {
 		var compiler = StringTools.trim(output(NODE, ["src/helder/compiler/build.mjs", "--quiet"]));
 		var cp = [for (d in ["tests/3d/ts", "tests/gfx"].concat(GFX_EXAMPLES)) for (a in ["--cp", d]) a];
-		run(NODE, ["src/helder/typescript/api/declarations.mjs", "--check"].concat(cp).concat(["helder.scene.TypeScript", "FramesTypeScript"]));
+		run(NODE, ["src/helder/typescript/api/declarations.mjs", "--check"].concat(cp).concat(["helder.asset.TypeScript", "helder.scene.TypeScript", "frames.FramesTypeScript"]));
 		var exe = exePath('bin/3d/$t/ts-frames', t);
 		mkdirs(Path.directory(exe));
 		run(compiler, ["tests/3d/ts/frames.ts", "-o", exe].concat(cp).concat(targetArgs(t)));

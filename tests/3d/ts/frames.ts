@@ -6,7 +6,7 @@
 //            orbs): tsscene.png, which Scenes.hx's Haxe twin draws too
 //
 //   frames <scene> <golden.png> <out.png> [--bless]
-import { FrameCheck } from "./frame-check";
+import { FrameCheck } from "./frames/frame-check";
 import { loaded, model } from "helder/asset";
 import { Glow, Showcase } from "../../../examples/ts-scene/scene";
 

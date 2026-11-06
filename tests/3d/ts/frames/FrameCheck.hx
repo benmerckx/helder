@@ -1,3 +1,5 @@
+package frames;
+
 import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.os.*;
