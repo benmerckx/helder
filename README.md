@@ -1184,9 +1184,25 @@ fix.
   texture (as Makepad Studio: IOSurface, a DXGI shared handle, dmabuf), so a
   crash leaves the editor running.
 
-### 6. Editor
+### 6. Editor, and helder studio
 
 Folded into phase 3: the VS Code extension is the devtools.
+
+**helder studio** (`apps/studio`, `helder studio` from the CLI): a
+creation app for apps, games, motion and video, itself a helder app on
+desktop, web and mobile. The source is the document: a canvas, an
+inspector, a timeline, a code editor and an agent all edit the same
+TSX/Haxe through its syntax tree; the compiler, the checker, the preview
+and the store builds run on the device (natively, or as wasm in a browser,
+phone or tablet). Its plan, and the hosted services beside it (prompt box,
+accounts, the web version's store relay, helder.run), are in the private
+benmerckx/helder.build. What it needs from helder first, after the headless
+agent runner: a node's source location in dev builds and syntax-tree edits
+that keep formatting; live literals (a literal's edit patched in without a
+rebuild); the compiler as a library (in process, and as wasm in a worker);
+motion as property tracks and a timeline definition; a code editor widget;
+video encoding; the editor's building blocks (an infinite canvas, handles,
+snapping, docked panels).
 
 ### 7. Later
 
