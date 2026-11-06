@@ -15,8 +15,8 @@ class PdfLimits {
 	public var maxOperators = 20_000_000;
 	public var maxImagePixels = 100_000_000;
 	public var maxNesting = 64;
-	// the decoded images a document keeps for its pages drawn again (bytes, least recently used out
-	// first; 0 keeps none): Bitmaps, or on the web the browser's images
+	// the decoded images and page contents a document keeps for its pages drawn again (bytes, least
+	// recently used out first; 0 keeps none): Bitmaps, or on the web the browser's images
 	public var imageCache = 64 << 20;
 
 	public function new() {}

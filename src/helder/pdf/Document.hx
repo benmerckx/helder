@@ -483,7 +483,21 @@ class Page {
 		return rotate % 180 == 0 ? box[3] - box[1] : box[2] - box[0];
 
 	// the page's content streams, one after another
+	static var nextId = 0;
+	final id = nextId++;
+
+	// (kept in the document's cache, Document.images, beside the decoded images: a page drawn again
+	// is not inflated again)
 	public function contents():Bytes {
+		var key = "contents " + id;
+		var kept:Null<Bytes> = doc.images.get(key);
+		if (kept != null) return kept;
+		var b = readContents();
+		doc.images.put(key, b, b.length);
+		return b;
+	}
+
+	function readContents():Bytes {
 		var v = doc.resolve(dict.get("Contents"));
 		var parts = switch v {
 			case PArray(a): a;
@@ -504,8 +518,9 @@ interface Decryptor {
 	function decrypt(data:Bytes, num:Int, gen:Int, stream:Bool):Bytes;
 }
 
-// A document's decoded images by key (an image XObject's reference and the size it is shown at),
-// bounded by bytes, the least recently used let go of first (its release called: a browser image's)
+// A document's decoded images by key (an image XObject's reference and the size it is shown at) and
+// its pages' decoded content streams, bounded by bytes together, the least recently used let go of
+// first (its release called: a browser image's)
 class ImageCache {
 	final budget:Int;
 	final entries = new Map<String, {value:Dynamic, bytes:Int, used:Int, release:Null<() -> Void>}>();

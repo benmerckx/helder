@@ -63,9 +63,10 @@ helder.pdf.Pdf.draw(doc.pages[3], painter, 1.5);
   twice its shown size or more averaged down after decoding; CCITT G3 and
   G4 (`Ccitt`, ported from leanpdf). On the web back end glyphs are kept
   in the page as Path2D (helder.canvas's GlyphCache) and drawn by key.
-- **Decoded images kept** per document (`Document.images`, an LRU bounded
-  by `PdfLimits.imageCache`, 64 MB by default): by an image's reference and
-  the size it is shown at, so a page drawn again decodes nothing; on the web
+- **Decoded images and contents kept** per document (`Document.images`, an
+  LRU bounded by `PdfLimits.imageCache`, 64 MB by default): images by their
+  reference and the size shown, each page's content streams inflated once,
+  so a page drawn again decodes nothing; on the web
   the browser's images (`PdfWeb.prepare`: JPEGs decoded by the browser at
   the size shown, before a synchronous `Pdf.draw`).
 - **What is linked**: `Pdf.open` links decryption (`Crypto`) and JPEG
