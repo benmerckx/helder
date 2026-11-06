@@ -139,4 +139,26 @@ check "golf: nothing uncaught" $?
 xcrun simctl io "$udid" screenshot "$out/golf.png" > /dev/null 2>&1
 xcrun simctl terminate "$udid" $gid > /dev/null 2>&1
 kill $console > /dev/null 2>&1
+
+# helder.ui's UIAccessibility (tests/ui/IosAccessCheck.hx): the fixture's
+# window read as VoiceOver reads it, a button activated, a slider
+# incremented; its lines end with "access: N checks, ok".
+aid=org.helder.IosAccessCheck
+"$helder" build tests/ui/IosAccessCheck.hx --target ios-sim -o "$out/IosAccessCheck.app"
+check "helder build tests/ui/IosAccessCheck.hx --target ios-sim" $?
+xcrun simctl install "$udid" "$out/IosAccessCheck.app"
+check "simctl install IosAccessCheck.app" $?
+: > "$out/access.txt"
+xcrun simctl launch --console-pty --terminate-running-process "$udid" $aid > "$out/access.txt" 2>&1 &
+console=$!
+i=0
+while [ $i -lt 60 ] && ! grep -q "access: .* checks" "$out/access.txt"; do
+	sleep 1
+	i=$((i + 1))
+done
+grep "access:" "$out/access.txt"
+grep -q "access: .* checks, ok" "$out/access.txt"
+check "access: UIAccessibility's elements" $?
+xcrun simctl terminate "$udid" $aid > /dev/null 2>&1
+kill $console > /dev/null 2>&1
 exit $failed

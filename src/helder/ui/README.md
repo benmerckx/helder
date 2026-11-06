@@ -584,7 +584,11 @@ rows, columns and headers, a row's and an item's index; press,
 increment and decrement come back as actions, as do a value, the focus,
 expanded and selected set; the notifications of what changed), which
 VoiceOver reads (the window lane on macOS: `MacAccessTest`,
-`MacPatternsTest`, in process); on Windows to UI Automation (`WinAccess`: a COM
+`MacPatternsTest`, in process); on iOS to UIAccessibility (`IosAccess`:
+the window's view a container of a UIAccessibilityElement per node
+VoiceOver stops at, its label, value, hint, traits and frame; activate,
+increment and decrement come back as actions; layout changes and
+announcements posted; `tests/ui/IosAccessCheck.hx` on CI's simulator); on Windows to UI Automation (`WinAccess`: a COM
 provider per node, made here: navigation, properties (an item's place in
 its set, a heading's level, off screen), bounds, the Invoke, Toggle,
 RangeValue, Value, ExpandCollapse, SelectionItem, Selection, ScrollItem,

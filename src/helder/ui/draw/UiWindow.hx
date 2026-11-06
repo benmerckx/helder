@@ -43,7 +43,8 @@ typedef SurfaceProps = {
 // resized or lost its pixels). run() is the app loop for every UiWindow
 // open, which sleeps while none has a frame to draw. In the browser each
 // frame's accessibility tree goes to the mirror in the canvas (WebAccess:
-// load src/helder/ui/imports.mjs), on macOS to NSAccessibility (MacAccess),
+// load src/helder/ui/imports.mjs), on macOS to NSAccessibility (MacAccess), on
+// iOS to UIAccessibility (IosAccess),
 // on Windows to UI Automation (WinAccess), on Linux to AT-SPI (LinuxAccess),
 // and the actions asked for come back.
 //
@@ -94,6 +95,8 @@ class UiWindow {
 	var winAccess:Any = null;
 	// Linux's (a LinuxAccess)
 	var linuxAccess:Any = null;
+	// iOS's (an IosAccess)
+	var iosAccess:Any = null;
 	// the text input area last given to the window ("": off)
 	var typing = "";
 	final pass:PassDesc = {colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]};
@@ -153,7 +156,9 @@ class UiWindow {
 	// code, which the host unloads; the next build makes its own
 	function handOver() {
 		handedOver = true;
-		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
+		if (Mem.platform() >= 1) {
+			if (iosAccess != null) (cast iosAccess : IosAccess).dispose();
+		} else if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 			if (ui.platform != null) (cast ui.platform : MacViews).dispose();
 		}
@@ -161,7 +166,7 @@ class UiWindow {
 			if (winAccess != null) (cast winAccess : WinAccess).dispose();
 			if (ui.platform != null) (cast ui.platform : WinViews).dispose();
 		}
-		macAccess = winAccess = null;
+		macAccess = winAccess = iosAccess = null;
 	}
 	#end
 
@@ -287,7 +292,9 @@ class UiWindow {
 	// whether an adapter has a client: what it reads changing is then worth a frame
 	function accessListening():Bool {
 		if (Mem.os() == 3) return access != null;
-		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
+		else if (Mem.platform() >= 1) {
+			return iosAccess != null && (cast iosAccess : IosAccess).listening();
+		} else if (Mem.os() == 1) {
 			return macAccess != null && (cast macAccess : MacAccess).listening();
 		} else if (Mem.os() == 2) {
 			return winAccess != null && (cast winAccess : WinAccess).listening();
@@ -307,7 +314,10 @@ class UiWindow {
 			var json = t.changesJson(access);
 			access = t;
 			if (json != null) WebMirror.send(window.surface.handle.toI64().toInt(), json);
-		} else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
+		} else if (Mem.platform() >= 1) {
+			if (iosAccess == null) iosAccess = new IosAccess(window, ui);
+			(cast iosAccess : IosAccess).update();
+		} else if (Mem.os() == 1) {
 			if (macAccess == null) macAccess = new MacAccess(window, ui);
 			(cast macAccess : MacAccess).update();
 		} else if (Mem.os() == 2) {
@@ -403,7 +413,9 @@ class UiWindow {
 		if (handedOver) return;
 		#end
 		// (nested: only a constant condition drops the branch)
-		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
+		if (Mem.platform() >= 1) {
+			if (iosAccess != null) (cast iosAccess : IosAccess).dispose();
+		} else if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 		}
 		if (Mem.os() == 2) {
