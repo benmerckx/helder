@@ -8,10 +8,11 @@
 # - android: tests/pack/Hello.hx on an emulator (helder run, adb), the
 #   screen fixture (tests/pack/Screen.hx: its window, safe area and the
 #   display's frames, a rotation, the background), helder dev's loop there
-#   (tests/os/dev/dev-android.mjs);
+#   (tests/os/dev/dev-android.mjs), the cube's window and touches
+#   (tests/gfx/android.sh);
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
 #   runner (helder run, simctl), the screen fixture, codesign --verify and
-#   plutil.
+#   plutil; the cube's window and touches (tests/gfx/ios.sh: SimTap's clicks).
 # - ios-signing: an iPhone's app signed for distribution by helder with a
 #   throwaway identity, checked by codesign and assetutil on a macOS runner.
 # - desktop-macos, desktop-windows: the window lane (and helder's viewer,
@@ -138,6 +139,11 @@ jobs:
           export BUNDLETOOL="$RUNNER_TEMP/bundletool.jar"
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           bun run test pack
+      - name: The device tests' apps (tests/gfx/android/AndroidTest.hx, the cube and its touches)
+        env:
+          HXMC_RT_DIR: ${{ github.workspace }}/bin/pack/rt
+          HELDER_CACHE: ${{ github.workspace }}/bin/pack/cache
+        run: bin/cli/helder build tests/gfx/android --target android-x86_64 -o bin/pack/AndroidTest.apk
       - name: KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -160,6 +166,7 @@ jobs:
           script: |
             sh tests/pack/android.sh bin/cli/helder bin/pack/android
             node tests/os/dev/dev-android.mjs bin/cli/helder bin/pack/dev-emulator
+            sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -167,6 +174,8 @@ jobs:
           path: |
             bin/pack/android/*.txt
             bin/pack/android/*.png
+            bin/pack/android-gfx/*.txt
+            bin/pack/android-gfx/*.png
             bin/pack/*.apk
           retention-days: 7
           if-no-files-found: ignore
@@ -193,6 +202,11 @@ jobs:
         run: bun run test pack
       - name: Hello on a simulator
         run: sh tests/pack/ios.sh bin/cli/helder bin/pack/ios
+      - name: The cube and its touches on a simulator (tests/gfx/ios.sh, SimTap's clicks)
+        run: |
+          bin/cli/helder build tests/gfx/ios --target ios-sim -o bin/pack/IosTest.app
+          bin/cli/helder build tests/gfx/SimTap.hx -o bin/pack/SimTap
+          sh tests/gfx/ios.sh bin/pack/IosTest.app bin/pack/ios-gfx "$PWD/bin/pack/SimTap"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -200,6 +214,8 @@ jobs:
           path: |
             bin/pack/ios/*.txt
             bin/pack/ios/*.png
+            bin/pack/ios-gfx/*.txt
+            bin/pack/ios-gfx/*.png
           retention-days: 7
           if-no-files-found: ignore
 

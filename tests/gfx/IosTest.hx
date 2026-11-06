@@ -5,9 +5,9 @@ import helder.os.*;
 // The cube on iOS (CI's ios-simulator job: an iPhone simulator on a macOS
 // runner; ios.sh reads the results from the app's stdout, which simctl
 // launch writes to a file):
-//   haxe -cp src -cp examples
-//     -cp tests/gfx -main IosTest --custom-target hxmc=IosTest.app
-//     -D hxmc.target=ios-sim-arm64 -D hxmc.ios-bundle-id=org.hxmc.gfxtest
+//   helder build tests/gfx/ios --target ios-sim -o IosTest.app
+//   (tests/gfx/ios/package.json: tests/gfx and the gfx examples' class
+//   paths; the app org.helder.IosTest)
 // - headless: Scene's cube on an offscreen Metal texture, read back and
 //   compared with cube.png (built into the app) by GfxTest's rule;
 // - in the app's window: its size, scale and safe area, frames drawn (the

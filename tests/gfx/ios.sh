@@ -21,7 +21,7 @@ set -u
 app=$1
 out=$(mkdir -p "${2:-.}" && cd "${2:-.}" && pwd)
 tap=${3:-}
-id=org.hxmc.gfxtest
+id=org.helder.IosTest
 stdout="$out/stdout.txt"
 failed=0
 

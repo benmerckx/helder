@@ -3,12 +3,11 @@ import helder.gfx.*;
 import helder.os.*;
 import Cube.Spin;
 
-// The cube on Android (CI's android job: an x86-64 emulator; check.sh's
-// android step reads the results from logcat, where helder.os sends what the
-// app prints):
-//   haxe -cp src -cp examples
-//     -cp tests/gfx -main AndroidTest --custom-target hxmc=AndroidTest.apk
-//     -D hxmc.target=android-x86_64 -D hxmc.android-package=org.hxmc.gfxtest
+// The cube on Android (CI's android job: an x86-64 emulator; android.sh
+// reads the results from logcat, where helder.os sends what the app prints):
+//   helder build tests/gfx/android --target android-x86_64 -o AndroidTest.apk
+//   (tests/gfx/android/package.json: tests/gfx and the gfx examples' class
+//   paths; the app org.helder.androidtest)
 // - headless: Scene's cube on an EGL pbuffer of the device's GPU, read back
 //   and compared with cube.png (built into the app) by GfxTest's rule;
 // - in the activity's window: frames drawn (the cube turning), the window's

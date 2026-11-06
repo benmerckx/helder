@@ -1,0 +1,6 @@
+{
+  "name": "IosTest",
+  "private": true,
+  "haxe": {"classPath": ["..", "../../../examples/triangle", "../../../examples/cube", "../../../examples/instances", "../../../examples/mips", "../../../examples/formats"]},
+  "helder": {"main": "IosTest"}
+}
