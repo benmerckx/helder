@@ -379,8 +379,6 @@ Still to come:
     - `platform.os` / `platform.target` constants folded as `Mem.target()`
       is, so a platform's branch and what only it links drop elsewhere
       (Haxe's `#if`) (done: helder/platform; tests/typescript/platform);
-    - operators on the math types (`a * b` on Vec and Mat) lowered by the
-      frontend, typed so tsgo accepts them;
     - native interop as definitions (`native.c({lib, fns})`, `native.com`,
       `native.objc`, `native.jni`) generating the externs, with hxmc's
       interop types declared (`native.c` done: helder/native, its C types,
@@ -394,6 +392,9 @@ Still to come:
       specialised, integer loops);
     - BigInt; the `bench/` programs against the same in Haxe, not only
       against node.
+    Not planned: operators on the math types in TS. TypeScript code stays
+    valid for TypeScript's own checker, so the math is `.mul`, `.add`...
+    there; Haxe has `*`, `+`... on them as operator overloading.
     Kept Haxe's: the GC-free tier (`hxmc.unsafe`), definitions' handlers
     (written in Haxe, used from both), libraries for Haxe written in TS.
   - A proof first (done): the `.d.ts` for view, ui, web, canvas and async

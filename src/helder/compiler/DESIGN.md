@@ -169,12 +169,11 @@ called from any stage, from a module or from another definition. The handler
 compiles each one once per shader, by name. A function the handler can't
 compile fails at the caller's line.
 
-**Operators:** Haxe keeps `*`, `+`, `-` and `/` on the math types
-(abstracts). TypeScript has `.mul`, `.add`, `.sub` and `.div`, and keeps
-them for now: tsgo rejects `*` on objects whatever our lowering could do
-with it, so `a * b` on Vec and Mat types needs operator typing in the
-checker first (a declaration the checker accepts for `*` between two
-vectors), not only a lowering. That is a later step of its own.
+**Operators:** Haxe has `*`, `+`, `-` and `/` on the math types
+(abstracts' operator overloading). TypeScript has `.mul`, `.add`, `.sub`
+and `.div`, and keeps them: a TS program stays valid for TypeScript's own
+checker and editors, with nothing rewritten before checking, and
+operators in TS are not planned.
 
 ### Built-ins and names
 
@@ -384,7 +383,7 @@ removed in the same step that replaces them.
    and `variant`. The standard scenes' goldens are unchanged. (Done: and
    before it, each stage's parameters as one object, `(i, p: {...})`.)
 6. **`uniform` sugar.** (Done.) `compute` waits on compute pipelines in
-   helder.gfx, TS operators on operator typing in the checker (3).
+   helder.gfx. TS keeps the math's methods (no operators, by decision).
 7. **`actions`**, which waits on its design.
 
 Tests:
