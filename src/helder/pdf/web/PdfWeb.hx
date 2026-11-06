@@ -24,6 +24,12 @@ import helder.pdf.PdfValue;
 class PdfWeb {
 	public static function prepare(page:Page, scale:Float, done:() -> Void) {
 		var doc = page.doc;
+		// (a page that names no XObjects and has no annotations draws no image to decode: done at once)
+		var xo = page.resources == null ? null : Values.dict(doc.resolve(page.resources.get("XObject")));
+		if ((xo == null || !xo.map.keys().hasNext()) && doc.resolve(page.dict.get("Annots")) == PNull) {
+			done();
+			return;
+		}
 		var found = [];
 		var it = new Interpreter(doc, new Pdf.NoPainter(), Pdf.pageMatrix(page, scale));
 		it.textOnly = true;
