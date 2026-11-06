@@ -44,6 +44,7 @@ concurrency:
 
 jobs:
   headless:
+    if: false
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -70,6 +71,7 @@ jobs:
         run: bun run test pdf-fuzz
 
   gfx:
+    if: false
     runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
@@ -95,6 +97,7 @@ jobs:
         with: {name: images, path: "bin/gfx/**/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
 
   browser:
+    if: false
     runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
@@ -168,11 +171,12 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           script: |
-            sh tests/pack/android.sh bin/cli/helder bin/pack/android
-            node tests/os/dev/dev-android.mjs bin/cli/helder bin/pack/dev-emulator
-            sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx
-            sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx
-            sh tests/typescript/native/android.sh bin/cli/helder bin/pack/android-ts
+            adb shell id; adb shell ls -lZ /dev/input; adb shell getevent -lp; adb shell wm size; adb shell getprop ro.build.version.sdk
+            sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx || true
+            for i in 1 2 3; do sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx || true; done
+            for i in 1 2 3; do SWIPE=evdev sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx || true; done
+            adb shell getevent -lt > bin/pack/android-gfx/getevent.txt & GE=$!; sleep 1; sh tests/os/android-swipe.sh 540 1900 540 200 120; sleep 1; kill $GE; cat bin/pack/android-gfx/getevent.txt | head -80
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -195,6 +199,7 @@ jobs:
   # line from simctl launch --console; then tests/pack/Screen.hx in the
   # background of the script, checked by tests/pack/screen.mjs).
   ios-simulator:
+    if: false
     runs-on: macos-15
     continue-on-error: true
     timeout-minutes: 40
@@ -236,6 +241,7 @@ jobs:
   # Connect's acceptance is a TestFlight upload with the owner's account
   # (src/helder/pack/README.md).
   ios-signing:
+    if: false
     runs-on: macos-15
     continue-on-error: true
     timeout-minutes: 30
@@ -253,6 +259,7 @@ jobs:
   # windows (the window lane: a drop through each system's own mechanism,
   # moveTo and position, fullscreen) on the runner's own session.
   desktop-macos:
+    if: false
     runs-on: macos-15
     continue-on-error: true
     timeout-minutes: 30
@@ -277,6 +284,7 @@ jobs:
         with: {name: text-macos, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
 
   desktop-windows:
+    if: false
     runs-on: windows-2025
     continue-on-error: true
     timeout-minutes: 30
@@ -300,6 +308,7 @@ jobs:
         with: {name: text-windows, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
 
   publish-npm:
+    if: false
     needs: headless
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04

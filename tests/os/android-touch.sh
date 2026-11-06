@@ -51,7 +51,8 @@ size=$(adb shell wm size | grep -o "[0-9]*x[0-9]*" | tail -1)
 W=${size%x*}
 H=${size#*x}
 echo "android-touch.sh: display ${W}x$H"
-adb shell input swipe $((W / 2)) $((H * 85 / 100)) $((W / 2)) $((H * 5 / 100)) 120
+if [ "${SWIPE:-}" = evdev ]; then sh tests/os/android-swipe.sh $((W / 2)) $((H * 85 / 100)) $((W / 2)) $((H * 5 / 100)) 120; else
+adb shell input swipe $((W / 2)) $((H * 85 / 100)) $((W / 2)) $((H * 5 / 100)) 120; fi
 wait_for "AndroidTouchTest: let go" 20
 check "a fling: its release" $?
 wait_for "AndroidTouchTest: settled" 30
