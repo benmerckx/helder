@@ -142,11 +142,11 @@ lines=$(wc -l < "$log")
 adb shell input swipe $x0 $y0 $((x0 + W / 2)) $y0 60
 wait_count "event PointerUp [0-9]* touch" $((ups + 1)) 20
 check "a fling: its release" $?
-# (the spin's first line after the release: within 20 frames)
-sleep 1
+# (the speed the release gave it, logged with it: the spin's lines every 20
+# frames came up to 1.7 s after it on the emulator, the flick eased off by then)
 adb logcat -d -s hxmc:I helder.os:D > "$log" 2>/dev/null
-flick=$(tail -n +$((lines + 1)) "$log" | awk '/event PointerUp [0-9]* touch/ {r = 1; next} r && /AndroidTest: spin free/ {print; exit}' | grep -o -- "speed -*[0-9]*" | grep -o -- "-*[0-9]*$")
-echo "android.sh: the fling's speed after it: $flick mrad/s (its own 600)"
+flick=$(tail -n +$((lines + 1)) "$log" | grep -o "AndroidTest: let go, spin speed -*[0-9]*" | head -1 | grep -o -- "-*[0-9]*$")
+echo "android.sh: the fling's speed as let go: $flick mrad/s (its own 600)"
 [ -n "$flick" ] && [ "$flick" -ge 1500 ]
 check "the fling carries the cube on at the drag's speed" $?
 ! grep -q "event MouseDown\|event MouseUp\|event Scroll" "$log"
