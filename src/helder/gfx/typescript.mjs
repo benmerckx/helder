@@ -23,11 +23,15 @@ w(`// helder/gfx for TypeScript: written by src/helder/gfx/typescript.mjs (do no
 //
 //   type Vertex = {pos: Vec2, color: Vec3};
 //   type Varyings = {pos: Vec4, color: Vec3};
+//   type Tint = {color: Vec4};
 //   export const Triangle = shader({
 //     vertex: (v: Vertex): Varyings => ({pos: position(vec4(v.pos, 0, 1)), color: v.color}),
-//     fragment: (i: Varyings) => vec4(i.color, 1),
+//     fragment: (i: Varyings, p: {tint: Tint}) => vec4(i.color, 1).mul(p.tint.color),
 //   });
+//   Triangle.params.tint.write({color: vec4(1)}, bytes);
 //
+// A stage's parameters are one object, after its input: its fields uniform
+// blocks and textures (params: a UniformWriter or a TextureSlot each).
 // The operators are methods (a.mul(b), a.add(1); a number's side second:
 // x.mul(2), as Haxe's 2 * x prints).
 // Structs are type aliases of object types (their name the struct's).
@@ -214,34 +218,46 @@ function store(d: DataView, at: number, v: any, kind: string) {
 	else for (let k = 0; k < Number(kind); k++) d.setFloat32(at + 4 * k, v[XYZW[k]], true);
 }
 
-export type Shader<V, VS, FS> = {
+// a texture parameter's slot (setTexture(slot.binding, ...))
+export class TextureSlot {
+	constructor(readonly name: string, readonly binding: number) {}
+}
+
+// a shader's parameters, the fields of its stages' objects of parameters:
+// a writer per uniform block, a slot per texture
+export type Params<P> = {readonly [K in keyof P]: P[K] extends Texture2D ? TextureSlot : UniformWriter<P[K]>};
+type ParamsOf<R> = R extends [infer P] ? P : {};
+
+export type Shader<V, VS, FS, P> = {
 	readonly vertexCode: ShaderCode,
 	readonly fragmentCode: ShaderCode,
 	readonly layout: VertexBufferLayout[],
 	readonly uniforms: UniformBlock[],
 	readonly textures: TextureBinding[],
-	// a writer per uniform block, named after the parameter that takes it
-	readonly params: {readonly [parameter: string]: UniformWriter<any>},
+	readonly params: Params<P>,
 	readonly vertex: VS,
 	readonly fragment: FS,
 	pipeline(options?: PipelineOptions): {program: {vertex: ShaderCode, fragment: ShaderCode}, layout: VertexBufferLayout[]} & PipelineOptions,
 	vertexBytes(vertices: V[]): Uint8Array,
 };
 
+// shader({vertex, fragment}): each stage takes its input and, optionally,
+// one object of parameters, its fields uniform blocks and textures
+// (fragment: (i, p: {sky: SkyParams, image: Texture2D}) => ...)
 /** @definition shader */
-export function shader<V, I, VR extends any[], FR extends any[]>(def: {vertex: (v: V, ...resources: VR) => I, fragment: (i: I, ...resources: FR) => Vec4},
-		generated?: string): Shader<V, (v: V, ...resources: VR) => I, (i: I, ...resources: FR) => Vec4> {
+export function shader<V, I, VR extends [] | [object], FR extends [] | [object]>(def: {vertex: (v: V, ...p: VR) => I, fragment: (i: I, ...p: FR) => Vec4},
+		generated?: string): Shader<V, (v: V, ...p: VR) => I, (i: I, ...p: FR) => Vec4, ParamsOf<VR> & ParamsOf<FR>> {
 	if (generated === undefined) throw new Error("shader: a definition, compiled by helder's compiler (its argument static)");
 	const g = JSON.parse(generated);
-	const params: {[parameter: string]: UniformWriter<any>} = {};
-	for (const b of g.blocks) params[b.param] = new UniformWriter<any>(b.block, b.fields);
+	const params: {[parameter: string]: UniformWriter<any> | TextureSlot} = {};
+	for (const b of g.params) params[b.param] = b.texture !== undefined ? new TextureSlot(b.texture.name, b.texture.binding) : new UniformWriter<any>(b.block, b.fields);
 	return {
 		vertexCode: g.vertexCode,
 		fragmentCode: g.fragmentCode,
 		layout: g.layout,
 		uniforms: g.uniforms,
 		textures: g.textures,
-		params,
+		params: params as any,
 		vertex: def.vertex,
 		fragment: def.fragment,
 		pipeline(options?: PipelineOptions) {

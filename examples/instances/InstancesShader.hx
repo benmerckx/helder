@@ -25,11 +25,11 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 final InstancesShader = shader({
-	vertex: function(v:InstanceVertex, f:InstanceField):InstanceVaryings {
-		var a = v.angle + f.time;
+	vertex: function(v:InstanceVertex, params:{f:InstanceField}):InstanceVaryings {
+		var a = v.angle + params.f.time;
 		var c = cos(a), s = sin(a);
 		var p = vec2(v.corner.x * c - v.corner.y * s, v.corner.x * s + v.corner.y * c) * v.size + v.at;
-		return {pos: position(vec4(p * f.scale, 0, 1)), color: v.color, corner: v.corner};
+		return {pos: position(vec4(p * params.f.scale, 0, 1)), color: v.color, corner: v.corner};
 	},
 	fragment: function(i:InstanceVaryings):Vec4
 		return vec4(i.color * (1 - 0.3 * length(i.corner)), 1)

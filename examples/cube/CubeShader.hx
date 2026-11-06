@@ -32,16 +32,16 @@ function gamma(c:Vec3, k:Float):Vec3
 	return vec3(pow(c.x, k), pow(c.y, k), pow(c.z, k));
 
 final CubeShader = shader({
-	vertex: function(v:CubeVertex, cam:CubeCamera):CubeVaryings
-		return {pos: position(cam.mvp * vec4(v.pos, 1)), uv: v.uv, local: v.pos, world: (cam.model * vec4(v.pos, 1)).xyz},
-	fragment: function(i:CubeVaryings, cam:CubeCamera, tex:Texture2D):Vec4 {
+	vertex: function(v:CubeVertex, p:{cam:CubeCamera}):CubeVaryings
+		return {pos: position(p.cam.mvp * vec4(v.pos, 1)), uv: v.uv, local: v.pos, world: (p.cam.model * vec4(v.pos, 1)).xyz},
+	fragment: function(i:CubeVaryings, params:{cam:CubeCamera, tex:Texture2D}):Vec4 {
 		// (from the nearest point of the box shrunk by 0.12: the face's
 		// normal, turned up to 45 degrees at an edge)
 		var p = i.local, e = 0.88;
-		var n = normalize((cam.model * vec4(p - vec3(clamp(p.x, -e, e), clamp(p.y, -e, e), clamp(p.z, -e, e)), 0)).xyz);
+		var n = normalize((params.cam.model * vec4(p - vec3(clamp(p.x, -e, e), clamp(p.y, -e, e), clamp(p.z, -e, e)), 0)).xyz);
 		var l = normalize(vec3(-0.45, 0.8, 0.55));
 		var v = normalize(vec3(0, -0.3, 4.6) - i.world);
-		var albedo = gamma(sample(tex, i.uv).xyz, 2.2);
+		var albedo = gamma(sample(params.tex, i.uv).xyz, 2.2);
 		// (a sky and a ground, a key light, a warm fill from the right, a highlight)
 		var light = mix(vec3(0.07, 0.04, 0.03), vec3(0.2, 0.2, 0.23), n.y * 0.5 + 0.5) + vec3(1, 0.95, 0.88) * max(dot(n, l), 0)
 			+ vec3(0.3, 0.22, 0.17) * max(dot(n, normalize(vec3(0.9, 0.1, 0.45))), 0);
@@ -68,8 +68,8 @@ final BackdropShader = shader({
 		return {pos: position(vec4(v.pos, 0, 1))},
 	// blended over the clear colour: a cool light from above, fading by the
 	// middle, then a shade towards the foot and the corners
-	fragment: function(i:BackdropVaryings, t:Target):Vec4 {
-		var p = i.pos.xy / t.size;
+	fragment: function(i:BackdropVaryings, params:{t:Target}):Vec4 {
+		var p = i.pos.xy / params.t.size;
 		var c = p - vec2(0.5, 0.45);
 		var top = max(1 - p.y * 1.6, 0);
 		var light = 0.24 * top * top * (1 - 2 * c.x * c.x);
@@ -94,8 +94,8 @@ final BackdropShader = shader({
 }
 
 final ShadowShader = shader({
-	vertex: function(v:ShadowVertex, g:Ground):ShadowVaryings
-		return {pos: position(g.mvp * vec4(v.pos, 1)), at: v.at},
+	vertex: function(v:ShadowVertex, p:{g:Ground}):ShadowVaryings
+		return {pos: position(p.g.mvp * vec4(v.pos, 1)), at: v.at},
 	// darkest under the cube, fading to nothing at the quad's inscribed circle
 	fragment: function(i:ShadowVaryings):Vec4 {
 		var s = 1 - smoothstep(0, 1, length(i.at));

@@ -126,7 +126,7 @@ final UiShader = shader({
 			clip: v.clip,
 			clipRadii: v.clipRadii
 		},
-	fragment: function(i:UiVaryings, atlas:Texture2D, image:Texture2D):Vec4 {
+	fragment: function(i:UiVaryings, p:{atlas:Texture2D, image:Texture2D}):Vec4 {
 		// (the textures read only by the modes that draw them: sample is at level 0, no derivatives)
 		var ch = (i.clip.zw - i.clip.xy) * 0.5;
 		var clipped = clamp(0.5 - box(i.pixel - i.clip.xy - ch, ch, i.clipRadii), 0, 1);
@@ -148,8 +148,8 @@ final UiShader = shader({
 			var under = o.w > 0 ? clamp(0.5 - box(i.local + o.xy, caster, cr), 0, 1) : 0.0;
 			return i.color * a * (1 - under) * clipped;
 		}
-		if (mode > 1.5) return sample(image, i.uv) * i.color.w * clamp(0.5 - box(i.local, i.half, i.radii), 0, 1) * clipped;
-		if (mode > 0.5) return i.color * sample(atlas, i.uv).x * clipped;
+		if (mode > 1.5) return sample(p.image, i.uv) * i.color.w * clamp(0.5 - box(i.local, i.half, i.radii), 0, 1) * clipped;
+		if (mode > 0.5) return i.color * sample(p.atlas, i.uv).x * clipped;
 		var d = box(i.local, i.half, i.radii);
 		var edge = clamp(0.5 - d, 0, 1);
 		// (the inner edge, as CSS has it: the rectangle less each side's width,

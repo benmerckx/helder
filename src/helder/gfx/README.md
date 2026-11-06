@@ -41,10 +41,11 @@ enc.endPass();
 device.endFrame();                                    // submit and present
 ```
 
-Slots: a shader's uniform blocks and textures (its parameters after the
-stage's input) are numbered 0, 1, ... in order of appearance, the vertex
-stage's first; the generated `uniforms` and `textures` lists give each
-one's `binding`. `setUniforms` copies the block into the frame's uniform
+Slots: a shader's uniform blocks and textures (the fields of each stage's
+object of parameters, its second parameter) are numbered 0, 1, ... in
+order of appearance, the vertex stage's first; the generated `uniforms`
+and `textures` lists give each one's `binding`, as do `params.<field>`
+(`.block.binding` of a writer, `.binding` of a texture's slot). `setUniforms` copies the block into the frame's uniform
 ring (`Encoder.UNIFORM_RING` bytes a frame, 256-byte aligned blocks; one
 ring per frame in flight; Metal: `setVertexBytes`, at most 4 KB a block).
 The device has a depth buffer of the target's size; `PassDesc.depth`
@@ -181,19 +182,28 @@ vertex layout, the uniform blocks' layout, the slots and the CPU writers:
 final SpriteShader = shader({
 	vertex: function(v:Vertex):Varyings
 		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},  // position: the clip-space position
-	fragment: function(i:Varyings, tint:Tint, image:Texture2D):Vec4
-		return sample(image, i.uv) * tint.color   // slots: tint 0, image 1
+	fragment: function(i:Varyings, p:{tint:Tint, image:Texture2D}):Vec4
+		return sample(p.image, i.uv) * p.tint.color   // slots: tint 0, image 1
 });
 
 var pipeline = device.createPipeline(SpriteShader.pipeline({blend: Alpha}));
 var bytes = SpriteShader.vertexBytes([{pos: vec2(0, 0.6), uv: vec2(0.5, 0)}, ...]);
 SpriteShader.params.tint.write({color: vec4(1)}, uniformBytes);   // std140
+enc.setTexture(SpriteShader.params.image.binding, texture, sampler);
 ```
+
+A stage takes its input and, optionally, one object of parameters (an
+anonymous structure, written out or a typedef): its fields, in order, are
+the stage's uniform blocks and textures, read as `p.tint`; a field both
+stages name is one resource. `params` has a field for each: a uniform
+block's writer (`UniformWriter`), a texture's slot (`TextureSlot`).
 
 In TypeScript, `import {shader, position, vec4, ...} from "helder/gfx"`: the
 same definition with the operators as methods (`a.mul(b)`) and type
 aliases as the structs, compiled to the same text (helder.typescript's
-README).
+README): `fragment: (i, p: {tint: Tint, image: Texture2D}) => ...`, its
+`params` typed by `Params<P>` (a `TextureSlot` for a `Texture2D` field,
+a `UniformWriter<T>` for the others).
 
 `src/helder/gfx/shader/Shader.hx` lists the generated members; the tests are
 `tests/gfx/ShaderTest.hx` (`bun run test gfx-shader`) and GfxTest and WebTest,

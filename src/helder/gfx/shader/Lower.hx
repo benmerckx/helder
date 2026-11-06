@@ -46,6 +46,8 @@ class Lower implements ShaderAdapter {
 	final haxeTypes = new Map<SStruct, Type>();
 	// locals holding a position(...) (Haxe's temporaries of a struct's fields)
 	final positionLocals = new Map<Int, Bool>();
+	// the stage's object of parameters (its fields are its parameters: p.frame)
+	var paramsObject:Null<{id:Int, name:String, fields:Map<String, SVar>}>;
 
 	// the function being lowered
 	var fn:SFunction;
@@ -92,7 +94,7 @@ class Lower implements ShaderAdapter {
 		}
 		if (varyings == null) varyings = tf.t;
 		stageTypes.set(name, te.t);
-		return lower("<stage>." + name, name, tf, e.pos);
+		return lower("<stage>." + name, name, tf, e.pos, true);
 	}
 
 	// a static or module-level function called by shader code
@@ -112,14 +114,35 @@ class Lower implements ShaderAdapter {
 		return lower(key, cf.name, tf, cf.pos);
 	}
 
-	function lower(key:String, name:String, tf:TFunc, pos:Position):SFunction {
+	function lower(key:String, name:String, tf:TFunc, pos:Position, stage = false):SFunction {
 		active.push(key);
-		var saved = {fn: fn, locals: locals, names: localNames};
+		var saved = {fn: fn, locals: locals, names: localNames, object: paramsObject};
 		locals = new Map();
 		localNames = new Map();
+		paramsObject = null;
 		var vs = [];
-		var params = [for (a in tf.args) declare(a.v, pos, vs)];
+		var params = [], fields = [];
+		if (stage && tf.args.length > 2)
+			error('a stage takes its input and one object of parameters ({frame: Frame, image: Texture2D}), not ${tf.args.length - 1}', pos);
+		for (i in 0...tf.args.length) {
+			var v = tf.args[i].v;
+			if (!stage || i == 0) {
+				params.push(declare(v, pos, vs));
+				continue;
+			}
+			// (a stage's object of parameters: its fields the parameters, in order)
+			var a = anonOf(v.t);
+			if (a == null) error('${v.name}: a stage\'s parameters are an object of uniform blocks and textures ({frame: Frame, image: Texture2D}), not a ${v.t.toString()}', pos);
+			paramsObject = {id: v.id, name: v.name, fields: new Map()};
+			for (f in sortedFields(a)) {
+				var s = declareNamed(f.name, type(f.type, f.pos), f.pos, vs, true);
+				paramsObject.fields.set(f.name, s);
+				params.push(s);
+				fields.push(f.name);
+			}
+		}
 		var f = new SFunction(names.global(name), params, type(tf.t, pos));
+		f.fields = fields;
 		if (f.ret == TTexture) error('$name: a texture is not a result (pass the parameter on)', pos);
 		fn = f;
 		vars.set(f, vs);
@@ -129,23 +152,38 @@ class Lower implements ShaderAdapter {
 		fn = saved.fn;
 		locals = saved.locals;
 		localNames = saved.names;
+		paramsObject = saved.object;
 		active.pop();
 		functions.set(key, f);
 		return f;
 	}
 
 	function declare(v:TVar, pos:Position, ?list:Array<SVar>):SVar {
-		var t = type(v.t, pos);
-		if (t == TVoid) error('${v.name} has no value', pos);
-		// (a texture: a parameter, its sampler <name>_smp next to it where the language has one)
-		if (t == TTexture && list == null) error('${v.name}: a texture is a parameter, not a local', pos);
-		var s = new SVar(Names.unique(Names.sanitize(v.name), n -> !localNames.exists(n) && (t != TTexture || !localNames.exists(n + "_smp"))), t);
-		localNames.set(s.name, true);
-		if (t == TTexture) localNames.set(s.name + "_smp", true);
+		var s = declareNamed(v.name, type(v.t, pos), pos, list ?? vars.get(fn), list != null);
 		locals.set(v.id, s);
-		(list != null ? list : vars.get(fn)).push(s);
 		return s;
 	}
+
+	function declareNamed(name:String, t:SType, pos:Position, list:Array<SVar>, param:Bool):SVar {
+		if (t == TVoid) error('$name has no value', pos);
+		// (a texture: a parameter, its sampler <name>_smp next to it where the language has one)
+		if (t == TTexture && !param) error('$name: a texture is a parameter, not a local', pos);
+		var s = new SVar(Names.unique(Names.sanitize(name), n -> !localNames.exists(n) && (t != TTexture || !localNames.exists(n + "_smp"))), t);
+		localNames.set(s.name, true);
+		if (t == TTexture) localNames.set(s.name + "_smp", true);
+		list.push(s);
+		return s;
+	}
+
+	// (an anonymous structure's fields, through typedefs)
+	static function anonOf(t:Type):Null<AnonType>
+		return switch t {
+			case TType(td, []): anonOf(td.get().type);
+			case TMono(r) if (r.get() != null): anonOf(r.get());
+			case TLazy(f): anonOf(f());
+			case TAnonymous(a): a.get();
+			case _: null;
+		}
 
 	function temp(t:SType):SVar {
 		var s = new SVar(Names.unique("t" + temps++, n -> !localNames.exists(n)), t);
@@ -433,6 +471,8 @@ class Lower implements ShaderAdapter {
 			case TConst(TNull): error("null is not a shader value", e.pos);
 			case TConst(TThis | TSuper): error("a shader function is static: no this", e.pos);
 			case TLocal(v):
+				if (paramsObject != null && v.id == paramsObject.id)
+					error('${v.name}, the stage\'s parameters, is read by its fields (${v.name}.name): it is no shader value', e.pos);
 				var s = locals.get(v.id);
 				if (s == null) error('${v.name} is not a local of this function (a closure?)', e.pos);
 				local(s);
@@ -491,7 +531,11 @@ class Lower implements ShaderAdapter {
 					error('new ${s.path}: a shader struct is built by its @:structInit constructor, all fields given', e.pos);
 				build(s, args, out);
 			case TField(x, FInstance(c, _, cf)): field(x, c.get(), cf.get(), e, out);
-			case TField(x, FAnon(cf)): field(x, null, cf.get(), e, out);
+			case TField(x, FAnon(cf)):
+				switch strip(x).expr {
+					case TLocal(v) if (paramsObject != null && v.id == paramsObject.id): local(paramsObject.fields.get(cf.get().name));
+					case _: field(x, null, cf.get(), e, out);
+				}
 			case TField(_, FStatic(c, cf)): constant(c.get(), cf.get(), e);
 			case TField(_, _): error("this field access is not supported in a shader", e.pos);
 			case TObjectDecl(fs):

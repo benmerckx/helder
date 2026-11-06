@@ -30,29 +30,28 @@ import helder.scene.render.PbrShader.uvOf;
 }
 
 final PbrNormalShader = shader({
-	vertex: function(v:PbrNormalVertex, frame:PbrFrame, object:PbrObject):PbrNormalVaryings {
-		var world = object.model * vec4(v.pos, 1);
+	vertex: function(v:PbrNormalVertex, p:{frame:PbrFrame, object:PbrObject}):PbrNormalVaryings {
+		var world = p.object.model * vec4(v.pos, 1);
 		return {
-			clip: position(frame.viewProj * world),
+			clip: position(p.frame.viewProj * world),
 			world: world.xyz,
-			normal: (object.normalMatrix * vec4(v.normal, 0)).xyz,
+			normal: (p.object.normalMatrix * vec4(v.normal, 0)).xyz,
 			uv: v.uv,
-			tangent: vec4((object.model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w),
-			up: (object.model * vec4(0, 1, 0, 0)).xyz,
-			tint: object.tint.xyz
+			tangent: vec4((p.object.model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w),
+			up: (p.object.model * vec4(0, 1, 0, 0)).xyz,
+			tint: p.object.tint.xyz
 		};
 	},
-	fragment: function(i:PbrNormalVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
-			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D, normalTexture:Texture2D):Vec4 {
+	fragment: function(i:PbrNormalVaryings, p:{frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D, normalTexture:Texture2D}):Vec4 {
 		var ng = normalize(i.normal);
 		// (the tangent made at right angles to the interpolated normal)
 		var t = normalize(i.tangent.xyz - ng * dot(ng, i.tangent.xyz));
 		var b = cross(ng, t) * i.tangent.w;
-		var uv = uvOf(material, i.uv);
-		var m = sample(normalTexture, uv).xyz * 2 - 1;
-		var scale = material.params.z;
+		var uv = uvOf(p.material, i.uv);
+		var m = sample(p.normalTexture, uv).xyz * 2 - 1;
+		var scale = p.material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
-		return shadeAt(n, i.world, uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
-			shadowMap, shadowMapFar, environmentMap);
+		return shadeAt(n, i.world, uv, normalize(i.up), i.tint, p.frame, p.material, p.baseColorTexture, p.metallicRoughnessTexture, p.emissiveTexture, p.occlusionTexture,
+			p.shadowMap, p.shadowMapFar, p.environmentMap);
 	}
 });

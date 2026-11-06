@@ -1,5 +1,5 @@
 // A texture is a parameter, passed on: not a local.
-// expect: ShaderTextureLocal.hx:18: characters 3-15
+// expect: ShaderTextureLocal.hx:18: characters 3-17
 // expect: t: a texture is a parameter, not a local
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
@@ -14,8 +14,8 @@ import helder.gfx.shader.ShaderMath.*;
 
 final S = shader({
 	vertex: function(v:V):O return {pos: position(vec4(v.pos, 0, 1))},
-	fragment: function(o:O, tex:Texture2D):Vec4 {
-		var t = tex;
+	fragment: function(o:O, p:{tex:Texture2D}):Vec4 {
+		var t = p.tex;
 		return sample(t, o.pos.xy);
 	}
 });

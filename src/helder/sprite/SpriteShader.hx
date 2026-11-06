@@ -37,8 +37,8 @@ final buffers:Array<VertexBufferLayout> = [
 ];
 
 final SpriteShader = shader({
-	vertex: function(v:SpriteVertex, s:SpriteView):SpriteVaryings
-		return {pos: position(vec4(v.pos.x * s.view.x + s.view.z, v.pos.y * s.view.y + s.view.w, 0, 1)), uv: v.uv, color: v.color},
-	fragment: function(i:SpriteVaryings, image:Texture2D):Vec4
-		return sample(image, i.uv) * i.color
+	vertex: function(v:SpriteVertex, p:{s:SpriteView}):SpriteVaryings
+		return {pos: position(vec4(v.pos.x * p.s.view.x + p.s.view.z, v.pos.y * p.s.view.y + p.s.view.w, 0, 1)), uv: v.uv, color: v.color},
+	fragment: function(i:SpriteVaryings, p:{image:Texture2D}):Vec4
+		return sample(p.image, i.uv) * i.color
 });

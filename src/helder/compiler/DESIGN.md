@@ -15,14 +15,14 @@ argument is a plain object literal of fields and arrow functions:
 ```ts
 export const Sky = shader({
 	vertex: (v: {pos: Vec2}) => ({clip: vec4(v.pos, 0.9999, 1), ndc: v.pos}),
-	fragment: (i, sky: SkyParams) => vec4(color(i, sky), 1),
+	fragment: (i, p: {sky: SkyParams}) => vec4(color(i, p.sky), 1),
 });
 ```
 
 ```haxe
 final Sky = shader({
 	vertex: (v:{pos:Vec2}) -> ({clip: vec4(v.pos, 0.9999, 1), ndc: v.pos}),
-	fragment: (i, sky:SkyParams) -> vec4(color(i, sky), 1),
+	fragment: (i, p:{sky:SkyParams}) -> vec4(color(i, p.sky), 1),
 });
 ```
 
@@ -30,7 +30,7 @@ final Sky = shader({
   result. Both checkers (tsgo, Haxe's typer) see a generic function:
   `shader<V, I, P>(def: {vertex: (v: V) => I, fragment: (i: I, p: P) => Vec4}): Shader<V, I, P>`.
   `I` is inferred from what the vertex function returns, and
-  `Sky.params.write(...)` is checked against `P`.
+  `Sky.params.sky.write(...)` is checked against `P`.
 - **The compiler evaluates it at build time.** It finds the call and checks
   that the argument is static. It hands the argument to the definition's
   handler, then replaces the call with what the handler generates.
@@ -117,15 +117,15 @@ type SkyParams = {invViewProj: Mat4, eye: Vec4, horizon: Vec4, zenith: Vec4};
 
 export const Sky = shader({
 	vertex: (v: {pos: Vec2}) => ({clip: position(vec4(v.pos, 0.9999, 1)), ndc: v.pos}),
-	fragment: (i, sky: SkyParams) => {
-		const far = sky.invViewProj.mul(vec4(i.ndc, 1, 1));
-		const d = normalize(far.xyz.div(far.w).sub(sky.eye.xyz));
-		return vec4(mix(sky.horizon.xyz, sky.zenith.xyz, pow(clamp(d.y, 0, 1), 0.5)), 1);
+	fragment: (i, p: {sky: SkyParams}) => {
+		const far = p.sky.invViewProj.mul(vec4(i.ndc, 1, 1));
+		const d = normalize(far.xyz.div(far.w).sub(p.sky.eye.xyz));
+		return vec4(mix(p.sky.horizon.xyz, p.sky.zenith.xyz, pow(clamp(d.y, 0, 1), 0.5)), 1);
 	},
 });
 
 device.createPipeline(Sky.pipeline({blend: "alpha"}));
-Sky.params.write({invViewProj, eye, horizon, zenith}, bytes);   // std140
+Sky.params.sky.write({invViewProj, eye, horizon, zenith}, bytes);   // std140
 Sky.vertexBytes([{pos: vec2(0, 0)}, ...]);
 ```
 
@@ -139,8 +139,11 @@ Sky.vertexBytes([{pos: vec2(0, 0)}, ...]);
 - `compute` comes later, with workgroup size as a field:
   `shader({compute: ..., workgroup: [8, 8, 1]})`.
 
-**Parameters:** a stage's further parameters are uniform blocks (structs) and
-textures (`Texture2D`), with slots in order of appearance, as today.
+**Parameters:** a stage takes one object of parameters after its input,
+`(i, p: {sky: SkyParams, image: Texture2D})`. Its fields are uniform blocks
+(structs) and textures (`Texture2D`), with slots in order of appearance;
+the adapters flatten it into the stage's parameters, in field order, so
+the text is what separate parameters printed.
 
 **Result:** the generated value carries:
 
@@ -151,7 +154,7 @@ textures (`Texture2D`), with slots in order of appearance, as today.
 | `uniforms`, `textures` | the uniform blocks and textures, with their slots |
 | `pipeline(options)` | a `PipelineDesc` built from the above |
 | `vertexBytes(vertices)` | the vertex buffer's contents |
-| `params.write(value, bytes, offset)` | one writer per uniform block, named after its parameter (`sky.write`) |
+| `params` | a member per field of the stages' parameters: a uniform block's writer (`params.sky.write(value, bytes, offset)`), a texture's slot (`params.image.binding`); TS types it `{[K in keyof P]: P[K] extends Texture2D ? TextureSlot : UniformWriter<P[K]>}` |
 
 **Shared functions:** a plain function that only uses the math types can be
 called from any stage, from a module or from another definition. The handler

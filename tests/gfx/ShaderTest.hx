@@ -110,7 +110,7 @@ class ShaderTest {
 		nearVec("TriangleShader.vertex pos", o.pos, [0.6, -0.5, 0, 1]);
 		nearVec("TriangleShader.fragment", TriangleShader.fragment(o), [0, 0, 1, 1]);
 		var cam:Camera = {viewProj: mat4(2), eye: vec3(1, 0, 5), time: 0};
-		var v = LitShader.vertex({pos: vec3(1, 0, 0), normal: vec3(0, 0, 1), uv: vec2(0.25, 0.75)}, cam);
+		var v = LitShader.vertex({pos: vec3(1, 0, 0), normal: vec3(0, 0, 1), uv: vec2(0.25, 0.75)}, {cam: cam});
 		nearVec("LitShader.vertex clip", v.clip, [2 + Math.sin(3) * 0.05, 0, 0, 2]);
 		near("LitShader.vertex uv", v.uv.x, 0.75);
 		near("LitShader.vertex shade", v.shade, 1);
@@ -118,11 +118,11 @@ class ShaderTest {
 		near("Lighting.posterize", Lighting.posterize(0.5, 4), 2 / 3);
 		var i:LitVaryings = {normal: vec3(0, 0, 1), clip: vec4(0), uv: vec2(0.25, 0.75), shade: 0.5};
 		var glow = 1 / 2 + 1 / 3 + 1 / 4 + 1 / 5, k = 0.1 + 2 / 3;
-		nearVec("LitShader.fragment", LitShader.fragment(i, {tint: vec4(1, 0.5, 0.25, 1), steps: 4}),
+		nearVec("LitShader.fragment", LitShader.fragment(i, {m: {tint: vec4(1, 0.5, 0.25, 1), steps: 4}}),
 			[k + glow * 0.01, 0.5 * k + glow * 0.01, 0.25 * k + glow * 0.01, 1]);
 		// (the uv in the right half: the colour reversed; the checker's dark squares)
 		var j:LitVaryings = {normal: vec3(0, 0, 1), clip: vec4(0), uv: vec2(0.7, 0.75), shade: 0.5};
-		nearVec("LitShader.fragment, right half", LitShader.fragment(j, {tint: vec4(1, 0.5, 0.25, 1), steps: 0}),
+		nearVec("LitShader.fragment, right half", LitShader.fragment(j, {m: {tint: vec4(1, 0.5, 0.25, 1), steps: 0}}),
 			[0.25 * 0.6 * 0.5, 0.5 * 0.6 * 0.5, 0.6 * 0.5, 1]);
 		// (a translation by pos.xyz, then halved)
 		var b = BuiltinShader.vertex({pos: vec4(1, 2, 3, 1)});
@@ -139,9 +139,9 @@ class ShaderTest {
 		var tex = new Texture2D(2, 2, texels);
 		near("sample", sample(tex, vec2(0.75, 0.25)).y, 64 / 255);
 		near("sample, repeating", sample(tex, vec2(-0.25, 1.75)).y, 255 / 255);
-		var tv = TexturedShader.vertex({pos: vec2(0, 0), uv: vec2(0.25, 0.75)}, tex);
+		var tv = TexturedShader.vertex({pos: vec2(0, 0), uv: vec2(0.25, 0.75)}, {height: tex});
 		near("TexturedShader.vertex lift", tv.lift, 1);
-		nearVec("TexturedShader.fragment", TexturedShader.fragment(tv, {amount: 0.5}, tex, tex), [1, (0.5 + 128 / 255) / 2, 0, 1]);
+		nearVec("TexturedShader.fragment", TexturedShader.fragment(tv, {fade: {amount: 0.5}, albedo: tex, height: tex}), [1, (0.5 + 128 / 255) / 2, 0, 1]);
 	}
 
 	// the generated layouts and writers

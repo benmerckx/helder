@@ -118,6 +118,9 @@ class SFunction {
 	public final params:Array<SVar>;
 	public var ret:SType; // (TypeScript: known after the body when not written)
 	public var body:Array<SStmt> = [];
+	// (a stage's: the fields of its object of parameters, as written, one a
+	// parameter after the input each: params[i + 1])
+	public var fields:Array<String> = [];
 
 	public function new(name, params, ret) {
 		this.name = name;

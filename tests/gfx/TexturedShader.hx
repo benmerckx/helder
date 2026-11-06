@@ -24,8 +24,8 @@ function tinted(t:Texture2D, uv:Vec2):Vec4
 	return sample(t, uv * 2) * vec4(1, 0.5, 0.5, 1);
 
 final TexturedShader = shader({
-	vertex: function(v:TexVertex, height:Texture2D):TexVaryings
-		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv, lift: sample(height, v.uv).x},
-	fragment: function(i:TexVaryings, fade:Fade, albedo:Texture2D, height:Texture2D):Vec4
-		return mix(tinted(albedo, i.uv), sampleLevel(height, i.uv, 1.5), fade.amount) * i.lift
+	vertex: function(v:TexVertex, p:{height:Texture2D}):TexVaryings
+		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv, lift: sample(p.height, v.uv).x},
+	fragment: function(i:TexVaryings, p:{fade:Fade, albedo:Texture2D, height:Texture2D}):Vec4
+		return mix(tinted(p.albedo, i.uv), sampleLevel(p.height, i.uv, 1.5), p.fade.amount) * i.lift
 });

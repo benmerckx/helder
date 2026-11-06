@@ -26,11 +26,11 @@ import helder.scene.render.PbrShader.uvOf;
 }
 
 final PbrInstancedNormalShader = shader({
-	vertex: function(v:PbrInstanceNormalVertex, frame:PbrFrame):PbrNormalVaryings {
+	vertex: function(v:PbrInstanceNormalVertex, p:{frame:PbrFrame}):PbrNormalVaryings {
 		var model = mat4(vec4(v.m0.xyz, 0), vec4(v.m1.xyz, 0), vec4(v.m2.xyz, 0), v.m3);
 		var world = model * vec4(v.pos, 1);
 		return {
-			clip: position(frame.viewProj * world),
+			clip: position(p.frame.viewProj * world),
 			world: world.xyz,
 			normal: (model * vec4(v.normal, 0)).xyz,
 			uv: v.uv,
@@ -39,16 +39,15 @@ final PbrInstancedNormalShader = shader({
 			tint: vec3(1 + v.m0.w, 1 + v.m1.w, 1 + v.m2.w)
 		};
 	},
-	fragment: function(i:PbrNormalVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
-			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D, normalTexture:Texture2D):Vec4 {
+	fragment: function(i:PbrNormalVaryings, p:{frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D, normalTexture:Texture2D}):Vec4 {
 		var ng = normalize(i.normal);
 		var t = normalize(i.tangent.xyz - ng * dot(ng, i.tangent.xyz));
 		var b = cross(ng, t) * i.tangent.w;
-		var uv = uvOf(material, i.uv);
-		var m = sample(normalTexture, uv).xyz * 2 - 1;
-		var scale = material.params.z;
+		var uv = uvOf(p.material, i.uv);
+		var m = sample(p.normalTexture, uv).xyz * 2 - 1;
+		var scale = p.material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
-		return shadeAt(n, i.world, uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
-			shadowMap, shadowMapFar, environmentMap);
+		return shadeAt(n, i.world, uv, normalize(i.up), i.tint, p.frame, p.material, p.baseColorTexture, p.metallicRoughnessTexture, p.emissiveTexture, p.occlusionTexture,
+			p.shadowMap, p.shadowMapFar, p.environmentMap);
 	}
 });

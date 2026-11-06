@@ -53,8 +53,8 @@ final DepthShader = shader({
 final TileShader = shader({
 	vertex: function(v:TileVertex):TileVaryings
 		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},
-	fragment: function(i:TileVaryings, t:Tile, image:Texture2D):Vec4 {
-		var c = sample(image, i.uv);
-		return vec4(mix(c.xyz, vec3(c.x), t.grey), 1);
+	fragment: function(i:TileVaryings, p:{t:Tile, image:Texture2D}):Vec4 {
+		var c = sample(p.image, i.uv);
+		return vec4(mix(c.xyz, vec3(c.x), p.t.grey), 1);
 	}
 });

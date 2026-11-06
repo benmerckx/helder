@@ -58,22 +58,22 @@ function luma(c:Vec3):Float
 final BloomDownShader = shader({
 	vertex: function(v:PostVertex):PostVaryings
 		return fullscreen(v),
-	fragment: function(i:PostVaryings, p:BloomParams, source:Texture2D):Vec4 {
-		var t = p.texel.xy;
+	fragment: function(i:PostVaryings, params:{p:BloomParams, source:Texture2D}):Vec4 {
+		var t = params.p.texel.xy;
 		var uv = i.uv;
-		var a = tap(source, uv + t * vec2(-2, -2));
-		var b = tap(source, uv + t * vec2(0, -2));
-		var c = tap(source, uv + t * vec2(2, -2));
-		var d = tap(source, uv + t * vec2(-2, 0));
-		var e = tap(source, uv);
-		var f = tap(source, uv + t * vec2(2, 0));
-		var g = tap(source, uv + t * vec2(-2, 2));
-		var h = tap(source, uv + t * vec2(0, 2));
-		var k = tap(source, uv + t * vec2(2, 2));
-		var j = tap(source, uv + t * vec2(-1, -1));
-		var l = tap(source, uv + t * vec2(1, -1));
-		var m = tap(source, uv + t * vec2(-1, 1));
-		var n = tap(source, uv + t * vec2(1, 1));
+		var a = tap(params.source, uv + t * vec2(-2, -2));
+		var b = tap(params.source, uv + t * vec2(0, -2));
+		var c = tap(params.source, uv + t * vec2(2, -2));
+		var d = tap(params.source, uv + t * vec2(-2, 0));
+		var e = tap(params.source, uv);
+		var f = tap(params.source, uv + t * vec2(2, 0));
+		var g = tap(params.source, uv + t * vec2(-2, 2));
+		var h = tap(params.source, uv + t * vec2(0, 2));
+		var k = tap(params.source, uv + t * vec2(2, 2));
+		var j = tap(params.source, uv + t * vec2(-1, -1));
+		var l = tap(params.source, uv + t * vec2(1, -1));
+		var m = tap(params.source, uv + t * vec2(-1, 1));
+		var n = tap(params.source, uv + t * vec2(1, 1));
 		// (the five groups of four: the centre's 0.5, the corners' 0.125 each)
 		var g0 = (j + l + m + n) * 0.25;
 		var g1 = (a + b + d + e) * 0.25;
@@ -85,7 +85,7 @@ final BloomDownShader = shader({
 		var w2 = 0.125;
 		var w3 = 0.125;
 		var w4 = 0.125;
-		if (p.texel.w > 0.5) {
+		if (params.p.texel.w > 0.5) {
 			w0 = 0.5 / (1 + luma(g0));
 			w1 = 0.125 / (1 + luma(g1));
 			w2 = 0.125 / (1 + luma(g2));
@@ -100,14 +100,14 @@ final BloomDownShader = shader({
 final BloomUpShader = shader({
 	vertex: function(v:PostVertex):PostVaryings
 		return fullscreen(v),
-	fragment: function(i:PostVaryings, p:BloomParams, source:Texture2D):Vec4 {
-		var t = p.texel.xy * p.texel.z;
+	fragment: function(i:PostVaryings, params:{p:BloomParams, source:Texture2D}):Vec4 {
+		var t = params.p.texel.xy * params.p.texel.z;
 		var uv = i.uv;
-		var sum = sampleLevel(source, uv, 0).xyz * 4
-			+ (sampleLevel(source, uv + t * vec2(0, -1), 0).xyz + sampleLevel(source, uv + t * vec2(-1, 0), 0).xyz
-				+ sampleLevel(source, uv + t * vec2(1, 0), 0).xyz + sampleLevel(source, uv + t * vec2(0, 1), 0).xyz) * 2
-			+ sampleLevel(source, uv + t * vec2(-1, -1), 0).xyz + sampleLevel(source, uv + t * vec2(1, -1), 0).xyz
-			+ sampleLevel(source, uv + t * vec2(-1, 1), 0).xyz + sampleLevel(source, uv + t * vec2(1, 1), 0).xyz;
+		var sum = sampleLevel(params.source, uv, 0).xyz * 4
+			+ (sampleLevel(params.source, uv + t * vec2(0, -1), 0).xyz + sampleLevel(params.source, uv + t * vec2(-1, 0), 0).xyz
+				+ sampleLevel(params.source, uv + t * vec2(1, 0), 0).xyz + sampleLevel(params.source, uv + t * vec2(0, 1), 0).xyz) * 2
+			+ sampleLevel(params.source, uv + t * vec2(-1, -1), 0).xyz + sampleLevel(params.source, uv + t * vec2(1, -1), 0).xyz
+			+ sampleLevel(params.source, uv + t * vec2(-1, 1), 0).xyz + sampleLevel(params.source, uv + t * vec2(1, 1), 0).xyz;
 		return vec4(sum / 16, 1);
 	}
 });
@@ -145,32 +145,32 @@ function agx(c:Vec3):Vec3 {
 final CompositeShader = shader({
 	vertex: function(v:PostVertex):PostVaryings
 		return fullscreen(v),
-	fragment: function(i:PostVaryings, p:CompositeParams, scene:Texture2D, bloom:Texture2D):Vec4 {
-		var s = sampleLevel(scene, i.uv, 0);
+	fragment: function(i:PostVaryings, params:{p:CompositeParams, scene:Texture2D, bloom:Texture2D}):Vec4 {
+		var s = sampleLevel(params.scene, i.uv, 0);
 		var hdr = clamp(s.xyz, 0, 65000);
-		var spread = sampleLevel(bloom, i.uv, 0).xyz * p.lift.w;
-		var color = mix(hdr, spread, p.exposure.y) * p.exposure.x;
-		var curve = p.exposure.z;
+		var spread = sampleLevel(params.bloom, i.uv, 0).xyz * params.p.lift.w;
+		var color = mix(hdr, spread, params.p.exposure.y) * params.p.exposure.x;
+		var curve = params.p.exposure.z;
 		var mapped = encode(clamp(color, 0, 1));
 		if (curve < 1.5) mapped = encode(aces(color));
 		if (curve < 0.5) mapped = agx(color);
 		// (the grade, on display values)
 		var y = dot(mapped, vec3(0.2126, 0.7152, 0.0722));
-		mapped = mix(vec3(y), mapped, p.grade.x);
-		mapped = (mapped - 0.5) * p.grade.y + 0.5;
-		mapped = clamp(mapped * p.gain.xyz + p.lift.xyz * (1 - mapped), 0, 1);
+		mapped = mix(vec3(y), mapped, params.p.grade.x);
+		mapped = (mapped - 0.5) * params.p.grade.y + 0.5;
+		mapped = clamp(mapped * params.p.gain.xyz + params.p.lift.xyz * (1 - mapped), 0, 1);
 		// (the vignette: the corners darker, by the target's shape)
-		var at = (i.uv - 0.5) * vec2(p.size.z, 1);
-		var r = length(at) / length(vec2(p.size.z, 1) * 0.5);
-		mapped *= 1 - p.grade.z * smoothstep(0.35, 1.05, r);
+		var at = (i.uv - 0.5) * vec2(params.p.size.z, 1);
+		var r = length(at) / length(vec2(params.p.size.z, 1) * 0.5);
+		mapped *= 1 - params.p.grade.z * smoothstep(0.35, 1.05, r);
 		// (alpha: the scene's coverage, or bloom's light where nothing was drawn)
 		var alpha = 1.0;
-		if (p.size.w > 0.5) alpha = clamp(max(s.w, max(mapped.x, max(mapped.y, mapped.z))), 0, 1);
+		if (params.p.size.w > 0.5) alpha = clamp(max(s.w, max(mapped.x, max(mapped.y, mapped.z))), 0, 1);
 		// (grain, most in the middle tones, and a dither below an 8-bit step)
-		var px = floor(i.uv * p.size.xy);
-		var noise = hash(px + vec2(fract(p.exposure.w * 0.61) * 1931, fract(p.exposure.w * 0.37) * 727)) - 0.5;
+		var px = floor(i.uv * params.p.size.xy);
+		var noise = hash(px + vec2(fract(params.p.exposure.w * 0.61) * 1931, fract(params.p.exposure.w * 0.37) * 727)) - 0.5;
 		var mid = 1 - abs(y * 2 - 1);
-		mapped += vec3(noise * (p.grade.w * (0.35 + 0.65 * mid) + 1.0 / 255)) * alpha;
+		mapped += vec3(noise * (params.p.grade.w * (0.35 + 0.65 * mid) + 1.0 / 255)) * alpha;
 		return vec4(clamp(mapped, 0, 1), alpha);
 	}
 });

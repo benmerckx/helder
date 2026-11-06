@@ -50,14 +50,14 @@ function side(a:Vec2, b:Vec2, c:Vec2, p:Vec2):Float {
 }
 
 final CoverageShader = shader({
-	vertex: function(v:TrapVertex, view:TrapView):TrapVaryings {
-		var q0 = px(view, v.top.xy), q1 = px(view, v.top.zw), q2 = px(view, v.bottom.xy), q3 = px(view, v.bottom.zw);
+	vertex: function(v:TrapVertex, params:{view:TrapView}):TrapVaryings {
+		var q0 = px(params.view, v.top.xy), q1 = px(params.view, v.top.zw), q2 = px(params.view, v.bottom.xy), q3 = px(params.view, v.bottom.zw);
 		var lo = min(min(q0, q1), min(q2, q3)) - vec2(1, 1), hi = max(max(q0, q1), max(q2, q3)) + vec2(1, 1);
 		var c = v.corner.x;
 		var sx = step(0.5, c) - step(2.5, c), sy = step(1.5, c);
 		var p = vec2(mix(lo.x, hi.x, sx), mix(lo.y, hi.y, sy));
 		return {
-			pos: position(vec4(p.x / view.t.z * 2 - 1, 1 - p.y / view.t.w * 2, 0, 1)),
+			pos: position(vec4(p.x / params.view.t.z * 2 - 1, 1 - p.y / params.view.t.w * 2, 0, 1)),
 			pixel: p,
 			q01: vec4(q0.x, q0.y, q1.x, q1.y),
 			q23: vec4(q2.x, q2.y, q3.x, q3.y)
@@ -180,14 +180,14 @@ function paintAt(i:CoverVaryings, paint:CoverPaint, table:Texture2D, image:Textu
 }
 
 final CoverShader = shader({
-	vertex: function(v:CoverVertex, paint:CoverPaint):CoverVaryings
-		return {pos: position(vec4(v.pos.x / paint.size.x * 2 - 1, 1 - v.pos.y / paint.size.y * 2, 0, 1)), pixel: v.pos, color: v.color},
-	fragment: function(i:CoverVaryings, paint:CoverPaint, coverage:Texture2D, clip:Texture2D, table:Texture2D, image:Texture2D):Vec4 {
-		var uv = vec2(i.pixel.x / paint.size.x, i.pixel.y / paint.size.y);
+	vertex: function(v:CoverVertex, p:{paint:CoverPaint}):CoverVaryings
+		return {pos: position(vec4(v.pos.x / p.paint.size.x * 2 - 1, 1 - v.pos.y / p.paint.size.y * 2, 0, 1)), pixel: v.pos, color: v.color},
+	fragment: function(i:CoverVaryings, p:{paint:CoverPaint, coverage:Texture2D, clip:Texture2D, table:Texture2D, image:Texture2D}):Vec4 {
+		var uv = vec2(i.pixel.x / p.paint.size.x, i.pixel.y / p.paint.size.y);
 		var cov = 1.0;
-		if (paint.size.w > 0.5) cov = min(sample(coverage, uv).x, 1.0);
-		var m = sample(clip, uv).x;
-		return paintAt(i, paint, table, image) * (cov * m * paint.size.z);
+		if (p.paint.size.w > 0.5) cov = min(sample(p.coverage, uv).x, 1.0);
+		var m = sample(p.clip, uv).x;
+		return paintAt(i, p.paint, p.table, p.image) * (cov * m * p.paint.size.z);
 	}
 });
 
@@ -257,22 +257,21 @@ function sat(c:Vec3):Float
 	return max(c.x, max(c.y, c.z)) - min(c.x, min(c.y, c.z));
 
 final BlendShader = shader({
-	vertex: function(v:CoverVertex, paint:CoverPaint):CoverVaryings
-		return {pos: position(vec4(v.pos.x / paint.size.x * 2 - 1, 1 - v.pos.y / paint.size.y * 2, 0, 1)), pixel: v.pos, color: v.color},
-	fragment: function(i:CoverVaryings, paint:CoverPaint, coverage:Texture2D, clip:Texture2D, table:Texture2D, image:Texture2D,
-			dst:Texture2D):Vec4 {
-		var uv = vec2(i.pixel.x / paint.size.x, i.pixel.y / paint.size.y);
+	vertex: function(v:CoverVertex, p:{paint:CoverPaint}):CoverVaryings
+		return {pos: position(vec4(v.pos.x / p.paint.size.x * 2 - 1, 1 - v.pos.y / p.paint.size.y * 2, 0, 1)), pixel: v.pos, color: v.color},
+	fragment: function(i:CoverVaryings, p:{paint:CoverPaint, coverage:Texture2D, clip:Texture2D, table:Texture2D, image:Texture2D, dst:Texture2D}):Vec4 {
+		var uv = vec2(i.pixel.x / p.paint.size.x, i.pixel.y / p.paint.size.y);
 		var cov = 1.0;
-		if (paint.size.w > 0.5) cov = min(sample(coverage, uv).x, 1.0);
-		var m = sample(clip, uv).x;
-		var d = sample(dst, uv);
-		var k = cov * paint.size.z;
-		if (paint.pd.z < 0.5) k = k * m;
-		var s = paintAt(i, paint, table, image) * k;
-		var mode = paint.kind.w;
+		if (p.paint.size.w > 0.5) cov = min(sample(p.coverage, uv).x, 1.0);
+		var m = sample(p.clip, uv).x;
+		var d = sample(p.dst, uv);
+		var k = cov * p.paint.size.z;
+		if (p.paint.pd.z < 0.5) k = k * m;
+		var s = paintAt(i, p.paint, p.table, p.image) * k;
+		var mode = p.paint.kind.w;
 		var out = d;
 		if (mode < 0) {
-			var ka = factor(paint.pd.x, d.w), kb = factor(paint.pd.y, s.w);
+			var ka = factor(p.paint.pd.x, d.w), kb = factor(p.paint.pd.y, s.w);
 			out = s * ka + d * kb;
 			out = min(out, vec4(1));
 		} else if (s.w > 0) {
@@ -287,7 +286,7 @@ final BlendShader = shader({
 			if (d.w <= 0) b = cs;
 			out = vec4(s.xyz * (1 - d.w) + d.xyz * (1 - s.w) + b * (s.w * d.w), s.w + d.w - s.w * d.w);
 		}
-		if (paint.pd.z > 0.5) out = d + (out - d) * m;
+		if (p.paint.pd.z > 0.5) out = d + (out - d) * m;
 		return vec4(min(out.xyz, vec3(out.w)), out.w);
 	}
 });
@@ -308,8 +307,8 @@ final BlendShader = shader({
 final ClipShader = shader({
 	vertex: function(v:ClipVertex):ClipVaryings
 		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},
-	fragment: function(i:ClipVaryings, coverage:Texture2D, clip:Texture2D):Vec4 {
-		var c = min(sample(coverage, i.uv).x, 1.0) * sample(clip, i.uv).x;
+	fragment: function(i:ClipVaryings, p:{coverage:Texture2D, clip:Texture2D}):Vec4 {
+		var c = min(sample(p.coverage, i.uv).x, 1.0) * sample(p.clip, i.uv).x;
 		return vec4(c, c, c, 1);
 	}
 });
@@ -317,6 +316,6 @@ final ClipShader = shader({
 final CopyShader = shader({
 	vertex: function(v:ClipVertex):ClipVaryings
 		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},
-	fragment: function(i:ClipVaryings, image:Texture2D):Vec4
-		return sample(image, i.uv)
+	fragment: function(i:ClipVaryings, p:{image:Texture2D}):Vec4
+		return sample(p.image, i.uv)
 });

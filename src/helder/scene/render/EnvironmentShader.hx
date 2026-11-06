@@ -20,11 +20,11 @@ import helder.scene.render.Equirect;
 final EnvironmentShader = shader({
 	vertex: function(v:SkyVertex):SkyVaryings
 		return {clip: position(vec4(v.pos, 0.9999, 1)), ndc: v.pos},
-	fragment: function(i:SkyVaryings, env:EnvironmentParams, environmentMap:Texture2D):Vec4 {
-		var far = env.invViewProj * vec4(i.ndc, 1, 1);
-		var d = normalize(far.xyz / far.w - env.eye.xyz);
-		var color = pow(sampleLevel(environmentMap, equirect(d), 0).xyz, vec3(2.2)) * env.params.x;
-		if (env.params.z > 0) color = pow(atlas(environmentMap, equirect(d), 0, env.params.z, env.params.w), vec3(2.2)) * env.params.x;
-		return vec4(output(color, env.params.y), 1);
+	fragment: function(i:SkyVaryings, p:{env:EnvironmentParams, environmentMap:Texture2D}):Vec4 {
+		var far = p.env.invViewProj * vec4(i.ndc, 1, 1);
+		var d = normalize(far.xyz / far.w - p.env.eye.xyz);
+		var color = pow(sampleLevel(p.environmentMap, equirect(d), 0).xyz, vec3(2.2)) * p.env.params.x;
+		if (p.env.params.z > 0) color = pow(atlas(p.environmentMap, equirect(d), 0, p.env.params.z, p.env.params.w), vec3(2.2)) * p.env.params.x;
+		return vec4(output(color, p.env.params.y), 1);
 	}
 });

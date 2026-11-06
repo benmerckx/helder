@@ -26,11 +26,11 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 final PhotoShader = shader({
-	vertex: function(v:PhotoVertex, view:PhotoView):PhotoVaryings
-		return {pos: position(vec4(mix(view.rect.x, view.rect.z, v.corner.x), mix(view.rect.y, view.rect.w, v.corner.y), 0, 1)), uv: vec2(mix(view.uv.x, view.uv.z, v.corner.x), mix(view.uv.y, view.uv.w, v.corner.y))},
-	fragment: function(i:PhotoVaryings, view:PhotoView, image:Texture2D):Vec4 {
-		var c = sample(image, i.uv);
-		var rgb = mix(view.background.xyz, c.xyz, c.w);
+	vertex: function(v:PhotoVertex, p:{view:PhotoView}):PhotoVaryings
+		return {pos: position(vec4(mix(p.view.rect.x, p.view.rect.z, v.corner.x), mix(p.view.rect.y, p.view.rect.w, v.corner.y), 0, 1)), uv: vec2(mix(p.view.uv.x, p.view.uv.z, v.corner.x), mix(p.view.uv.y, p.view.uv.w, v.corner.y))},
+	fragment: function(i:PhotoVaryings, p:{view:PhotoView, image:Texture2D}):Vec4 {
+		var c = sample(p.image, i.uv);
+		var rgb = mix(p.view.background.xyz, c.xyz, c.w);
 		// (linear to sRGB, the exact curve)
 		var lo = rgb * 12.92;
 		var hi = pow(rgb, vec3(1 / 2.4, 1 / 2.4, 1 / 2.4)) * 1.055 - vec3(0.055, 0.055, 0.055);

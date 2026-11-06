@@ -126,15 +126,18 @@ class Definitions {
 			textures: [for (t in p.textures) {name: t.name, binding: t.slot}],
 			attributes: out.attributes,
 			stride: out.stride,
-			blocks: [
-				for (b in out.blocks)
-					{
-						param: b.param,
-						block: {name: b.uniform.struct.name, binding: b.uniform.binding, size: b.uniform.size},
-						fields: [
-							for (i in 0...b.uniform.struct.fields.length)
-								{field: b.uniform.struct.fields[i].field, kind: kind(b.uniform.struct.fields[i].type), offset: b.uniform.offsets[i]}
-						]
+			params: [
+				for (b in out.params)
+					switch b.resource {
+						case RTexture(t): ({param: b.name, texture: {name: t.name, binding: t.slot}} : Dynamic);
+						case RUniform(u): {
+								param: b.name,
+								block: {name: u.struct.name, binding: u.binding, size: u.size},
+								fields: [
+									for (i in 0...u.struct.fields.length)
+										{field: u.struct.fields[i].field, kind: kind(u.struct.fields[i].type), offset: u.offsets[i]}
+								]
+							};
 					}
 			]
 		});
@@ -214,6 +217,8 @@ class TsAdapter implements ShaderAdapter {
 	var scopes:Array<Map<String, SVar>>;
 	var localNames:Map<String, Bool>;
 	var positionLocals:Map<SVar, Bool>;
+	// the stage's object of parameters (its fields are its parameters: p.frame)
+	var paramsObject:Null<{name:String, fields:Map<String, SVar>}>;
 	var temps = 0;
 
 	public function new(src:Project, defines:String->Null<String>, what:String) {
@@ -294,22 +299,42 @@ class TsAdapter implements ShaderAdapter {
 		if (g != null) return g;
 		if (active.contains(key)) error("recursion: " + active.slice(active.indexOf(key)).concat([key]).map(display).join(" -> ") + " (shader functions cannot recurse)", f);
 		active.push(key);
-		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals};
+		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals, object: paramsObject};
 		scopes = [new Map()];
 		localNames = new Map();
 		positionLocals = new Map();
+		paramsObject = null;
 		var vs = [];
 		var ps = f.parameters();
-		var params = [
-			for (i in 0...ps.length) {
-				var p = ps[i];
+		var params = [], fields = [];
+		if (stage && ps.length > 2) error('a stage takes its input and one object of parameters ({frame: Frame, image: Texture2D}), not ${ps.length - 1}', f);
+		for (i in 0...ps.length) {
+			var p = ps[i];
+			if (p.name().kind != KindIdentifier) error("a destructuring is not supported in a shader", p);
+			if (!stage || i == 0) {
 				var t = p.type() != null ? typeOf(p.type()) : stage && i == 0 && varyings != null && f.kind != KindFunctionDeclaration ? varyings : error('the parameter ${p.name().text} needs its type',
 					p);
-				declare(p.name().text, t, p, vs, true);
+				params.push(declare(p.name().text, t, p, vs, true));
+				continue;
 			}
-		];
+			// (a stage's object of parameters: its fields the parameters, in order)
+			var members = p.type() == null ? null : objectMembers(p.type());
+			if (members == null)
+				error('${p.name().text}: a stage\'s parameters are an object of uniform blocks and textures ({frame: Frame, image: Texture2D})' + (p.type() == null ? ", its type written" : ""), f);
+			paramsObject = {name: p.name().text, fields: new Map()};
+			for (m in members) {
+				if (m.kind != KindPropertySignature || m.type() == null) error('${p.name().text}: the parameters are fields, each typed', m);
+				var s = declare(m.name().text, typeOf(m.type()), m, vs, true);
+				// (a field, not a local: p.frame)
+				scopes[0].remove(m.name().text);
+				paramsObject.fields.set(m.name().text, s);
+				params.push(s);
+				fields.push(m.name().text);
+			}
+		}
 		var ret = f.type() != null ? typeOf(f.type()) : null;
 		g = new SFunction(names.global(name), params, ret ?? TVoid);
+		g.fields = fields;
 		if (ret == TTexture) error('$name: a texture is not a result (pass the parameter on)', f);
 		fn = g;
 		vars.set(g, vs);
@@ -324,6 +349,7 @@ class TsAdapter implements ShaderAdapter {
 		scopes = saved.scopes;
 		localNames = saved.names;
 		positionLocals = saved.positions;
+		paramsObject = saved.object;
 		active.pop();
 		functions.set(key, g);
 		return g;
@@ -413,6 +439,21 @@ class TsAdapter implements ShaderAdapter {
 				var s = structs.get(key);
 				TStruct(s != null ? s : struct(key, n, body));
 			case _: error(t.file.slice(t.file.skipTrivia(t.pos), t.end) + " is not a shader type (number, boolean, Vec2, Vec3, Vec4, Mat4, Texture2D and type aliases of object types of them)", t);
+		}
+	}
+
+	// an object type's members, through type aliases (null: not one)
+	function objectMembers(t:Node):Null<Array<Node>> {
+		return switch t.kind {
+			case KindParenthesizedType: objectMembers(t.type());
+			case KindTypeLiteral: t.members();
+			case KindTypeReference if (t.typeName().kind == KindIdentifier):
+				var n = t.typeName().text;
+				var from = Scope.imported(t.file, n);
+				if (from != null && from.module == "helder/gfx") return null;
+				var alias = from != null ? declaration(from.specifier, from.name, KindTypeAliasDeclaration) : Scope.declared(t.file, n, KindTypeAliasDeclaration);
+				alias == null ? null : objectMembers(alias.type());
+			case _: null;
 		}
 	}
 
@@ -652,6 +693,8 @@ class TsAdapter implements ShaderAdapter {
 	function identifier(n:Node):SExpr {
 		var s = find(n.text);
 		if (s != null) return local(s);
+		if (paramsObject != null && n.text == paramsObject.name)
+			error('${n.text}, the stage\'s parameters, is read by its fields (${n.text}.name): it is no shader value', n);
 		// (a module-level constant of a number: its value)
 		var d = Scope.declared(n.file, n.text, KindVariableDeclaration);
 		var from = d == null ? Scope.imported(n.file, n.text) : null;
@@ -703,8 +746,13 @@ class TsAdapter implements ShaderAdapter {
 	function field(n:Node, out:Array<SStmt>):SExpr {
 		var recv = strip(n.expression());
 		if (recv.kind == KindIdentifier && recv.text == "Math" && find("Math") == null && n.name().text == "PI") return {e: EFloat(Math.PI), t: TFloat};
-		var o = expr(recv, out);
 		var name = n.name().text;
+		if (recv.kind == KindIdentifier && paramsObject != null && recv.text == paramsObject.name && find(recv.text) == null) {
+			var s = paramsObject.fields.get(name);
+			if (s == null) error('${recv.text} has no parameter $name', n);
+			return local(s);
+		}
+		var o = expr(recv, out);
 		return switch o.t {
 			case TVec(k):
 				if (!~/^[xyzw]{1,4}$/.match(name) || Lambda.exists([for (i in 0...name.length) name.charAt(i)], c -> "xyzw".indexOf(c) >= k))

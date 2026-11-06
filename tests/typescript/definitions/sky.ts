@@ -23,16 +23,16 @@ function encode(c: Vec3): Vec3 {
 
 export const SkyShader = shader({
 	vertex: (v: SkyVertex): SkyVaryings => ({clip: position(vec4(v.pos, 0.9999, 1)), ndc: v.pos}),
-	fragment: (i, sky: SkyParams) => {
-		const far = sky.invViewProj.mul(vec4(i.ndc, 1, 1));
-		const d = normalize(far.xyz.div(far.w).sub(sky.eye.xyz));
+	fragment: (i, p: {sky: SkyParams}) => {
+		const far = p.sky.invViewProj.mul(vec4(i.ndc, 1, 1));
+		const d = normalize(far.xyz.div(far.w).sub(p.sky.eye.xyz));
 		const up = d.y;
-		const above = mix(sky.horizon.xyz, sky.zenith.xyz, pow(clamp(up, 0, 1), 0.5));
-		const below = mix(sky.horizon.xyz, sky.ground.xyz, pow(clamp(-up, 0, 1), 0.4));
+		const above = mix(p.sky.horizon.xyz, p.sky.zenith.xyz, pow(clamp(up, 0, 1), 0.5));
+		const below = mix(p.sky.horizon.xyz, p.sky.ground.xyz, pow(clamp(-up, 0, 1), 0.4));
 		let color = up > 0 ? above : below;
-		const s = max(dot(d, sky.sun.xyz), 0);
-		color = color.add(sky.sunColor.xyz.mul(pow(s, 600) * 8 + pow(s, 12) * 0.25));
-		return vec4(output(color.mul(sky.sun.w), sky.sunColor.w), 1);
+		const s = max(dot(d, p.sky.sun.xyz), 0);
+		color = color.add(p.sky.sunColor.xyz.mul(pow(s, 600) * 8 + pow(s, 12) * 0.25));
+		return vec4(output(color.mul(p.sky.sun.w), p.sky.sunColor.w), 1);
 	},
 });
 

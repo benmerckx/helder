@@ -80,17 +80,17 @@ function miePhase(mu:Float, g:Float):Float {
 }
 
 final AtmosphereShader = shader({
-	vertex: function(v:AirVertex, view:AirView):AirVaryings {
+	vertex: function(v:AirVertex, params:{view:AirView}):AirVaryings {
 		// (a little larger than the shell: the mesh's facets inside the true sphere)
 		var p = v.center.xyz + v.pos * (v.center.w * v.rayleigh.w * 1.03);
 		return {
-			clip: position(view.viewProj * vec4(p, 1)), world: p, center: v.center, rayleigh: v.rayleigh, ozone: v.ozone, shape: v.shape,
+			clip: position(params.view.viewProj * vec4(p, 1)), world: p, center: v.center, rayleigh: v.rayleigh, ozone: v.ozone, shape: v.shape,
 			extra: v.extra, ground: v.ground
 		};
 	},
-	fragment: function(i:AirVaryings, view:AirView, lut:Texture2D):Vec4 {
-		var o = (view.eye.xyz - i.center.xyz) / i.center.w;
-		var d = normalize(i.world - view.eye.xyz);
+	fragment: function(i:AirVaryings, params:{view:AirView, lut:Texture2D}):Vec4 {
+		var o = (params.view.eye.xyz - i.center.xyz) / i.center.w;
+		var d = normalize(i.world - params.view.eye.xyz);
 		var top = i.rayleigh.w;
 		var shell = hit(o, d, top);
 		var result = vec4(0, 0, 0, 0);
@@ -101,7 +101,7 @@ final AtmosphereShader = shader({
 			// (the samples gathered about where the ray passes lowest, the
 			// air's densest: the closest approach to the centre, or the
 			// ground; t = c +- u^2 on each side, weighted by dt/du)
-			var steps = view.light.w, c = clamp(-dot(o, d), t0, t1);
+			var steps = params.view.light.w, c = clamp(-dot(o, d), t0, t1);
 			// (each pixel's samples shifted by a noise: banding turned to grain)
 			var jitter = 0.5 + 0.5 * (fract(52.9829189 * fract(0.06711056 * i.clip.x + 0.00583715 * i.clip.y)) - 0.5);
 			var tau = vec3(0, 0, 0), sumR = vec3(0, 0, 0), sumM = vec3(0, 0, 0);
@@ -115,27 +115,27 @@ final AtmosphereShader = shader({
 				var ext = i.rayleigh.xyz * dr + vec3(i.shape.x * dm) + i.ozone.xyz * dz;
 				var seen = exp(-(tau + ext * (dt * 0.5)));
 				tau += ext * dt;
-				var sun = sunlight(lut, view.lut, i.extra.x, h / (top - 1), dot(p / len, view.light.xyz));
+				var sun = sunlight(params.lut, params.view.lut, i.extra.x, h / (top - 1), dot(p / len, params.view.light.xyz));
 				var w = sun * seen * dt;
 				sumR += w * dr;
 				sumM += w * dm;
 				k += 1;
 			}
-			var mu = dot(d, view.light.xyz);
-			var scatter = view.sun.xyz * (i.extra.y * i.extra.z) * (i.rayleigh.xyz * sumR * rayleighPhase(mu) + sumM * (i.ozone.w * miePhase(mu, i.shape.y)));
+			var mu = dot(d, params.view.light.xyz);
+			var scatter = params.view.sun.xyz * (i.extra.y * i.extra.z) * (i.rayleigh.xyz * sumR * rayleighPhase(mu) + sumM * (i.ozone.w * miePhase(mu, i.shape.y)));
 			var through = exp(-tau), seen = dot(through, vec3(0.3, 0.45, 0.25));
 			// (the ground: the sun's light on it through the air, reddened
 			// along the terminator (Mars's bluer): the surface (its mean
 			// colour's Lambert under the sun) dimmed by the least of the
 			// channels' transmittance, the rest of each added back)
-			var g = o + d * t1, up = normalize(g), cosine = dot(up, view.light.xyz);
+			var g = o + d * t1, up = normalize(g), cosine = dot(up, params.view.light.xyz);
 			var lit = solid ? smoothstep(-0.02, 0.1, cosine) * i.extra.z : 0;
-			var sunT = sunlight(lut, view.lut, i.extra.x, 0, cosine), least = min(sunT.x, min(sunT.y, sunT.z));
-			var surface = i.ground.xyz / 3.14159265 * view.sun.xyz * max(cosine, 0);
+			var sunT = sunlight(params.lut, params.view.lut, i.extra.x, 0, cosine), least = min(sunT.x, min(sunT.y, sunT.z));
+			var surface = i.ground.xyz / 3.14159265 * params.view.sun.xyz * max(cosine, 0);
 			scatter += surface * (sunT - vec3(least)) * (lit * seen);
 			var alpha = 1 - (1 - (1 - least) * lit) * (1 - (1 - seen) * i.extra.z);
-			var c = scatter * view.eye.w;
-			result = vec4(view.sun.w > 0.5 ? c : encode(aces(c)), alpha);
+			var c = scatter * params.view.eye.w;
+			result = vec4(params.view.sun.w > 0.5 ? c : encode(aces(c)), alpha);
 		}
 		return result;
 	}

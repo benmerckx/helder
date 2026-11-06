@@ -16,8 +16,8 @@ import helder.scene.render.PbrShader;
 }
 
 final ShadowShader = shader({
-	vertex: function(v:PbrVertex, caster:ShadowCaster):ShadowVaryings {
-		var clip = caster.mvp * vec4(v.pos, 1);
+	vertex: function(v:PbrVertex, p:{caster:ShadowCaster}):ShadowVaryings {
+		var clip = p.caster.mvp * vec4(v.pos, 1);
 		return {clip: position(clip), depth: clip.z / clip.w};
 	},
 	fragment: function(i:ShadowVaryings):Vec4

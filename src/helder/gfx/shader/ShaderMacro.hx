@@ -62,10 +62,16 @@ class ShaderMacro {
 			}
 			return bytes;
 		};
-		// a writer per uniform block, named after its parameter
+		// the parameters: a writer per uniform block, a slot per texture
 		var params:Array<ObjectField> = [];
-		for (b in out.blocks) {
-			var u = b.uniform, ut = lower.haxeType(u.struct).toComplexType(), stores = [];
+		for (b in out.params) {
+			var u = switch b.resource {
+				case RUniform(u): u;
+				case RTexture(t):
+					params.push({field: b.name, expr: macro new helder.gfx.shader.Shader.TextureSlot($v{t.name}, $v{t.slot})});
+					continue;
+			}
+			var ut = lower.haxeType(u.struct).toComplexType(), stores = [];
 			for (i in 0...u.struct.fields.length) {
 				var f = u.struct.fields[i], off = u.offsets[i];
 				var n = f.field;
@@ -89,7 +95,7 @@ class ShaderMacro {
 			}
 			var block = macro {name: $v{u.struct.name}, binding: $v{u.binding}, size: $v{u.size}};
 			params.push({
-				field: b.param,
+				field: b.name,
 				expr: macro new helder.gfx.shader.Shader.UniformWriter<$ut>($block, function(u:$ut, b:haxe.io.Bytes, o:Int):Void {
 					$b{stores};
 				})

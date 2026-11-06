@@ -16,7 +16,8 @@ interface ShaderAdapter extends Adapter {
 // shader({vertex, fragment}) (DESIGN.md 3), the handler both languages run:
 // the stages' interface checked (a vertex of attributes in, the varyings
 // out with exactly one position(...), the same varyings into the fragment
-// stage, a colour out), the further parameters made uniform blocks (std140)
+// stage, a colour out), the fields of each stage's object of parameters
+// (the adapter flattens it: SFunction.fields) made uniform blocks (std140)
 // and textures at slots in order of appearance, the stages' text printed in
 // the build's languages, and what the CPU's writers store where. The
 // adapter turns the output into the generated value (ShaderMacro: Haxe's
@@ -65,24 +66,33 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 			attributes.push({field: f.field, components: n, offset: off});
 			off += 4 * n;
 		}
-		// a writer per uniform block, named after the parameter that first takes it
-		var blocks:Array<{param:String, uniform:SUniform}> = [];
+		// the parameters by name (a writer per uniform block, a slot per
+		// texture), the vertex stage's first; a name both stages take is one
+		// resource
+		var params:Array<ShaderParam> = [];
 		for (s in [{e: p.vertex, k: vk}, {e: p.fragment, k: fk}])
-			for (i in 0...s.e.resources.length)
-				switch s.e.resources[i] {
-					case RUniform(u) if (!Lambda.exists(blocks, b -> b.uniform == u)):
-						blocks.push({param: s.k.params[i + 1], uniform: u});
-					case _:
-				}
+			for (i in 0...s.e.resources.length) {
+				var name = s.e.fn.fields[i], r = s.e.resources[i];
+				var other = Lambda.find(params, x -> x.name == name);
+				if (other == null) params.push({name: name, resource: r}) else if (!same(other.resource, r))
+					a.error('the parameter $name is two resources (each stage\'s $name the same uniform block or texture)', s.k.pos);
+			}
 		return {
 			program: p,
 			vertex: stage(p.vertex),
 			fragment: stage(p.fragment),
 			attributes: attributes,
 			stride: off,
-			blocks: blocks
+			params: params
 		};
 	}
+
+	static function same(a:SResource, b:SResource):Bool
+		return switch [a, b] {
+			case [RUniform(x), RUniform(y)]: x == y;
+			case [RTexture(x), RTexture(y)]: x == y;
+			case _: false;
+		}
 
 	function program(a:ShaderAdapter, vk:KFunction, fk:KFunction):SProgram {
 		var vf = a.lowerStage(vk, vk.name ?? "vs"), ff = a.lowerStage(fk, fk.name ?? "fs");
@@ -122,7 +132,7 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 		function resources(f:SFunction, k:KFunction):Array<SResource>
 			return [
 				for (i in 1...f.params.length) {
-					var p = f.params[i], name = k.params[i] ?? p.name;
+					var p = f.params[i], name = f.fields[i - 1] ?? p.name;
 					var slot = uniforms.length + textures.length;
 					switch p.type {
 						case TStruct(s):
@@ -267,15 +277,21 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 
 // What the handler makes of a shader: the program, each stage's text and
 // bindings, the vertex buffer's attributes (each a field of the vertex,
-// Float32 components packed in order) and the uniform blocks' writers (each
-// named after its parameter; Ir's SUniform has the std140 offsets).
+// Float32 components packed in order) and the parameters (the fields of
+// the stages' objects of parameters: a uniform block's writer each, Ir's
+// SUniform has the std140 offsets, or a texture's slot).
 typedef ShaderOutput = {
 	program:SProgram,
 	vertex:StageCode,
 	fragment:StageCode,
 	attributes:Array<{field:String, components:Int, offset:Int}>,
 	stride:Int,
-	blocks:Array<{param:String, uniform:SUniform}>
+	params:Array<ShaderParam>
+}
+
+typedef ShaderParam = {
+	name:String,
+	resource:SResource
 }
 
 typedef StageCode = {

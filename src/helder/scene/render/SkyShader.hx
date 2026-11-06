@@ -32,15 +32,15 @@ import helder.scene.render.PbrShader.output;
 final SkyShader = shader({
 	vertex: function(v:SkyVertex):SkyVaryings
 		return {clip: position(vec4(v.pos, 0.9999, 1)), ndc: v.pos},
-	fragment: function(i:SkyVaryings, sky:SkyParams):Vec4 {
-		var far = sky.invViewProj * vec4(i.ndc, 1, 1);
-		var d = normalize(far.xyz / far.w - sky.eye.xyz);
+	fragment: function(i:SkyVaryings, p:{sky:SkyParams}):Vec4 {
+		var far = p.sky.invViewProj * vec4(i.ndc, 1, 1);
+		var d = normalize(far.xyz / far.w - p.sky.eye.xyz);
 		var up = d.y;
-		var above = mix(sky.horizon.xyz, sky.zenith.xyz, pow(clamp(up, 0, 1), 0.5));
-		var below = mix(sky.horizon.xyz, sky.ground.xyz, pow(clamp(-up, 0, 1), 0.4));
+		var above = mix(p.sky.horizon.xyz, p.sky.zenith.xyz, pow(clamp(up, 0, 1), 0.5));
+		var below = mix(p.sky.horizon.xyz, p.sky.ground.xyz, pow(clamp(-up, 0, 1), 0.4));
 		var color = up > 0 ? above : below;
-		var s = max(dot(d, sky.sun.xyz), 0);
-		color += sky.sunColor.xyz * (pow(s, 600) * 8 + pow(s, 12) * 0.25);
-		return vec4(output(color * sky.sun.w, sky.sunColor.w), 1);
+		var s = max(dot(d, p.sky.sun.xyz), 0);
+		color += p.sky.sunColor.xyz * (pow(s, 600) * 8 + pow(s, 12) * 0.25);
+		return vec4(output(color * p.sky.sun.w, p.sky.sunColor.w), 1);
 	}
 });

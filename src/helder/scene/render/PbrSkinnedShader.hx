@@ -34,24 +34,23 @@ function texel(t:Texture2D, x:Float, y:Float):Float
 	return sampleLevel(t, vec2((x + 0.5) / 16, y), 0).x;
 
 final PbrSkinnedShader = shader({
-	vertex: function(v:PbrSkinVertex, frame:PbrFrame, object:PbrObject, skin:PbrSkinInfo, jointMatrices:Texture2D):PbrVaryings {
-		var j0 = joint(jointMatrices, v.joints.x, skin.rows.x), j1 = joint(jointMatrices, v.joints.y, skin.rows.x);
-		var j2 = joint(jointMatrices, v.joints.z, skin.rows.x), j3 = joint(jointMatrices, v.joints.w, skin.rows.x);
+	vertex: function(v:PbrSkinVertex, params:{frame:PbrFrame, object:PbrObject, skin:PbrSkinInfo, jointMatrices:Texture2D}):PbrVaryings {
+		var j0 = joint(params.jointMatrices, v.joints.x, params.skin.rows.x), j1 = joint(params.jointMatrices, v.joints.y, params.skin.rows.x);
+		var j2 = joint(params.jointMatrices, v.joints.z, params.skin.rows.x), j3 = joint(params.jointMatrices, v.joints.w, params.skin.rows.x);
 		var p = vec4(v.pos, 1), nr = vec4(v.normal, 0);
 		var pos = (j0 * p) * v.weights.x + (j1 * p) * v.weights.y + (j2 * p) * v.weights.z + (j3 * p) * v.weights.w;
 		var normal = (j0 * nr) * v.weights.x + (j1 * nr) * v.weights.y + (j2 * nr) * v.weights.z + (j3 * nr) * v.weights.w;
-		var world = object.model * vec4(pos.xyz, 1);
+		var world = params.object.model * vec4(pos.xyz, 1);
 		return {
-			clip: position(frame.viewProj * world),
+			clip: position(params.frame.viewProj * world),
 			world: world.xyz,
-			normal: (object.normalMatrix * vec4(normal.xyz, 0)).xyz,
+			normal: (params.object.normalMatrix * vec4(normal.xyz, 0)).xyz,
 			uv: v.uv,
-			up: (object.model * vec4(0, 1, 0, 0)).xyz,
-			tint: object.tint.xyz
+			up: (params.object.model * vec4(0, 1, 0, 0)).xyz,
+			tint: params.object.tint.xyz
 		};
 	},
-	fragment: function(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
-			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4
-		return shadeAt(normalize(i.normal), i.world, uvOf(material, i.uv), normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
-			occlusionTexture, shadowMap, shadowMapFar, environmentMap)
+	fragment: function(i:PbrVaryings, p:{frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D}):Vec4
+		return shadeAt(normalize(i.normal), i.world, uvOf(p.material, i.uv), normalize(i.up), i.tint, p.frame, p.material, p.baseColorTexture, p.metallicRoughnessTexture, p.emissiveTexture,
+			p.occlusionTexture, p.shadowMap, p.shadowMapFar, p.environmentMap)
 });

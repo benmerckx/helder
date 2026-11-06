@@ -8,9 +8,9 @@ type SpriteVaryings = {pos: Vec4, uv: Vec2, color: Vec4};
 type SpriteView = {view: Vec4};
 
 export const SpriteShader = shader({
-	vertex: (v: SpriteVertex, s: SpriteView): SpriteVaryings =>
-		({pos: position(vec4(v.pos.x * s.view.x + s.view.z, v.pos.y * s.view.y + s.view.w, 0, 1)), uv: v.uv, color: v.color}),
-	fragment: (i, image: Texture2D) => sample(image, i.uv).mul(i.color),
+	vertex: (v: SpriteVertex, p: {s: SpriteView}): SpriteVaryings =>
+		({pos: position(vec4(v.pos.x * p.s.view.x + p.s.view.z, v.pos.y * p.s.view.y + p.s.view.w, 0, 1)), uv: v.uv, color: v.color}),
+	fragment: (i, p: {image: Texture2D}) => sample(p.image, i.uv).mul(i.color),
 });
 
 print(SpriteShader);
@@ -18,5 +18,7 @@ print(SpriteShader);
 const bytes = new Uint8Array(16);
 SpriteShader.params.s.write({view: vec4(2, -2, -1, 1)}, bytes);
 console.log(Array.from(bytes).join(","));
-const o = SpriteShader.vertex({pos: vec2(1, 2), uv: vec2(0.5, 0.5), color: vec4(1, 1, 1, 1)}, {view: vec4(2, -2, -1, 1)});
+const o = SpriteShader.vertex({pos: vec2(1, 2), uv: vec2(0.5, 0.5), color: vec4(1, 1, 1, 1)}, {s: {view: vec4(2, -2, -1, 1)}});
 console.log(o.pos.x, o.pos.y, o.pos.z, o.pos.w);
+// (a texture parameter's slot)
+console.log(SpriteShader.params.image.name, SpriteShader.params.image.binding);

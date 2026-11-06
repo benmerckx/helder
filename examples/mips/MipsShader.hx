@@ -21,10 +21,10 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 final FloorShader = shader({
-	vertex: function(v:FloorVertex, cam:FloorCamera):FloorVaryings
-		return {pos: position(cam.mvp * vec4(v.pos, 1)), uv: v.uv, far: -v.pos.z / 40},
-	fragment: function(i:FloorVaryings, checks:Texture2D):Vec4
-		return vec4(mix(sample(checks, i.uv).xyz, vec3(0.1, 0.1, 0.12), smoothstep(0.01, 0.25, i.far)), 1)
+	vertex: function(v:FloorVertex, p:{cam:FloorCamera}):FloorVaryings
+		return {pos: position(p.cam.mvp * vec4(v.pos, 1)), uv: v.uv, far: -v.pos.z / 40},
+	fragment: function(i:FloorVaryings, p:{checks:Texture2D}):Vec4
+		return vec4(mix(sample(p.checks, i.uv).xyz, vec3(0.1, 0.1, 0.12), smoothstep(0.01, 0.25, i.far)), 1)
 });
 
 @:structInit @:publicFields class SwatchVertex {
@@ -44,6 +44,6 @@ final FloorShader = shader({
 final SwatchShader = shader({
 	vertex: function(v:SwatchVertex):SwatchVaryings
 		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},
-	fragment: function(i:SwatchVaryings, s:Swatch, levels:Texture2D):Vec4
-		return vec4(sampleLevel(levels, i.uv, s.level).xyz, 1)
+	fragment: function(i:SwatchVaryings, p:{s:Swatch, levels:Texture2D}):Vec4
+		return vec4(sampleLevel(p.levels, i.uv, p.s.level).xyz, 1)
 });

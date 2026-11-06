@@ -32,23 +32,23 @@ import helder.gfx.shader.ShaderMath.*;
 final WOBBLE = 0.05;
 
 final LitShader = shader({
-	vertex: function(v:LitVertex, cam:Camera):LitVaryings {
-		var clip = cam.viewProj * vec4(v.pos, 1);
-		var wobble = sin(cam.time + v.pos.x * 3) * WOBBLE;
+	vertex: function(v:LitVertex, p:{cam:Camera}):LitVaryings {
+		var clip = p.cam.viewProj * vec4(v.pos, 1);
+		var wobble = sin(p.cam.time + v.pos.x * 3) * WOBBLE;
 		return {
 			normal: v.normal,
 			clip: position(clip + vec4(wobble, 0, 0, 0)),
 			uv: v.uv.yx,
-			shade: Lighting.lambert(v.normal, cam.eye - v.pos)
+			shade: Lighting.lambert(v.normal, p.cam.eye - v.pos)
 		};
 	},
-	fragment: function(i:LitVaryings, m:Material):Vec4 {
+	fragment: function(i:LitVaryings, p:{m:Material}):Vec4 {
 		var glow = 0.0;
-		for (k in 0...m.steps)
+		for (k in 0...p.m.steps)
 			glow += 1 / (k + 2);
-		var color = m.tint.xyz * (Lighting.AMBIENT + Lighting.posterize(i.shade, m.steps));
+		var color = p.m.tint.xyz * (Lighting.AMBIENT + Lighting.posterize(i.shade, p.m.steps));
 		if (i.uv.x > 0.5) color = color.zyx else if (i.uv.y < 0.25) color = 1 - color;
 		var check = Std.int(i.uv.x * 8) % 2 == 0 ? 1.0 : 0.5;
-		return vec4(clamp(color * check + glow * 0.01, 0, 1), m.tint.w);
+		return vec4(clamp(color * check + glow * 0.01, 0, 1), p.m.tint.w);
 	}
 });

@@ -19,8 +19,8 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 final PanelShader = shader({
-	vertex: function(v:PanelVertex, cam:PanelCamera):PanelVaryings
-		return {pos: position(cam.mvp * vec4(v.pos, 1)), color: v.color},
+	vertex: function(v:PanelVertex, p:{cam:PanelCamera}):PanelVaryings
+		return {pos: position(p.cam.mvp * vec4(v.pos, 1)), color: v.color},
 	fragment: function(i:PanelVaryings):Vec4
 		return vec4(i.color, 1)
 });

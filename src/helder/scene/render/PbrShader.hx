@@ -375,19 +375,18 @@ function encode(c:Vec3):Vec3
 	return pow(c, vec3(1 / 2.2));
 
 final PbrShader = shader({
-	vertex: function(v:PbrVertex, frame:PbrFrame, object:PbrObject):PbrVaryings {
-		var world = object.model * vec4(v.pos, 1);
+	vertex: function(v:PbrVertex, p:{frame:PbrFrame, object:PbrObject}):PbrVaryings {
+		var world = p.object.model * vec4(v.pos, 1);
 		return {
-			clip: position(frame.viewProj * world),
+			clip: position(p.frame.viewProj * world),
 			world: world.xyz,
-			normal: (object.normalMatrix * vec4(v.normal, 0)).xyz,
+			normal: (p.object.normalMatrix * vec4(v.normal, 0)).xyz,
 			uv: v.uv,
-			up: (object.model * vec4(0, 1, 0, 0)).xyz,
-			tint: object.tint.xyz
+			up: (p.object.model * vec4(0, 1, 0, 0)).xyz,
+			tint: p.object.tint.xyz
 		};
 	},
-	fragment: function(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
-			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4
-		return shadeAt(normalize(i.normal), i.world, uvOf(material, i.uv), normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture,
-			emissiveTexture, occlusionTexture, shadowMap, shadowMapFar, environmentMap)
+	fragment: function(i:PbrVaryings, p:{frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D}):Vec4
+		return shadeAt(normalize(i.normal), i.world, uvOf(p.material, i.uv), normalize(i.up), i.tint, p.frame, p.material, p.baseColorTexture, p.metallicRoughnessTexture,
+			p.emissiveTexture, p.occlusionTexture, p.shadowMap, p.shadowMapFar, p.environmentMap)
 });

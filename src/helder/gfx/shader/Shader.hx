@@ -22,11 +22,13 @@ import helder.gfx.VertexBufferLayout;
 // attributes, in order) and returns the varyings, one of them built
 // position(...): the clip-space position; the fragment function takes the
 // same varyings (its first parameter's type may be left out) and returns
-// the colour. Further parameters of either are uniform blocks (structs of
-// scalars, vectors and matrices) and textures (Texture2D, read with
-// sample(t, uv)), each at a slot (Encoder.setUniforms, setTexture): 0, 1,
-// ... in order of appearance, the vertex stage's first, a block shared by
-// both stages (the same struct) or a texture (the same name) once. Structs
+// the colour. Either may take one more parameter, an object of parameters
+// (an anonymous structure: function(i:Varyings, p:{cam:Camera, image:Texture2D})),
+// whose fields, read as p.cam, are uniform blocks (structs of scalars,
+// vectors and matrices) and textures (Texture2D, read with sample(t, uv)),
+// each at a slot (Encoder.setUniforms, setTexture): 0, 1, ... in order of
+// appearance, the vertex stage's first, a block shared by both stages (the
+// same struct) or a texture (the same name) once. Structs
 // are @:structInit classes (objects in CPU code, whose math-type fields are
 // stored inline, so that vertex Arrays hold them as they are) or typedefs
 // of anonymous structures. The functions they call are any static or
@@ -43,9 +45,10 @@ import helder.gfx.VertexBufferLayout;
 //   pipeline(?options)         a PipelineDesc of all three (Device.createPipeline
 //                              compiles the code)
 //   vertexBytes(vertices)      the vertex buffer's contents
-//   params.<name>.write(u, bytes, offset)
-//                              a uniform block's contents (std140), the
-//                              block named after the parameter that takes it
+//   params.<name>              a field of the stages' objects of parameters:
+//                              a uniform block's writer (UniformWriter:
+//                              .write(u, bytes, offset), std140) or a
+//                              texture's slot (TextureSlot: .binding)
 //   vertex, fragment           the stages as CPU code
 //
 // (Each shader is a class of its own extending Shader, made by the
@@ -119,6 +122,18 @@ class UniformWriter<T> {
 
 	public inline function write(value:T, bytes:Bytes, offset = 0)
 		store(value, bytes, offset);
+}
+
+// a texture parameter's slot (Encoder.setTexture(slot.binding, ...))
+class TextureSlot {
+	// the parameter's name
+	public final name:String;
+	public final binding:Int;
+
+	public function new(name, binding) {
+		this.name = name;
+		this.binding = binding;
+	}
 }
 
 typedef UniformBlock = {

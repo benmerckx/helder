@@ -168,7 +168,9 @@ by their names; the operators as methods, `a.mul(b)`) and
 Its call is compiled when the program is (`lower/Definitions.hx`): the
 argument's kernel tree from the AST, its stages lowered to helder.gfx's
 shader IR by their annotations (type aliases of object types are the
-structs, named after the alias), the handler Haxe's macro runs
+structs, named after the alias; a stage's object of parameters, `(i, p:
+{sky: SkyParams, image: Texture2D})`, its fields the parameters, read as
+`p.sky`), the handler Haxe's macro runs
 (`ShaderDefinition`), and its output, JSON, passed to `shader` as its last
 argument. The same functions print the same text as in Haxe, and a rejected
 argument the same diagnostic (tests/typescript/definitions).
