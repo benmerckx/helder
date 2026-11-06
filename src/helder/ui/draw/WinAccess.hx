@@ -478,7 +478,12 @@ class WinAccess {
 		out.value = Ptr.nil();
 		var a = adapter(self), n = node(self);
 		if (a == null || n == null) return NOT_AVAILABLE;
-		return n.id == a.tree.root ? Uia.UiaHostProviderFromHwnd(a.hwnd, out) : S_OK;
+		if (n.id == a.tree.root) return Uia.UiaHostProviderFromHwnd(a.hwnd, out);
+		// (a field the platform's editor shows: its EDIT's element merged with ours, not a second, unnamed one)
+		var node = a.tree.node(n.id);
+		for (e in @:privateAccess helder.ui.platform.WinViews.editors)
+			if (@:privateAccess e.shown && e.listener == cast node) return Uia.UiaHostProviderFromHwnd(@:privateAccess e.hwnd, out);
+		return S_OK;
 	}
 
 	// --- IRawElementProviderFragment ---
