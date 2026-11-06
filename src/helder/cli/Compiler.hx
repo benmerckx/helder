@@ -176,6 +176,7 @@ class CompileServer {
 		var tool = Compiler.tool(), env = Process.environment();
 		for (k => v in ["RT_OLD_MB" => "4096", "RT_MINOR_KB" => "32768"])
 			if (!env.exists(k)) env.set(k, v);
+		BuildPhases.environment(env);
 		var p = try new Process(tool, ["--server-connect", '127.0.0.1:${link.port}'], {env: env}) catch (e:haxe.Exception) {
 			link.close();
 			Term.err(Style.status("error", Fail, '$tool: ${e.message}'));
@@ -193,7 +194,10 @@ class CompileServer {
 		for (pipe in [p.stdout, p.stderr])
 			task.async(_ -> {
 				var r = new Reader(pipe), line;
-				while ((line = r.readLine()) != null) s.output = (s.output + line + "\n").substr(-8192);
+				while ((line = r.readLine()) != null) {
+					s.output = (s.output + line + "\n").substr(-8192);
+					BuildPhases.line(line);
+				}
 			});
 		return s;
 	}

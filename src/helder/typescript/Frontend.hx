@@ -162,6 +162,13 @@ class Frontend implements helder.compiler.Plugin {
 
 	// (HELDER_TS_TIMES=1: where a build's time goes)
 	static function phase(name:String) {
+		// (helder.compiler.Phases: a build's phases, -D helder.phases; typing and codegen are the compiler's)
+		switch name {
+			case "check (tsgo)": helder.compiler.Phases.mark("check (tsgo)");
+			case "lower runtime": helder.compiler.Phases.mark("lowering");
+			case "lower program": helder.compiler.Phases.mark("lowering (TypeScript)");
+			case _:
+		}
 		if (!timings) return;
 		var now = haxe.Timer.stamp();
 		Sys.stderr().writeString(name + ": " + Math.round((now - started) * 1000) + "ms\n");

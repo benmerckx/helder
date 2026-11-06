@@ -42,6 +42,7 @@ class Compiler {
 		MarkupHook.install();
 		var typing = compiler.Compiler.beforeTypingHook;
 		compiler.Compiler.beforeTypingHook = function(com, actx) {
+			Phases.begin(com);
 			if (typing != null) typing(com, actx);
 			// (a compilation server's parse replaces hxmc's: around it again)
 			MarkupHook.install();
@@ -52,14 +53,24 @@ class Compiler {
 		for (a in ["--wait", "--server-listen", "--server-connect"]) if (args.contains(a)) hxmc.Driver.resident = true;
 		compiler.Compiler.generateHook = function(com) {
 			var owner = Lambda.find(plugins, p -> p.owns(com));
-			if (args.contains("--no-output") && owner == null) return;
+			Phases.mark("typing");
+			if (args.contains("--no-output") && owner == null) {
+				Phases.end();
+				return;
+			}
 			switch com.platform {
 				case CustomTarget("hxmc"):
 				case _: return;
 			}
 			try {
-				if (owner == null) hxmc.Main.generate(com, com.file) else owner.generate(com);
+				if (owner == null) hxmc.Main.generate(com, com.file, (com, prog) -> {
+					Phases.mark("lowering");
+					if (hxmc.Main.beforeCodegen != null) hxmc.Main.beforeCodegen(com, prog);
+				}) else owner.generate(com);
+				Phases.mark("codegen and link");
+				Phases.end();
 			} catch (e:Dynamic) {
+				Phases.end();
 				if (Sys.getEnv("HELDER_TS_DEBUG") == "1") Sys.stderr().writeString(haxe.CallStack.toString(haxe.CallStack.exceptionStack()) + "\n");
 				if (hxmc.Driver.resident) for (m in messages(Std.string(e))) com.error(m.text, m.pos) else failed = Std.string(e);
 			}

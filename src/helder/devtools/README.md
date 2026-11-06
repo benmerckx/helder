@@ -95,9 +95,9 @@ source.
 
 | notification | from | params |
 | --- | --- | --- |
-| `Runtime.ready` | program | `{}`: its first frame (the reload's time) |
+| `Runtime.ready` | program | `{startedAt, ms}`: its first frame (the reload's time); when the build started (wall clock seconds) and the ms from there to the frame |
 | `Runtime.connected` | CLI | `{program, protocol}`: a build said hello |
-| `Runtime.built` | CLI | `{ok: true, ms, size}` |
+| `Runtime.built` | CLI | `{ok: true, ms, size, phases?}`; `phases` with HELDER_DEV_PHASES=1 (the edit-loop lane): `{phases: [{name, ms}], ms, hxmc: {prepare, codegen, data, link, modules, compiled, ...}, changedAt, startedAt, endedAt}` (helder.compiler.Phases, helder.cli.BuildPhases) |
 | `Runtime.buildError` | CLI | `{ms, message}`: the errors; the last good build keeps running |
 | `Runtime.reloaded` | CLI | `{ms, build}`: from the change seen to the new build's first frame, and the build's part |
 | `Runtime.exited` | CLI | `{code}`: the program ended by itself |

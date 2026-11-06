@@ -77,6 +77,8 @@ class DevCommand {
 	static var built = false;
 	// the reload being measured: when the change was seen, the build's time
 	static var timing:Null<{seen:Float, build:Int}> = null;
+	// (the change seen, wall clock seconds: Runtime.built's changedAt)
+	static var changedAt:Null<Float> = null;
 	// natively: the program, its connection, whether it said saved
 	static var child:Null<Child> = null;
 	// (a signal: helder dev ending)
@@ -219,6 +221,7 @@ class DevCommand {
 			var changed = w.next();
 			// (seen within the tick: half of it on average, and the debounce)
 			var seen = haxe.Timer.stamp() - 0.07;
+			changedAt = Sys.time();
 			// (an asset's file: sent, nothing built)
 			var rest = [];
 			for (f in changed) {
@@ -328,7 +331,8 @@ class DevCommand {
 		// (a Haxe string in the macro call: forward slashes, a Windows path's
 		// backslashes would be escapes)
 		var deps = (FileSystem.fullPath(Path.directory(out)) + "/" + Path.withoutDirectory(depsFile())).split("\\").join("/");
-		var extra = ["-D", 'helder.name=${e.name}', "--macro", 'helder.cli.Deps.write("$deps")'];
+		var extra = ["-D", 'helder.name=${e.name}', "--macro", 'helder.cli.Deps.write("$deps")'].concat(BuildPhases.define(out));
+		var startedAt = Sys.time();
 		// (a TypeScript program's files, which no Haxe module names: the compiler adds them)
 		if (e.typescript != null) extra = extra.concat(["-D", 'helder.typescript.deps=$deps']);
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
@@ -356,6 +360,16 @@ class DevCommand {
 			null;
 		}
 		if (moved && !FileSystem.exists(out)) FileSystem.rename(aside, out);
+		// (HELDER_DEV_PHASES: where its time went, and when, wall clock)
+		var phases:Dynamic = null;
+		if (BuildPhases.on) {
+			Async.delay(0.02);
+			phases = BuildPhases.take(out);
+			phases.changedAt = changedAt;
+			phases.startedAt = startedAt;
+			phases.endedAt = Sys.time();
+		}
+		changedAt = null;
 		if (!r.ok) {
 			lastError = r.messages == "" ? "the build failed" : r.messages;
 			log(Style.status("failed", Fail, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + (built ? "the last good build keeps running" : "waiting for a change"))));
@@ -370,7 +384,7 @@ class DevCommand {
 		timing = seen == null ? null : {seen: seen, build: r.ms};
 		log(Style.status(seen == null ? "built" : "rebuilt", Ok, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + BuildCommand.size(artifact))));
 		building = false;
-		Devtools.built(r.ms, BuildCommand.size(artifact));
+		Devtools.built(r.ms, BuildCommand.size(artifact), phases);
 		var first = !built;
 		built = true;
 		if (web) {
