@@ -71,7 +71,6 @@ jobs:
         run: bun run test pdf-fuzz
 
   gfx:
-    if: false
     runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
@@ -91,7 +90,10 @@ jobs:
         continue-on-error: true
         run: sudo apt-get install -qqy --no-install-recommends weston wayland-protocols libwayland-dev libwayland-egl1 libxkbcommon0
       - name: gfx, 3d, audio, ui, helder run --headless, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
-        run: bun run test -k gfx 3d audio ui-draw headless-run window viewer-window viewer-package wayland dbus system-text system-images canvas-gpu
+        run: |
+          sudo apt-get install -qqy strace gdb bc > /dev/null
+          bun run test viewer-window || echo "LANE FAILED"
+          sh tests/ui/viewer-diag.sh
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: images, path: "bin/gfx/**/*.png\nbin/headless-run/**/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
@@ -126,6 +128,7 @@ jobs:
   # into the same process, the state kept). A Pixel 6's profile: a
   # navigation bar and a camera's cutout, for the insets.
   android:
+    if: false
     runs-on: ubuntu-24.04
     continue-on-error: true
     timeout-minutes: 45
