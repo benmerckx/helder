@@ -33,6 +33,7 @@ class GuideTest implements Markup {
 		richText();
 		themes();
 		shortcuts();
+		textFields();
 		icons();
 		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
@@ -410,6 +411,27 @@ class GuideTest implements Markup {
 		ui.keyDown("s".code, Key.MOD_CONTROL);
 		ui.keyDown("k".code, Key.MOD_CONTROL | Key.MOD_SHIFT);
 		check("shortcuts: two bindings, the focus in the text", saved == 1 && text() == "", saved + " " + text());
+	}
+
+	// "Text fields": drawn on the desktop, spellcheck asked or a text area's, native asked
+	static function Compose(props:{subject:Signal<String>, body:Signal<String>}):View
+		return <view row-gap={8}>
+			<field value={props.subject} spellcheck="true" onInput={e -> props.subject(e.text)}/>
+			<field:textarea value={props.body} onInput={e -> props.body(e.text)}/>
+			<field type="password" host="native"/>
+		</view>;
+
+	static function textFields() {
+		var ui = window(), subject = signal("Hi"), body = signal("");
+		Render.render(<Compose subject={subject} body={body}/>, ui.root);
+		ui.update();
+		var fields:Array<helder.ui.widgets.EditableText> = [];
+		function find(n:Node)
+			if (Std.isOfType(n, helder.ui.widgets.EditableText)) fields.push(cast n) else for (c in n.children) find(c);
+		find(ui.root);
+		check("text fields: three, spellcheck asked, a text area's by default",
+			fields.length == 3 && fields[0].spellcheck && fields[1].spellcheck && !fields[2].spellcheck && fields[2].secret);
+		check("text fields: host native asked", fields[2].host == Native && fields[0].host == Auto);
 	}
 
 	// "Drag and drop": a list sorted by dragging

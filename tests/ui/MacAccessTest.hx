@@ -12,7 +12,7 @@ import hxmc.unsafe.*;
 // the NSAccessibility protocol (the view's children, their roles, labels,
 // values and frames; the focused element; a hit test), and the actions
 // performed on its elements (press, increment) reaching the controls. Its
-// field native (MacViews: an NSTextField over the window): the program's
+// field native (host="native": drawn is the desktop's default; MacViews: an NSTextField over the window): the program's
 // text in it, an edit (its delegate told, as AppKit tells it) in the
 // field's signal, Tab left to the window moving its focus on; made a
 // password, an NSSecureTextField with the same text. A text area native:
@@ -48,8 +48,8 @@ class MacAccessTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
-			<Show when={areaOn}><field:textarea tag="notes" value={notes} onInput={e -> notes(e.text)}/></Show>
+			<field tag="name" host="native" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
+			<Show when={areaOn}><field:textarea tag="notes" host="native" value={notes} onInput={e -> notes(e.text)}/></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;

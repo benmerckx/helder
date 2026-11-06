@@ -115,9 +115,10 @@ class Ui {
 	public var safeArea:Edges = Edges.ZERO;
 	// the platform's own views where a window has them (PlatformViews), and
 	// which kinds of widget are native where the tree leaves it Auto (Host):
-	// "text-field" and "text-area" (the plan's defaults: native everywhere)
+	// "text-field", "text-area", "context-menu", "menubar" (defaultPolicy:
+	// text drawn on the desktop, native in a browser and on phones; menus native)
 	public var platform:Null<PlatformViews> = null;
-	public var policy:Map<String, Host> = ["text-field" => Native, "text-area" => Native, "context-menu" => Native, "menubar" => Native];
+	public var policy:Map<String, Host> = defaultPolicy();
 	public var clipboard:ClipboardHost = new ClipboardHost.MemoryClipboard();
 	public var focusRingColor:Color = 0xFF3B82F6;
 	public var focusRingWidth = 2.0;
@@ -290,6 +291,29 @@ class Ui {
 			h.toldHeight = n.height;
 			h.onResize(Event.of(Resize, n, n.absX, n.absY).at(n));
 		}
+	}
+
+	// whether this program runs on a desktop (Windows, macOS, Linux; not a
+	// browser, Android or iOS; nor Eval and JavaScript, as a browser's)
+	public static function desktop():Bool {
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		return hxmc.unsafe.Mem.platform() == 0 && hxmc.unsafe.Mem.target() < 9 && hxmc.unsafe.Mem.os() != 3;
+		#else
+		return false;
+		#end
+	}
+
+	// a window's policy to begin with: on the desktop text fields and areas
+	// drawn (helder's own editor: it composes with popups, scrolling and
+	// clipping, and keeps screenshots the same; TSF, text-input-v3 and the
+	// platform's spellchecker give what the platform's editor would), the
+	// platform's where they are its strength (a browser's input and
+	// textarea, a phone's keyboard, autocorrect and selection handles); the
+	// menus the platform's wherever it has them. host="native" on a node, or
+	// policy["text-field"] = Native, asks for the platform's editor still
+	public static function defaultPolicy():Map<String, Host> {
+		var text:Host = desktop() ? Drawn : Native;
+		return ["text-field" => text, "text-area" => text, "context-menu" => Native, "menubar" => Native];
 	}
 
 	// what draws n, a widget of that kind (Ui.policy's names): its own host,

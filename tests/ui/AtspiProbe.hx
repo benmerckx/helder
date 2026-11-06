@@ -70,6 +70,10 @@ class AtspiProbe {
 			var attrs = Atspi.atspi_accessible_get_attributes(kids[5], err);
 			var live = attrs.isNull() ? Ptr.nil() : GLib.g_hash_table_lookup(attrs, Mem.cstr("live"));
 			check("a live region's attributes", !live.isNull() && str(live) == "polite", live.isNull() ? "none" : str(live));
+			// (the drawn field: AT-SPI's Text, its text and caret)
+			var text = Atspi.atspi_accessible_get_text_iface(kids[4]);
+			var got = text.isNull() ? "none" : str(Atspi.atspi_text_get_text(text, 0, -1, err));
+			check("a drawn field's text", got == "Ada" && Atspi.atspi_text_get_character_count(text, err) == 3, got);
 			var action = Atspi.atspi_accessible_get_action_iface(kids[1]);
 			check("the button's action", !action.isNull() && Atspi.atspi_action_do_action(action, 0, err) != 0);
 		}
@@ -99,5 +103,8 @@ class AtspiProbe {
 	static function atspi_accessible_get_value_iface(a:Ptr):Ptr;
 	static function atspi_value_get_current_value(v:Ptr, err:Ptr<Ptr>):Float;
 	static function atspi_accessible_get_action_iface(a:Ptr):Ptr;
+	static function atspi_accessible_get_text_iface(a:Ptr):Ptr;
+	static function atspi_text_get_text(t:Ptr, start:Int, end:Int, err:Ptr<Ptr>):Ptr;
+	static function atspi_text_get_character_count(t:Ptr, err:Ptr<Ptr>):Int;
 	static function atspi_action_do_action(a:Ptr, i:Int, err:Ptr<Ptr>):Int;
 }

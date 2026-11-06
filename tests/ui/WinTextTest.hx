@@ -13,7 +13,9 @@ import hxmc.unsafe.*;
 // document (Window.textContext, from UiWindow's frames), an input method's
 // insertion through msctf (ITfInsertAtSelection) typed into the field and
 // its signal, a composition (the store's ITfContextOwnerCompositionSink, a
-// view of the test's) shown in the field, not in its text, then committed.
+// view of the test's) shown in the field, not in its text, then committed;
+// the field drawn by the desktop's default (Ui.policy) though the window has
+// the platform's editors, read and set through UI Automation's providers.
 //   WinTextTest
 class WinTextTest implements Markup {
 	static var failed = 0;
@@ -35,11 +37,60 @@ class WinTextTest implements Markup {
 			IUnknownQi.QueryInterface(o, iid, p) >= 0 ? p.value : Ptr.nil();
 		});
 
+	// the drawn field through UI Automation's providers (WinAccess): an Edit,
+	// its value the field's, a value set through the Value pattern
+	static function access(w:UiWindow, name:helder.view.graph.Signal<String>) {
+		var a:helder.ui.draw.WinAccess = cast @:privateAccess w.winAccess;
+		var root = a.rootProvider();
+		var simple = Com.guid(0xD6DD68D1, 0x86FD, 0x4332, [0x86, 0x66, 0x9A, 0xBE, 0xDE, 0xA2, 0xD2, 0x4C]);
+		var fragment = Com.guid(0xF7063DA8, 0x8359, 0x439C, [0x92, 0x97, 0xBB, 0xC5, 0x29, 0x9A, 0x7D, 0x87]);
+		// (the tree walked from the root: the first Edit)
+		var edit = Ptr.nil(), queue = [qi(root, fragment)];
+		Arena.scoped(m -> {
+			var out:Ptr<Ptr> = m.alloc(8), v:Ptr = m.alloc(24);
+			while (queue.length > 0 && edit.isNull()) {
+				var f = queue.shift();
+				if (f.isNull()) continue;
+				var s = qi(f, simple);
+				UiaSimple.GetPropertyValue(s, 30003, v);
+				if ((v : Ptr<UInt16>).value == 3 && (v.add(8) : Ptr<Int32>).value == 50004) {
+					edit = s;
+					break;
+				}
+				out.value = Ptr.nil();
+				UiaFragment.Navigate(f, 3, out);
+				var k = out.value;
+				while (!k.isNull()) {
+					queue.push(k);
+					out.value = Ptr.nil();
+					UiaFragment.Navigate(k, 1, out);
+					k = out.value;
+				}
+			}
+			check("UI Automation: the drawn field an Edit", !edit.isNull());
+			if (edit.isNull()) return;
+			out.value = Ptr.nil();
+			UiaSimple.GetPatternProvider(edit, 10002, out);
+			var value = out.value;
+			check("UI Automation: its Value pattern", !value.isNull());
+			if (value.isNull()) return;
+			var s:Ptr<Ptr> = m.alloc(8);
+			s.value = Ptr.nil();
+			UiaValue.get_Value(value, s);
+			var b = new StringBuf(), p:Ptr<UInt16> = s.value, i = 0;
+			while (!s.value.isNull() && p[i] != 0)
+				b.addChar(p[i++]);
+			check("UI Automation: its value the field's text", b.toString() == "abcにほ", b.toString());
+			var hr = UiaValue.SetValue(value, m.wstring("Ada"));
+			check("UI Automation: a value set, the field's signal follows", hr == 0 && name() == "Ada", name());
+		});
+	}
+
 	static function main() {
 		var w = new UiWindow("WinTextTest", 320, 160);
 		var name = signal("ab");
 		Render.render(<view padding={12}>
-			<field tag="name" host="drawn" value={name} onInput={e -> name(e.text)}/>
+			<field tag="name" value={name} onInput={e -> name(e.text)}/>
 		</view>, w.root);
 		var step = 0;
 		var tsf:Null<Tsf> = null;
@@ -57,6 +108,7 @@ class WinTextTest implements Markup {
 			TextSession.body = null;
 		}
 		var field:EditableText = null;
+		check("drawn: the desktop's default", w.ui.hostOf(w.root, "text-field") == Drawn && w.ui.platform != null);
 		w.onFrame = () -> {
 			switch step {
 				case 0:
@@ -112,6 +164,7 @@ class WinTextTest implements Markup {
 				case 4:
 					// (the next frame: the field's text told to the store)
 					check("the store's document after the commit", @:privateAccess tsf.doc == "abcにほ" && @:privateAccess tsf.selStart == 5, @:privateAccess tsf.doc);
+					access(w, name);
 					w.ui.setFocus(null);
 					step = 5;
 				case 5:
@@ -123,7 +176,7 @@ class WinTextTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('WinTextTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 7 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 12 ? 0 : 1);
 	}
 }
 
@@ -218,6 +271,23 @@ class ITfContext {
 @:build(helder.os.win32.Com.build())
 class ITfInsertAtSelection {
 	@:slot(3) static function InsertTextAtSelection(self:Ptr, ec:Int, flags:Int, text:Ptr, n:Int, range:Ptr<Ptr>):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+class UiaSimple {
+	@:slot(4) static function GetPatternProvider(o:Ptr, id:Int, out:Ptr<Ptr>):Int;
+	@:slot(5) static function GetPropertyValue(o:Ptr, id:Int, v:Ptr):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+class UiaFragment {
+	@:slot(3) static function Navigate(o:Ptr, dir:Int, out:Ptr<Ptr>):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+class UiaValue {
+	@:slot(3) static function SetValue(o:Ptr, s:Ptr):Int;
+	@:slot(4) static function get_Value(o:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())

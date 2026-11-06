@@ -514,6 +514,27 @@ as `TextNode` and `ImageNode` do. Events are the node's `onPointerDown`,
 To use it as an element instead, register it:
 `NodeRenderer.elements.set("sparkline", () -> new Sparkline())`.
 
+## Text fields
+
+`<field/>` is one line, `<field:textarea/>` several. On the desktop helder
+draws them itself, as Zed's GPUI does: they scroll, clip and sit under
+popups like any other node, and screenshots come out the same every time.
+The platform still does what it is good at: input methods compose in
+them (Japanese, Chinese, Korean), its spellchecker underlines misspelled
+words with corrections on a right click (`spellcheck`: on for a text
+area, ask for it on a field), and screen readers read them. Where the
+platform's own editor is wanted, say `host="native"`; in a browser and on
+phones it is the default.
+
+```haxe
+static function Compose(props:{subject:Signal<String>, body:Signal<String>}):View
+	return <view row-gap={8}>
+		<field value={props.subject} spellcheck="true" onInput={e -> props.subject(e.text)}/>
+		<field:textarea value={props.body} onInput={e -> props.body(e.text)}/>
+		<field type="password" host="native"/>
+	</view>;
+```
+
 ## Accessibility
 
 Give nodes a `role` and a `label` (and `checked`, `expanded`,

@@ -939,12 +939,14 @@ fix.
   rectangle: menus, the platform's text editor where `Ui.policy` asks for
   it, and later heavy views (a web view, video) when an app needs one.
   The whole-window native controls (`NativeHost`) are retired. Next:
-  - **the drawn editor as the desktop default**, the native one an
-    option: it composes with popups, scrolling and clipping, and keeps
-    screenshots deterministic. It still needs TSF on Windows (in place of
-    the IME's own windows), text-input-v3 on Wayland, and spellcheck
-    through the platform (NSSpellChecker, ISpellChecker over COM,
-    Enchant or Hunspell);
+  - **the drawn editor as the desktop default** (*landed*), the native
+    one an option (`host="native"`, `Ui.policy`): it composes with popups,
+    scrolling and clipping, and keeps screenshots deterministic; TSF on
+    Windows (a text store of the field's text in place of the IME's own
+    windows, `helder.os.win32.Tsf`), text-input-v3 on Wayland
+    (`WaylandTextInput`), and spellcheck through the platform
+    (`helder.text.Spell`: NSSpellChecker, ISpellChecker over COM, Enchant
+    or Hunspell; a red wave and a menu of corrections in the field);
   - **mobile keeps the platform's editor** for autocorrect, autofill,
     dictation and selection handles, until a hidden input connection
     (Flutter's way: Android's InputConnection, UITextInput) can replace

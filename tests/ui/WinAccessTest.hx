@@ -13,7 +13,8 @@ import hxmc.unsafe.*;
 // interfaces as UI Automation calls them (navigation, properties, bounds,
 // the patterns: invoke, toggle, range value, value), and the window's root
 // element asked of UI Automation itself (UiaNodeFromHandle: the provider
-// WM_GETOBJECT gives). Its field native (WinViews: an EDIT over the window):
+// WM_GETOBJECT gives). Its field native (host="native": drawn is the
+// desktop's default; WinViews: an EDIT over the window):
 // the value set through UI Automation in it, a character typed into it in
 // the field's signal, Tab from it moving the window's focus on; centred,
 // an EDIT made again ES_CENTER with the same text.
@@ -51,7 +52,7 @@ class WinAccessTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
+			<field tag="name" host="native" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
 			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var step = 0;

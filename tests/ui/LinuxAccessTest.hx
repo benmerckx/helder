@@ -7,14 +7,14 @@ import Plain.*;
 // helder.ui's accessibility on Linux (LinuxAccess; bun run test ui-draw, under
 // Xvfb and a D-Bus session with AT-SPI's bus): a window of controls (Plain's) whose
 // tree AtspiProbe, another process, reads through libatspi (what Orca
-// uses), then presses its Save button, which closes the window. Its exit
+// uses: its drawn field's text too), then presses its Save button, which closes the window. Its exit
 // status: whether the press came within 20 seconds, and no tree was built
 // before a client asked (after the first frame, before any message).
 //   LinuxAccessTest   (with AtspiProbe running)
 class LinuxAccessTest implements Markup {
 	static function main() {
 		var w = new UiWindow("LinuxAccessTest", 320, 240);
-		var pressed = false, checked = signal(false), volume = signal(0.5), name = signal("");
+		var pressed = false, checked = signal(false), volume = signal(0.5), name = signal("Ada");
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> {

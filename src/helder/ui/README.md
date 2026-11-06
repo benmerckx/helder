@@ -503,7 +503,8 @@ drawn from its bitmaps (scaled down as a browser does) or colour layers. In a br
 `helder.ui.platform` is a small layer for the platform's own views
 embedded in a drawn window, each in a rectangle the layout gives it:
 the native menus (a context menu, the menu bar), the platform's text
-editors where `Ui.policy` says native, and later heavy views (a web
+editors where `Ui.policy` or a node says native (on the desktop helder
+draws its own by default), and later heavy views (a web
 view, video) when an app needs one. A window's `Ui.platform` is its
 `PlatformViews` (`MacViews` on macOS, `WinViews` on Windows, `WebViews`
 in a browser; none on Linux and Android, where everything is drawn); a
@@ -517,9 +518,18 @@ In a drawn window a widget can also be the platform's own control:
 `host` on a node (`Auto`, `Native`,
 `Drawn`; markup's `host="native"`) holds for its subtree, and where the
 tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
-(`"text-field"`, `"text-area"`, `"context-menu"` and `"menubar"`: native, the plan's defaults). Native
+(`"text-field"`, `"text-area"`, `"context-menu"` and `"menubar"`;
+`Ui.defaultPolicy()`: on the desktop, Windows, macOS and Linux, text
+fields and areas drawn, as Zed's GPUI draws its editor: helder's own
+composes with popups, scrolling and clipping and keeps screenshots the
+same, and the platform still gives input methods (TSF, NSTextInputClient,
+XIM, text-input-v3), spellcheck (`helder.text.Spell`) and accessibility
+(the access tree); in a browser and on phones the platform's editor; the
+menus native everywhere). Native
 needs the window's `Ui.platform` (`helder.ui.platform.PlatformViews`); without one, or for a
-kind it lacks, the widget is drawn. Text fields and areas first: the
+kind it lacks, the widget is drawn. `host="native"` on a field, or
+`ui.policy["text-field"] = Native`, asks for the platform's editor on the
+desktop too: the
 platform's editor sits over the field's content box, borderless and
 transparent in the field's font, colour and alignment, the theme drawing
 the box, ring and placeholder's colour; its text, selection and focus
