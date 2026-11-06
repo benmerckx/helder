@@ -127,7 +127,12 @@ class Shell implements Markup {
 		{mime: "image/jpeg", extensions: ["jpg", "jpeg", "jfif"]},
 		{mime: "image/png", extensions: ["png", "apng"]},
 		{mime: "image/gif", extensions: ["gif"]},
-		{mime: "image/webp", extensions: ["webp"]}
+		{mime: "image/webp", extensions: ["webp"]},
+		{mime: "application/pdf", extensions: ["pdf"]},
+		// (the system's decoders': WIC, ImageIO, Linux's libtiff, libheif and libavif where installed)
+		{mime: "image/tiff", extensions: ["tif", "tiff"]},
+		{mime: "image/heic", extensions: ["heic", "heif"]},
+		{mime: "image/avif", extensions: ["avif"]}
 	];
 
 	// the viewer's own font (DejaVu Sans, a subset: fonts/README.md), added
@@ -161,7 +166,8 @@ class Shell implements Markup {
 	// the app's), the folder watched
 	public static function attach(root:Node, viewer:Viewer, watch = true) {
 		ViewerActions.defaults(helder.ui.actions.Keymap.global);
-		renderEffect(() -> "Viewer" + (viewer.pickerOpen() ? " picker" : "") + (viewer.fullscreen() ? " fullscreen" : ""),
+		renderEffect(() -> "Viewer" + (viewer.pickerOpen() ? " picker" : "") + (viewer.fullscreen() ? " fullscreen" : "") + (viewer.pagesSignal() > 1 ? " pdf" : "")
+			+ (viewer.gotoOpen() ? " goto" : ""),
 			c -> root.keyContext = helder.ui.actions.KeyContext.parse(c));
 		root.on(ViewerAction, a -> switch a {
 			case CopyPath:
@@ -253,6 +259,25 @@ class Shell implements Markup {
 								<text color={StringTools.endsWith(entry(), "/") ? "#93c5fd" : "#e4e4e7"} max-lines={1} dir={helder.ui.Dir.Ltr}>{entry()}</text>
 							</view:button>
 						}</VirtualList>
+					</view>
+				</view>
+			</Show>
+			<Show when={viewer.gotoOpen()}>
+				<view tag="goto-backdrop" position="absolute" inset={0} background="#00000066" align-items="center" justify="center"
+					onClick={_ -> viewer.gotoOpen(false)}>
+					<view tag="goto" width={260} padding={12} row-gap={8} radius={10} background="#232326" border-width={1} border-color="#3f3f46"
+						shadow="0 8px 30px rgba(0, 0, 0, 0.5)" onClick={e -> e.stop()}>
+						<text color="#a1a1aa">{"Go to page (1–" + viewer.pagesSignal() + ")"}</text>
+						<field tag="goto-field" value={viewer.gotoText} placeholder={Std.string(viewer.pageSignal() + 1)} label="Page number" height={28} padding="0 8"
+							radius={6} background="#18181b" border-width={1} border-color="#52525b" onInput={e -> viewer.gotoText(e.text)}
+							onKeyDown={e -> if (e.key == helder.ui.Key.ENTER) {
+								viewer.goToTyped((cast e.current : helder.ui.widgets.TextField).text);
+								e.stop();
+							}}
+							ref={n -> helder.ui.Clock.add(_ -> {
+								n.focus();
+								false;
+							})}/>
 					</view>
 				</view>
 			</Show>

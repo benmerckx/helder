@@ -8,7 +8,8 @@ import viewer.Decode.Decoded;
 // helder.jobs in the app, at once in tests), and when the kept pixels pass
 // the budget the ones farthest from the image shown go first (those no
 // longer wanted before them); the image shown is never evicted. drop
-// forgets a file (changed on disk). side is the side decodes are asked at
+// forgets a decode, dropFile a file's (changed on disk). A key is a path,
+// or a PDF's page (Decode.key). side is the side decodes are asked at
 // (a JPEG decoded smaller, at the size shown: 0 all of it); refine decodes
 // the one shown again whole when the view needs its pixels (a zoom), the
 // smaller one shown meanwhile.
@@ -95,6 +96,12 @@ class DecodeCache {
 		}
 		// (a decode under way lands in an entry no longer kept: ignored)
 		e.dropped = true;
+	}
+
+	// a file's decodes, each of its pages' (Decode.key) too: changed on disk
+	public function dropFile(path:String) {
+		for (k in keys())
+			if (k == path || Decode.parseKey(k).path == path) drop(k);
 	}
 
 	public function clear()

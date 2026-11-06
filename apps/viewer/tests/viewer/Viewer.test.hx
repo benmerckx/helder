@@ -115,5 +115,78 @@ function tests() {
 			helder.view.graph.Graph.flush();
 			equals(viewer.state.peek(), Failed);
 		});
+		test("a PDF's pages: the keys, the wheel, go to page, the next page decoded ahead", () -> {
+			var asked = [];
+			var viewer = new Viewer((path, side, done) -> {
+				asked.push(Decode.parseKey(path).page);
+				done(Decode.file({path: path, side: side}));
+			});
+			var ui = new Ui(new StoryText(), 800, 600);
+			Render.render(Shell.view(viewer), ui.root);
+			Shell.attach(ui.root, viewer, false);
+			viewer.camera.setView(800, 600);
+			assert(viewer.open("tests/fixtures/pdf/pages.pdf"));
+			helder.view.graph.Graph.flush();
+			ui.update();
+			equals(viewer.state.peek(), Shown);
+			equals(viewer.pages, 3);
+			equals(viewer.title.peek(), "pages.pdf · 1 / 1 · page 1 / 3");
+			// (its size at 100%: 2 pixels a point; drawn at the view's side)
+			equals([viewer.shown.width, viewer.shown.height], [600, 800]);
+			equals(viewer.shown.pixelsHeight, 800);
+			// (page 2 decoded ahead, before it was asked for)
+			equals(asked, [0, 1]);
+			assert(viewer.cache.get(Decode.key(viewer.folder.current, 1)) != null, "page 2 ahead");
+			// (Page Down: page 2, landscape, fitted again; page 3 ahead)
+			ui.keyDown(Key.PAGE_DOWN, 0);
+			ui.update();
+			equals(viewer.title.peek(), "pages.pdf · 1 / 1 · page 2 / 3");
+			equals([viewer.shown.width, viewer.shown.height], [800, 600]);
+			equals(viewer.camera.fitted, true);
+			equals(asked, [0, 1, 2]);
+			// (the status line: the page, not a size)
+			ui.keyDown("i".code, 0);
+			ui.update();
+			equals(text(ui, "status"), "100% · page 2 / 3 · PDF · 1 KB · 1 / 1");
+			// (Space the next page; at the last, nothing; Backspace back; the wheel, fitted, by pages)
+			ui.keyDown(" ".code, 0);
+			equals(viewer.page, 2);
+			ui.keyDown(" ".code, 0);
+			equals(viewer.page, 2);
+			ui.keyDown(Key.BACKSPACE, 0);
+			equals(viewer.page, 1);
+			viewer.wheel(400, 300, -40, false, 20);
+			equals(viewer.page, 0);
+			// (Ctrl+End the last page, Ctrl+Home the first)
+			ui.keyDown(Key.END, Key.MOD_CONTROL);
+			equals(viewer.page, 2);
+			ui.keyDown(Key.HOME, Key.MOD_CONTROL);
+			equals(viewer.page, 0);
+			// (go to page: G, a number, Enter; past the last: the last)
+			ui.keyDown("g".code, 0);
+			helder.view.graph.Graph.flush();
+			ui.update();
+			equals(viewer.gotoOpen.peek(), true);
+			assert(ui.root.find("goto") != null, "the go to page card");
+			equals(viewer.goToTyped("3"), true);
+			helder.view.graph.Graph.flush();
+			equals(viewer.page, 2);
+			equals(viewer.gotoOpen.peek(), false);
+			viewer.goToTyped("99");
+			equals(viewer.page, 2);
+			viewer.goToTyped("1");
+			equals(viewer.page, 0);
+			// (zoomed in: page 1 drawn again larger, as a JPEG's refine)
+			viewer.camera.setView(300, 200);
+			viewer.cache.clear();
+			viewer.open("tests/fixtures/pdf/pages.pdf");
+			helder.view.graph.Graph.flush();
+			equals([viewer.shown.width, viewer.shown.pixelsHeight], [600, 300]);
+			viewer.actual();
+			equals(viewer.shown.pixelsHeight, 800);
+			equals(viewer.title.peek(), "pages.pdf · 1 / 1 · page 1 / 3");
+			// (past the last page: nothing)
+			equals(viewer.toPage(5), false);
+		});
 	});
 }

@@ -23,6 +23,12 @@ enum ViewerAction {
 	LeaveFullscreen;
 	ToggleStatus;
 	ClosePicker;
+	NextPage;
+	PreviousPage;
+	FirstPage;
+	LastPage;
+	GoToPage;
+	CloseGoTo;
 	CopyPath;
 	ShowInFolder;
 	OpenWithDefault;
@@ -32,12 +38,14 @@ class ViewerActions {
 	static var declared = false;
 
 	// the viewer's default bindings, in keymap (once): the root's context is
-	// "Viewer", with picker while the picker is open, fullscreen while it is
+	// "Viewer", with picker while the picker is open, fullscreen while it is,
+	// pdf while a document of several pages is shown, goto while its go to
+	// page card is open
 	public static function defaults(keymap:Keymap) {
 		if (declared) return;
 		declared = true;
 		Actions.declare("viewer", ViewerAction);
-		var here = "Viewer && !picker";
+		var here = "Viewer && !picker && !goto";
 		keymap.bind("secondary-o", Open, "Viewer");
 		for (k in ["space", "pagedown", "down", "right"])
 			keymap.bind(k, Next, here);
@@ -59,6 +67,17 @@ class ViewerActions {
 		keymap.bind("escape", LeaveFullscreen, "Viewer && fullscreen && !picker");
 		keymap.bind("i", ToggleStatus, here);
 		keymap.bind("escape", ClosePicker, "Viewer && picker");
+		// (a PDF's pages: Page Down and Up, Space and Backspace page through it, the arrows still the folder's files)
+		var pdf = "Viewer && pdf && !picker && !goto";
+		for (k in ["pagedown", "space", "]"])
+			keymap.bind(k, NextPage, pdf);
+		for (k in ["pageup", "backspace", "shift-space", "["])
+			keymap.bind(k, PreviousPage, pdf);
+		keymap.bind("secondary-home", FirstPage, pdf);
+		keymap.bind("secondary-end", LastPage, pdf);
+		keymap.bind("secondary-g", GoToPage, pdf);
+		keymap.bind("g", GoToPage, pdf);
+		keymap.bind("escape", CloseGoTo, "Viewer && goto");
 		keymap.bind("secondary-shift-c", CopyPath, here);
 		// (macOS: Command-Q is the application menu's)
 		if (!Keymap.mac) keymap.bind("secondary-q", StandardAction.Quit);
@@ -74,7 +93,8 @@ class ViewerActions {
 				label: "View",
 				items: [
 					Item("Fit", Fit), Item("Actual Size", ActualSize), Item("Zoom In", ZoomIn), Item("Zoom Out", ZoomOut), Separator,
-					Item("Previous", Previous), Item("Next", Next), Separator, Item("Full Screen", ToggleFullscreen), Item("Status Line", ToggleStatus)
+					Item("Previous", Previous), Item("Next", Next), Separator, Item("Previous Page", PreviousPage), Item("Next Page", NextPage),
+					Item("Go to Page…", GoToPage), Separator, Item("Full Screen", ToggleFullscreen), Item("Status Line", ToggleStatus)
 				]
 			}
 		];

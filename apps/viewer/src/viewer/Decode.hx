@@ -25,6 +25,9 @@ typedef Decoded = {
 	repetitions:Int,
 	format:String,
 	fileSize:Int,
+	// a PDF's page shown (from 0) and how many it has (1 for an image; 0 unknown: failed)
+	page:Int,
+	pages:Int,
 	// null when decoded; else what to show, and its kind ("too large",
 	// "corrupt", "unsupported", "unreadable")
 	error:Null<String>,
@@ -37,13 +40,63 @@ class Decode {
 	// (an animation's side: its frames one texture each)
 	public static inline var MAX_SIDE = 8192;
 
-	// the job: a path in (and the side it is shown at: 0, all of it), a Decoded out
+	// what the cache and the jobs know a decode by: the file's path, and a
+	// PDF's page past the first after a newline (no file's name has one: the
+	// recent files are kept a line each)
+	public static function key(path:String, page = 0):String
+		return page <= 0 ? path : path + "\n" + page;
+
+	public static function parseKey(key:String):{path:String, page:Int} {
+		var nl = key.lastIndexOf("\n");
+		return nl < 0 ? {path: key, page: 0} : {path: key.substr(0, nl), page: Std.parseInt(key.substr(nl + 1)) ?? 0};
+	}
+
+	// the job: a key in (a path, maybe a PDF's page: key; and the side it is shown at: 0, all of it), a Decoded out
 	public static function file(req:{path:String, side:Int}):Decoded {
-		var bytes = try sys.io.File.getBytes(req.path) catch (e:Dynamic) null;
+		var k = parseKey(req.path);
+		// (a PDF already open: its page drawn, the file not read again)
+		if (PdfPages.isOpen(k.path)) return pdf(k.path, null, k.page, req.side, 0);
+		var bytes = try sys.io.File.getBytes(k.path) catch (e:Dynamic) null;
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
 		// (none of helder.image's: the system's decoders, TIFF, HEIC, AVIF, RAW, where there are some)
-		if (formatOf(bytes) == "" && helder.os.SystemImages.supports(req.path)) return system(req.path, req.side, bytes.length);
+		if (formatOf(bytes) == "" && helder.os.SystemImages.supports(k.path)) return system(k.path, req.side, bytes.length);
+		if (formatOf(bytes) == "PDF") return pdf(k.path, bytes, k.page, req.side, bytes.length);
 		return decode(bytes, req.side);
+	}
+
+	// a PDF's page (helder.pdf, PdfPages: the document kept open for its next pages)
+	static function pdf(path:Null<String>, bytes:Null<Bytes>, page:Int, side:Int, size:Int):Decoded {
+		return try {
+			var p = PdfPages.render(path, bytes, page, side);
+			var mem = ImageMemory.offHeapMemory();
+			var px = mem.take(p.rgba);
+			mem.free();
+			{
+				width: p.width,
+				height: p.height,
+				pixelsWidth: p.pixelsWidth,
+				pixelsHeight: p.pixelsHeight,
+				frames: [{pixels: px, delay: 0.0}],
+				repetitions: 0,
+				format: "PDF",
+				fileSize: p.fileSize,
+				page: page,
+				pages: p.pages,
+				error: null,
+				errorKind: ""
+			};
+		} catch (e:helder.pdf.PdfError) {
+			var d = failed(Std.string(e.kind), "PDF: " + e.message, size, "PDF");
+			d.page = page;
+			// (the others may be fine: their count, when the document opened)
+			d.pages = path == null ? 0 : Std.int(Math.max(0, PdfPages.pagesOf(path)));
+			d;
+		} catch (e:ImageError) {
+			var d = failedBy(e, size, "PDF");
+			d.page = page;
+			d.pages = path == null ? 0 : Std.int(Math.max(0, PdfPages.pagesOf(path)));
+			d;
+		}
 	}
 
 	// (helder.os's SystemImages: WIC, ImageIO; ImageLimits before any pixel; upright, scaled where the system scales)
@@ -68,6 +121,8 @@ class Decode {
 				repetitions: 0,
 				format: format,
 				fileSize: size,
+				page: 0,
+				pages: 1,
 				error: null,
 				errorKind: ""
 			};
@@ -78,6 +133,9 @@ class Decode {
 	// job (ImageJobs: PngCore over off-heap memory), the rest as a GC job
 	// (file); never throws
 	@:coroutine public static function job(path:String, side = 0):Decoded {
+		// (a PDF's page: the GC job, its document kept there)
+		if (path.indexOf("\n") >= 0 || PdfPages.isOpen(path))
+			return try helder.jobs.Jobs.run(file, {path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), 0, "PDF");
 		var bytes = try sys.io.File.getBytes(path) catch (e:Dynamic) null;
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
 		var size = Image.size(bytes);
@@ -93,6 +151,8 @@ class Decode {
 				repetitions: 0,
 				format: "PNG",
 				fileSize: bytes.length,
+				page: 0,
+				pages: 1,
 				error: null,
 				errorKind: ""
 			};
@@ -122,13 +182,9 @@ class Decode {
 						d;
 					case "WebP": WebpDecoder.decode(bytes, mem);
 					case "PDF":
-						// (its first page by helder.pdf, at the side shown: 2 pixels a point by default, 4096 a side at most)
-						var doc = helder.pdf.Pdf.open(bytes);
-						if (doc.pages.length == 0) throw ImageError.corrupt("PDF: no pages");
-						var pg = doc.pages[0], big = Math.max(pg.width, pg.height);
-						var k = Math.min(side > 0 ? side / big : 2, 4096 / big);
-						var b = helder.pdf.Pdf.render(doc, 0, k);
-						{width: b.width, height: b.height, rgba: b.straight()};
+						// (its first page, the document not kept: PdfPages; a file's pages are file's)
+						mem.free();
+						return pdf(null, bytes, 0, side, bytes.length);
 					case _: PngDecoder.decode(bytes, mem);
 				}
 				w = d.width;
@@ -184,6 +240,8 @@ class Decode {
 				repetitions: reps,
 				format: format,
 				fileSize: bytes.length,
+				page: 0,
+				pages: 1,
 				error: null,
 				errorKind: ""
 			};
@@ -227,6 +285,8 @@ class Decode {
 			repetitions: 0,
 			format: format,
 			fileSize: size,
+			page: 0,
+			pages: 0,
 			error: message,
 			errorKind: kind
 		};
