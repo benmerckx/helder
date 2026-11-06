@@ -14,7 +14,7 @@ import helder.canvas.Gradient;
 // OffscreenCanvas of the page's (a handle); layers are canvases of their
 // own composited at restore; gradients and patterns are made by the page
 // from the commands (a bitmap uploaded once, a handle).
-class WebCanvas implements Painter implements GlyphCache {
+class WebCanvas implements Painter implements GlyphCache implements HandleImages {
 	public var width(default, null):Int;
 	public var height(default, null):Int;
 	public var matrix(get, never):Matrix;
@@ -317,6 +317,27 @@ class WebCanvas implements Painter implements GlyphCache {
 		num(smooth ? 1 : 0);
 	}
 
+	// an image the page holds (BrowserImages' WebImage: its handle), drawn as drawImage draws
+	public function drawHandle(handle:Int, sx:Float, sy:Float, sw:Float, sh:Float, dx:Float, dy:Float, dw:Float, dh:Float, paint:Paint, smooth = true) {
+		sendTransform(matrix);
+		op(IMAGE, 12);
+		num(handle);
+		for (v in [sx, sy, sw, sh, dx, dy, dw, dh])
+			num(v);
+		num(paint.alpha);
+		num(paint.blend == null ? 1000 : paint.blend.code);
+		num(smooth ? 1 : 0);
+	}
+
+	// a bitmap drawImage uploaded, let go of in the page (it is uploaded again if drawn again)
+	public function forget(b:Bitmap) {
+		var h = images.get(b);
+		if (h == null) return;
+		flush();
+		images.remove(b);
+		WebCanvasImports.canvas_release(h);
+	}
+
 	public function readPixels(out:Bytes, x:Int, y:Int, w:Int, h:Int) {
 		flush();
 		var p = hxmc.unsafe.BytesPtr.of(out, 0, w * h * 4);
@@ -355,4 +376,6 @@ class WebCanvas implements Painter implements GlyphCache {
 	// the next layer's filter (CSS's)
 	static function canvas_filter(canvas:Int, css:hxmc.unsafe.Ptr, bytes:Int):Void;
 	static function canvas_write(canvas:Int, x:Int, y:Int, w:Int, h:Int, pixels:hxmc.unsafe.Ptr):Void;
+	static function canvas_decode(bytes:hxmc.unsafe.Ptr, n:Int, type:hxmc.unsafe.Ptr, typeLength:Int, w:Int, h:Int, ticket:Int, done:hxmc.unsafe.Ptr):Void;
+	static function canvas_release(image:Int):Void;
 }

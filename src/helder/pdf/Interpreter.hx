@@ -49,6 +49,8 @@ class Interpreter {
 	// textOnly: nothing painted, no image decoded: the text alone)
 	public var text:Null<StringBuf> = null;
 	public var textOnly = false;
+	// (collect: the images a page draws, by their cache key and size shown, and nothing drawn: PdfWeb.prepare)
+	public var collect:Null<Array<{key:String, dict:PdfDict, value:PdfValue, width:Int, height:Int}>> = null;
 	var lastText:Null<Matrix> = null;
 	var lastSize = 0.0;
 
@@ -546,11 +548,34 @@ class Interpreter {
 		if (d == null) return;
 		switch Values.name(d.get("Subtype")) {
 			case "Image":
-				if (textOnly) return;
 				var fill = gs.fillSpace.kind == "Pattern" ? 0xFF000000 : gs.fillSpace.rgb(gs.fillComps);
 				var s = shownSize();
+				// (the document's cache: by its reference and the size shown; a mask's by its colour too)
+				var key = switch all.get(name) {
+					case PRef(n, g): '$n $g@${s[0]}x${s[1]}' + (Values.bool(doc.resolve(d.has("ImageMask") ? d.get("ImageMask") : d.get("IM"))) ? "#" + fill : "");
+					case _: null;
+				}
+				if (collect != null) {
+					if (key != null) collect.push({key: key, dict: d, value: v, width: s[0], height: s[1]});
+					return;
+				}
+				if (textOnly) return;
+				var interpolate = Values.bool(doc.resolve(d.get("Interpolate")));
+				var cached:Dynamic = key == null ? null : doc.images.get(key);
+				if (cached != null && Std.isOfType(cached, Bitmap)) {
+					drawImage(cached, interpolate);
+					return;
+				}
+				if (cached != null && Std.isOfType(cached, helder.canvas.HandleImages.ImageHandle) && Std.isOfType(painter, helder.canvas.HandleImages)) {
+					var hi:helder.canvas.HandleImages.ImageHandle = cached;
+					var hp:helder.canvas.HandleImages = cast painter;
+					place(hi.width, hi.height, interpolate);
+					hp.drawHandle(hi.handle, 0, 0, hi.width, hi.height, 0, 0, 1, 1, paint, smoothNow);
+					return;
+				}
 				var b = PdfImage.decode(doc, d, v, res, withAlpha(fill, 1), null, s[0], s[1]);
-				drawImage(b, Values.bool(doc.resolve(d.get("Interpolate"))));
+				if (key != null) doc.images.put(key, b, b.width * b.height * 4);
+				drawImage(b, interpolate);
 			case "Form": form(d, v, res);
 			case _:
 		}
@@ -641,17 +666,24 @@ class Interpreter {
 	}
 
 	function drawImage(b:Bitmap, interpolate = false) {
+		place(b.width, b.height, interpolate);
+		painter.drawImage(b, 0, 0, b.width, b.height, 0, 0, 1, 1, paint, smoothNow);
+	}
+
+	var smoothNow = true;
+
+	// the transform, paint and smoothing for an image of w x h samples in the unit square
+	function place(width:Int, height:Int, interpolate:Bool) {
 		var m = gs.ctm.clone().multiply(new Matrix(1, 0, 0, -1, 0, 1));
 		device(m);
 		// (smoothed when asked, or up to 4/3 of a pixel a sample, as pdf.js does (96 / 72); an image
 		// enlarged more shows its samples, as pdf.js and Acrobat do)
 		var px = base.clone().multiply(m);
-		var sx = Math.sqrt(px.a * px.a + px.b * px.b) / b.width, sy = Math.sqrt(px.c * px.c + px.d * px.d) / b.height;
-		var smooth = interpolate || (sx <= 4 / 3 && sy <= 4 / 3);
+		var sx = Math.sqrt(px.a * px.a + px.b * px.b) / width, sy = Math.sqrt(px.c * px.c + px.d * px.d) / height;
+		smoothNow = interpolate || (sx <= 4 / 3 && sy <= 4 / 3);
 		paint.shader = null;
 		paint.alpha = gs.fillAlpha;
 		paint.blend = gs.blend;
-		painter.drawImage(b, 0, 0, b.width, b.height, 0, 0, 1, 1, paint, smooth);
 	}
 
 	function inlineImage(p:Parser, res:Null<PdfDict>) {

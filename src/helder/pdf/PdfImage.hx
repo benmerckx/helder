@@ -16,6 +16,13 @@ import helder.pdf.PdfFont;
 class PdfImage {
 	// JPEG 2000's decoder (Jpx), linked by Pdf.open; Pdf.openPlain leaves it out (a JPX image: Unsupported)
 	public static var jpx:Null<(data:Bytes, reduce:Int, maxPixels:Int) -> Null<Jpx.JpxImage>> = null;
+	// helder.image's JPEG decoder, linked by Pdf.open and Pdf.render (useJpeg); a web build drawing
+	// through PdfWeb.prepare's browser decoding may leave it out (a JPEG the browser did not take: Unsupported)
+	public static var jpegDecoder:Null<(data:Bytes, scale:Int) -> {width:Int, height:Int, rgba:Bytes}> = null;
+
+	public static function useJpeg()
+		jpegDecoder = (d, s) -> helder.image.JpegDecoder.decode(d, null, s);
+
 	public static var jpxInfo:Null<(data:Bytes) -> Null<{width:Int, height:Int, levels:Int}>> = null;
 
 	// (shownW x shownH: the pixels it covers on the device, when known: a JPEG decoded reduced to no
@@ -79,7 +86,8 @@ class PdfImage {
 		var jpg:Null<{width:Int, height:Int, rgba:Bytes}> = null;
 		if (jpeg && !mask) {
 			var scale = shownW > 0 && shownH > 0 ? helder.image.JpegDecoder.scaleFor(w, h, shownW, shownH) : 1;
-			jpg = try helder.image.JpegDecoder.decode(data, null, scale) catch (e:Dynamic) throw PdfError.corrupt("a JPEG image: " + Std.string(e));
+			if (jpegDecoder == null) throw PdfError.unsupported("a JPEG image without its decoder linked (PdfImage.useJpeg)");
+			jpg = try jpegDecoder(data, scale) catch (e:Dynamic) throw PdfError.corrupt("a JPEG image: " + Std.string(e));
 			// (the image at the decoder's size: the masks below resampled to it)
 			w = jpg.width;
 			h = jpg.height;

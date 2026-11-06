@@ -219,6 +219,39 @@ gradients' reflect and repeat spreads (the browser's canvas pads), the
 them with Chromium's references: all 25 within tolerance (text within
 3.3%, the others within 0.5%).
 
+### Images decoded by the browser: `BrowserImages`
+
+A web build can leave JPEG and PNG decoding to the browser: encoded bytes go
+to `createImageBitmap` (EXIF orientation not applied, optionally resized to
+the size drawn with `resizeWidth`/`resizeHeight`), and the result stays in the
+page as a handle (`WebImage`) that `WebCanvas.drawHandle` draws like
+`drawImage` draws a `Bitmap`. An app that decodes only this way links none of
+helder.image's decoders: `-dce full` leaves them out.
+
+The browser decodes asynchronously and a wasm call cannot wait, so drawing is
+split the way a page or a frame splits it: a **prepare step** collects the
+images, starts their decodes and returns; its callback runs from the page's
+event loop once they have all arrived (the program keeps running after
+`main` returns, as helder.os's frames do), and the drawing, synchronous,
+draws them by handle. JSPI would let a call wait instead, but neither
+helder's runner nor every browser has it.
+
+```haxe
+BrowserImages.all([{bytes: jpg, type: "image/jpeg", width: 300, height: 200}], images -> {
+	var img = images[0]; // null when the browser could not decode it: helder's decoder then
+	canvas.drawHandle(img.handle, 0, 0, img.width, img.height, x, y, 300, 200, paint);
+	img.release(); // when it is no longer drawn
+});
+```
+
+`HandleImages` is the interface a caller checks for (`Std.isOfType(painter,
+HandleImages)`), so code shared with the other back ends keeps its Bitmaps
+there. helder.pdf uses it through `helder.pdf.web.PdfWeb.prepare(page, scale,
+done)`: a page's JPEGs (gray or RGB; CMYK, masks and Decode arrays stay
+helder's) decoded at the size shown, kept in the document's image cache. The
+canvas-web lane checks a PNG and a JPEG, at full and half size, against
+helder's decoders (tests/canvas/WebDecode.hx).
+
 ## The DOM facade: `helder.canvas.dom`
 
 The browser's Canvas 2D on the core, shaped like skia-canvas and

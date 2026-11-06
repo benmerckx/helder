@@ -3,7 +3,8 @@ package helder.pdf;
 // What reading and drawing a PDF may take, each checked before the work
 // it bounds: the file's objects, a stream's decoded bytes and all of a
 // document's together (a decompression budget), the pages, the depth of
-// nested forms and patterns, the operators a page runs, an image's pixels.
+// nested forms and patterns, the operators a page runs, an image's pixels,
+// the decoded images kept.
 // Defaults for untrusted files; a viewer may raise them.
 class PdfLimits {
 	public var maxObjects = 2_000_000;
@@ -14,6 +15,9 @@ class PdfLimits {
 	public var maxOperators = 20_000_000;
 	public var maxImagePixels = 100_000_000;
 	public var maxNesting = 64;
+	// the decoded images a document keeps for its pages drawn again (bytes, least recently used out
+	// first; 0 keeps none): Bitmaps, or on the web the browser's images
+	public var imageCache = 64 << 20;
 
 	public function new() {}
 

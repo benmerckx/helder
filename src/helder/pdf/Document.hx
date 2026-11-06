@@ -15,6 +15,8 @@ import helder.pdf.PdfValue;
 class Document {
 	public final data:Bytes;
 	public final limits:PdfLimits;
+	// (decoded images, for pages drawn again: PdfLimits.imageCache)
+	public final images:ImageCache;
 	public var trailer(default, null):PdfDict;
 	public var pages(default, null):Array<Page> = [];
 	public var repaired(default, null) = false;
@@ -36,6 +38,7 @@ class Document {
 	public function new(data:Bytes, password = "", ?limits:PdfLimits, ?decryption:(enc:PdfDict, id:Bytes, password:String) -> Null<Decryptor>) {
 		this.data = data;
 		this.limits = limits ?? PdfLimits.DEFAULT;
+		images = new ImageCache(this.limits.imageCache);
 		if (data.length < 8) throw PdfError.corrupt("not a PDF: too short");
 		try {
 			readXref();
@@ -499,4 +502,61 @@ class Page {
 // A security handler's decryption of a string or stream (Crypto: the standard handler's)
 interface Decryptor {
 	function decrypt(data:Bytes, num:Int, gen:Int, stream:Bool):Bytes;
+}
+
+// A document's decoded images by key (an image XObject's reference and the size it is shown at),
+// bounded by bytes, the least recently used let go of first (its release called: a browser image's)
+class ImageCache {
+	final budget:Int;
+	final entries = new Map<String, {value:Dynamic, bytes:Int, used:Int, release:Null<() -> Void>}>();
+	var total = 0;
+	var tick = 0;
+
+	public function new(budget:Int)
+		this.budget = budget;
+
+	public function get(key:String):Null<Dynamic> {
+		var e = entries.get(key);
+		if (e == null) return null;
+		e.used = ++tick;
+		return e.value;
+	}
+
+	public function put(key:String, value:Dynamic, bytes:Int, ?release:() -> Void) {
+		if (bytes > budget) {
+			if (release != null) release();
+			return;
+		}
+		remove(key);
+		while (total + bytes > budget) {
+			var oldest:Null<String> = null, at = 0x7fffffff;
+			for (k => e in entries)
+				if (e.used < at) {
+					at = e.used;
+					oldest = k;
+				}
+			if (oldest == null) break;
+			remove(oldest);
+		}
+		entries.set(key, {value: value, bytes: bytes, used: ++tick, release: release});
+		total += bytes;
+	}
+
+	public function remove(key:String) {
+		var e = entries.get(key);
+		if (e == null) return;
+		entries.remove(key);
+		total -= e.bytes;
+		if (e.release != null) e.release();
+	}
+
+	// every image let go of
+	public function clear()
+		for (k in [for (k in entries.keys()) k])
+			remove(k);
+
+	public var bytes(get, never):Int;
+
+	function get_bytes()
+		return total;
 }

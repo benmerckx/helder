@@ -45,6 +45,23 @@ export default function (host) {
 			host.options.onCanvas?.(h_, canvas);
 			return h_;
 		},
+		// (BrowserImages: encoded bytes decoded by the browser, near w x h when given; done(ticket, handle, w, h)
+		// when it is, a handle of 0 when it could not; the handle's an image as canvas_image's)
+		canvas_decode(p, n, mp, mn, w, h, ticket, done) {
+			const bytes = host.bytes(p, n).slice(), type = host.bytes(mp, mn).slice();
+			const blob = new Blob([bytes], { type: new TextDecoder().decode(type) });
+			const opts = { imageOrientation: "none", premultiplyAlpha: "premultiply" };
+			if (w > 0 && h > 0) Object.assign(opts, { resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
+			createImageBitmap(blob, opts).then(bmp => {
+				const id = nextImage++;
+				images.set(id, bmp);
+				host.call(done, ticket, id, bmp.width, bmp.height);
+			}, () => host.call(done, ticket, 0, 0, 0));
+		},
+		canvas_release(id) {
+			images.get(id)?.close?.();
+			images.delete(id);
+		},
 		canvas_image(w, h, p) {
 			const src = host.bytes(p, w * h * 4), data = new Uint8ClampedArray(w * h * 4);
 			for (let i = 0; i < w * h * 4; i += 4) {

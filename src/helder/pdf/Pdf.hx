@@ -19,13 +19,15 @@ import helder.canvas.Painter;
 //   Pdf.text(pdf.pages[0]);                    // its text
 class Pdf {
 	public static function open(bytes:Bytes, password = "", ?limits:PdfLimits):Document {
+		PdfImage.useJpeg();
 		PdfImage.jpx = (d, r, m) -> Jpx.decode(d, r, m);
 		PdfImage.jpxInfo = d -> Jpx.info(d);
 		return new Document(bytes, password, limits, Crypto.open);
 	}
 
-	// the same without decryption or JPEG 2000 linked (an encrypted file a PdfError, Encrypted; a JPX
-	// image Unsupported, unless Pdf.open ran): the smaller build
+	// the same without decryption, JPEG 2000 or the JPEG decoder linked (an encrypted file a PdfError,
+	// Encrypted; a JPX image Unsupported; JPEGs by Pdf.render's decoder, or on the web PdfWeb.prepare's
+	// browser or PdfImage.useJpeg): the smaller build
 	public static function openPlain(bytes:Bytes, ?limits:PdfLimits):Document
 		return new Document(bytes, "", limits);
 
@@ -69,6 +71,7 @@ class Pdf {
 		var page = doc.pages[index];
 		var w = Std.int(Math.ceil(page.width * scale)), h = Std.int(Math.ceil(page.height * scale));
 		if (w * 1.0 * h > doc.limits.maxImagePixels) throw PdfError.tooLarge('a page of ${w}x$h pixels');
+		PdfImage.useJpeg();
 		var c = into != null && into.width == w && into.height == h ? into : new helder.canvas.Canvas(w, h);
 		c.resetTransform();
 		c.restoreToCount(0);
@@ -78,7 +81,7 @@ class Pdf {
 }
 
 // (Pdf.text's painter: nothing drawn, no rasterizer brought in)
-private class NoPainter implements Painter {
+class NoPainter implements Painter {
 	public var width(default, null) = 1;
 	public var height(default, null) = 1;
 	public var matrix(get, never):Matrix;
