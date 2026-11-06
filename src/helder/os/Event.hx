@@ -21,7 +21,8 @@ enum abstract EventKind(Int) {
 	// an input method's composition (the text not committed yet, shown where
 	// it is typed): text, the caret in it (x, UTF-16); empty: it ended
 	// (committed: TextInput follows; or cancelled). In the browser, on
-	// macOS, Windows (TSF) and Android, while Window.startTextInput is on
+	// macOS, Windows (TSF), Wayland (text-input-v3) and Android, while
+	// Window.startTextInput is on
 	var TextEditing;
 	// the wheel or a trackpad: deltaX, deltaY in pixels (as a browser's wheel
 	// event: positive scrolls toward the right and the bottom), at the

@@ -605,8 +605,13 @@ the Text Services Framework (`helder.os.win32.Tsf`: a text store whose
 document is the field's text and selection, `Window.textContext`; the
 composition drawn in the field, the candidate window placed below the
 caret through `GetTextExt`; where TSF is not there, IMM32's own windows at
-the caret); X11's input method draws its composition itself. An input
-method's edit of the text around the caret (TSF's `SetText`) comes as
+the caret); on Wayland through text-input-unstable-v3 (`WaylandTextInput`:
+enabled while the field has the focus, its surrounding text, content type
+and caret's rectangle sent, the preedit drawn in the field, commits typed,
+`delete_surrounding_text` applied); X11's input method draws its
+composition itself. An input
+method's edit of the text around the caret (TSF's `SetText`, Wayland's
+`delete_surrounding_text`) comes as
 `TextReplace` (`Node.replaceText`).
 
 ## Performance

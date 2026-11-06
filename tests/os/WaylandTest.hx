@@ -9,7 +9,8 @@ import hxmc.unsafe.*;
 // read back (its background's colour), the buffer at the compositor's
 // scale (weston --scale=2: twice the points), helder's own decorations
 // where the compositor draws none, the title, fullscreen asked and
-// configured (the output's size), the clipboard's text, closed.
+// configured (the output's size), the clipboard's text, text-input-v3's
+// requests where the compositor has it, closed.
 //   WaylandTest [scale]
 class WaylandTest {
 	static var failed = 0;
@@ -47,6 +48,17 @@ class WaylandTest {
 				var read:Null<String> = null;
 				Clipboard.read(w.window, t -> read = t);
 				check("the clipboard: its own text", read == "wayland ✓", read);
+				// (text-input-v3 where the compositor has it: enabled, its state sent, no protocol error)
+				var ti:Null<helder.os.wayland.WaylandTextInput> = @:privateAccess WaylandWindow.textInput;
+				if (ti == null) Sys.println("WaylandTest: no zwp_text_input_manager_v3 here: text-input-v3 not checked under this compositor (WaylandTextInput.test.hx is)");
+				else {
+					w.window.startTextInput(20, 30, 1, 16);
+					w.window.textContext("héllo", 2, 2);
+					w.window.stopTextInput();
+					var d = @:privateAccess WaylandWindow.display;
+					helder.os.wayland.WaylandClient.wl_display_roundtrip(d);
+					check("text-input-v3: enabled, its state, disabled: no protocol error", helder.os.wayland.WaylandClient.wl_display_get_error(d) == 0);
+				}
 				w.window.fullscreen = true;
 				phase = 2;
 				start = haxe.Timer.stamp();

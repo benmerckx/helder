@@ -129,6 +129,8 @@ class Window {
 	// through TSF (helder.os.win32.Tsf: its document the field's,
 	// textContext), the composition as TextEditing, the candidates below the
 	// caret (where TSF is not there, the IME's own windows placed: imm32);
+	// on Wayland through text-input-unstable-v3 (WaylandTextInput: the
+	// caret's rectangle, the field's text, its compositions as TextEditing);
 	// X11's input method keeps its own place;
 	// Android shows the soft keyboard, its input method through a hidden
 	// EditText (helder.os.android.TextInput, once enabled), compositions as
@@ -138,7 +140,8 @@ class Window {
 		typing = true;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(true, x, y, width, height) else if (Mem.os() == 2)
 			(cast native : Win32Window).textInputArea(x, y, width, height) else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).textInput(true, x, y,
-				width, height) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(true, x, y, width, height);
+				width, height) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(true, x, y, width, height) else if (Std.isOfType(native, WaylandWindow))
+			(cast native : WaylandWindow).textInputOn(x, y, width, height);
 	}
 
 	// the text around where text is typed (a text field's text and its
@@ -150,14 +153,16 @@ class Window {
 	// TextInput, TextEditing). Nothing elsewhere
 	public function textContext(text:String, start:Int, end:Int, multiline = false, secret = false) {
 		if (closed || !typing) return;
-		if (Mem.os() == 2) (cast native : Win32Window).textContext(secret ? "" : text, secret ? 0 : start, secret ? 0 : end);
+		if (Mem.os() == 2) (cast native : Win32Window).textContext(secret ? "" : text, secret ? 0 : start, secret ? 0 : end) else if (Mem.os() == 0 && Mem.target() < 9 && Std.isOfType(native, WaylandWindow))
+			(cast native : WaylandWindow).textContext(text, start, end, multiline, secret);
 	}
 
 	public function stopTextInput() {
 		typing = false;
 		if (closed) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.os() == 2) (cast native : Win32Window).stopTextInput() else if (Mem.platform() >= 1) {} else if (Mem.os() == 1)
-			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(false, 0, 0, 0, 0);
+			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(false, 0, 0, 0, 0) else if (Std.isOfType(native, WaylandWindow))
+			(cast native : WaylandWindow).textInputOff();
 	}
 
 	function set_title(v:String):String {

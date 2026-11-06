@@ -8,6 +8,7 @@ import helder.os.wayland.protocol.XdgDecorationUnstableV1Protocol;
 import helder.os.wayland.protocol.ViewporterProtocol;
 import helder.os.wayland.protocol.FractionalScaleV1Protocol;
 import helder.os.wayland.protocol.CursorShapeV1Protocol;
+import helder.os.wayland.protocol.TextInputUnstableV3Protocol;
 import hxmc.unsafe.*;
 
 // helder.os.Window on Wayland (Linux with WAYLAND_DISPLAY set and
@@ -29,6 +30,8 @@ import hxmc.unsafe.*;
 // libwayland-cursor's theme) and touch (helder.os.Pointers). wl_data_device:
 // the clipboard's text (offered as text/plain;charset=utf-8, read from the
 // selection's offer through a pipe) and files dropped (text/uri-list).
+// Text input: text-input-unstable-v3 where the compositor has it
+// (WaylandTextInput: an input method's compositions and commits).
 // Events come from libwayland's dispatch into a queue, then App's callback.
 @:allow(helder.os)
 class WaylandWindow {
@@ -50,6 +53,9 @@ class WaylandWindow {
 	static var fractional:WpFractionalScaleManagerV1 = Ptr.nil();
 	static var cursorShapes:WpCursorShapeManagerV1 = Ptr.nil();
 	static var cursorDevice:WpCursorShapeDeviceV1 = Ptr.nil();
+	static var textInputs:ZwpTextInputManagerV3 = Ptr.nil();
+	// the seat's text input (text-input-unstable-v3; null: the compositor has none)
+	static var textInput:Null<WaylandTextInput> = null;
 	static var compositorVersion = 0;
 	// (each output's integer scale, by its proxy: a surface's before wl_surface's preferred_buffer_scale, version 6)
 	static final outputScales:Map<String, Int> = [];
@@ -229,8 +235,10 @@ class WaylandWindow {
 			case "wp_viewporter": viewporter = bind(name, WpViewporter.iface, version, 1);
 			case "wp_fractional_scale_manager_v1": fractional = bind(name, WpFractionalScaleManagerV1.iface, version, 1);
 			case "wp_cursor_shape_manager_v1": cursorShapes = bind(name, WpCursorShapeManagerV1.iface, version, 1);
+			case "zwp_text_input_manager_v3": textInputs = bind(name, ZwpTextInputManagerV3.iface, version, 1);
 			case _:
 		}
+		if (!seat.isNull() && !textInputs.isNull() && textInput == null) textInput = new WaylandTextInput(textInputs.getTextInput(seat), textEvent);
 		if (!seat.isNull() && !dataManager.isNull() && dataDevice.isNull()) {
 			dataDevice = dataManager.getDataDevice(seat);
 			listenDataDevice();
@@ -946,6 +954,36 @@ class WaylandWindow {
 	}
 
 	// --- the loop
+
+	// (the input method's edits: the window it is entered in's events)
+	static function textEvent(kind:EventKind, text:String, x:Int, y:Int) {
+		var w = textInput == null ? null : find(textInput.entered);
+		if (w == null) return;
+		var e = take(w, kind);
+		e.text = text;
+		e.x = x;
+		e.y = y;
+	}
+
+	// text input on at the caret (pixels: the text input's rectangle in points), off; the field's text
+	function textInputOn(x:Int, y:Int, width:Int, height:Int) {
+		if (textInput == null) return;
+		var k = scale();
+		textInput.begin(wlSurface, Math.floor(x / k), Math.floor(y / k), Math.ceil(width / k), Math.ceil(height / k));
+		WaylandClient.wl_display_flush(display);
+	}
+
+	function textInputOff() {
+		if (textInput == null || textInput.entered != (wlSurface : Ptr) && !textInput.enabled) return;
+		textInput.stop();
+		WaylandClient.wl_display_flush(display);
+	}
+
+	function textContext(text:String, start:Int, end:Int, multiline:Bool, secret:Bool) {
+		if (textInput == null) return;
+		textInput.context(text, start, end, multiline, secret);
+		WaylandClient.wl_display_flush(display);
+	}
 
 	static function find(s:Ptr):Null<WaylandWindow> {
 		for (w in open)

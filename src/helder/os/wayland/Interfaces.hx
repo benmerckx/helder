@@ -28,6 +28,7 @@ class Interfaces {
 		register(helder.os.wayland.protocol.ViewporterProtocol.interfaces);
 		register(helder.os.wayland.protocol.FractionalScaleV1Protocol.interfaces);
 		register(helder.os.wayland.protocol.CursorShapeV1Protocol.interfaces);
+		register(helder.os.wayland.protocol.TextInputUnstableV3Protocol.interfaces);
 	}
 
 	// the wl_interface of that name (nil: none known)
