@@ -30,6 +30,8 @@ class IosAccess {
 	static final all:Array<IosAccess> = [];
 	static var rect:Ptr<CGRect> = Ptr.nil();
 	static var traits:Map<String, Int64>;
+	// (the traits this iOS has)
+	static var present:Map<String, Bool>;
 
 	final ui:Ui;
 	final view:Ptr;
@@ -62,9 +64,11 @@ class IosAccess {
 		elementClass = e;
 		// (the traits are UIKit's constants, read where they are: a trait iOS lacks is none)
 		traits = new Map();
+		present = new Map();
 		for (t in ["Button", "Link", "Image", "Header", "StaticText", "Adjustable", "Selected", "NotEnabled", "SearchField", "UpdatesFrequently", "TabBar", "ToggleButton"]) {
 			var p:Ptr<Int64> = Arena.scopedValue(a -> Posix.dlsym(Ptr.ofI64(-2), a.cstring("UIAccessibilityTrait" + t)));
 			traits.set(t, p.isNull() ? 0 : p.value);
+			present.set(t, !p.isNull());
 		}
 	}
 
@@ -182,7 +186,7 @@ class IosAccess {
 			t = t | traits.get(name);
 		switch n.role {
 			case Button | MenuItem | MenuItemCheckBox | MenuItemRadio | ComboBox | ListBoxOption | RadioButton | Tab | TreeItem: on("Button");
-			case CheckBox | Switch: on(traits.get("ToggleButton") != 0 ? "ToggleButton" : "Button");
+			case CheckBox | Switch: on(present.get("ToggleButton") ? "ToggleButton" : "Button");
 			case Link: on("Link");
 			case Image: on("Image");
 			case Heading: on("Header");
@@ -192,7 +196,7 @@ class IosAccess {
 			case TabList: on("TabBar");
 			case _:
 		}
-		if (n.role == Button && n.checked != null && traits.get("ToggleButton") != 0) on("ToggleButton");
+		if (n.role == Button && n.checked != null && present.get("ToggleButton")) on("ToggleButton");
 		if (n.selected == true || n.checked == true && n.role != CheckBox && n.role != Switch) on("Selected");
 		if (n.disabled) on("NotEnabled");
 		return t;

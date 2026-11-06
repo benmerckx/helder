@@ -175,6 +175,7 @@ class WinAccess {
 		if (c.nodes.length > 0 || c.removed.length > 0) parents = t.parents();
 		var said = t.announcements(old);
 		tree = t;
+		annotate();
 		if (log != null) log('update: ${c.nodes.length} changed, listening ${Uia.UiaClientsAreListening()}, ${old == null ? "first" : "again"}');
 		if (old == null || Uia.UiaClientsAreListening() == 0) return;
 		for (n in c.nodes) {
@@ -184,6 +185,48 @@ class WinAccess {
 		if (old.focus != t.focus && t.focus != 0) raise(block(t.focus), 20005); // UIA_AutomationFocusChangedEventId
 		for (s in said)
 			raise(block(s.id), 20024); // UIA_LiveRegionChangedEventId
+	}
+
+	// the platform's editors' EDITs named as their fields are (MSAA's dynamic
+	// annotation, IAccPropServices: UI Automation's proxy of an EDIT reads
+	// its name there), when that changed
+	final named = new Map<String, String>();
+	static var props = Ptr.nil();
+
+	function annotate() {
+		for (e in @:privateAccess helder.ui.platform.WinViews.editors) {
+			var node:Null<Node> = cast e.listener;
+			if (node == null || !@:privateAccess e.shown) continue;
+			var n = tree.nodes.get(@:privateAccess node.accessId);
+			if (n == null) continue;
+			var h:Ptr = @:privateAccess e.hwnd, k = key(h);
+			if (named.get(k) == n.name) continue;
+			named.set(k, n.name);
+			if (props.isNull()) Arena.scoped(a -> {
+				var out:Ptr<Ptr> = a.alloc(8);
+				out.value = Ptr.nil();
+				Ole32.CoCreateInstance(guidOf("b5f8350b-0548-48b1-a6ee-88bd00b4a5e7"), Ptr.nil(), 1, guidOf("6e26e776-04f0-495d-80e4-3330352e3169"), out);
+				props = out.value;
+			});
+			if (props.isNull()) return;
+			// (OBJID_CLIENT, CHILDID_SELF, PROPID_ACC_NAME)
+			Arena.scoped(a -> AccProps.SetHwndPropStr(props, h, -4, 0, guidOf("608d3df8-8128-4aa7-a428-f55e49267291"), a.wstring(n.name)));
+		}
+	}
+
+	static final guids = new Map<String, Ptr>();
+
+	// a GUID's 16 bytes, kept
+	static function guidOf(s:String):Ptr {
+		var g = guids.get(s);
+		if (g != null) return g;
+		var h = StringTools.replace(s, "-", "");
+		var p:Ptr<UInt8> = LibC.malloc(16);
+		var order = [3, 2, 1, 0, 5, 4, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15];
+		for (i in 0...16)
+			p[i] = Std.parseInt("0x" + h.substr(2 * order[i], 2));
+		guids.set(s, p);
+		return p;
 	}
 
 	// a node's events: what differs from how it was
@@ -1181,4 +1224,11 @@ class WinAccess {
 
 @:hxmc.c @:hxmc.lib("ole32") extern class Ole32 {
 	static function CoInitializeEx(reserved:Ptr, flags:Int):Int;
+	static function CoCreateInstance(clsid:Ptr, outer:Ptr, context:Int, iid:Ptr, out:Ptr<Ptr>):Int;
+}
+
+// IAccPropServices (oleacc): an HWND's MSAA property set (the GUID by address: Windows x64 passes it so)
+@:build(helder.os.win32.Com.build())
+class AccProps {
+	@:slot(7) static function SetHwndPropStr(o:Ptr, hwnd:Ptr, idObject:Int, idChild:Int, prop:Ptr, s:Ptr):Int;
 }
