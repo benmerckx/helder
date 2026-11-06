@@ -581,8 +581,17 @@ content: in the page's accessibility tree, not drawn): load
 NSAccessibility (`MacAccess`: an element per node, its role, label, value
 and frame; press, increment and decrement come back as actions), which
 VoiceOver reads; on Windows to UI Automation (`WinAccess`: a COM
-provider per node, made here: navigation, properties, bounds, the
-invoke, toggle, range value and value patterns), which Narrator reads; on
+provider per node, made here: navigation, properties (an item's place in
+its set, a heading's level, off screen), bounds, the Invoke, Toggle,
+RangeValue, Value, ExpandCollapse, SelectionItem, Selection, ScrollItem,
+Grid, GridItem, Table, TableItem and Text patterns, a text's ranges by
+characters, words, lines and the whole (`TextUnits`); the focus,
+structure, property, selection, text and live region events of what
+changed), which Narrator reads (the window lane: in process,
+`WinAccessTest`, `WinPatternsTest`; from another process through
+IUIAutomation, `WinAccessProbe`, on the fixture and the screens Linux's
+probe reads; under Wine, whose IUIAutomation has no patterns, the tree
+and its properties); on
 Linux to AT-SPI over D-Bus (`LinuxAccess`, through helder's own D-Bus
 client, `helder.os.linux.DBus`: Accessible, Component, Action, Value,
 Text by characters, words, sentences and lines with the caret and the

@@ -523,6 +523,14 @@ class MarkupTest implements Markup {
 		var vol = byName(Slider, "Volume");
 		check("fixture: SetValue on a range: stepped there", ui.accessAction(vol.id, SetValue, "0.8") && Math.abs(f.volume.peek() - 0.8) < 1e-9, '${f.volume.peek()}');
 		check("fixture: SetValue down", ui.accessAction(vol.id, SetValue, "0.2") && Math.abs(f.volume.peek() - 0.2) < 1e-9, '${f.volume.peek()}');
+		// the units assistive technology reads text by (UTF-16)
+		var w = TextUnits.pieces("one two\nthree", Word), l = TextUnits.pieces("one two\nthree", Line);
+		check("text units: words, lines", haxe.Json.stringify(w) == "[[0,4],[4,8],[8,13]]" && haxe.Json.stringify(l) == "[[0,8],[8,13]]", haxe.Json.stringify(w));
+		var m = TextUnits.move("one two three", 5, 5, Word, 1), back = TextUnits.move("one two three", 5, 5, Word, -1);
+		check("text units: moved a word on, back to its start", m.start == 8 && m.moved == 1 && back.start == 4 && back.moved == -1, '${m.start} ${back.start} ${back.moved}');
+		var e = TextUnits.moveBoundary("one two", 0, Word, 5);
+		check("text units: an endpoint moved to the end, as far as it goes", e.at == 7 && e.moved == 2, '${e.at} ${e.moved}');
+		check("text units: a surrogate pair one character", TextUnits.pieces("a\u{1F600}b", Character).length == 3);
 		check("fixture: JSON's new fields", t.nodes.get(grid.id).toJson().rowCount == 3 && pear.toJson().posInSet == 2 && code.toJson().readOnly == true);
 	}
 

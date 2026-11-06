@@ -42,7 +42,7 @@ class Run {
 		{name: "jobs", about: "helder.jobs: the sendable check's rejections (tests/jobs/reject); the pool, cancellation, errors and channels are the test lane's (tests/jobs/Jobs.test.hx, natively and on wasm32-wasi with node's workers)", run: jobsLane},
 		{name: "jobs-web", about: "helder.jobs in headless Chromium: Web Workers instantiating the module, a cancelled one ended, the loop without frames (tests/jobs/JobsWeb.hx)", run: jobsWeb},
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
-		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked; the platform's spellchecker (tests/text/SpellTest.hx: Enchant or Hunspell, ISpellChecker, NSSpellChecker; Wine has none); Windows' TSF for drawn text fields (tests/os/TsfTest.hx: the test the input method, through msctf and the store's composition sink; again with HELDER_NO_TSF=1; tests/ui/WinTextTest.hx: a drawn field typed into and composed in through it); helder.ui.menu's model as each platform's menus (tests/os/MenuTest.hx: macOS's NSMenu bar and roles, Windows' HMENU and accelerators, Linux's drawn bar and context menu driven by the keys, bin/os/menus-linux*.png) (Linux: Xvfb)", run: window},
+		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked; the platform's spellchecker (tests/text/SpellTest.hx: Enchant or Hunspell, ISpellChecker, NSSpellChecker; Wine has none); Windows' TSF for drawn text fields (tests/os/TsfTest.hx: the test the input method, through msctf and the store's composition sink; again with HELDER_NO_TSF=1; tests/ui/WinTextTest.hx: a drawn field typed into and composed in through it); Windows' UI Automation for the drawn tree (tests/ui/WinAccessTest.hx, WinPatternsTest.hx in process; WinAccessProbe.hx, IUIAutomation from another process, on AccessApp's fixture, todo, mail and guide; under Wine the tree and properties); helder.ui.menu's model as each platform's menus (tests/os/MenuTest.hx: macOS's NSMenu bar and roles, Windows' HMENU and accelerators, Linux's drawn bar and context menu driven by the keys, bin/os/menus-linux*.png) (Linux: Xvfb)", run: window},
 		{name: "wayland", about: "helder.os on Wayland: the protocol bindings generated again from the system's XML (helder.os.wayland.Scanner) and compared with src/helder/os/wayland/protocol; then, where weston is installed, under a headless weston at scale 1 and 2 (tests/os/wayland.sh): tests/os/WaylandTest.hx (the back end chosen, configured, GL's frames through EGL on the wl_surface read back, the buffer at the scale, fullscreen and back, the clipboard; text-input-v3's requests where weston has it), the viewer showing a photo, the compositor's screenshot (bin/os/wayland-viewer.png); without weston, built only", run: wayland},
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
@@ -520,6 +520,33 @@ class Run {
 				run(tsf, [], ["HELDER_NO_TSF" => "1"]);
 				run(text, []);
 			}
+			winAccess();
+		}
+	}
+
+	// helder.ui's UI Automation (Windows; a Windows target from Linux under
+	// Wine): its providers in process (tests/ui/WinAccessTest.hx: Plain's
+	// controls, a native field; WinPatternsTest.hx: the fixture's patterns),
+	// then UI Automation's own client in another process (WinAccessProbe:
+	// IUIAutomation) reading AccessApp's fixture, acted on to its Save, and
+	// its todo, mail and guide screens whole. (Wine's IUIAutomation has no
+	// patterns and hangs on a focus handler: there the probe reads, the
+	// window is ended after.)
+	static function winAccess() {
+		var t = GFX_TARGET, b = 'bin/ui/$t';
+		for (m in ["WinAccessTest", "WinPatternsTest", "AccessApp", "WinAccessProbe"])
+			native('$b/$m', uiCp().concat(["-main", m]), t);
+		var wine = !HOST.startsWith("windows-");
+		var w = wine ? "wine " : "", x = wine ? "LIBGL_ALWAYS_SOFTWARE=1 HELDER_UNDER_WINE=1 xvfb-run -a " : "";
+		var app = '$w$b/AccessApp.exe', probe = '$w$b/WinAccessProbe.exe';
+		shell('$x$w$b/WinAccessTest.exe');
+		shell('$x$w$b/WinPatternsTest.exe');
+		var end = wine ? 'kill $$p; wineserver -k; exit $$s' : 'wait $$p && exit $$s', stop = wine ? 'kill $$p; wineserver -k' : 'kill $$p';
+		shell('$x sh -c \'$app fixture & p=$$!; $probe fixture; s=$$?; $end\'');
+		// (the screens' entries in ASCII: Wine's command line is not UTF-8)
+		for (screen in ACCESS_SCREENS) {
+			var args = [for (a in screen) if (~/^[\x20-\x7e]*$/.match(a)) a];
+			shell('$x sh -c \'$app ${screen[0]} & p=$$!; $probe ${args.join(" ")}; s=$$?; $stop; exit $$s\'');
 		}
 	}
 

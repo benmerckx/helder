@@ -11,9 +11,8 @@ import hxmc.unsafe.*;
 // helder.ui's accessibility on Windows (WinAccess; CI's Windows jobs): a
 // window of controls (Plain's), its UI Automation providers called through their COM
 // interfaces as UI Automation calls them (navigation, properties, bounds,
-// the patterns: invoke, toggle, range value, value), and the window's root
-// element asked of UI Automation itself (UiaNodeFromHandle: the provider
-// WM_GETOBJECT gives). Its field native (host="native": drawn is the
+// the patterns: invoke, toggle, range value, value; UI Automation's own
+// client, from another process, is WinAccessProbe's). Its field native (host="native": drawn is the
 // desktop's default; WinViews: an EDIT over the window):
 // the value set through UI Automation in it, a character typed into it in
 // the field's signal, Tab from it moving the window's focus on; centred,
@@ -123,16 +122,6 @@ class WinAccessTest implements Markup {
 						Simple.GetPatternProvider(simples[1], 10015, out);
 						check("no pattern a node has not", out.value.isNull());
 					}
-					// UI Automation itself: the window's element, from our root
-					var node:Ptr<Ptr> = LibC.malloc(8);
-					var hr = UiaClient.UiaNodeFromHandle(w.window.surface.handle, node);
-					check("UI Automation's element of the window", hr == 0 && !node.value.isNull(), StringTools.hex(hr));
-					if (hr == 0) {
-						UiaClient.UiaGetPropertyValue(node.value, 30003, v);
-						check("its control type, ours (a pane)", (v : Ptr<UInt16>).value == 3 && (v.add(8) : Ptr<Int32>).value == 50033,
-							'vt ${(v : Ptr<UInt16>).value} ${(v.add(8) : Ptr<Int32>).value}');
-						UiaClient.UiaNodeRelease(node.value);
-					}
 					step = 1;
 				case 1:
 					if (kids.length == 5) {
@@ -175,7 +164,7 @@ class WinAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('WinAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 18 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 16 ? 0 : 1);
 	}
 }
 
@@ -216,10 +205,4 @@ class RangeValue {
 @:build(helder.os.win32.Com.build())
 class ValuePattern {
 	@:slot(3) static function SetValue(o:Ptr, s:Ptr):Int;
-}
-
-@:hxmc.c @:hxmc.lib("uiautomationcore") extern class UiaClient {
-	static function UiaNodeFromHandle(hwnd:Ptr, node:Ptr<Ptr>):Int;
-	static function UiaGetPropertyValue(node:Ptr, id:Int, v:Ptr):Int;
-	static function UiaNodeRelease(node:Ptr):Int;
 }
