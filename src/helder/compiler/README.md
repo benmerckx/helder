@@ -26,8 +26,9 @@ compilation server alike.
 DESIGN.md: definitions, compile-time calls such as `shader({...})`, `job(fn)` and
 `actions(...)` that read as runtime code in TypeScript and in Haxe and are
 handled once for both. The kernel (`helder.definition`: the argument's tree,
-`Definition`, Haxe's adapter) and `shader` in Haxe are in; the rest of the
-plan (its section 5) follows.
+`Definition`, Haxe's adapter) and `shader` in Haxe and in TypeScript
+(helder.typescript.lower's `Definitions`, `helder/gfx`) are in; the rest of
+the plan (its section 5) follows.
 
 ```sh
 node src/helder/compiler/build.mjs          # builds helder's compiler, prints its path

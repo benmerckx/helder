@@ -160,6 +160,19 @@ classes, each the Haxe class `__haxe` names, its functions and components
 as `const f: typeof Class.f`, that class's static, and names the module's
 declaration class (`__module`). TSX is helder.view's markup.
 
+`helder/gfx` is TypeScript itself (`src/helder/gfx/index.ts`, written by
+`src/helder/gfx/typescript.mjs`), compiled with the program: the shader
+math as CPU code (Vec2, Vec3, Vec4, Mat4, Texture2D, ShaderMath's builtins
+by their names; the operators as methods, `a.mul(b)`) and
+`shader({vertex, fragment})`, a definition (src/helder/compiler/DESIGN.md).
+Its call is compiled when the program is (`lower/Definitions.hx`): the
+argument's kernel tree from the AST, its stages lowered to helder.gfx's
+shader IR by their annotations (type aliases of object types are the
+structs, named after the alias), the handler Haxe's macro runs
+(`ShaderDefinition`), and its output, JSON, passed to `shader` as its last
+argument. The same functions print the same text as in Haxe, and a rejected
+argument the same diagnostic (tests/typescript/definitions).
+
 ```tsx
 import { signal } from "helder/view";
 import { UiWindow, Surface } from "helder/ui";

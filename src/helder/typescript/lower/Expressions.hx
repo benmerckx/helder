@@ -555,6 +555,9 @@ abstract class Expressions extends Statements {
 		if (actual == null) actual = [];
 		var callee = n.expression();
 		if (callee.kind == KindSuperKeyword && superInit != null) return superInit(actual);
+		// (a definition: compiled now, what its handler made its last argument)
+		var generated = definitions.call(n);
+		if (generated != null) return apply(any(expr(callee)), pack(actuals(actual).concat([EStr(generated)])));
 		if (callee.kind == KindSuperKeyword) {
 			var list = argumentList(actual);
 			var t = b.runtime("libSuperConstruct", [read(get("%class", n)), list, read(get("%newTarget", n))]);

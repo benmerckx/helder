@@ -190,6 +190,11 @@ var bytes = SpriteShader.vertexBytes([{pos: vec2(0, 0.6), uv: vec2(0.5, 0)}, ...
 SpriteShader.params.tint.write({color: vec4(1)}, uniformBytes);   // std140
 ```
 
+In TypeScript, `import {shader, position, vec4, ...} from "helder/gfx"`: the
+same definition with the operators as methods (`a.mul(b)`) and type
+aliases as the structs, compiled to the same text (helder.typescript's
+README).
+
 `src/helder/gfx/shader/Shader.hx` lists the generated members; the tests are
 `tests/gfx/ShaderTest.hx` (`bun run test gfx-shader`) and GfxTest and WebTest,
 the examples' frames against `tests/gfx/<scene>.png` (triangle, cube,

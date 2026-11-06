@@ -116,7 +116,7 @@ enum SStmt {
 class SFunction {
 	public final name:String;
 	public final params:Array<SVar>;
-	public final ret:SType;
+	public var ret:SType; // (TypeScript: known after the body when not written)
 	public var body:Array<SStmt> = [];
 
 	public function new(name, params, ret) {

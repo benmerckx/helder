@@ -79,11 +79,15 @@ abstract class Core {
 	// (helder dev: signals made where no name says, numbered in their function)
 	var hotUnnamed:Map<String, Int> = [];
 
-	public function new(src:Project, p:Program, ?api:Api, dev = false) {
+	// definitions' calls (helder/gfx's shader): their handlers' output
+	final definitions:Definitions;
+
+	public function new(src:Project, p:Program, ?api:Api, dev = false, ?defined:String->Null<String>) {
 		this.src = src;
 		this.p = p;
 		this.api = api;
 		this.dev = dev;
+		definitions = new Definitions(src, defined ?? (_ -> null));
 	}
 
 	public function coverage():Dynamic return {expressions: expressions, typedSites: typed, dynamicSites: dynamicSites, unsupported: 0, typedOperations: typedOperations, dynamicOperations: dynamicOperations};

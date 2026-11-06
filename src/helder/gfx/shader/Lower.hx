@@ -195,8 +195,7 @@ class Lower implements ShaderAdapter {
 			case TAnonymous(a):
 				// (an anonymous structure written out: a struct named after where it is first met)
 				var a = a.get();
-				var key = "{" + [for (f in sortedFields(a)) f.name + ":" + f.type.toString()].join(",") + "}";
-				var s = anonStruct(key, "S" + anonymous, a, pos);
+				var s = anonStruct(shape(a), "S" + anonymous, a, pos);
 				if (!haxeTypes.exists(s)) haxeTypes.set(s, t.follow());
 				TStruct(s);
 			case TDynamic(_): error('Dynamic is not a shader type', pos);
@@ -240,17 +239,26 @@ class Lower implements ShaderAdapter {
 		], c.pos);
 	}
 
+	// (an anonymous structure's fields: a literal of a typedef's has the typedef's struct)
+	static function shape(a:AnonType):String {
+		var fs = [for (f in a.fields) f.name + ":" + f.type.toString()];
+		fs.sort(Reflect.compare);
+		return "{" + fs.join(",") + "}";
+	}
+
 	function anonStruct(key:String, name:String, a:AnonType, pos:Position):SStruct {
-		var s = structs.get(key);
+		var s = structs.get(key) ?? structs.get(shape(a));
 		if (s != null) return s;
 		if (name == "S" + anonymous) anonymous++;
-		return fields(key, name, [
+		s = fields(key, name, [
 			for (f in sortedFields(a))
 				switch f.kind {
 					case FVar(_, _): f;
 					case FMethod(_): error('$key.${f.name}: a method is not a struct field', f.pos);
 				}
 		], pos);
+		structs.set(shape(a), s);
+		return s;
 	}
 
 	function fields(key:String, name:String, cfs:Array<ClassField>, pos:Position):SStruct {
@@ -432,6 +440,11 @@ class Lower implements ShaderAdapter {
 			case TCast(x, null): coerce(expr(x, out), type(e.t, e.pos), e.pos);
 			case TCast(_, _): error("a checked cast is not supported in a shader", e.pos);
 			case TBlock([]): error("an empty block has no value", e.pos);
+			// (a commutative operator with its operands swapped, 2 * v: Haxe keeps them
+			// in temporaries for their order, which shader code has no need of)
+			case TBlock([{expr: TVar(a, ea)}, {expr: TVar(b, eb)}, {expr: TCall(f, [{expr: TLocal(x)}, {expr: TLocal(y)}])}])
+				if (a.name == "lhs" && b.name == "rhs" && x.id == b.id && y.id == a.id && ea != null && eb != null):
+				call(f, [eb, ea], e, out);
 			case TBlock(el):
 				for (i in 0...el.length - 1)
 					stmt(el[i], out);
@@ -478,6 +491,7 @@ class Lower implements ShaderAdapter {
 					error('new ${s.path}: a shader struct is built by its @:structInit constructor, all fields given', e.pos);
 				build(s, args, out);
 			case TField(x, FInstance(c, _, cf)): field(x, c.get(), cf.get(), e, out);
+			case TField(x, FAnon(cf)): field(x, null, cf.get(), e, out);
 			case TField(_, FStatic(c, cf)): constant(c.get(), cf.get(), e);
 			case TField(_, _): error("this field access is not supported in a shader", e.pos);
 			case TObjectDecl(fs):
@@ -556,7 +570,7 @@ class Lower implements ShaderAdapter {
 				var f = Lambda.find(s.fields, f -> f.field == cf.name);
 				if (f == null) error('${s.path} has no field ${cf.name}', e.pos);
 				{e: EField(o, f.name), t: t};
-			case _: error('the field ${cf.name} of ${c.name} is not a shader value', e.pos);
+			case _: error('the field ${cf.name} of ${c == null ? Names.typeName(o.t) : c.name} is not a shader value', e.pos);
 		}
 	}
 

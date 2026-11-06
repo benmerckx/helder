@@ -131,6 +131,39 @@ for(const name of fs.readdirSync(`${T}/configs`).sort()) {
     }
     console.log(`PASS config ${name}`);
 }
+// Definitions (src/helder/compiler/DESIGN.md) in both languages:
+// definitions/<name>.ts and the Haxe program <Name>.hx, built natively and
+// as wasm32-wasi, print the same (a shader's text in all four languages,
+// its writers' bytes); each pair of definitions/reject is refused by both
+// with the same diagnostic (expect)
+const D=`${T}/definitions`;
+for(const file of fs.readdirSync(D).filter(f=>f.endsWith('.ts')&&f!=='print.ts').sort())for(const target of targets) {
+    const stem=path.basename(file,'.ts'),main=stem[0].toUpperCase()+stem.slice(1),wasm=target!=='linux-x86_64';
+    const ts=`${dir}/def-${stem}${wasm?'.wasm':''}`,hx=`${dir}/def-${main}${wasm?'.wasm':''}`;
+    ok(run(compiler,[`${D}/${file}`,'-D','helder.gfx.shaders=all','--target',target,'-o',ts]),`${file} compile ${target}`);
+    ok(run(compiler,['-cp','src','-cp',D,'-main',main,'-D','helder.gfx.shaders=all','-D',`hxmc.target=${target}`,'--custom-target',`hxmc=${hx}`]),`${main}.hx compile ${target}`);
+    const exec=f=>wasm?run(process.execPath,[`${T}/run-wasi.cjs`,f]):run(f,[]);
+    const a=exec(ts),b=exec(hx);ok(a,`${file} ${target}`);ok(b,`${main}.hx ${target}`);
+    assert.ok(a.stdout.length>0,`${file} printed nothing`);
+    assert.equal(a.stdout,b.stdout,`${file} and ${main}.hx print alike ${target}`);
+    console.log(`PASS definition ${file} = ${main}.hx ${target}`);
+}
+for(const file of fs.readdirSync(`${D}/reject`).filter(f=>f.endsWith('.ts')).sort()) {
+    const main='Reject'+path.basename(file,'.ts').split('-').map(p=>p[0].toUpperCase()+p.slice(1)).join('');
+    const expect=f=>fs.readFileSync(f,'utf8').match(/expect: (.*)$/m)[1];
+    const want=expect(`${D}/reject/${file}`);
+    assert.equal(expect(`${D}/reject/${main}.hx`),want,`${file} and ${main}.hx expect the same diagnostic`);
+    const out=`${dir}/def-reject`;fs.rmSync(out,{force:true});
+    const a=run(compiler,[`${D}/reject/${file}`,'-o',out]);
+    assert.notEqual(a.status,0,`${file} should be rejected`);
+    assert.ok(a.stderr.includes(want),`${file} should report ${want}, got ${a.stderr}`);
+    const b=run(compiler,['-cp','src','-cp',`${D}/reject`,'-main',main,'--interp','--no-output']);
+    assert.notEqual(b.status,0,`${main}.hx should be rejected`);
+    assert.ok((b.stdout+b.stderr).includes(want),`${main}.hx should report ${want}, got ${b.stdout}${b.stderr}`);
+    console.log(`PASS definition rejected: ${file}, ${main}.hx`);
+}
+// helder/gfx's TypeScript, as typescript.mjs writes it
+ok(run(process.execPath,['src/helder/gfx/typescript.mjs','--check']),'src/helder/gfx/index.ts');
 // The CLI end to end: TypeScript entries built and run by `helder run` (a file, a directory)
 for(const entry of ['examples/ts-hello/main.ts','examples/ts-hello']) {
     const r=run(process.execPath,['src/helder/cli/run.mjs','run',entry]);ok(r,`helder run ${entry}`);

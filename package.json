@@ -25,6 +25,9 @@
     "./async": {
       "types": "./src/helder/async/index.d.ts"
     },
+    "./gfx": {
+      "types": "./src/helder/gfx/index.ts"
+    },
     "./package.json": "./package.json",
     "./*": "./*"
   },

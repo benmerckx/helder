@@ -101,7 +101,7 @@ class Frontend implements helder.compiler.Plugin {
 		var dev = core.Define.rawDefined(com.defines, "hxmc.dev");
 		hxmc.Main.generate(com, com.file, (com, p) -> {
 			phase("lower runtime");
-			var frontend = new Lowering(ready.project, p, ready.api, dev);
+			var frontend = new Lowering(ready.project, p, ready.api, dev, name -> core.Define.rawDefined(com.defines, name) ? core.Define.rawDefinedValueSafe(com.defines, name, "1") : null);
 			frontend.lower();
 			// (the manifest's keeps: their __init__s named what the lowering may call, they run no more)
 			if (ready.api != null && ready.api.manifest != null) {

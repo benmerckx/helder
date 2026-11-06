@@ -1,0 +1,791 @@
+package helder.typescript.lower;
+
+import helder.definition.Kernel;
+import helder.gfx.shader.Ir;
+import helder.gfx.shader.Names;
+import helder.gfx.shader.ShaderDefinition;
+import helder.typescript.check.Ast;
+import helder.typescript.check.Kind;
+import helder.typescript.check.Kind.*;
+import helder.typescript.check.Project;
+
+using StringTools;
+
+// Definitions in TypeScript (src/helder/compiler/DESIGN.md 2): a call of a
+// function helder declares as one (helder/gfx's shader: `@definition` in
+// its declaration, the handler of the same name) is compiled when the
+// program is: its argument's kernel tree made here from the checked AST
+// (TsAdapter, which rejects what is not static at its line), the handler
+// run (the same Haxe class Haxe's macro runs: helder.gfx.shader.
+// ShaderDefinition), and its output passed to the function as its last
+// argument, JSON (helder/gfx's shader builds the value of it).
+class Definitions {
+	// the definitions by module and name
+	static final known = ["helder/gfx" => ["shader"]];
+
+	final src:Project;
+	final defined:String->Null<String>;
+
+	public function new(src:Project, defined:String->Null<String>) {
+		this.src = src;
+		this.defined = defined;
+	}
+
+	// a definition's call: what its handler made, as its last argument (null: not one)
+	public function call(n:Node):Null<String> {
+		var callee = n.expression();
+		if (callee.kind != KindIdentifier) return null;
+		var from = Scope.imported(callee.file, callee.text);
+		if (from == null || !known.exists(from.module) || !known.get(from.module).contains(from.name)) return null;
+		var args = n.arguments() ?? [];
+		var a = new TsAdapter(src, defined, from.name);
+		if (args.length != 1) a.error('${from.name} takes one argument, an object literal', n);
+		var arg = a.node(args[0]);
+		return switch from.name {
+			case "shader": shaderJson(new ShaderDefinition().generate(arg, a));
+			case _: null;
+		}
+	}
+
+	static function shaderJson(out:ShaderOutput):String {
+		var p = out.program;
+		function code(s:StageCode):Dynamic {
+			var o:Dynamic = {};
+			for (c in s.code)
+				Reflect.setField(o, c.language, c.text);
+			o.bindings = [
+				for (b in s.bindings)
+					b.uniform ? ({name: b.name, slot: b.slot, kind: 0, size: b.size} : Dynamic) : {name: b.name, slot: b.slot, kind: 1}
+			];
+			return o;
+		}
+		function kind(t:SType):String
+			return switch t {
+				case TInt: "i";
+				case TVec(n): Std.string(n);
+				case TMat4: "m";
+				case _: "f";
+			}
+		return haxe.Json.stringify({
+			vertexCode: code(out.vertex),
+			fragmentCode: code(out.fragment),
+			layout: [
+				{
+					stride: out.stride,
+					attributes: [
+						for (i in 0...out.attributes.length)
+							{location: i, format: out.attributes[i].components - 1, offset: out.attributes[i].offset}
+					]
+				}
+			],
+			uniforms: [for (u in p.uniforms) {name: u.struct.name, binding: u.binding, size: u.size}],
+			textures: [for (t in p.textures) {name: t.name, binding: t.slot}],
+			attributes: out.attributes,
+			stride: out.stride,
+			blocks: [
+				for (b in out.blocks)
+					{
+						param: b.param,
+						block: {name: b.uniform.struct.name, binding: b.uniform.binding, size: b.uniform.size},
+						fields: [
+							for (i in 0...b.uniform.struct.fields.length)
+								{field: b.uniform.struct.fields[i].field, kind: kind(b.uniform.struct.fields[i].type), offset: b.uniform.offsets[i]}
+						]
+					}
+			]
+		});
+	}
+}
+
+// What a name of a file is bound to at its top level: an import (its
+// module's specifier and the name it exports), a function or a type alias
+// declared there, a constant.
+class Scope {
+	public static function imported(file:SourceFile, name:String):Null<{module:String, name:String, specifier:Node}> {
+		for (s in file.root.statements())
+			if (s.kind == KindImportDeclaration && s.importClause() != null) {
+				var bindings = s.importClause().namedBindings();
+				if (bindings == null || bindings.kind != KindNamedImports) continue;
+				for (e in bindings.elements())
+					if (e.name().text == name)
+						return {module: s.moduleSpecifier().text, name: e.propertyName() != null ? e.propertyName().text : name, specifier: s.moduleSpecifier()};
+			}
+		return null;
+	}
+
+	// a top-level declaration of the file by name and kind (exported or not)
+	public static function declared(file:SourceFile, name:String, kind:Kind):Null<Node> {
+		for (s in file.root.statements()) {
+			if (s.kind == kind && s.name() != null && s.name().text == name) return s;
+			if (kind == KindVariableDeclaration && s.kind == KindVariableStatement)
+				for (d in s.declarationList().declarations())
+					if (d.name().kind == KindIdentifier && d.name().text == name) return d;
+		}
+		return null;
+	}
+}
+
+// The shader definition's TypeScript adapter (ShaderAdapter), Lower's
+// counterpart: a stage's function and the functions it calls, from the
+// AST to the IR, typed by their annotations (the program is checked: the
+// types are what tsgo agreed to) as Lower types Haxe: numbers are Float,
+// helder/gfx's Vec2, Vec3, Vec4, Mat4 and Texture2D the math types, type
+// aliases of object types structs (named after the alias), the methods add,
+// sub, mul, div and neg the operators (c = c.add(x) is Haxe's c += x on a
+// vector: c = c + x). Names are allocated in Lower's
+// order (a function's parameters' types, its name, its result's type, its
+// body), so that the same functions print the same text from either
+// language.
+class TsAdapter implements ShaderAdapter {
+	final src:Project;
+	final defines:String->Null<String>;
+	final what:String;
+	final names = new Names();
+	final structs = new Map<String, SStruct>();
+	final building = new Map<String, Bool>();
+	final functions = new Map<String, SFunction>();
+	final active:Array<String> = [];
+	final vars = new Map<SFunction, Array<SVar>>();
+	var varyings:Null<SType>;
+	var anonymous = 0;
+
+	var fn:SFunction;
+	var scopes:Array<Map<String, SVar>>;
+	var localNames:Map<String, Bool>;
+	var positionLocals:Map<SVar, Bool>;
+	var temps = 0;
+
+	public function new(src:Project, defines:String->Null<String>, what:String) {
+		this.src = src;
+		this.defines = defines;
+		this.what = what;
+	}
+
+	public function error(message:String, pos:KPos):Dynamic
+		return src.fail(pos, '$what: $message');
+
+	public function defined(name:String):Null<String>
+		return name == "target.name" ? defines(name) ?? "hxmc" : defines(name);
+
+	public function finish()
+		names.unhide(vars);
+
+	// --- the argument's kernel tree
+
+	public function node(n:Node):KNode {
+		var pos:KPos = n;
+		return new KNode(switch n.kind {
+			case KindParenthesizedExpression | KindAsExpression | KindSatisfiesExpression: return node(n.expression());
+			case KindStringLiteral | KindNoSubstitutionTemplateLiteral: KString(n.text);
+			case KindNumericLiteral: KFloat(Std.parseFloat(n.text));
+			case KindTrueKeyword: KBool(true);
+			case KindFalseKeyword: KBool(false);
+			case KindNullKeyword: KNull;
+			case KindObjectLiteralExpression:
+				KObject([
+					for (p in n.properties())
+						switch p.kind {
+							case KindPropertyAssignment if (p.name().kind == KindIdentifier || p.name().kind == KindStringLiteral):
+								{name: p.name().text, node: node(p.initializer())};
+							case KindMethodDeclaration if (p.name().kind == KindIdentifier):
+								{name: p.name().text, node: new KNode(KFunction(new KFunction(null, params(p), p, p)), p)};
+							case _: notStatic(p);
+						}
+				]);
+			case KindArrayLiteralExpression: KArray([for (e in n.elements()) node(e)]);
+			case KindArrowFunction | KindFunctionExpression:
+				KFunction(new KFunction(n.kind == KindFunctionExpression && n.name() != null ? n.name().text : null, params(n), n, n));
+			case _: notStatic(n);
+		}, pos);
+	}
+
+	static function params(f:Node):Array<String>
+		return [for (p in f.parameters()) p.name().kind == KindIdentifier ? p.name().text : "_"];
+
+	function notStatic(n:Node):Dynamic
+		return error(n.file.slice(n.file.skipTrivia(n.pos), n.end)
+			+ " is not static (a definition takes literals, object and array literals, functions, and module-level constants and definitions)", n);
+
+	// --- functions
+
+	public function lowerStage(k:KFunction, name:String):SFunction {
+		var f:Node = k.source;
+		return lower(f.file.path + ":" + f.pos, name, f, true);
+	}
+
+	function lower(key:String, name:String, f:Node, stage:Bool):SFunction {
+		var g = functions.get(key);
+		if (g != null) return g;
+		if (active.contains(key)) error("recursion: " + active.slice(active.indexOf(key)).concat([key]).map(display).join(" -> ") + " (shader functions cannot recurse)", f);
+		active.push(key);
+		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals};
+		scopes = [new Map()];
+		localNames = new Map();
+		positionLocals = new Map();
+		var vs = [];
+		var ps = f.parameters();
+		var params = [
+			for (i in 0...ps.length) {
+				var p = ps[i];
+				var t = p.type() != null ? typeOf(p.type()) : stage && i == 0 && varyings != null && f.kind != KindFunctionDeclaration ? varyings : error('the parameter ${p.name().text} needs its type',
+					p);
+				declare(p.name().text, t, p, vs, true);
+			}
+		];
+		var ret = f.type() != null ? typeOf(f.type()) : null;
+		g = new SFunction(names.global(name), params, ret ?? TVoid);
+		if (ret == TTexture) error('$name: a texture is not a result (pass the parameter on)', f);
+		fn = g;
+		vars.set(g, vs);
+		var body = [];
+		var b = f.body();
+		if (b == null) error('$name has no body', f);
+		if (b.kind == KindBlock) block(b, body) else body.push(SReturn(retValue(b, body)));
+		g.body = body;
+		if (ret == null) inferred(g, f);
+		if (stage && varyings == null) varyings = g.ret;
+		fn = saved.fn;
+		scopes = saved.scopes;
+		localNames = saved.names;
+		positionLocals = saved.positions;
+		active.pop();
+		functions.set(key, g);
+		return g;
+	}
+
+	// (a result's type not written: its returns')
+	function inferred(g:SFunction, f:Node) {
+		var found:Null<SType> = null;
+		function visit(ss:Array<SStmt>)
+			for (s in ss)
+				switch s {
+					case SReturn(e) if (e != null): if (found == null) found = e.t;
+					case SIf(_, a, b):
+						visit(a);
+						if (b != null) visit(b);
+					case SWhile(_, body): visit(body);
+					case _:
+				}
+		visit(g.body);
+		if (found != null) g.ret = found;
+	}
+
+	function retValue(e:Node, out:Array<SStmt>):SExpr {
+		var x = expr(e, out, fn.ret == TVoid ? null : fn.ret);
+		return fn.ret == TVoid ? x : coerce(x, fn.ret, e);
+	}
+
+	static function display(key:String):String
+		return key.substr(key.lastIndexOf("/") + 1);
+
+	function declare(name:String, t:SType, at:Node, list:Array<SVar>, param = false):SVar {
+		if (t == TVoid) error('$name has no value', at);
+		if (t == TTexture && !param) error('$name: a texture is a parameter, not a local', at);
+		var s = new SVar(Names.unique(Names.sanitize(name), n -> !localNames.exists(n) && (t != TTexture || !localNames.exists(n + "_smp"))), t);
+		localNames.set(s.name, true);
+		if (t == TTexture) localNames.set(s.name + "_smp", true);
+		scopes[scopes.length - 1].set(name, s);
+		list.push(s);
+		return s;
+	}
+
+	function temp(t:SType):SVar {
+		var s = new SVar(Names.unique("t" + temps++, n -> !localNames.exists(n)), t);
+		localNames.set(s.name, true);
+		vars.get(fn).push(s);
+		return s;
+	}
+
+	function find(name:String):Null<SVar> {
+		var i = scopes.length;
+		while (i-- > 0) {
+			var v = scopes[i].get(name);
+			if (v != null) return v;
+		}
+		return null;
+	}
+
+	// --- types
+
+	function typeOf(t:Node):SType {
+		return switch t.kind {
+			case KindNumberKeyword: TFloat;
+			case KindBooleanKeyword: TBool;
+			case KindVoidKeyword: TVoid;
+			case KindParenthesizedType: typeOf(t.type());
+			case KindTypeLiteral:
+				var key = t.file.path + ":" + t.pos;
+				var s = structs.get(key);
+				TStruct(s != null ? s : struct(key, "S" + anonymous++, t));
+			case KindTypeReference if (t.typeName().kind == KindIdentifier):
+				var n = t.typeName().text;
+				var from = Scope.imported(t.file, n);
+				if (from != null && from.module == "helder/gfx")
+					return switch from.name {
+						case "Vec2": TVec(2);
+						case "Vec3": TVec(3);
+						case "Vec4": TVec(4);
+						case "Mat4": TMat4;
+						case "Texture2D": TTexture;
+						case other: error('$other is not a shader type (number, boolean, Vec2, Vec3, Vec4, Mat4, Texture2D and type aliases of object types of them)', t);
+					}
+				var alias = from != null ? declaration(from.specifier, from.name, KindTypeAliasDeclaration) : Scope.declared(t.file, n, KindTypeAliasDeclaration);
+				if (alias == null) error('$n is not a shader type (number, boolean, Vec2, Vec3, Vec4, Mat4, Texture2D and type aliases of object types of them)', t);
+				var body = alias.type();
+				if (body.kind != KindTypeLiteral) return typeOf(body);
+				var key = alias.file.path + ":" + alias.pos;
+				var s = structs.get(key);
+				TStruct(s != null ? s : struct(key, n, body));
+			case _: error(t.file.slice(t.file.skipTrivia(t.pos), t.end) + " is not a shader type (number, boolean, Vec2, Vec3, Vec4, Mat4, Texture2D and type aliases of object types of them)", t);
+		}
+	}
+
+	function struct(key:String, name:String, literal:Node):SStruct {
+		if (building.exists(key)) error('$name contains itself', literal);
+		building.set(key, true);
+		var fields:Array<SField> = [];
+		for (m in literal.members()) {
+			if (m.kind != KindPropertySignature || m.type() == null) error('$name: a struct has fields of shader types (no methods, each typed)', m);
+			var t = typeOf(m.type());
+			if (t == TTexture) error('$name.${m.name().text}: a texture is not a struct field (it is a parameter)', m);
+			fields.push({
+				name: Names.unique(Names.sanitize(m.name().text), n -> !Lambda.exists(fields, g -> g.name == n)),
+				field: m.name().text,
+				type: t,
+				position: false
+			});
+		}
+		if (fields.length == 0) error('$name has no fields', literal);
+		building.remove(key);
+		var s = new SStruct(names.global(name), name, fields);
+		structs.set(key, s);
+		return s;
+	}
+
+	// (a name another module of the program exports: its declaration there)
+	function declaration(specifier:Node, name:String, kind:Kind):Null<Node> {
+		var path = src.resolve(specifier);
+		if (path == null) return null;
+		for (f in src.files)
+			if (f.path == path) return Scope.declared(f, name, kind);
+		return null;
+	}
+
+	// --- statements
+
+	function block(b:Node, out:Array<SStmt>) {
+		scopes.push(new Map());
+		for (s in b.statements())
+			stmt(s, out);
+		scopes.pop();
+	}
+
+	function body(n:Node):Array<SStmt> {
+		var out = [];
+		if (n.kind == KindBlock) block(n, out) else {
+			scopes.push(new Map());
+			stmt(n, out);
+			scopes.pop();
+		}
+		return out;
+	}
+
+	function stmt(n:Node, out:Array<SStmt>) {
+		switch n.kind {
+			case KindBlock: block(n, out);
+			case KindVariableStatement:
+				for (d in n.declarationList().declarations()) {
+					if (d.name().kind != KindIdentifier) error("a destructuring is not supported in a shader", d);
+					var init = d.initializer();
+					var want = d.type() != null ? typeOf(d.type()) : null;
+					var p = init == null ? null : positionArg(init);
+					var x = init == null ? null : expr(p ?? init, out, want);
+					var t = want ?? (x != null ? x.t : error('${d.name().text} needs a type or a value', d));
+					var s = declare(d.name().text, t, d, vars.get(fn));
+					if (p != null) positionLocals.set(s, true);
+					out.push(SDecl(s, x == null ? null : coerce(x, t, init)));
+				}
+			case KindExpressionStatement:
+				var e = strip(n.expression());
+				switch e.kind {
+					case KindBinaryExpression if (isAssign(e.operatorToken().kind)): assign(e, out);
+					case KindPrefixUnaryExpression | KindPostfixUnaryExpression if (e.unaryOperator() == KindPlusPlusToken
+						|| e.unaryOperator() == KindMinusMinusToken):
+						var v = target(e.operand());
+						out.push(SAssign(v, e.unaryOperator() == KindPlusPlusToken ? Add : Sub, one(v.type)));
+					case _:
+						var x = expr(e, out);
+						switch x.e {
+							case ECall(_) | EBuiltin("discard", _): out.push(SEval(x));
+							case _:
+						}
+				}
+			case KindIfStatement:
+				out.push(SIf(coerce(expr(n.expression(), out), TBool, n.expression()), body(n.thenStatement()),
+					n.elseStatement() == null ? null : body(n.elseStatement())));
+			case KindWhileStatement:
+				var pre = [];
+				var c = coerce(expr(n.expression(), pre), TBool, n.expression());
+				if (pre.length == 0) out.push(SWhile(c, body(n.statement()))) else
+					out.push(SWhile({e: EBool(true), t: TBool}, pre.concat([SIf({e: EUnop(Not, c), t: TBool}, [SBreak], null)]).concat(body(n.statement()))));
+			case KindForStatement:
+				// for (init; cond; incr) body: init, then while (cond) { body; incr }
+				scopes.push(new Map());
+				if (n.initializer() != null) {
+					var i = n.initializer();
+					if (i.kind == KindVariableDeclarationList) for (d in i.declarations()) {
+						var x = expr(d.initializer(), out, d.type() != null ? typeOf(d.type()) : null);
+						var s = declare(d.name().text, x.t, d, vars.get(fn));
+						s.assigned = true;
+						out.push(SDecl(s, x));
+					} else stmtOf(i, out);
+				}
+				var c = n.condition() == null ? {e: EBool(true), t: TBool} : coerce(expr(n.condition(), out), TBool, n.condition());
+				var inner = body(n.statement());
+				if (n.incrementor() != null) stmtOf(n.incrementor(), inner);
+				out.push(SWhile(c, inner));
+				scopes.pop();
+			case KindReturnStatement:
+				out.push(SReturn(n.expression() == null ? null : retValue(n.expression(), out)));
+			case KindBreakStatement: out.push(SBreak);
+			case KindContinueStatement: out.push(SContinue);
+			case KindEmptyStatement:
+			case _: error("this statement is not supported in a shader", n);
+		}
+	}
+
+	// (an expression as a statement)
+	function stmtOf(e:Node, out:Array<SStmt>) {
+		var x = strip(e);
+		switch x.kind {
+			case KindBinaryExpression if (isAssign(x.operatorToken().kind)): assign(x, out);
+			case KindPrefixUnaryExpression | KindPostfixUnaryExpression:
+				var v = target(x.operand());
+				out.push(SAssign(v, x.unaryOperator() == KindPlusPlusToken ? Add : Sub, one(v.type)));
+			case _: error("this expression is not a statement in a shader", e);
+		}
+	}
+
+	static function isAssign(k:Kind):Bool
+		return k == KindEqualsToken || k == KindPlusEqualsToken || k == KindMinusEqualsToken || k == KindAsteriskEqualsToken || k == KindSlashEqualsToken;
+
+	function assign(e:Node, out:Array<SStmt>):SVar {
+		var v = target(e.left());
+		var r = strip(e.right());
+		var op:Null<SBinop> = switch e.operatorToken().kind {
+			case KindPlusEqualsToken: Add;
+			case KindMinusEqualsToken: Sub;
+			case KindAsteriskEqualsToken: Mul;
+			case KindSlashEqualsToken: Div;
+			case _: null;
+		}
+		out.push(SAssign(v, op, coerce(expr(e.right(), out), v.type, e.right())));
+		return v;
+	}
+
+	function target(e:Node):SVar {
+		var x = strip(e);
+		return switch x.kind {
+			case KindIdentifier:
+				var s = find(x.text);
+				if (s == null) error('${x.text} is not a local of this function', x);
+				if (s.type == TTexture) error('${x.text}: a texture parameter is not assigned', x);
+				s.assigned = true;
+				s;
+			case KindPropertyAccessExpression | KindElementAccessExpression: error("shader values are immutable: assign to a local, not to a field", x);
+			case _: error("shader code assigns to locals only", x);
+		}
+	}
+
+	// --- expressions
+
+	function expr(n:Node, out:Array<SStmt>, ?want:SType):SExpr {
+		return switch n.kind {
+			case KindParenthesizedExpression | KindAsExpression | KindSatisfiesExpression | KindNonNullExpression: expr(n.expression(), out, want);
+			case KindNumericLiteral:
+				var f = Std.parseFloat(n.text);
+				if (!Math.isFinite(f)) error('${n.text} is not a finite number', n);
+				{e: EFloat(f), t: TFloat};
+			case KindTrueKeyword: {e: EBool(true), t: TBool};
+			case KindFalseKeyword: {e: EBool(false), t: TBool};
+			case KindStringLiteral | KindNoSubstitutionTemplateLiteral | KindTemplateExpression: error("a String is not a shader value", n);
+			case KindNullKeyword: error("null is not a shader value", n);
+			case KindThisKeyword: error("a shader function has no this", n);
+			case KindIdentifier: identifier(n);
+			case KindBinaryExpression if (isAssign(n.operatorToken().kind)): local(assign(n, out));
+			case KindBinaryExpression: binary(n, out);
+			case KindPrefixUnaryExpression:
+				switch n.unaryOperator() {
+					case KindMinusToken:
+						var v = expr(n.operand(), out);
+						if (v.t != TFloat && v.t != TInt) error('-: a ${Names.typeName(v.t)} (a vector\'s is .neg())', n);
+						{e: EUnop(Neg, v), t: v.t};
+					case KindPlusToken: expr(n.operand(), out, want);
+					case KindExclamationToken: {e: EUnop(Not, coerce(expr(n.operand(), out), TBool, n.operand())), t: TBool};
+					case _: error("not supported in a shader", n);
+				}
+			case KindConditionalExpression:
+				var cond = coerce(expr(n.condition(), out), TBool, n.condition());
+				var pa = [], pb = [];
+				var x = expr(n.whenTrue(), pa, want);
+				var t = want ?? x.t;
+				if (t == TTexture) error("a texture is chosen by no condition (pass the parameter on)", n);
+				x = coerce(x, t, n.whenTrue());
+				var y = coerce(expr(n.whenFalse(), pb, t), t, n.whenFalse());
+				if (pa.length == 0 && pb.length == 0) {e: ECond(cond, x, y), t: t} else {
+					var tmp = temp(t);
+					tmp.assigned = true;
+					out.push(SDecl(tmp, null));
+					out.push(SIf(cond, pa.concat([SAssign(tmp, null, x)]), pb.concat([SAssign(tmp, null, y)])));
+					local(tmp);
+				}
+			case KindCallExpression: call(n, out, want);
+			case KindPropertyAccessExpression: field(n, out);
+			case KindObjectLiteralExpression:
+				var s = switch want {
+					case TStruct(s): s;
+					case _: error("an object literal is a shader value where its struct's type is known (a typed result, local or parameter)", n);
+				}
+				var props = n.properties();
+				var args = [
+					for (f in s.fields) {
+						var given = Lambda.find(props, p -> p.name() != null && p.name().text == f.field);
+						if (given == null) error('${s.path}: the field ${f.field} is not given', n);
+						given;
+					}
+				];
+				if (props.length != s.fields.length) error('${s.path} is built with all its fields, no others', n);
+				var xs = [];
+				for (i in 0...args.length) {
+					var p = args[i];
+					var v = p.kind == KindShorthandPropertyAssignment ? p.name() : p.initializer();
+					var inner = positionArg(v);
+					if (inner != null) {
+						s.fields[i].position = true;
+						v = inner;
+					} else if (strip(v).kind == KindIdentifier && find(strip(v).text) != null && positionLocals.exists(find(strip(v).text))) s.fields[i].position = true;
+					xs.push(coerce(expr(v, out, s.fields[i].type), s.fields[i].type, v));
+				}
+				{e: ENew(xs), t: TStruct(s)};
+			case KindArrayLiteralExpression | KindElementAccessExpression: error("arrays are not supported in a shader (yet)", n);
+			case KindArrowFunction | KindFunctionExpression: error("a closure is not supported in a shader", n);
+			case _: error("not supported in a shader", n);
+		}
+	}
+
+	function identifier(n:Node):SExpr {
+		var s = find(n.text);
+		if (s != null) return local(s);
+		// (a module-level constant of a number: its value)
+		var d = Scope.declared(n.file, n.text, KindVariableDeclaration);
+		var from = d == null ? Scope.imported(n.file, n.text) : null;
+		if (from != null) d = declaration(from.specifier, from.name, KindVariableDeclaration);
+		if (d != null && d.initializer() != null) {
+			var i = strip(d.initializer());
+			var neg = i.kind == KindPrefixUnaryExpression && i.unaryOperator() == KindMinusToken;
+			if (neg) i = strip(i.operand());
+			if (i.kind == KindNumericLiteral) return {e: EFloat((neg ? -1 : 1) * Std.parseFloat(i.text)), t: TFloat};
+			if (i.kind == KindTrueKeyword || i.kind == KindFalseKeyword) return {e: EBool(i.kind == KindTrueKeyword), t: TBool};
+		}
+		return error('${n.text} is not a local of this function (a closure?) nor a constant (shader code reads module-level constants of numbers)', n);
+	}
+
+	function binary(n:Node, out:Array<SStmt>):SExpr {
+		var op = n.operatorToken().kind;
+		var x = expr(n.left(), out), y = expr(n.right(), out);
+		return switch op {
+			case KindPlusToken | KindMinusToken | KindAsteriskToken | KindSlashToken | KindPercentToken:
+				var t = x.t == TInt && y.t == TInt ? TInt : TFloat;
+				if ((x.t != TFloat && x.t != TInt) || (y.t != TFloat && y.t != TInt))
+					error('${Names.typeName(x.t)} and ${Names.typeName(y.t)}: operators are on numbers (a vector\'s are .add, .sub, .mul, .div)', n);
+				if (op == KindPercentToken && t == TFloat) error("% on Float is not supported in a shader", n);
+				{e: EBinop(switch op {
+					case KindPlusToken: Add;
+					case KindMinusToken: Sub;
+					case KindAsteriskToken: Mul;
+					case KindSlashToken: Div;
+					case _: Mod;
+				}, coerce(x, t, n.left()), coerce(y, t, n.right())), t: t};
+			case KindEqualsEqualsEqualsToken | KindExclamationEqualsEqualsToken | KindEqualsEqualsToken | KindExclamationEqualsToken | KindLessThanToken | KindLessThanEqualsToken | KindGreaterThanToken | KindGreaterThanEqualsToken:
+				var w = x.t == TFloat || y.t == TFloat ? TFloat : x.t;
+				var eq = op == KindEqualsEqualsEqualsToken || op == KindExclamationEqualsEqualsToken || op == KindEqualsEqualsToken || op == KindExclamationEqualsToken;
+				if (!(w == TFloat || w == TInt || (w == TBool && eq))) error('${Names.typeName(x.t)} and ${Names.typeName(y.t)} cannot be compared in a shader', n);
+				{e: EBinop(switch op {
+					case KindEqualsEqualsEqualsToken | KindEqualsEqualsToken: Eq;
+					case KindExclamationEqualsEqualsToken | KindExclamationEqualsToken: Ne;
+					case KindLessThanToken: Lt;
+					case KindLessThanEqualsToken: Le;
+					case KindGreaterThanToken: Gt;
+					case _: Ge;
+				}, coerce(x, w, n.left()), coerce(y, w, n.right())), t: TBool};
+			case KindAmpersandAmpersandToken | KindBarBarToken:
+				{e: EBinop(op == KindAmpersandAmpersandToken ? And : Or, coerce(x, TBool, n.left()), coerce(y, TBool, n.right())), t: TBool};
+			case _: error('this operator is not supported in a shader', n);
+		}
+	}
+
+	function field(n:Node, out:Array<SStmt>):SExpr {
+		var recv = strip(n.expression());
+		if (recv.kind == KindIdentifier && recv.text == "Math" && find("Math") == null && n.name().text == "PI") return {e: EFloat(Math.PI), t: TFloat};
+		var o = expr(recv, out);
+		var name = n.name().text;
+		return switch o.t {
+			case TVec(k):
+				if (!~/^[xyzw]{1,4}$/.match(name) || Lambda.exists([for (i in 0...name.length) name.charAt(i)], c -> "xyzw".indexOf(c) >= k))
+					error('Vec$k has no component $name', n);
+				{e: ESwizzle(o, name), t: name.length == 1 ? TFloat : TVec(name.length)};
+			case TMat4 if (~/^c[0-3]$/.match(name)): {e: EColumn(o, Std.parseInt(name.substr(1))), t: TVec(4)};
+			case TStruct(s):
+				var f = Lambda.find(s.fields, f -> f.field == name);
+				if (f == null) error('${s.path} has no field $name', n);
+				{e: EField(o, f.name), t: f.type};
+			case t: error('the field $name of a ${Names.typeName(t)} is not a shader value', n);
+		}
+	}
+
+	static function methodOp(name:String):Null<SBinop>
+		return switch name {
+			case "add": Add;
+			case "sub": Sub;
+			case "mul": Mul;
+			case "div": Div;
+			case _: null;
+		}
+
+	static function isMathType(t:SType):Bool
+		return t.match(TVec(_) | TMat4);
+
+	static final BUILTINS = [
+		"abs", "sign", "floor", "ceil", "fract", "sqrt", "inversesqrt", "sin", "cos", "tan", "exp", "log", "min", "max", "pow", "step", "mix", "clamp",
+		"smoothstep", "dot", "length", "distance", "normalize", "reflect", "cross", "sample", "sampleLevel", "discard"
+	];
+
+	function call(n:Node, out:Array<SStmt>, want:Null<SType>):SExpr {
+		var callee = strip(n.expression());
+		var actual = n.arguments() ?? [];
+		// (a vector's or a matrix's operator: a.mul(b))
+		if (callee.kind == KindPropertyAccessExpression) {
+			var recv = strip(callee.expression()), name = callee.name().text;
+			if (recv.kind == KindIdentifier && recv.text == "Math" && find("Math") == null) return math(name, actual, n, out);
+			var a = expr(recv, out);
+			if (isMathType(a.t)) {
+				if (name == "neg" && actual.length == 0) return {e: EUnop(Neg, a), t: a.t};
+				var op = methodOp(name);
+				if (op == null || actual.length != 1) error('${Names.typeName(a.t)}.$name is not supported in a shader', n);
+				var b = expr(actual[0], out);
+				var t = switch [a.t, b.t] {
+					case [TMat4, TVec(4)]: TVec(4);
+					case [TMat4, TMat4] if (op == Mul): TMat4;
+					case [TVec(k), TVec(m)] if (k == m): a.t;
+					case [TVec(_), TFloat | TInt]: a.t;
+					case _: error('${Names.typeName(a.t)}.$name(${Names.typeName(b.t)}) is not supported in a shader', n);
+				}
+				return {e: EBinop(op, a, b.t == TInt ? coerce(b, TFloat, actual[0]) : b), t: t};
+			}
+			return error('a method call is not supported in a shader (shader functions are module-level functions)', n);
+		}
+		if (callee.kind != KindIdentifier) error("this call is not supported in a shader", n);
+		var name = callee.text;
+		if (find(name) != null) error('$name: a closure is not supported in a shader', n);
+		var from = Scope.imported(callee.file, name);
+		if (from != null && from.module == "helder/gfx") return builtin(from.name, actual, n, out);
+		var decl = from != null ? declaration(from.specifier, from.name, KindFunctionDeclaration) : Scope.declared(callee.file, name, KindFunctionDeclaration);
+		if (decl == null) error('$name is not a shader function (shader code calls module-level functions of the program, helder/gfx\'s builtins and Math\'s)', n);
+		var g = lower(decl.file.path + ":" + decl.pos, decl.name().text, decl, false);
+		if (actual.length != g.params.length) error('${decl.name().text} takes ${g.params.length} arguments', n);
+		var xs = [for (i in 0...actual.length) coerce(expr(actual[i], out, g.params[i].type), g.params[i].type, actual[i])];
+		return {e: ECall(g, xs), t: g.ret};
+	}
+
+	function math(name:String, actual:Array<Node>, n:Node, out:Array<SStmt>):SExpr {
+		var xs = [for (a in actual) coerce(expr(a, out), TFloat, a)];
+		return switch name {
+			case "sqrt" | "sin" | "cos" | "tan" | "exp" | "log" | "abs" | "pow" | "min" | "max" | "floor" | "ceil": {e: EBuiltin(name, xs), t: TFloat};
+			case _: error('Math.$name is not supported in a shader', n);
+		}
+	}
+
+	function builtin(name:String, actual:Array<Node>, n:Node, out:Array<SStmt>):SExpr {
+		if (name == "position") error("position(...) marks a field of the varyings where the vertex stage builds them ({clip: position(...), ...})", n);
+		var xs = [for (a in actual) expr(a, out)];
+		function vectorOf():SType {
+			for (x in xs)
+				switch x.t {
+					case TVec(_): return x.t;
+					case _:
+				}
+			return TFloat;
+		}
+		var t:SType = switch name {
+			case "vec2": TVec(2);
+			case "vec3": TVec(3);
+			case "vec4": TVec(4);
+			case "mat4": TMat4;
+			case "dot" | "length" | "distance": TFloat;
+			case "cross": TVec(3);
+			case "sample" | "sampleLevel": TVec(4);
+			case "discard": TVoid;
+			case _ if (BUILTINS.contains(name)): vectorOf();
+			case _: error('$name is not a shader builtin', n);
+		}
+		xs = [for (i in 0...xs.length) xs[i].t == TInt ? coerce(xs[i], TFloat, actual[i]) : xs[i]];
+		return switch name {
+			case "vec2" | "vec3" | "vec4": {e: ENew(xs), t: t};
+			case "mat4" if (xs.length == 4): {e: ENew(xs), t: t};
+			case "mat4":
+				var s = xs[0];
+				switch s.e {
+					case EFloat(_) | ELocal(_):
+					case _:
+						var tmp = temp(TFloat);
+						out.push(SDecl(tmp, s));
+						s = local(tmp);
+				}
+				var z = {e: EFloat(0), t: TFloat};
+				{e: ENew([for (i in 0...4) {e: ENew([for (j in 0...4) i == j ? s : z]), t: TVec(4)}]), t: t};
+			case _:
+				// (a Float bound or weight of a vector function: a vector, as WGSL wants it)
+				switch t {
+					case TVec(_) if (name != "reflect" && name != "cross" && name != "sampleLevel" && name != "sample"):
+						xs = [for (x in xs) x.t == TFloat ? {e: ENew([x]), t: t} : x];
+					case _:
+				}
+				{e: EBuiltin(name, xs), t: t};
+		}
+	}
+
+	// position(x)'s x
+	function positionArg(n:Node):Null<Node> {
+		var x = strip(n);
+		if (x.kind != KindCallExpression || strip(x.expression()).kind != KindIdentifier) return null;
+		var from = Scope.imported(x.file, strip(x.expression()).text);
+		if (from == null || from.module != "helder/gfx" || from.name != "position" || (x.arguments() ?? []).length != 1) return null;
+		return x.arguments()[0];
+	}
+
+	// --- helpers
+
+	function coerce(x:SExpr, t:SType, at:Node):SExpr {
+		if (Names.same(x.t, t)) return x;
+		return switch [x.t, t] {
+			case [TInt, TFloat]:
+				switch x.e {
+					case EInt(i): {e: EFloat(i), t: TFloat};
+					case _: {e: EConvert(x), t: TFloat};
+				}
+			case _: error('${Names.typeName(x.t)} where a ${Names.typeName(t)} is needed', at);
+		}
+	}
+
+	static function one(t:SType):SExpr
+		return t == TFloat ? {e: EFloat(1), t: TFloat} : {e: EInt(1), t: TInt};
+
+	static function local(v:SVar):SExpr
+		return {e: ELocal(v), t: v.type};
+
+	static function strip(n:Node):Node
+		return switch n.kind {
+			case KindParenthesizedExpression | KindAsExpression | KindSatisfiesExpression | KindNonNullExpression: strip(n.expression());
+			case _: n;
+		}
+}
