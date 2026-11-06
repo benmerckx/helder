@@ -32,6 +32,7 @@ class MarkupTest implements Markup {
 		flow();
 		motion();
 		access();
+		accessFixture();
 		popovers();
 		documentNames();
 		rightToLeft();
@@ -476,6 +477,53 @@ class MarkupTest implements Markup {
 		check("access: Focus", ui.accessAction(field.id, Focus) && ui.focus == ui.root.find("name"));
 		check("access: no change, no update", t4.changesJson(t4) == null && t4.changesJson(null) != null);
 		check("access: an action on a node gone", !ui.accessAction(9999999, Click));
+	}
+
+	// the fixture every adapter's test reads: sets, a table, text, the newer actions
+	static function accessFixture() {
+		var ui = new Ui(new MonoText(), 400, 600);
+		var f = new AccessFixture();
+		Render.render(f.view(), ui.root);
+		ui.update();
+		var t = ui.accessTree();
+		function byName(role:Role, name:String):Null<AccessNode> {
+			for (id in t.order) {
+				var n = t.nodes.get(id);
+				if (n.role == role && n.name == name) return n;
+			}
+			return null;
+		}
+		var pear = byName(ListItem, "Pear");
+		check("fixture: a list item's place in its set", pear != null && pear.posInSet == 2 && pear.setSize == 3);
+		var grid = byName(Table, "Mail"), bob = byName(Cell, "Lunch"), row1 = byName(Row, "Bob Lunch");
+		check("fixture: a table's rows and columns", grid != null && grid.rowCount == 3 && grid.colCount == 2, grid == null ? "none" : '${grid.rowCount}x${grid.colCount}');
+		check("fixture: a cell's place", bob != null && bob.rowIndex == 2 && bob.colIndex == 1 && row1 != null && row1.rowIndex == 2);
+		check("fixture: a table's ancestor", bob != null && t.ancestor(bob.id, Table) == grid.id);
+		var tab = byName(Tab, "Advanced");
+		check("fixture: a tab's place", tab != null && tab.posInSet == 2 && tab.setSize == 2 && tab.selected == false);
+		var name = byName(TextInput, "Name"), code = byName(TextInput, "Code"), notes = byName(MultilineTextInput, "Notes");
+		check("fixture: a field's text and caret", name != null && name.value == "Ada" && name.textStart >= 0 && !name.readOnly);
+		check("fixture: a read-only field", code != null && code.readOnly && code.value == "X1");
+		check("fixture: a text area", notes != null && notes.value == "one\ntwo");
+		check("fixture: SetSelection", ui.accessAction(name.id, SetSelection, "1,3"));
+		ui.update();
+		var t2 = ui.accessTree(), n2 = t2.nodes.get(name.id);
+		check("fixture: the selection after it, the field focused", n2.textStart == 1 && n2.textEnd == 3 && n2.caret == 3 && t2.focus == name.id, '${n2.textStart},${n2.textEnd},${n2.caret}');
+		var more = byName(Button, "More");
+		check("fixture: a disclosure collapsed", more != null && more.expanded == false);
+		check("fixture: Collapse when collapsed: nothing", ui.accessAction(more.id, Collapse) && !f.open.peek());
+		check("fixture: Expand", ui.accessAction(more.id, Expand) && f.open.peek());
+		check("fixture: Expand again: nothing", ui.accessAction(more.id, Expand) && f.open.peek());
+		ui.update();
+		check("fixture: Select a row", ui.accessAction(row1.id, Select) && f.row.peek() == 1);
+		ui.update();
+		check("fixture: its state after", ui.accessTree().nodes.get(row1.id).selected == true);
+		var scroller = ui.root.find("scroller"), last = byName(Label, "Last");
+		check("fixture: ScrollIntoView", ui.accessAction(last.id, ScrollIntoView) && scroller.scrollY > 0, '${scroller.scrollY}');
+		var vol = byName(Slider, "Volume");
+		check("fixture: SetValue on a range: stepped there", ui.accessAction(vol.id, SetValue, "0.8") && Math.abs(f.volume.peek() - 0.8) < 1e-9, '${f.volume.peek()}');
+		check("fixture: SetValue down", ui.accessAction(vol.id, SetValue, "0.2") && Math.abs(f.volume.peek() - 0.2) < 1e-9, '${f.volume.peek()}');
+		check("fixture: JSON's new fields", t.nodes.get(grid.id).toJson().rowCount == 3 && pear.toJson().posInSet == 2 && code.toJson().readOnly == true);
 	}
 
 	static function motion() {

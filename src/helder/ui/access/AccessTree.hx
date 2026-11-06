@@ -33,6 +33,109 @@ class AccessTree {
 			visit(c, top, 0, 0, false, ui.overlay.visible(), ui);
 		var f = ui.focus;
 		focus = f != null && byId.exists(f.accessId) ? f.accessId : 0;
+		counted();
+	}
+
+	// the items' places in their sets, the tables' rows and cells
+	function counted() {
+		for (id in order) {
+			var a = nodes.get(id);
+			if (a.role == Table) table(a);
+			// (siblings of a kind: a set; a tree's by level, a run of them)
+			var kids = a.children;
+			var i = 0;
+			while (i < kids.length) {
+				var k = nodes.get(kids[i]), kind = setKind(k.role);
+				if (kind == 0) {
+					i++;
+					continue;
+				}
+				var run = [k], j = i + 1;
+				while (j < kids.length && setKind(nodes.get(kids[j]).role) == kind)
+					run.push(nodes.get(kids[j++]));
+				if (kind == 4) {
+					// (each level's items between the items above it)
+					for (x in 0...run.length) {
+						var lv = run[x].level ?? 1, pos = 0, size = 0, seen = false;
+						for (y in 0...run.length) {
+							var l = run[y].level ?? 1;
+							if (l < lv) {
+								if (seen) break;
+								pos = size = 0;
+								continue;
+							}
+							if (l != lv) continue;
+							size++;
+							if (y <= x) pos = size;
+							if (y == x) seen = true;
+						}
+						run[x].posInSet = pos;
+						run[x].setSize = size;
+					}
+				} else
+					for (x in 0...run.length) {
+						run[x].posInSet = x + 1;
+						run[x].setSize = run.length;
+					}
+				i = j;
+			}
+		}
+	}
+
+	// (the roles counted as one set: 0, none)
+	static function setKind(r:Role):Int
+		return switch r {
+			case ListItem | ListBoxOption: 1;
+			case Tab: 2;
+			case RadioButton: 3;
+			case TreeItem: 4;
+			case MenuItem | MenuItemCheckBox | MenuItemRadio: 5;
+			case _: 0;
+		}
+
+	// a table's rows (below it, not in another table) and their cells
+	function table(t:AccessNode) {
+		var rows = [];
+		function find(id:Int, want:Role->Bool, out:Array<AccessNode>) {
+			for (k in nodes.get(id).children) {
+				var c = nodes.get(k);
+				if (want(c.role)) out.push(c) else if (c.role != Table && c.role != Row) find(k, want, out);
+			}
+		}
+		find(t.id, r -> r == Row, rows);
+		var cols = 0;
+		for (i in 0...rows.length) {
+			rows[i].rowIndex = i;
+			var cells = [];
+			find(rows[i].id, r -> r == Cell || r == ColumnHeader, cells);
+			for (j in 0...cells.length) {
+				cells[j].rowIndex = i;
+				cells[j].colIndex = j;
+			}
+			if (cells.length > cols) cols = cells.length;
+		}
+		t.rowCount = rows.length;
+		t.colCount = cols;
+	}
+
+	// the parent of each node (the root's: 0)
+	public function parents():Map<Int, Int> {
+		var out = new Map<Int, Int>();
+		for (id in order)
+			for (k in nodes.get(id).children)
+				out.set(k, id);
+		return out;
+	}
+
+	// the node of an id's nearest ancestor of a role (0: none)
+	public function ancestor(id:Int, role:Role, ?parents:Map<Int, Int>):Int {
+		var p = parents ?? this.parents();
+		var at = p.get(id);
+		while (at != null) {
+			if (nodes.get(at).role == role) return at;
+			at = p.get(at);
+		}
+		return 0;
 	}
 
 	public static function build(ui:Ui):AccessTree
@@ -106,6 +209,13 @@ class AccessTree {
 				var text = (cast n : TextNode).text;
 				a.value = sem != null && sem.secret ? StringTools.lpad("", "\u2022", text.length) : text;
 				a.secret = sem != null && sem.secret;
+				var t = n.accessText();
+				if (t != null) {
+					a.textStart = t.start;
+					a.textEnd = t.end;
+					a.caret = t.caret;
+					a.readOnly = t.readOnly;
+				}
 			}
 			parent.children.push(a.id);
 			add(n, a);

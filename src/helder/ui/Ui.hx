@@ -1618,7 +1618,47 @@ class Ui {
 				if (n.focusable) setFocus(n);
 				keyDown(action == Increment ? Key.RIGHT : Key.LEFT, 0);
 			case SetValue:
-				if (value == null || !n.accessSetValue(value)) return false;
+				if (value == null) return false;
+				// (a range's: stepped toward it as its keys step it, until there or past it)
+				var sem = n.semantics;
+				if (n.accessText() == null && sem != null && sem.valueNow != null) {
+					var target = Std.parseFloat(value);
+					if (Math.isNaN(target) || sem.role == helder.ui.access.Role.ProgressIndicator) return false;
+					if (n.focusable) setFocus(n);
+					for (_ in 0...1000) {
+						var now:Null<Float> = sem.valueNow;
+						if (now == null || Math.abs(now - target) < 1e-9) break;
+						var up = target > now;
+						keyDown(up ? Key.RIGHT : Key.LEFT, 0);
+						helder.view.graph.Graph.flush();
+						var after:Null<Float> = sem.valueNow;
+						if (after == null || after == now || (up ? after >= target : after <= target)) break;
+					}
+					return true;
+				}
+				if (!n.accessSetValue(value)) return false;
+			// (the node's state now: another action may have changed it since the tree)
+			case Expand | Collapse:
+				var e = n.semantics == null ? null : n.semantics.expanded;
+				if (e == null) return false;
+				if (e != (action == Expand)) {
+					var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+					bubble(Event.of(Click, n, x, y));
+				}
+			case Select:
+				var sel = n.semantics == null ? null : n.semantics.selected;
+				if (sel == null) return false;
+				if (!sel) bubble(Event.of(Click, n, n.absX + n.width / 2, n.absY + n.height / 2));
+			case ScrollIntoView:
+				scrollIntoView(n);
+				requestFrame();
+			case SetSelection:
+				var t = n.accessText(), parts = value == null ? [] : value.split(",");
+				if (t == null || parts.length != 2) return false;
+				var s = Std.parseInt(parts[0]), e = Std.parseInt(parts[1]);
+				if (s == null || e == null) return false;
+				if (n.focusable && focus != n) setFocus(n);
+				n.select(s, e);
 		}
 		return true;
 	}

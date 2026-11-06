@@ -35,6 +35,23 @@ package helder.ui.access;
 	public var y:Float = 0;
 	public var width:Float = 0;
 	public var height:Float = 0;
+	// a text input's selection and caret (UTF-16 indices; -1: not a text
+	// input), whether it is read only
+	public var textStart:Int = -1;
+	public var textEnd:Int = -1;
+	public var caret:Int = -1;
+	public var readOnly:Bool = false;
+	// an item's place in its set, from 1, and the set's size (0: none): a
+	// list's items, a tab list's tabs, a radio group's, a menu's, a tree's
+	// items of a level (AccessTree counts them)
+	public var posInSet:Int = 0;
+	public var setSize:Int = 0;
+	// a table's rows and columns; a row's and a cell's place in it, from 0
+	// (-1: none; AccessTree counts them)
+	public var rowCount:Int = 0;
+	public var colCount:Int = 0;
+	public var rowIndex:Int = -1;
+	public var colIndex:Int = -1;
 	public var children:Array<Int> = [];
 
 	// the same as another (an incremental update leaves it out)
@@ -43,12 +60,27 @@ package helder.ui.access;
 			|| o.multiselectable != multiselectable || o.current != current || o.live != live || o.liveText != liveText
 			|| o.expanded != expanded || o.level != level || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
 			|| o.valueMax != valueMax || o.valueText != valueText || o.x != x || o.y != y || o.width != width || o.height != height
+			|| o.textStart != textStart || o.textEnd != textEnd || o.caret != caret || o.readOnly != readOnly || o.posInSet != posInSet
+			|| o.setSize != setSize || o.rowCount != rowCount || o.colCount != colCount || o.rowIndex != rowIndex || o.colIndex != colIndex
 			|| o.children.length != children.length)
 			return false;
 		for (i in 0...children.length)
 			if (o.children[i] != children[i]) return false;
 		return true;
 	}
+
+	// whether assistive technology's actions reach it as a click: a button,
+	// a toggle, an item chosen
+	public function pressable():Bool
+		return switch role {
+			case Button | CheckBox | Switch | RadioButton | Tab | Link | MenuItem | MenuItemCheckBox | MenuItemRadio | ListBoxOption | ComboBox | TreeItem: !disabled;
+			case ListItem | Row | Cell: focusable && !disabled;
+			case _: false;
+		}
+
+	// whether it toggles (checked or not)
+	public function toggles():Bool
+		return checked != null && (role == CheckBox || role == Switch || role == MenuItemCheckBox || role == Button);
 
 	// a text input, or a combobox or spin button typed in (it has a value: its text)
 	public function editable():Bool
@@ -75,6 +107,21 @@ package helder.ui.access;
 		if (valueText != null) o.valueText = valueText;
 		if (live != Off) o.live = live.aria();
 		if (role == MultilineTextInput) o.multiline = true;
+		if (readOnly) o.readOnly = true;
+		if (textStart >= 0) {
+			o.textStart = textStart;
+			o.textEnd = textEnd;
+		}
+		if (setSize > 0) {
+			o.posInSet = posInSet;
+			o.setSize = setSize;
+		}
+		if (role == Table) {
+			o.rowCount = rowCount;
+			o.colCount = colCount;
+		}
+		if (rowIndex >= 0) o.rowIndex = rowIndex;
+		if (colIndex >= 0) o.colIndex = colIndex;
 		return o;
 	}
 }

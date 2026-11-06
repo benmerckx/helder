@@ -202,7 +202,12 @@ class EditableText extends TextNode implements PlatformEditorListener {
 	}
 
 	// read only: selected and copied, not edited (as an input's readonly)
-	public var readOnly = false;
+	public var readOnly(default, set) = false;
+
+	function set_readOnly(v:Bool):Bool {
+		if (v != readOnly) Ui.accessEpoch++;
+		return readOnly = v;
+	}
 	// the most UTF-16 units it takes by typing or pasting (-1: any; as an input's maxlength)
 	public var maxLength = -1;
 	// the caret (and the selection's other end), UTF-16 indices
@@ -284,6 +289,9 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		semantics = {role: helder.ui.access.Role.TextInput};
 		on(SpellAction, spellAction);
 	}
+
+	override public function accessText():Null<{start:Int, end:Int, caret:Int, readOnly:Bool}>
+		return {start: selectionStart, end: selectionEnd, caret: caret, readOnly: readOnly};
 
 	override public function accessSetValue(value:String):Bool {
 		if (readOnly) return false;
@@ -646,8 +654,11 @@ class EditableText extends TextNode implements PlatformEditorListener {
 	inline function clampIndex(i:Int):Int
 		return i < 0 ? 0 : i > text.length ? text.length : i;
 
-	function changed()
+	// (the caret, the selection or the text moved: a frame, the accessibility tree again)
+	function changed() {
+		Ui.accessEpoch++;
 		if (ui != null) ui.requestFrame();
+	}
 
 	// --- native ---
 

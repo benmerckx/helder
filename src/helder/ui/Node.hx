@@ -1113,6 +1113,11 @@ class Node implements Part {
 	public function accessSetValue(value:String):Bool
 		return false;
 
+	// a text input's selection and caret (UTF-16 indices) and whether it is
+	// read only, for assistive technology; null: it edits no text
+	public function accessText():Null<{start:Int, end:Int, caret:Int, readOnly:Bool}>
+		return null;
+
 	// where text is typed into it (its caret, window pixels, after a paint):
 	// an input method's place; null: it takes no text
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
