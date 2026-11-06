@@ -59,6 +59,13 @@ class WinAccess {
 	static inline var INVALID_OPERATION = 0x80131509; // UIA_E_INVALIDOPERATION
 
 	static var vtables:Array<Ptr> = [];
+	// each event raised, told (tests: WinAccessProbe's run prints them)
+	public static var log:Null<String->Void> = null;
+
+	static function raise(p:Ptr, id:Int) {
+		var hr = Uia.UiaRaiseAutomationEvent(p, id);
+		if (log != null) log('event $id: ' + StringTools.hex(hr));
+	}
 	static var rangeTable:Ptr = Ptr.nil();
 	// the windows' adapters, by their blocks' addresses (and their ranges')
 	static final byBlock = new Map<String, WinAccess>();
@@ -168,14 +175,15 @@ class WinAccess {
 		if (c.nodes.length > 0 || c.removed.length > 0) parents = t.parents();
 		var said = t.announcements(old);
 		tree = t;
+		if (log != null) log('update: ${c.nodes.length} changed, listening ${Uia.UiaClientsAreListening()}, ${old == null ? "first" : "again"}');
 		if (old == null || Uia.UiaClientsAreListening() == 0) return;
 		for (n in c.nodes) {
 			var b = old.nodes.get(n.id);
 			if (b != null) changed(b, n);
 		}
-		if (old.focus != t.focus && t.focus != 0) Uia.UiaRaiseAutomationEvent(block(t.focus), 20005); // UIA_AutomationFocusChangedEventId
+		if (old.focus != t.focus && t.focus != 0) raise(block(t.focus), 20005); // UIA_AutomationFocusChangedEventId
 		for (s in said)
-			Uia.UiaRaiseAutomationEvent(block(s.id), 20024); // UIA_LiveRegionChangedEventId
+			raise(block(s.id), 20024); // UIA_LiveRegionChangedEventId
 	}
 
 	// a node's events: what differs from how it was
@@ -183,10 +191,12 @@ class WinAccess {
 		var p = block(n.id);
 		if (b.children.join(",") != n.children.join(",")) Arena.scoped(a -> {
 			// (StructureChangeType_ChildrenInvalidated: its children read again)
+			// (the root's: the window's, UiaRuntimeId's 42 and the HWND)
 			var rid:Ptr<Int32> = a.alloc(8);
-			rid[0] = 3;
-			rid[1] = n.id;
-			Uia.UiaRaiseStructureChangedEvent(p, 2, rid, 2);
+			rid[0] = n.id == tree.root ? 42 : 3;
+			rid[1] = n.id == tree.root ? hwnd.toI64().toInt() : n.id;
+			var hr = Uia.UiaRaiseStructureChangedEvent(p, 2, rid, 2);
+			if (log != null) log('structure ${n.id}: ' + StringTools.hex(hr));
 		});
 		if (b.name != n.name && n.id != tree.root) changedProperty(p, 30005, v -> str(v, b.name), v -> str(v, n.name)); // Name
 		if (b.description != n.description) changedProperty(p, 30013, v -> str(v, b.description ?? ""), v -> str(v, n.description ?? "")); // HelpText
@@ -196,14 +206,14 @@ class WinAccess {
 			changedProperty(p, 30070, v -> int(v, b.expanded == true ? 1 : 0), v -> int(v, n.expanded ? 1 : 0)); // ExpandCollapse.ExpandCollapseState
 		if (b.selected != n.selected && n.selected != null) {
 			changedProperty(p, 30079, v -> bool(v, b.selected == true), v -> bool(v, n.selected)); // SelectionItem.IsSelected
-			if (n.selected) Uia.UiaRaiseAutomationEvent(p, 20012); // SelectionItem_ElementSelectedEventId
+			if (n.selected) raise(p, 20012); // SelectionItem_ElementSelectedEventId
 		}
 		if (b.valueNow != n.valueNow && n.valueNow != null) changedProperty(p, 30047, v -> double(v, b.valueNow ?? 0), v -> double(v, n.valueNow)); // RangeValue.Value
 		if (b.value != n.value && n.value != null) {
 			changedProperty(p, 30045, v -> str(v, b.value ?? ""), v -> str(v, n.value)); // Value.Value
-			if (n.editable()) Uia.UiaRaiseAutomationEvent(p, 20015); // Text_TextChangedEventId
+			if (n.editable()) raise(p, 20015); // Text_TextChangedEventId
 		}
-		if (n.editable() && (b.textStart != n.textStart || b.textEnd != n.textEnd)) Uia.UiaRaiseAutomationEvent(p, 20014); // Text_TextSelectionChangedEventId
+		if (n.editable() && (b.textStart != n.textStart || b.textEnd != n.textEnd)) raise(p, 20014); // Text_TextSelectionChangedEventId
 	}
 
 	// a property's change: its old and new values (VARIANTs, passed by address)
@@ -214,7 +224,8 @@ class WinAccess {
 			clear(v);
 			was(o);
 			now(v);
-			Uia.UiaRaiseAutomationPropertyChangedEvent(p, id, o, v);
+			var hr = Uia.UiaRaiseAutomationPropertyChangedEvent(p, id, o, v);
+			if (log != null) log('property $id: ' + StringTools.hex(hr));
 			OleAut.VariantClear(o);
 			OleAut.VariantClear(v);
 		});
@@ -497,6 +508,12 @@ class WinAccess {
 	@:hxmc.callback static function runtimeId(self:Ptr, out:Ptr<Ptr>):Int {
 		var id = idOf(self);
 		if (id == 0) return NOT_AVAILABLE;
+		// (the root, hosted in the window: none of its own, the window's element is its)
+		var a = adapter(self);
+		if (a != null && a.tree != null && id == a.tree.root) {
+			out.value = Ptr.nil();
+			return S_OK;
+		}
 		// (UiaAppendRuntimeId, then the node's)
 		var sa = OleAut.SafeArrayCreateVector(3, 0, 2);
 		Arena.scoped(a -> {

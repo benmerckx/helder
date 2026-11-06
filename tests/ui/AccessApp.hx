@@ -24,6 +24,13 @@ class AccessApp implements Markup {
 			case _: [400, 640];
 		}
 		var w = new UiWindow(which, size[0], size[1]);
+		#if (hxmc.target == "windows-x86_64" || hxmc.target == "windows-arm64")
+		// (the events UI Automation is given, printed: HELDER_ACCESS_LOG)
+		if (Sys.getEnv("HELDER_ACCESS_LOG") != null) helder.ui.draw.WinAccess.log = s -> {
+			Sys.println("AccessApp: " + s);
+			Sys.stdout().flush();
+		};
+		#end
 		var start = haxe.Timer.stamp();
 		switch which {
 			case "fixture":

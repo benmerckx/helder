@@ -548,7 +548,7 @@ class Run {
 		shell('$x$w$b/WinAccessTest.exe');
 		shell('$x$w$b/WinPatternsTest.exe');
 		var end = wine ? 'kill $$p; wineserver -k; exit $$s' : 'wait $$p && exit $$s', stop = wine ? 'kill $$p; wineserver -k' : 'kill $$p';
-		shell('$x sh -c \'$app fixture & p=$$!; $probe fixture; s=$$?; $end\'');
+		shell('$x sh -c \'HELDER_ACCESS_LOG=1 $app fixture & p=$$!; $probe fixture; s=$$?; $end\'');
 		// (the screens' entries in ASCII: Wine's command line is not UTF-8)
 		for (screen in ACCESS_SCREENS) {
 			var args = [for (a in screen) if (~/^[\x20-\x7e]*$/.match(a)) a];

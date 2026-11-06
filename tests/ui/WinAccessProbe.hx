@@ -374,17 +374,18 @@ class WinAccessProbe {
 		// (Wine's UI Automation hangs adding a focus handler: the events checked on Windows)
 		var events = Sys.getEnv("HELDER_UNDER_WINE") == null;
 		if (events) {
-		Automation.AddFocusChangedEventHandler(uia, Ptr.nil(), handler(Callback.addr(onFocus)));
+		var hrs = [Automation.AddFocusChangedEventHandler(uia, Ptr.nil(), handler(Callback.addr(onFocus)))];
 		Arena.scoped(a -> {
 			var ids:Ptr<Int32> = a.alloc(32);
 			for (k => id in [30005, 30086, 30070, 30079, 30047, 30045])
 				ids[k] = id;
-			Automation.AddPropertyChangedEventHandlerNativeArray(uia, top, 7, Ptr.nil(), handler(Callback.addr(onProperty)), ids, 6);
+			hrs.push(Automation.AddPropertyChangedEventHandlerNativeArray(uia, top, 7, Ptr.nil(), handler(Callback.addr(onProperty)), ids, 6));
 		});
-		Automation.AddStructureChangedEventHandler(uia, top, 7, Ptr.nil(), handler(Callback.addr(onStructure)));
+		hrs.push(Automation.AddStructureChangedEventHandler(uia, top, 7, Ptr.nil(), handler(Callback.addr(onStructure))));
 		var h = handler(Callback.addr(onEvent));
 		for (id in [20014, 20015, 20012])
-			Automation.AddAutomationEventHandler(uia, id, top, 7, Ptr.nil(), h);
+			hrs.push(Automation.AddAutomationEventHandler(uia, id, top, 7, Ptr.nil(), h));
+		check("the handlers added", [for (hr in hrs) if (hr != 0) hr].length == 0, [for (hr in hrs) StringTools.hex(hr)].join(","));
 		}
 		Sys.sleep(0.3);
 		inline function el(t:Int, n:String):Ptr {
