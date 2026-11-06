@@ -98,10 +98,17 @@ TS checked node ─► TS adapter  ──┘
    - **Haxe:** the function is a `macro` function, a thin forwarder that runs
      the Haxe adapter on its argument, calls the handler, and returns the
      generated expression.
-   - **TS:** the API manifest (made from the Haxe types, as today) marks the
-     function as a definition. The TS lowering then runs the TS adapter and
-     calls the same handler, and lowers the generated value into the IR, as
-     it lowers a manifest call today.
+   - **TS:** by its import. A call of a name imported from one of helder's
+     modules that declares definitions (`helder/gfx`'s `shader`,
+     `helder/dev`'s `keep`, `helder/story`'s `story`, `helder/jobs`'s `job`,
+     `helder/asset`'s `image`, `font`, ...: `lower/Definitions.hx`'s table)
+     is one, and so is `<object>.variant(...)` of a slot object
+     (`helder/gfx`'s `slots`). The API manifest does not mark them: a
+     module's own TypeScript (`helder/gfx`) has no manifest entry, and the
+     import is what tsgo has already resolved. The TS lowering runs the TS
+     adapter, calls the same handler, and passes what it made to the
+     function as its last argument (JSON), or lowers the call to what it
+     stands for (keep's slot, an asset's handle, a job).
 5. **Why not an hxmc IR pass:** by IR time, abstracts such as `Vec4` and
    their swizzles are inlined and lambdas are closure-converted. A shader's
    meaning is mostly gone by then. Adapters keep types and structure intact.
@@ -136,8 +143,9 @@ Sky.vertexBytes([{pos: vec2(0, 0)}, ...]);
   replaces `@:position`.
 - `fragment` takes the varyings and returns a colour, or a struct for
   multiple render targets.
-- `compute` comes later, with workgroup size as a field:
-  `shader({compute: ..., workgroup: [8, 8, 1]})`.
+- `compute` is deferred: helder.gfx has no compute pipelines yet (a
+  separate helder.gfx project). When it has, it is a field with its
+  workgroup size: `shader({compute: ..., workgroup: [8, 8, 1]})`.
 
 **Parameters:** a stage takes one object of parameters after its input,
 `(i, p: {sky: SkyParams, image: Texture2D})`. Its fields are uniform blocks
@@ -162,10 +170,11 @@ compiles each one once per shader, by name. A function the handler can't
 compile fails at the caller's line.
 
 **Operators:** Haxe keeps `*`, `+`, `-` and `/` on the math types
-(abstracts). TypeScript starts with `.mul`, `.add`, `.sub` and `.div`. A later
-step lowers `a * b` in TS when both operands are Vec or Mat types. Our TS
-frontend knows the types, but tsgo will reject `*` on objects unless the
-declarations allow it, so this needs a decision on how to type it then.
+(abstracts). TypeScript has `.mul`, `.add`, `.sub` and `.div`, and keeps
+them for now: tsgo rejects `*` on objects whatever our lowering could do
+with it, so `a * b` on Vec and Mat types needs operator typing in the
+checker first (a declaration the checker accepts for `*` between two
+vectors), not only a lowering. That is a later step of its own.
 
 ### Built-ins and names
 
@@ -178,41 +187,80 @@ Built-ins keep WGSL's and TSL's names, so examples carry over:
 
 ### Material slots (from Three.js's TSL)
 
-Extending the standard material should not mean rewriting it. The PBR
-shader becomes a definition with **slots**: partial functions a caller may
-override, each with a default.
+Extending the standard material should not mean rewriting it. A shader
+with **slots** is a slot object: `slots({vertex, fragment, options,
+<slot>: ...})` (helder/gfx, `helder.gfx.shader.Slots`), whose slots are
+functions a caller may replace, each with a default.
 
 ```ts
-export const Glow = material({
-	...pbr,
-	color: (s) => s.baseColor.mul(1.5),
-	emissive: (s, p: {time: number}) => vec3(0.2, 0.6, 1).mul(sin(p.time).mul(0.5).add(0.5)),
-	position: (v) => v.position.add(v.normal.mul(0.02)),
+export const lit = slots({
+	options: {tinted: false},
+	vertex: (v: Vertex, p: {view: View}, m: Lit): Varyings => ...,
+	fragment: (i: Varyings, p: LitParams, m: Lit) => {
+		const s: Surface = {uv: i.uv, base: vec3(i.uv, 1)};
+		return vec4(m.color(s, p).add(m.emissive(s, p)), 1);   // the slots
+	},
+	color: baseColor,     // a module-level function: (s: Surface, p: {tint: Tint}) => Vec3
+	emissive: noLight,
 });
+
+export const Glow = lit.with({
+	emissive: (s: Surface, p: {time: Time}) => vec3(0.2, 0.6, 1).mul(sin(p.time.seconds.x) * 0.5 + 0.5),
+}).variant({tinted: true});
 ```
 
-- **Slots:** `pbr` is an object of slot functions (`color`, `normal`,
-  `roughness`, `metalness`, `emissive`, `alpha`, `position`). Spreading it
-  and overriding some is plain object syntax in both languages.
-- **Parameters:** a slot's extra parameters join the material's uniform
-  blocks.
-- **Generated material:** `material(...)` produces a full shader with the
-  slots inlined, plus the material type helder.scene renders with.
-- **Haxe:** `{...pbr, color: s -> ...}` is the same with Haxe's object spread.
-  Where Haxe can't spread a typed object literal, use the struct-with-defaults
-  equivalent, `pbr.with({color: ...})`.
+- **The object:** the stages take it as their third parameter, `m`:
+  `m.<slot>(s, p)` calls a slot, `m.options.<name>` reads an option. Its
+  type is the program's (a structure of the options and the slots'
+  function types), so both checkers type the stages as plain code.
+- **Slots:** a slot takes its input and, optionally, an object of
+  parameters of its own. Its fields are the stage's parameters of the same
+  names (the material's block, its textures); the others join the shader's
+  uniform blocks and textures after the stage's (a block of the
+  material's own: `Glow.params.time`).
+- **Overriding:** `lit.with({emissive: ...})` in both languages (Haxe has
+  no object spread); TypeScript also spreads it, `slots({...lit,
+  emissive: ...})`. A replaced slot's input type is the object type's when
+  not written.
+- **helder.scene:** the standard material is one, `pbr` (slots `color`,
+  `alpha`, `normal`, `roughness`, `metalness`, `emissive`, of the
+  fragment's surface; `position`, of the vertex's point).
+  `MaterialShader.material(pbr.with({...}))` produces the material's own
+  shaders with the slots inlined (every variant the renderer draws with)
+  and the material type helder.scene renders with (`material.shader`, its
+  own blocks in `material.uniforms`). examples/glow replaces two slots.
+  helder.scene has no TypeScript declarations yet, so `pbr` and `material`
+  are Haxe's; TypeScript's slot objects are its own (the parity case:
+  tests/typescript/definitions/glow.ts).
 
 ### Variants
 
-A definition can take options, which are plain fields with static values:
+A slot object's options are plain fields with static values:
 
 ```ts
-const Lit = pbr.variant({normalMap: true, skinned: false, instanced: true});
+const Lit = pbr.variant({normalMap: true, instanced: true});
 ```
 
-- Inside a shader, a test of an option (`if (opts.normalMap)`) is folded at
-  build time, so each variant compiles only what it uses.
-- A `for` over a compile-time constant is unrolled.
+- A variant is a definition: compiled at build time, a `Shader`.
+- Inside it, a test of an option (`if (m.options.normalMap)`, a ternary, `!`,
+  `&&`, `||`, comparisons) is folded, so each variant compiles only what
+  it uses.
+- A `for` over compile-time constants is unrolled (in Haxe the typer's
+  form of `for (k in 0...n)`, in TS `for (let k = a; k < b; k++)`), its
+  variable a constant in each copy.
+- What a variant never reads of the **optional** fields is dropped: the
+  vertex's (its attributes), the varyings' (with the values the vertex
+  stage built them from), the stages' parameters'. helder.scene's pbr has
+  one combined vertex, `{pos, normal, uv, ?tangent, ?joints, ?weights,
+  ?m0, ..., ?m3}`, laid out as each variant reads it: the five standard
+  variants and the shadow casters' three have the layouts, uniform blocks
+  and slots the hand-written shaders had, and the scenes' frames are the
+  same pixels.
+- On the CPU a variant's stages are the object's with the options and
+  slots inlined (Haxe: static functions of a module made with the object's
+  module's imports, as hxmc calls functions of struct values by their
+  exact types; an override with parameters of its own runs on the GPU
+  only). The object itself is nothing at run time in Haxe.
 
 This covers what TSL gets from running JavaScript to build its graph,
 without a compiler at run time.
@@ -220,14 +268,18 @@ without a compiler at run time.
 ### Inferred uniforms (optional sugar)
 
 ```ts
-const time = uniform(0);     // a uniform value, set from the CPU: time.value = t
-const Pulse = shader({fragment: (i) => vec4(sin(time.value), 0, 0, 1)});
+export const time = uniform(0);     // a uniform value, set from the CPU: time.value = t
+const Pulse = shader({vertex: ..., fragment: (i) => vec4(sin(time.value), 0, 0, 1)});
 ```
 
-A shader that reads a `uniform(...)` definition gets that value in a
-generated uniform block, filled from the definition at draw
-(`Pulse.bind(encoder)`). This sits beside the explicit params form, not
-instead of it.
+A shader that reads a `uniform(...)`'s `value` (a module-level constant,
+here or imported) gets that value in a generated uniform block,
+`Uniforms`, a field per uniform in the order they are first read, a
+parameter of the stages that read it (`params.uniforms`, after the
+others). `Pulse.uniformBytes()` is the block of the uniforms' current
+values, `Pulse.bind(encoder)` binds it at its slot. This sits beside the
+explicit params form, not instead of it; on the CPU the stages read the
+value itself.
 
 ### Compared with TSL
 
@@ -252,16 +304,25 @@ instead of it.
 | `keep(key, () => initial)` | a key literal and an initialiser | Generates a dev-reload slot, replacing `Hot.keep` and `Hot.save`. |
 
 As built (step 4):
-- `keep` is `helder.dev.Keep`'s in Haxe, `helder/dev`'s in TS. Its slot is
-  a signal's: the key in Hot's scope, the value's type hashed (Haxe) or
-  its written type argument (TS), the initial value's source hashed (an
-  edit to it starts afresh, said so). `Hot.keep` is gone. `Hot.save`,
-  `load` and `onSnapshot` stay as the state libraries' primitives (signals,
+- `keep` is `helder.dev.Keep`'s in Haxe, `helder/dev`'s in TS:
+  `keep(key, () => initial)`, a key literal and a function of no
+  arguments (rejected otherwise, with the same diagnostic in both
+  languages: a key that is not static or empty, an initialiser that takes
+  arguments). Its slot is a signal's: the key in Hot's
+  scope, the value's type hashed (Haxe) or its written type argument (TS),
+  the initial value's source hashed (an edit to it starts afresh, said
+  so); `helder dev` keeps the value across a reload, and a build that is
+  not a dev build is `initial()`. `Hot.keep` is gone. `Hot.save`, `load`
+  and `onSnapshot` stay as the state libraries' primitives (signals,
   helder.scene's HotWorld): a program writes `keep`.
-- `story` is `helder.story.Story`'s in Haxe, `helder/story`'s in TS. A
-  story file's stories are its module-level values (`Stories.of(module)`);
-  `store: true` marks a store screenshot. A release build is `-D
-  helder.release` (helder build's), where the call is null.
+- `story` is `helder.story.Story`'s in Haxe, `helder/story`'s in TS:
+  `story({name, render, seed, store, caption, ...})`, its fields checked
+  where it is written (static ones static, a seed an integer literal, a
+  caption a store screenshot's). A story file's stories are its module-level values
+  (`Stories.of(module)`); `helder publish --dry-run` and the extension list
+  them, `store: true` marks a store screenshot. A release build is `-D
+  helder.release` (helder build's), where the call is null and its
+  argument is not compiled.
 - `job` is `Jobs.job`'s in Haxe, `helder/jobs`'s in TS. One handler,
   `JobDefinition`, checks the input, the result and the constants the
   function reads (TS's: a worker's instance does not run the program's
@@ -281,9 +342,11 @@ A definition may contain markup; `story`'s `render` does.
 
 ### Writing a new definition
 
-A handler is a Haxe class in helder or in a library, registered with
-`@:definition`. In Haxe, `@:definition` sits on its forwarding `macro`
-function, which is enough for the TS manifest to mark it too.
+A handler is a Haxe class in helder or in a library. In Haxe,
+`@:definition` sits on its forwarding `macro` function. In TS a
+definition is recognised by its import (2): its module and name join
+`lower/Definitions.hx`'s table, with the TS adapter's call of the
+handler.
 
 ```haxe
 class ShaderDefinition implements Definition<ShaderDef, ShaderValue> {
@@ -311,15 +374,18 @@ removed in the same step that replaces them.
    - the generated GLSL, WGSL, MSL and HLSL must be byte-identical to
      today's for each migrated shader (the gfx-shader lane);
    - then `Shaders`, `Macro` and the metadata go.
-3. **The TS adapter and `shader` in TS:** the manifest marks definitions,
-   and `helder.typescript.lower` runs the TS adapter. A TS sky shader and a
+3. **The TS adapter and `shader` in TS:** a definition is recognised by
+   its import, and `helder.typescript.lower` runs the TS adapter. A TS sky shader and a
    TS sprite example must produce byte-identical shader text to the Haxe
    ones.
 4. **`job`, `image` and the asset definitions, `actions`, `keep`, `story`:**
    each replaces its macro and moves its users over.
 5. **Material slots and variants:** `pbr` as a slot object, plus `material`
-   and `variant`. The standard scenes' goldens are unchanged.
-6. **`uniform` sugar, `compute`, and TS operators** on the math types.
+   and `variant`. The standard scenes' goldens are unchanged. (Done: and
+   before it, each stage's parameters as one object, `(i, p: {...})`.)
+6. **`uniform` sugar.** (Done.) `compute` waits on compute pipelines in
+   helder.gfx, TS operators on operator typing in the checker (3).
+7. **`actions`**, which waits on its design.
 
 Tests:
 - the gfx-shader lane, comparing shader text before and after;
