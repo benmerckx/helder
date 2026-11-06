@@ -870,7 +870,7 @@ class Regex {
 			for (m in results) {
 				var matched = Seed.text(get(m, 0));
 				var position = Std.int(Math.max(Math.min(toIntegerOrInfinity(get(m, "index")), s.length), 0));
-				var n = Std.int(Builtins.lengthOf(m));
+				var n = Std.int(Arrays.lengthOf(m));
 				var captures:Array<Dynamic> = [for (k in 1...n) {
 					var c = get(m, k);
 					c == undef() ? c : Seed.text(c);

@@ -9,7 +9,7 @@ class Numbers {
 	public static function setup():Void {
 		var p = Builtins.NumberProto;
 		function method(name:String, arity:Int, fn:(Float, Dynamic) -> Dynamic)
-			p.setOwn(name, Builtins.nativeFunction(name, arity, (t, a, _) -> fn(Builtins.primitive(t, "number"), arg(a, 0))), Attr.HIDDEN);
+			p.setOwn(name, Builtins.nativeFunction(name, arity, (t, a, _) -> fn(Objects.primitive(t, "number"), arg(a, 0))), Attr.HIDDEN);
 		method("toString", 1, (x, radix) -> {
 			var r = radix == undef() ? 10 : toIntegerOrInfinity(radix);
 			if (r < 2 || r > 36) return error("RangeError", "toString() radix must be between 2 and 36");

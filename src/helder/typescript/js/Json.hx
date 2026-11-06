@@ -256,7 +256,7 @@ class Json {
 			var parts:Array<String> = [];
 			var out:String;
 			if (Std.isOfType(v, JsArray)) {
-				var n = Builtins.lengthOf(v);
+				var n = Arrays.lengthOf(v);
 				var j:Float = 0;
 				while (j < n) {
 					var item = serialize(v, Seed.numberText(j), inner);

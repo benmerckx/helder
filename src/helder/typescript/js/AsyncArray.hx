@@ -52,7 +52,7 @@ class AsyncArray {
 		}
 		function store(value:Dynamic, done:() -> Void):Void {
 			try {
-				Builtins.defineProperty(out, Seed.numberText(index), object(["value", "writable", "enumerable", "configurable"], [value, true, true, true]));
+				Objects.defineProperty(out, Seed.numberText(index), object(["value", "writable", "enumerable", "configurable"], [value, true, true, true]));
 				index++;
 				done();
 			} catch (e:Dynamic) {
@@ -149,7 +149,7 @@ class AsyncArray {
 			}
 			else {
 				source = toObject(source);
-				length = Builtins.lengthOf(source);
+				length = Arrays.lengthOf(source);
 				if (isConstructor(ctor)) out = construct(ctor, [length], ctor);
 				else {
 					var created:JsArray = cast array([]);

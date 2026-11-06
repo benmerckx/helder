@@ -92,7 +92,7 @@ class Classes {
 	public static function direct(m:Node):Bool
 		return m.kind == KindMethodDeclaration && m.body() != null && (m.name().kind == KindIdentifier || m.name().kind == KindStringLiteral)
 			&& m.asteriskToken() == null && !m.modifiers().exists(x -> x.kind == KindStaticKeyword || x.kind == KindAsyncKeyword)
-			&& !Frontend.usesArguments(m.body());
+			&& !Core.usesArguments(m.body());
 
 	function layout(n:Node):Null<ClassLayout> {
 		if (n.modifiers().exists(m -> m.kind == KindDeclareKeyword)) return null;
@@ -105,7 +105,7 @@ class Classes {
 		// (its constructor runs on an instance made before: no `return value`, no new.target, no `arguments`)
 		var ctor = null;
 		for (m in n.members()) if (m.kind == KindConstructor && m.body() != null) ctor = m;
-		if (ctor != null && (returnsValue(ctor.body()) || Frontend.usesArguments(ctor.body()))) return null;
+		if (ctor != null && (returnsValue(ctor.body()) || Core.usesArguments(ctor.body()))) return null;
 		if (mentions(n, KindMetaProperty)) return null;
 		var c = new ClassLayout(n, n.name().text, all.length, parent);
 		for (m in n.members()) if ((m.kind == KindMethodDeclaration || m.kind == KindGetAccessor || m.kind == KindSetAccessor)
@@ -122,7 +122,7 @@ class Classes {
 			if (m.name().kind == KindPrivateIdentifier) continue;
 			if (!field(m.name())) return null;
 		}
-		for (m in n.members()) if (m.kind == KindConstructor) for (p in Frontend.parametersOf(m))
+		for (m in n.members()) if (m.kind == KindConstructor) for (p in Core.parametersOf(m))
 			if (isParameterProperty(p) && p.name().kind == KindIdentifier && !field(p.name())) return null;
 		return c;
 	}

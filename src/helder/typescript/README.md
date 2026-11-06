@@ -93,11 +93,21 @@ version. Regenerating is only needed to use new syntax.
 
 ## Lowering (`lower/`, `ir/`)
 
-`lower/Frontend.hx` lowers the checked AST to hxmc IR in evaluation order. Values
+`lower/Frontend.hx` lowers the checked AST to hxmc IR in evaluation order,
+one class in layers, each a file extending the one before: `Core.hx` (the
+state, bindings, coercions; what a layer calls in a later one declared
+abstract), `Functions.hx` (parameters, patterns, closures, generators'
+and async functions' step functions), `Statements.hx` (control flow),
+`Expressions.hx` (operators, literals, calls, chains), `ClassValues.hx`
+(classes, those with a layout), `ApiCalls.hx` (helder's API, Math), and
+`Frontend.hx` itself (the modules, their imports and exports). Values
 are JavaScript values (`js/`): objects with prototypes, sparse arrays,
 closures, classes, iterators, generators, promises with an event loop,
 RegExp, Date, Map/Set, iterator helpers, ArrayBuffer/DataView, JSON and
-node's `console.log` formatting. `ir/` has the IR builder, a verifier for the frontend's
+node's `console.log` formatting; `Builtins.hx` installs the built-ins,
+each family's in a file of its own (`Objects.hx`, `Arrays.hx`,
+`Strings.hx`, `Collections.hx`, `Globals.hx`, and `Dates.hx`, `Regex.hx`...
+for the optional ones). `ir/` has the IR builder, a verifier for the frontend's
 functions and a text form (`--dump-ir`, the tests' round trip).
 
 ### Strict: types are what values look like

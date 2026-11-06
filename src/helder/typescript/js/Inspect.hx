@@ -178,7 +178,7 @@ class Inspect {
 
 	function propertyKeys(o:JsObject, skipIndices:Bool):Array<String> {
 		var out:Array<String> = [];
-		for (k in Builtins.ownPropertyKeys(o)) {
+		for (k in Objects.ownPropertyKeys(o)) {
 			if (!showHidden && o.attr(k) & Attr.HIDDEN != 0 || !o.hasOwn(k) && !(showHidden && Std.isOfType(o, JsArray) && k == "length")) continue;
 			if (Symbols.isSymbolKey(k) && Symbols.fromKey(k) == null) continue;
 			if (skipIndices && index(k) >= 0) continue;

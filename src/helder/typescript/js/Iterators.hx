@@ -40,6 +40,7 @@ class JsIteratorHelper extends JsObject {
 }
 
 @:access(helder.typescript.js.Builtins)
+@:access(helder.typescript.js.Objects)
 class Iterators {
 	static var HelperProto:JsObject;
 	static var WrapperProto:JsObject;
@@ -236,7 +237,7 @@ class Iterators {
 		proto.setOwn(key, new Accessor(Builtins.nativeFunction("get " + name, 0, (_, _, _) -> value), Builtins.nativeFunction("set " + name, 1, (t, a, _) -> {
 			require(t);
 			if (t == proto) return error("TypeError", "Cannot set an intrinsic Iterator prototype property");
-			if (hasOwnKey(t, key)) put(t, key, arg(a, 0)); else Builtins.defineProperty(t, key, object(["value", "writable", "enumerable", "configurable"], [arg(a, 0), true, true, true]));
+			if (hasOwnKey(t, key)) put(t, key, arg(a, 0)); else Objects.defineProperty(t, key, object(["value", "writable", "enumerable", "configurable"], [arg(a, 0), true, true, true]));
 			return undef();
 		})), Attr.HIDDEN);
 	}

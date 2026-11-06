@@ -9,6 +9,7 @@ private typedef Cursor = {object:Dynamic, next:Dynamic};
 // Set algebra uses the set-like protocol, rather than requiring another Set.
 
 @:access(helder.typescript.js.Builtins)
+@:access(helder.typescript.js.Collections)
 class Sets {
 	public static function setup():Void {
 		for (name in ["union", "intersection", "difference", "symmetricDifference", "isSubsetOf", "isSupersetOf", "isDisjointFrom"])
@@ -21,10 +22,10 @@ class Sets {
 		return n;
 	}
 
-	static function contains(m:JsMap, v:Dynamic):Bool return Builtins.mapIndex(m, v) >= 0;
+	static function contains(m:JsMap, v:Dynamic):Bool return Collections.mapIndex(m, v) >= 0;
 
 	static function add(m:JsMap, v:Dynamic):Void {
-		Builtins.mapPut(m, v, v);
+		Collections.mapPut(m, v, v);
 	}
 
 	static function copy(m:JsMap):JsMap {
@@ -66,20 +67,20 @@ class Sets {
 	}
 
 	static function run(name:String, t:Dynamic, other:Dynamic):Dynamic {
-		var m = Builtins.thisMap(t, true, name), r = record(other);
+		var m = Collections.thisMap(t, true, name), r = record(other);
 		if (name == "isSubsetOf" && size(m) > r.size) return false;
 		if (name == "isSupersetOf" && size(m) < r.size) return false;
 		if (name == "difference") {
 			var out = copy(m);
 			if (size(m) <= r.size) {
-				for (i in 0...out.keys.length) if (out.active[i] && Seed.truth(call(r.has, r.object, [out.keys[i]]))) Builtins.mapDelete(out, out.keys[i]);
+				for (i in 0...out.keys.length) if (out.active[i] && Seed.truth(call(r.has, r.object, [out.keys[i]]))) Collections.mapDelete(out, out.keys[i]);
 			}
 			else {
 				var it = cursor(r);
 				while (true) {
 					var v = step(it);
 					if (v == finished) break;
-					Builtins.mapDelete(out, v);
+					Collections.mapDelete(out, v);
 				}
 			}
 			return out;
@@ -106,7 +107,7 @@ class Sets {
 			switch (name) {
 				case "union": add(out, value);
 				case "intersection": if (has) add(out, value);
-				case "symmetricDifference": if (has) Builtins.mapDelete(out, value); else if (!contains(out, value)) add(out, value);
+				case "symmetricDifference": if (has) Collections.mapDelete(out, value); else if (!contains(out, value)) add(out, value);
 				case "isSupersetOf":
 					if (!has) {
 						close(it);

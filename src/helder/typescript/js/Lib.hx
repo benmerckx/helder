@@ -637,7 +637,7 @@ class Lib {
 
 	public static function toObject(v:Dynamic):JsObject {
 		if (v == null || v == undef()) return error("TypeError", "Cannot convert undefined or null to object");
-		return isObject(v) ? v : Builtins.wrap(v);
+		return isObject(v) ? v : Objects.wrap(v);
 	}
 
 	// Arrays, objects and iteration.
@@ -722,7 +722,7 @@ class Lib {
 		var seen:Map<String, Bool> = [];
 		var out:Array<Dynamic> = [];
 		while (obj != null) {
-			for (k in Builtins.ownPropertyKeys(obj)) {
+			for (k in Objects.ownPropertyKeys(obj)) {
 				if (Symbols.isSymbolKey(k) || seen.exists(k)) continue;
 				seen.set(k, true);
 				if (obj.attr(k) & Attr.HIDDEN == 0 && hasOwnKey(obj, k) && !(Std.isOfType(obj, JsArray) && k == "length") && !(Std.isOfType(obj, JsFunction) && !obj.hasOwn(k))) out.push(k);

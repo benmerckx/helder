@@ -407,7 +407,7 @@ class Seed {
 		return o;
 	}
 
-	public static function libTemplateObject(cooked:Array<Dynamic>, raw:Array<Dynamic>):Dynamic return Builtins.templateObject(cooked, raw);
+	public static function libTemplateObject(cooked:Array<Dynamic>, raw:Array<Dynamic>):Dynamic return Globals.templateObject(cooked, raw);
 
 	public static function libAsync(step:Dynamic):Dynamic return Promises.async(step);
 
