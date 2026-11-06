@@ -383,7 +383,9 @@ Still to come:
       frontend, typed so tsgo accepts them;
     - native interop as definitions (`native.c({lib, fns})`, `native.com`,
       `native.objc`, `native.jni`) generating the externs, with hxmc's
-      interop types declared;
+      interop types declared (`native.c` done: helder/native, its C types,
+      pointers and buffers, on hxmc's extern machinery; objc, com and jni
+      not yet);
     - small functions inlined and generics over numbers specialised, branded
       number types free (hot paths in TS near Haxe's speed);
     - BigInt; the `bench/` programs against the same in Haxe, not only

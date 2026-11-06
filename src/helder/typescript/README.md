@@ -199,6 +199,28 @@ the other branch calls is not reached and not linked (tests/typescript/platform:
 a Windows branch's kernel32 import absent from the Linux and WASI builds,
 in TypeScript and Haxe).
 
+`helder/native` (src/helder/native/index.ts) calls C:
+`native.c({lib, fns: {strlen: (s: cstring): usize => 0}})` is a definition
+whose functions' annotations are their C signatures (helder/native's
+`i8` ... `u64`, `isize`, `usize`, `f32`, `f64`, `bool`, `cstring`,
+`pointer`, `buffer`; `number`, `boolean`, `string`, `void`), their bodies
+never run. Each is lowered (`Expressions.nativeLibrary`) to a direct
+function calling the symbol through hxmc's own extern machinery (its
+signature, library and safe region in `hxmc.ir.CInterop`'s tables, as a
+Haxe `@:hxmc.c @:hxmc.lib(lib)` extern's), its arguments converted (a
+string a malloc'd UTF-8 copy for the call, a Uint8Array's bytes copied in
+and back: `helder.native.Script`), and the result an object of those
+functions. Pointers are numbers; `native.string`, `native.bytes` and
+`native.free` read and free C's memory. No `lib` is libc (in Linux's glibc
+mode libc.so.6; `m` and `c` there are libm.so.6 and libc.so.6); wasm32-wasi
+has no C library, so a function there needs the module its host imports
+it from. tests/typescript/native: libc.ts (getpid, strlen, memset into a
+buffer, strdup and strchr, libm) natively, statically and with glibc;
+corefoundation.ts on a Mac. Not yet: `native.objc`, `native.com`,
+`native.jni` (Haxe's `@:hxmc.objc`, `@:hxmc.com` and `@:hxmc.jni` classes
+are hxmc's own lowering of typed Haxe classes, which the frontend does not
+make), callbacks, structs by value, variadic functions.
+
 `helder/test` (src/helder/test/index.ts, TypeScript over
 `helder/test/runner`) is helder.test for `*.test.ts(x)`: its assertions'
 calls are given their file and line as their last argument, as Haxe's

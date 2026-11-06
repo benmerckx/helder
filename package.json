@@ -40,6 +40,12 @@
     "./story": {
       "types": "./src/helder/story/index.d.ts"
     },
+    "./native": {
+      "types": "./src/helder/native/index.ts"
+    },
+    "./native/runtime": {
+      "types": "./src/helder/native/runtime.d.ts"
+    },
     "./platform": {
       "types": "./src/helder/platform/index.ts"
     },

@@ -139,6 +139,32 @@ for(const file of fs.readdirSync(`${T}/helder`).filter(f=>/\.tsx?$/.test(f)&&!f.
         console.log('PASS platform control (a condition that is no constant: GetTickCount64 linked)');
     }
 }
+// helder/native's native.c: native/libc.ts (libc's and libm's functions:
+// numbers, C strings both ways, a buffer C fills, a pointer freed) built
+// natively, statically (musl) and in glibc's dynamic mode, its output
+// native/libc.out; for wasm32-wasi refused (no C library) at its line. On a
+// Mac, native/corefoundation.ts (Core Foundation's C API by the framework's path)
+{
+    const N=`${T}/native`,want=fs.readFileSync(`${N}/libc.out`,'utf8');
+    if(process.platform==='linux') for(const mode of [[],['-D','hxmc.libc=glibc']]) {
+        const out=`${dir}/native-libc${mode.length?'-glibc':''}`;
+        ok(run(compiler,[`${N}/libc.ts`,...mode,'-o',out]),`native/libc.ts compile ${mode.join(' ')}`);
+        const r=run(out,[]);ok(r,`native/libc.ts ${mode.join(' ')}`);
+        assert.equal(r.stdout,want,`native/libc.ts stdout ${mode.join(' ')}`);
+        console.log(`PASS native libc.ts linux-x86_64${mode.length?' (glibc)':''}`);
+    }
+    const w=run(compiler,[`${N}/libc.ts`,'--target','wasm32-wasi','-o',`${dir}/native-libc.wasm`]);
+    assert.notEqual(w.status,0,'native/libc.ts for wasm32-wasi should be refused');
+    assert.ok(w.stderr.includes('libc.ts:8: TSHX001: native.c: wasm32-wasi has no C library'),`native/libc.ts for wasm32-wasi: ${w.stderr}`);
+    console.log('PASS native libc.ts wasm32-wasi (refused: no C library)');
+    if(process.platform==='darwin') {
+        const out=`${dir}/native-cf`;
+        ok(run(compiler,[`${N}/corefoundation.ts`,'-o',out]),'native/corefoundation.ts compile');
+        const r=run(out,[]);ok(r,'native/corefoundation.ts');
+        assert.equal(r.stdout,'true 12\ntrue\n','native/corefoundation.ts stdout');
+        console.log('PASS native corefoundation.ts');
+    }
+}
 // Programs whose values their types do not describe: compiled, then stopped
 // where such a value enters a typed slot (TSHX100, at the line of expect)
 for(const file of fs.readdirSync(`${T}/diverge`).filter(f=>f.endsWith('.ts')).sort())for(const target of targets) {

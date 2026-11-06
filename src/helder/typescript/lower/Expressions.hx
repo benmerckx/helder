@@ -594,6 +594,165 @@ abstract class Expressions extends Statements {
 		return bridge.call(bridge.fn("helder_jobs_script_Job_make"), [EInt(index), pack([for (c in captures) read(get(c, n))])]);
 	}
 
+	// native.c({lib, fns}) (helder/native): an object of the program's
+	// functions, each a call of the C function of its name (hxmc's extern
+	// machinery: its signature in CInterop's tables, called as Haxe's
+	// @:hxmc.c externs are), its C types read from its annotations
+	function nativeLibrary(n:Node, def:Null<Node>):Ex {
+		if (bridge == null) fail(n, "native.c: helder/native is not declared to the program");
+		if (def == null || def.kind != KindObjectLiteralExpression) fail(n, "native.c takes one argument, an object literal: {lib, fns}");
+		var lib:Null<String> = null, fns:Null<Node> = null;
+		for (f in def.properties()) {
+			var key = f.name() == null ? "" : f.name().text;
+			if (f.kind != KindPropertyAssignment) fail(f, 'native.c: $key is a field of the object literal ($key: ...)');
+			var v = f.initializer();
+			switch key {
+				case "lib":
+					if (v.kind != KindStringLiteral && v.kind != KindNoSubstitutionTemplateLiteral) fail(v, "native.c: lib is a string literal (the library's name or path)");
+					lib = v.text;
+				case "fns":
+					if (v.kind != KindObjectLiteralExpression) fail(v, "native.c: fns is an object literal of functions");
+					fns = v;
+				case _: fail(f, 'native.c: no field $key (lib, fns)');
+			}
+		}
+		if (fns == null) fail(n, "native.c: fns, the functions, is missing");
+		var keys = [], values = [];
+		for (f in fns.properties()) {
+			var name = f.name() == null ? "" : f.name().text;
+			var fn = f.kind == KindPropertyAssignment ? f.initializer() : f.kind == KindMethodDeclaration ? f : null;
+			if (fn == null || (fn.kind != KindArrowFunction && fn.kind != KindFunctionExpression && fn.kind != KindMethodDeclaration))
+				fail(f, 'native.c: $name is not a function (its parameters and result annotated with helder/native\'s C types)');
+			keys.push(EStr(name));
+			values.push(functionValue(nativeFunction(lib, name, fn), name));
+		}
+		return b.runtime("libObject", [pack(keys), pack(values)]);
+	}
+
+	// (a C type of helder/native's, by an annotation: the name it is imported as
+	// from there, or number, boolean, string, void)
+	function nativeType(t:Null<Node>, at:Node, what:String):String {
+		var types = ["i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "isize", "usize", "f32", "f64", "bool", "cstring", "pointer", "buffer"];
+		if (t == null) fail(at, 'native.c: $what has no type (helder/native\'s C types: ${types.join(", ")}, void)');
+		switch t.kind {
+			case KindNumberKeyword: return "f64";
+			case KindBooleanKeyword: return "bool";
+			case KindStringKeyword: return "cstring";
+			case KindVoidKeyword: return "void";
+			case KindTypeReference if (t.typeName().kind == KindIdentifier):
+				var from = Definitions.Scope.imported(t.file, t.typeName().text);
+				if (from != null && from.module == "helder/native" && types.contains(from.name)) return from.name;
+			case _:
+		}
+		return fail(t, 'native.c: $what\'s type is not a C type (helder/native\'s: ${types.join(", ")}; number, boolean, string, void)');
+	}
+
+	static function nativeC(k:String):hxmc.ir.CInterop.CTy
+		return switch k {
+			case "i8": CI8;
+			case "u8": CU8;
+			case "i16": CI16;
+			case "u16": CU16;
+			case "i32" | "u32": CI32;
+			case "i64" | "u64" | "isize" | "usize": CI64;
+			case "f32": CF32;
+			case "f64": CF64;
+			case "bool": CBool;
+			case "void": CVoid;
+			case _: CPtr;
+		}
+
+	// (the C value's IR type)
+	static function nativeIr(k:String):Ty
+		return switch k {
+			case "i8" | "u8" | "i16" | "u16" | "i32" | "u32": TI32;
+			case "f32" | "f64": TF64;
+			case "bool": TBool;
+			case "void": TVoid;
+			case _: TI64;
+		}
+
+	// a C function as a direct function of the program: its arguments made C's,
+	// the call (a C string's and a buffer's memory freed after it), its result the program's
+	function nativeFunction(lib:Null<String>, name:String, fn:Node):FuncInfo {
+		var params = fn.parameters();
+		var kinds = [for (q in params) nativeType(q.type(), q, "parameter " + q.name().text)];
+		for (k in kinds) if (k == "void") fail(fn, 'native.c: $name takes void');
+		var ret = nativeType(fn.type(), fn, name + "'s result");
+		var rep = k -> switch k {
+			case "bool": TBool;
+			case "cstring" | "buffer": TRef(RAny);
+			case "void": TVoid;
+			case _: TF64;
+		};
+		var fi = Builder.func(p, "native_" + name + "_" + serial++, rep(ret));
+		fi.args = [for (i in 0...params.length) new Local(i, params[i].name().kind == KindIdentifier ? params[i].name().text : "a" + i, rep(kinds[i]))];
+		var outer = b;
+		b = new Builder(p, fi);
+		var where = Project.relative(fn.file.path) + ":" + fn.file.line(fn.file.skipTrivia(fn.pos));
+		var script = n -> bridge.fn("helder_native_Script_" + n);
+		var xs:Array<Ex> = [], after:Array<() -> Void> = [];
+		for (i in 0...kinds.length) {
+			var x = ELocal(fi.args[i]);
+			xs.push(switch kinds[i] {
+				case "i8" | "u8" | "i16" | "u16" | "i32" | "u32": b.temp(EConv(L2I, EConv(F2L, x)));
+				case "f32" | "f64" | "bool": x;
+				case "cstring":
+					var at = b.temp(bridge.call(script("cstring"), [x]));
+					after.push(() -> bridge.call(script("free"), [at]));
+					b.temp(EConv(F2L, at));
+				case "buffer":
+					var bytes = b.temp(bridge.call(bridge.interop("bytes"), [x, EStr(where)]));
+					var at = b.temp(bridge.call(script("bytesIn"), [bytes]));
+					after.push(() -> bridge.call(script("bytesBack"), [at, bytes]));
+					b.temp(EConv(F2L, at));
+				case _: b.temp(EConv(F2L, x));
+			});
+		}
+		// (hxmc's tables of C functions, as CInterop.declare fills them for Haxe's externs;
+		// WebAssembly: a library's function the import (lib, name))
+		var sym = name;
+		if (hxmc.ir.Lower.targetOs == 3 && lib == null) fail(fn, 'native.c: wasm32-wasi has no C library: lib names the module its host imports $name from');
+		if (hxmc.ir.Lower.targetOs == 3 && lib != null && lib != "env") {
+			sym = "@import:" + lib.length + ":" + lib + "." + name;
+			hxmc.ir.CInterop.IMPORT_NAMES.set(sym, name);
+		}
+		var sig:hxmc.ir.CInterop.CSig = {args: [for (k in kinds) nativeC(k)], ret: nativeC(ret)};
+		var prev = hxmc.ir.CInterop.SIGS.get(sym);
+		if (prev != null && (prev.ret != sig.ret || prev.args.length != sig.args.length || [for (i in 0...sig.args.length) prev.args[i] != sig.args[i]].contains(true)))
+			fail(fn, 'native.c: $name is declared with another signature (by helder\'s Haxe or hxmc\'s runtime)');
+		if (prev == null) hxmc.ir.CInterop.SIGS.set(sym, sig);
+		// (a call in a safe region, as a Haxe extern's that is not @:hxmc.fast; one the runtime declares fast stays so)
+		if (!hxmc.ir.FnLower.C_EXTERNS.exists(sym)) hxmc.ir.CInterop.BLOCKING.set(sym, true);
+		// (Linux's glibc mode: libc's functions the runtime does not import are the program's, libc.so.6's)
+		var glibc = hxmc.ir.Lower.targetOs == 0 && definitions.define("hxmc.libc") == "glibc" && hxmc.ir.Lower.targetCode != 9 && hxmc.ir.Lower.targetCode != 10;
+		// (and libm and libc by their short names, their files: libm.so is a linker script)
+		if (glibc && (lib == "m" || lib == "c")) lib = 'lib$lib.so.6';
+		if (lib != null) hxmc.ir.CInterop.LIBS.set(sym, lib) else if (glibc && !hxmc.ir.CInterop.LIBS.exists(sym)) hxmc.ir.CInterop.LIBS.set(sym, "libc.so.6");
+		hxmc.ir.CInterop.USER.set(sym, true);
+		var t = nativeIr(ret);
+		var call = ECallHost(sym, Vector.fromArrayCopy(xs), t);
+		var r:Null<Ex> = null;
+		if (t == TVoid) b.out.push(SExpr(call)) else r = b.temp(call);
+		for (f in after) f();
+		switch ret {
+			case "void": b.out.push(SReturn(null));
+			case "u32":
+				var l = b.local("unsigned", TF64);
+				b.out.push(SSet(l, EConv(I2F, r)));
+				b.out.push(SIf(EBin(FLt, ELocal(l), EF64(0)), Vector.fromArrayCopy([SSet(l, EBin(FAdd, ELocal(l), EF64(4294967296.0)))]), new Vector(0)));
+				b.out.push(SReturn(ELocal(l)));
+			case "i8" | "u8" | "i16" | "u16" | "i32": b.out.push(SReturn(EConv(I2F, r)));
+			case "f32" | "f64" | "bool": b.out.push(SReturn(r));
+			case "cstring": b.out.push(SReturn(b.coerce(bridge.call(script("string"), [EConv(L2F, r)]), TRef(RAny))));
+			case "buffer": fail(fn, 'native.c: $name returns a buffer: return a pointer (native.bytes reads it)');
+			case _: b.out.push(SReturn(EConv(L2F, r)));
+		}
+		b.finish();
+		b = outer;
+		return fi;
+	}
+
 	// image(path)... (helder/asset): the handle helder.asset.ScriptAssets
 	// makes of its key's marker (TsAssets), and its file in a dev build
 	function asset(n:Node, kind:String, path:String, file:Null<String>):Ex {
@@ -634,6 +793,7 @@ abstract class Expressions extends Statements {
 			case Dropped: return b.runtime("getUndefined", []);
 			case Job(fn, captures): return job(n, fn, captures);
 			case AssetCall(kind, path, file): return asset(n, kind, path, file);
+			case Native(def): return nativeLibrary(n, def);
 			case Located(index, at):
 				if (hasSpread(actual) || actual.length > index) return apply(expr(callee), argumentList(actual));
 				var xs = actuals(actual);
