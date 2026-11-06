@@ -143,13 +143,15 @@ for(const entry of ['examples/ts-hello/main.ts','examples/ts-hello']) {
     const work=`${dir}/ticker`;fs.mkdirSync(work,{recursive:true});
     for(const f of ['main.ts','label.ts'])fs.copyFileSync(`examples/ts-ticker/${f}`,`${work}/${f}`);
     const {spawn}=await import('node:child_process');
-    const p=spawn(process.execPath,['src/helder/cli/run.mjs','dev',`${work}/main.ts`],{stdio:['ignore','pipe','pipe']});
+    const p=spawn(process.execPath,['src/helder/cli/run.mjs','dev',`${work}/main.ts`],{stdio:['ignore','pipe','pipe'],detached:true});
     let out='';p.stdout.on('data',d=>out+=d);p.stderr.on('data',d=>out+=d);
     const until=async(re,ms)=>{const end=Date.now()+ms;while(Date.now()<end){const m=out.match(re);if(m)return m;await new Promise(r=>setTimeout(r,50));}return null;};
     const before=await until(/tick 3\n/,120000);
     fs.writeFileSync(`${work}/label.ts`,fs.readFileSync(`${work}/label.ts`,'utf8').replace('tick','TOCK'));
     const after=await until(/TOCK (\d+)\n/,60000);
-    p.kill('SIGINT');await new Promise(r=>setTimeout(r,500));p.kill('SIGKILL');
+    // (its group: the CLI, its compilation server, the program)
+    const stop=sig=>{try{process.kill(-p.pid,sig);}catch{}};
+    stop('SIGINT');await new Promise(r=>setTimeout(r,1000));stop('SIGKILL');
     assert.ok(before&&after,`helder dev examples/ts-ticker: no reload seen\n${out}`);
     assert.ok(Number(after[1])>=3,`helder dev examples/ts-ticker: the count started over (TOCK ${after[1]} after tick 3)\n${out}`);
     console.log(`PASS helder dev examples/ts-ticker (tick 3 ... TOCK ${after[1]})`);
