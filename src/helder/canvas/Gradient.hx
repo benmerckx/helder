@@ -7,13 +7,17 @@ import helder.canvas.Paint.Shader;
 // LinearGradient, RadialGradient (two circles, as Canvas 2D's), and
 // ConicGradient, each a class of its own. Stops are interpolated in
 // straight sRGB and premultiplied after (as Chromium's canvas gradients),
-// padded past the ends; two at one offset make a hard edge. `matrix`
+// padded past the ends; two at one offset make a hard edge (premultiplied:
+// interpolated with their alpha premultiplied, as CSS's gradients). `matrix`
 // places the gradient's space in the drawing's (identity: the user units
 // at the time of the draw, as Canvas 2D's).
 abstract class Gradient implements Shader {
 	public final matrix = new Matrix();
 	// past the ends: PAD (the end colours, Canvas 2D's), REFLECT, REPEAT (SVG's spreadMethod)
 	public var spread = PAD;
+	// whether the stops are interpolated with their alpha premultiplied
+	// (CSS's), not straight (Canvas 2D's): set before they are added
+	public var premultiplied = false;
 
 	public static inline var PAD = 0;
 	public static inline var REFLECT = 1;
@@ -37,10 +41,11 @@ abstract class Gradient implements Shader {
 		while (i > 0 && offsets[i - 1] > offset)
 			i--;
 		offsets.insert(i, offset);
-		reds.insert(i, ((color >> 16) & 255) / 255);
-		greens.insert(i, ((color >> 8) & 255) / 255);
-		blues.insert(i, (color & 255) / 255);
-		alphas.insert(i, ((color >>> 24) & 255) / 255);
+		var a = ((color >>> 24) & 255) / 255, k = premultiplied ? a : 1;
+		reds.insert(i, ((color >> 16) & 255) / 255 * k);
+		greens.insert(i, ((color >> 8) & 255) / 255 * k);
+		blues.insert(i, (color & 255) / 255 * k);
+		alphas.insert(i, a);
 		return this;
 	}
 
@@ -53,9 +58,11 @@ abstract class Gradient implements Shader {
 		return offsets[i];
 
 	// (0xAARRGGBB, straight)
-	public function stopColor(i:Int):Int
-		return (Std.int(alphas[i] * 255 + 0.5) << 24) | (Std.int(reds[i] * 255 + 0.5) << 16) | (Std.int(greens[i] * 255 + 0.5) << 8)
-			| Std.int(blues[i] * 255 + 0.5);
+	public function stopColor(i:Int):Int {
+		var a = alphas[i], k = !premultiplied ? 1 : a > 0 ? 1 / a : 0;
+		return (Std.int(a * 255 + 0.5) << 24) | (Std.int(reds[i] * k * 255 + 0.5) << 16) | (Std.int(greens[i] * k * 255 + 0.5) << 8)
+			| Std.int(blues[i] * k * 255 + 0.5);
+	}
 
 	public function clearStops() {
 		offsets.resize(0);
@@ -110,9 +117,10 @@ abstract class Gradient implements Shader {
 			b = blues[i - 1] + (blues[i] - blues[i - 1]) * f;
 			a = alphas[i - 1] + (alphas[i] - alphas[i - 1]) * f;
 		}
-		out[o] = r * a;
-		out[o + 1] = g * a;
-		out[o + 2] = b * a;
+		var k = premultiplied ? 1 : a;
+		out[o] = r * k;
+		out[o + 1] = g * k;
+		out[o + 2] = b * k;
 		out[o + 3] = a;
 	}
 

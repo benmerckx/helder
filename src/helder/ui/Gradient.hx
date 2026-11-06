@@ -192,11 +192,35 @@ class Gradient {
 	}
 
 	// the gradient over a box of w by h pixels (k: the window's pixels per
-	// UI pixel, for lengths in px)
+	// UI pixel, for lengths in px): its shader's rows (not a whole canvas:
+	// an app with a gradient keeps no rasterizer for it), straight
 	public function render(w:Int, h:Int, k:Float = 1):Image {
-		var img = new Image(w, h), px = img.pixels;
-		// the gradient line: its length, and t at each pixel's centre
-		var length:Float, tAt:(Float, Float) -> Float;
+		var img = new Image(w, h), px = img.pixels, g = shader(w, h, k), row = new haxe.ds.Vector<Float>(w * 4);
+		if (!g.begin(helder.canvas.Matrix.IDENTITY)) return img;
+		for (y in 0...h) {
+			g.shade(0, y, w, row);
+			for (x in 0...w) {
+				var s = x * 4, o = (y * w + x) * 4, a = row[s + 3];
+				if (!(a > 0)) continue;
+				// (premultiplied: no channel over its alpha)
+				var k = 255 / a;
+				px.set(o, Std.int(row[s] * k + 0.5));
+				px.set(o + 1, Std.int(row[s + 1] * k + 0.5));
+				px.set(o + 2, Std.int(row[s + 2] * k + 0.5));
+				px.set(o + 3, Std.int(a * 255 + 0.5));
+			}
+		}
+		return img;
+	}
+
+	// as helder.canvas's shader over a box of w by h pixels from the origin
+	// (k as render's): a linear gradient along the gradient line, or a
+	// radial one whose matrix makes its circles the ellipse; the stops
+	// interpolated premultiplied, as CSS's, from the first to the last (a
+	// repeating gradient repeats them)
+	public function shader(w:Float, h:Float, k:Float = 1):helder.canvas.Gradient {
+		// the gradient line: its length; its start (t 0) and direction, or the centre and radii
+		var length:Float, ox:Float, oy:Float, dx = 0.0, dy = 0.0, rx = 0.0, ry = 0.0;
 		if (linear) {
 			var a = angle;
 			if (corner != null) {
@@ -204,50 +228,39 @@ class Gradient {
 				// corners, toward it: (x h, y w) in the box's pixels)
 				a = Math.atan2(corner.x * h, -corner.y * w) * 180 / Math.PI;
 			}
-			var r = a * Math.PI / 180, dx = Math.sin(r), dy = -Math.cos(r);
+			var r = a * Math.PI / 180;
+			dx = Math.sin(r);
+			dy = -Math.cos(r);
 			length = Math.abs(w * dx) + Math.abs(h * dy);
-			var cx = w / 2, cy = h / 2;
-			var l = length;
-			tAt = (x, y) -> l <= 0 ? 0 : ((x - cx) * dx + (y - cy) * dy) / l + 0.5;
+			ox = w / 2 - dx * length / 2;
+			oy = h / 2 - dy * length / 2;
 		} else {
-			var cx = len(atX, w, k), cy = len(atY, h, k);
-			var left = cx, right = w - cx, top = cy, bottom = h - cy;
-			var rx:Float, ry:Float;
+			ox = len(atX, w, k);
+			oy = len(atY, h, k);
+			var left = ox, right = w - ox, top = oy, bottom = h - oy;
 			switch size {
 				case "length":
 					rx = len(sizeX, w, k);
 					ry = circle ? rx : len(sizeY, h, k);
 				case "closest-side" | "farthest-side":
-					var f = size == "closest-side" ? Math.min : Math.max;
-					rx = f(left, right);
-					ry = f(top, bottom);
-					if (circle) rx = ry = f(rx, ry);
+					var near = size == "closest-side";
+					rx = near ? Math.min(left, right) : Math.max(left, right);
+					ry = near ? Math.min(top, bottom) : Math.max(top, bottom);
+					if (circle) rx = ry = near ? Math.min(rx, ry) : Math.max(rx, ry);
 				case _:
 					// (to a corner: the closest or farthest; an ellipse keeps the sides' ratio)
-					var closest = size == "closest-corner";
-					var cxs = [left, right], cys = [top, bottom], bx = 0.0, by = 0.0, best = closest ? Math.POSITIVE_INFINITY : -1.0;
-					for (ax in cxs)
-						for (ay in cys) {
-							var d = ax * ax + ay * ay;
-							if (closest ? d < best : d > best) {
-								best = d;
-								bx = ax;
-								by = ay;
-							}
-						}
-					if (circle) rx = ry = Math.sqrt(best) else {
-						var sx = closest ? Math.min(left, right) : Math.max(left, right), sy = closest ? Math.min(top, bottom) : Math.max(top, bottom);
+					var near = size == "closest-corner";
+					inline function corner(a:Float, b:Float):Float
+						return (near ? b * b < a * a : b * b > a * a) ? b : a;
+					var bx = corner(left, right), by = corner(top, bottom);
+					if (circle) rx = ry = Math.sqrt(bx * bx + by * by) else {
+						var sx = near ? Math.min(left, right) : Math.max(left, right), sy = near ? Math.min(top, bottom) : Math.max(top, bottom);
 						var ratio = sx > 0 ? sy / sx : 1;
 						rx = ratio > 0 ? Math.sqrt(bx * bx + by * by / (ratio * ratio)) : bx;
 						ry = rx * ratio;
 					}
 			}
 			length = rx;
-			var erx = rx, ery = ry;
-			tAt = (x, y) -> {
-				var u = erx > 0 ? (x - cx) / erx : 0.0, v = ery > 0 ? (y - cy) / ery : 0.0;
-				return Math.sqrt(u * u + v * v);
-			}
 		}
 		// the stops along the line (0 to 1): as written, the missing spread evenly, never going back
 		var n = colors.length, at:Array<Float> = [];
@@ -274,34 +287,23 @@ class Gradient {
 			}
 			i++;
 		}
-		var span = at[n - 1] - at[0];
-		for (y in 0...h)
-			for (x in 0...w) {
-				var t = tAt(x + 0.5, y + 0.5);
-				if (repeating && span > 0) t = at[0] + (((t - at[0]) % span) + span) % span;
-				var c:Color;
-				if (t <= at[0]) c = colors[0] else if (t >= at[n - 1]) c = colors[n - 1] else {
-					var q = 1;
-					while (q < n - 1 && at[q] < t)
-						q++;
-					var a0 = at[q - 1], a1 = at[q];
-					c = a1 <= a0 ? colors[q] : mix(colors[q - 1], colors[q], (t - a0) / (a1 - a0));
-				}
-				var o = (y * w + x) * 4;
-				px.set(o, c.r);
-				px.set(o + 1, c.g);
-				px.set(o + 2, c.b);
-				px.set(o + 3, c.a);
-			}
-		return img;
-	}
-
-	// two colours mixed with their alpha premultiplied (as CSS mixes gradients' stops)
-	static function mix(a:Color, b:Color, t:Float):Color {
-		var aa = a.a / 255, ba = b.a / 255, al = aa + (ba - aa) * t;
-		if (al <= 0) return 0;
-		inline function ch(x:Int, y:Int):Int
-			return Std.int(Math.round(Math.max(0, Math.min(255, (x * aa + (y * ba - x * aa) * t) / al))));
-		return (Std.int(Math.round(al * 255)) << 24) | (ch(a.r, b.r) << 16) | (ch(a.g, b.g) << 8) | ch(a.b, b.b);
+		// (the shader's 0 to 1: the first stop to the last, else a unit from the first)
+		var t0 = at[0], span = at[n - 1] - t0;
+		var repeat = repeating && span > 0;
+		if (!(span > 0)) span = 1;
+		var g:helder.canvas.Gradient;
+		if (linear) {
+			var l = length > 0 ? length : 1;
+			g = new helder.canvas.Gradient.LinearGradient(ox + dx * l * t0, oy + dy * l * t0, ox + dx * l * (t0 + span), oy + dy * l * (t0 + span));
+		} else {
+			// (the ellipse the unit circle; one of no width a sliver, as CSS draws it)
+			g = new helder.canvas.Gradient.RadialGradient(0, 0, t0, 0, 0, t0 + span);
+			g.matrix.set(Math.max(rx, 1e-6), 0, 0, rx > 0 ? Math.max(ry, 1e-6) : 1e6, ox, oy);
+		}
+		g.premultiplied = true;
+		for (q in 0...n)
+			g.addStop((at[q] - t0) / span, colors[q]);
+		if (repeat) g.spread = helder.canvas.Gradient.REPEAT;
+		return g;
 	}
 }

@@ -977,26 +977,16 @@ class SvgCanvas {
 		this.current = current;
 	}
 
-	// SVG's path commands (0 move, 1 line, 2 cubic, 3 close) as a canvas path
-	static function into(p:Array<Float>, out:helder.canvas.Path):helder.canvas.Path {
-		out.clear();
-		var i = 0;
-		while (i < p.length)
-			switch Std.int(p[i]) {
-				case 0:
-					out.moveTo(p[i + 1], p[i + 2]);
-					i += 3;
-				case 1:
-					out.lineTo(p[i + 1], p[i + 2]);
-					i += 3;
-				case 2:
-					out.cubicTo(p[i + 1], p[i + 2], p[i + 3], p[i + 4], p[i + 5], p[i + 6]);
-					i += 7;
-				case _:
-					out.close();
-					i++;
-			}
-		return out;
+	static inline function into(p:Array<Float>, out:helder.canvas.Path):helder.canvas.Path
+		return Path.into(p, out);
+
+	// a stroke's style: its width, cap and join (0 butt or miter, 1 round, 2 square or bevel), dashes
+	public static function strokeStyle(out:helder.canvas.Stroke, width:Float, cap:Int, join:Int, miterLimit:Float, dashes:Null<Array<Float>>, dashOffset:Float) {
+		out.width = width;
+		out.cap = cap == 1 ? helder.canvas.Stroke.Cap.round : cap == 2 ? helder.canvas.Stroke.Cap.square : helder.canvas.Stroke.Cap.butt;
+		out.join = join == 1 ? helder.canvas.Stroke.Join.round : join == 2 ? helder.canvas.Stroke.Join.bevel : helder.canvas.Stroke.Join.miter;
+		out.miterLimit = miterLimit;
+		out.dash = dashes == null ? null : new helder.canvas.Stroke.Dash(dashes, dashOffset);
 	}
 
 	static inline function core(m:Matrix):helder.canvas.Matrix
@@ -1035,11 +1025,7 @@ class SvgCanvas {
 		into(s.path, path);
 		if (fill != None && paintWith(fill, st.fillOpacity * alpha, s.path)) canvas.fill(path, paint, st.evenOdd);
 		if (stroke != None && paintWith(stroke, st.strokeOpacity * alpha, s.path)) {
-			line.width = st.strokeWidth;
-			line.cap = st.cap == 1 ? helder.canvas.Stroke.Cap.round : st.cap == 2 ? helder.canvas.Stroke.Cap.square : helder.canvas.Stroke.Cap.butt;
-			line.join = st.join == 1 ? helder.canvas.Stroke.Join.round : st.join == 2 ? helder.canvas.Stroke.Join.bevel : helder.canvas.Stroke.Join.miter;
-			line.miterLimit = st.miterLimit;
-			line.dash = st.dashes == null ? null : new helder.canvas.Stroke.Dash(st.dashes, st.dashOffset);
+			SvgCanvas.strokeStyle(line, st.strokeWidth, st.cap, st.join, st.miterLimit, st.dashes, st.dashOffset);
 			canvas.stroke(path, line, paint);
 		}
 		if (own) canvas.restore();

@@ -105,7 +105,9 @@ stored as it is; shaders and blend modes compose in floats.
 
 helder.ui's SVG rendering (`Svg.render`, `Path.render`) draws through it:
 its groups' opacities as layers, its clip paths as clips, its gradients
-(spread included) as shaders, its strokes as `Stroke`.
+(spread included) as shaders, its strokes as `Stroke`; its CSS gradients
+(`Gradient.render`) are this one's shaders (`premultiplied`: stops mixed
+as CSS mixes them), their rows shaded without a canvas.
 
 ## Extras (phase 4)
 

@@ -1,6 +1,7 @@
 package helder.ui;
 
-import helder.ui.Svg;
+import helder.ui.Svg.SvgCanvas;
+import helder.ui.Svg.SvgParse;
 import helder.ui.Paint;
 import helder.image.Image;
 
@@ -130,62 +131,49 @@ class Path {
 
 	// its pixels, w by h, filled and stroked (either may be null), its
 	// units mapped to pixels by m (a, b, c, d, e, f: x' = a x + c y + e,
-	// y' = b x + d y + f); a gradient spans the whole image
+	// y' = b x + d y + f), drawn by helder.canvas; a gradient spans the whole image
 	public function render(w:Int, h:Int, m:Array<Float>, fill:Null<Paint>, ?stroke:Stroke):Image {
-		var out:Null<Image> = null;
-		for (part in 0...2) {
-			var paint:Null<Paint> = part == 0 ? fill : stroke == null ? null : stroke.paint;
-			if (paint == null || part == 1 && stroke.width <= 0) continue;
-			var style = new SvgStyle();
-			style.evenOdd = evenOdd;
-			var solid:Color = switch (paint : PaintValue) {
-				case Solid(c): c;
-				case Gradient(_): Color.WHITE;
-			}
-			if (part == 0) style.fill = Rgba(solid) else {
-				style.fill = None;
-				style.stroke = Rgba(solid);
-				style.strokeWidth = stroke.width;
-				style.cap = stroke.cap ?? Butt;
-				style.join = stroke.join ?? Miter;
-				style.miterLimit = stroke.miterLimit ?? 4;
-				style.dashes = stroke.dashes;
-				style.dashOffset = stroke.dashOffset ?? 0;
-			}
-			var g = new SvgGroup(Matrix.identity(), 1);
-			g.children.push(new SvgShape(commands, Matrix.identity(), style, 1));
-			var canvas = new SvgCanvas(w, h, Color.BLACK);
-			canvas.group(g, new Matrix(m[0], m[1], m[2], m[3], m[4], m[5]));
-			var layer = canvas.image();
-			switch (paint : PaintValue) {
-				case Gradient(gr):
-					// (the coverage in the gradient's colours)
-					var gi = gr.render(w, h), a = layer.pixels, b = gi.pixels;
-					for (k in 0...w * h) {
-						var o = k * 4;
-						a.set(o, b.get(o));
-						a.set(o + 1, b.get(o + 1));
-						a.set(o + 2, b.get(o + 2));
-						a.set(o + 3, Std.int((a.get(o + 3) * b.get(o + 3) + 127) / 255));
-					}
-				case Solid(_):
-			}
-			out = out == null ? layer : over(out, layer);
+		var c = new helder.canvas.Canvas(w, h), p = into(commands, new helder.canvas.Path());
+		c.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+		var paint = fill == null ? null : paintOf(fill, m, w, h);
+		if (paint != null) c.fill(p, paint, evenOdd);
+		paint = stroke == null || !(stroke.width > 0) ? null : paintOf(stroke.paint, m, w, h);
+		if (paint != null) {
+			var line = new helder.canvas.Stroke();
+			SvgCanvas.strokeStyle(line, stroke.width, stroke.cap ?? Butt, stroke.join ?? Miter, stroke.miterLimit ?? 4, stroke.dashes, stroke.dashOffset ?? 0);
+			c.stroke(p, line, paint);
 		}
-		return out ?? new Image(w, h);
+		return c.bitmap.toImage();
 	}
 
-	// (b over a, straight alpha)
-	static function over(a:Image, b:Image):Image {
-		var p = a.pixels, q = b.pixels;
-		for (k in 0...a.width * a.height) {
-			var o = k * 4, sa = q.get(o + 3) / 255;
-			if (sa <= 0) continue;
-			var da = p.get(o + 3) / 255, oa = sa + da * (1 - sa);
-			for (c in 0...3)
-				p.set(o + c, Std.int(Math.round((q.get(o + c) * sa + p.get(o + c) * da * (1 - sa)) / oa)));
-			p.set(o + 3, Std.int(Math.round(oa * 255)));
+	// (a colour, or a gradient over the w by h pixels m maps to; null: none)
+	static function paintOf(p:Paint, m:Array<Float>, w:Int, h:Int):Null<helder.canvas.Paint>
+		return switch (p : PaintValue) {
+			case Solid(c): new helder.canvas.Paint(c);
+			case Gradient(g):
+				var s = g.shader(w, h), at = new helder.canvas.Matrix(m[0], m[1], m[2], m[3], m[4], m[5]);
+				if (!at.invertInto(s.matrix)) null else helder.canvas.Paint.shaded(s);
 		}
-		return a;
+
+	// path commands (0 move, 1 line, 2 cubic, 3 close) as a canvas path, into out
+	public static function into(p:Array<Float>, out:helder.canvas.Path):helder.canvas.Path {
+		out.clear();
+		var i = 0;
+		while (i < p.length)
+			switch Std.int(p[i]) {
+				case 0:
+					out.moveTo(p[i + 1], p[i + 2]);
+					i += 3;
+				case 1:
+					out.lineTo(p[i + 1], p[i + 2]);
+					i += 3;
+				case 2:
+					out.cubicTo(p[i + 1], p[i + 2], p[i + 3], p[i + 4], p[i + 5], p[i + 6]);
+					i += 7;
+				case _:
+					out.close();
+					i++;
+			}
+		return out;
 	}
 }
