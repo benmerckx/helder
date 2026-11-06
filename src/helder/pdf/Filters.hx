@@ -173,46 +173,44 @@ class Filters {
 	}
 
 	static function ascii85(data:Bytes):Bytes {
-		var out = new BytesBuffer(), group = [], i = 0;
-		var start = 0;
-		if (data.length >= 2 && data.get(0) == "<".code && data.get(1) == "~".code) start = 2;
-		i = start;
+		// (a group's digits so far as its value, in a float: 85^5 is past 2^32)
+		var out = Bytes.alloc(Std.int(data.length / 5 * 4) + 4), len = 0, count = 0, v = 0.0, i = 0;
+		inline function put(n:Int, k:Int) {
+			if (len + 4 > out.length) {
+				var grown = Bytes.alloc(out.length * 2 + 4);
+				grown.blit(0, out, 0, len);
+				out = grown;
+			}
+			for (j in 0...k)
+				out.set(len + j, (n >>> (24 - 8 * j)) & 255);
+			len += k;
+		}
+		if (data.length >= 2 && data.get(0) == "<".code && data.get(1) == "~".code) i = 2;
 		while (i < data.length) {
 			var c = data.get(i++);
 			if (c == "~".code) break;
 			if (Parser.isWhite(c)) continue;
-			if (c == "z".code && group.length == 0) {
-				for (_ in 0...4)
-					out.addByte(0);
+			if (c == "z".code && count == 0) {
+				put(0, 4);
 				continue;
 			}
 			if (c < 33 || c > 117) continue;
-			group.push(c - 33);
-			if (group.length == 5) {
-				var v = 0.0;
-				for (g in group)
-					v = v * 85 + g;
-				var n = Std.int(v % 4294967296.0);
-				out.addByte((n >>> 24) & 255);
-				out.addByte((n >> 16) & 255);
-				out.addByte((n >> 8) & 255);
-				out.addByte(n & 255);
-				group = [];
+			v = v * 85 + (c - 33);
+			if (++count == 5) {
+				put(Std.int(v % 4294967296.0), 4);
+				v = 0;
+				count = 0;
 			}
 		}
-		if (group.length > 1) {
-			var k = group.length;
-			while (group.length < 5)
-				group.push(84);
-			var v = 0.0;
-			for (g in group)
-				v = v * 85 + g;
-			var n = Std.int(v % 4294967296.0);
-			var bs = [(n >>> 24) & 255, (n >> 16) & 255, (n >> 8) & 255, n & 255];
-			for (j in 0...k - 1)
-				out.addByte(bs[j]);
+		if (count > 1) {
+			var k = count;
+			while (count < 5) {
+				v = v * 85 + 84;
+				count++;
+			}
+			put(Std.int(v % 4294967296.0), k - 1);
 		}
-		return out.getBytes();
+		return out.sub(0, len);
 	}
 
 	static function runLength(data:Bytes, budget:Int):Bytes {

@@ -178,12 +178,33 @@ class Parser {
 		while (pos < end && ((b.get(pos) >= "0".code && b.get(pos) <= "9".code) || b.get(pos) == ".".code))
 			pos++;
 		// (stray signs as in "--5" or "4-": what is a number of it)
-		var t = b.getString(s, pos - s);
+		var e = pos;
 		while (pos < end && (b.get(pos) == "-".code))
 			pos++;
-		var f = Std.parseFloat(t);
+		// (up to 15 digits and a point: the digits' integer over a power of ten, both exact, so
+		// one rounding, as parseFloat's)
+		var i = s, neg = false, digits = 0, frac = -1, m = 0.0;
+		if (i < e && (b.get(i) == "-".code || b.get(i) == "+".code)) neg = b.get(i++) == "-".code;
+		while (i < e) {
+			var c = b.get(i++);
+			if (c == ".".code) {
+				if (frac >= 0) break;
+				frac = 0;
+				continue;
+			}
+			m = m * 10 + (c - "0".code);
+			digits++;
+			if (frac >= 0) frac++;
+		}
+		if (i == e && digits > 0 && digits <= 15) {
+			var f = frac > 0 ? m / TENS[frac] : m;
+			return neg ? -f : f;
+		}
+		var f = Std.parseFloat(b.getString(s, e - s));
 		return Math.isNaN(f) ? 0 : f;
 	}
+
+	static final TENS = [1.0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
 
 	function literal():Bytes {
 		pos++;

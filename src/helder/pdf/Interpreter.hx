@@ -33,6 +33,8 @@ class Interpreter {
 	var gs:GState;
 	final stack:Array<GState> = [];
 	var path = new Path();
+	// (the painter's transform made in it: base after the CTM)
+	final device_ = new Matrix();
 	var pendingClip = 0;
 	final operands:Array<PdfValue> = [];
 	var ops = 0;
@@ -120,7 +122,7 @@ class Interpreter {
 
 	// the painter's transform: base after the CTM
 	function device(?m:Matrix) {
-		var t = base.clone().multiply(m ?? gs.ctm);
+		var t = device_.copyFrom(base).multiply(m ?? gs.ctm);
 		painter.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
 	}
 
@@ -237,9 +239,10 @@ class Interpreter {
 
 	// the path painted, clipped by when W came first, then cleared
 	function paintPath(fill:Bool, strokeIt:Bool, evenOdd:Bool) {
+		// (the path cleared for the next: a painter takes it as it is now, keeping none)
 		if (textOnly) {
 			pendingClip = 0;
-			path = new Path();
+			path.clear();
 			return;
 		}
 		device();
@@ -257,12 +260,12 @@ class Interpreter {
 			painter.clip(path, pendingClip == 2);
 			pendingClip = 0;
 		}
-		path = new Path();
+		path.clear();
 	}
 
 	function setStroke() {
 		// (a width of 0, or one thinner than a pixel: the thinnest line the device draws, a pixel, as viewers do)
-		var s = base.clone().multiply(gs.ctm).maxScale();
+		var s = device_.copyFrom(base).multiply(gs.ctm).maxScale();
 		stroke.width = gs.lineWidth * s >= 1 ? gs.lineWidth : 1 / Math.max(s, 1e-9);
 		stroke.cap = gs.cap == 1 ? Cap.round : gs.cap == 2 ? Cap.square : Cap.butt;
 		stroke.join = gs.join == 1 ? Join.round : gs.join == 2 ? Join.bevel : Join.miter;
