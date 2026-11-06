@@ -103,7 +103,7 @@ class PngDecoder {
 				var o = 4 * ((a.y + y) * w + a.x), s = 4 * y * a.width;
 				if (a.blend == 0) canvas.blit(o, sub, s, 4 * a.width) else
 					for (i in 0...a.width)
-						over(canvas, o + 4 * i, sub, s + 4 * i);
+						Image.over(canvas, o + 4 * i, sub, s + 4 * i);
 			}
 			out.push({rgba: canvas.sub(0, canvas.length), delay: a.delay});
 			if (a.dispose == 1 || (a.dispose == 2 && before == null))
@@ -112,22 +112,6 @@ class PngDecoder {
 			else if (before != null) canvas = before;
 		}
 		return {width: w, height: height, repetitions: f.plays == 0 ? -1 : f.plays - 1, frames: out};
-	}
-
-	// (a pixel over another, straight alpha: the source's colour weighted by
-	// its alpha, the destination's by what of its alpha shows through)
-	static function over(dst:Bytes, d:Int, src:Bytes, s:Int) {
-		var sa = src.get(s + 3);
-		if (sa == 0) return;
-		var da = dst.get(d + 3);
-		if (sa == 255 || da == 0) {
-			dst.blit(d, src, s, 4);
-			return;
-		}
-		var keep = da * (255 - sa), a = sa * 255 + keep;
-		for (c in 0...3)
-			dst.set(d + c, Std.int((src.get(s + c) * sa * 255 + dst.get(d + c) * keep + (a >> 1)) / a));
-		dst.set(d + 3, Std.int((a + 127) / 255));
 	}
 
 	// (APNG's chunks: acTL's plays, each fcTL's frame and its fdAT data,

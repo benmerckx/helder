@@ -121,13 +121,7 @@ class Icons {
 			for (sx in 0...n) {
 				var dx = x + sx;
 				if (dx < 0 || dx >= cw) continue;
-				var s = 4 * (sy * n + sx), d = 4 * (dy * cw + dx);
-				var sa = src.get(s + 3) / 255;
-				if (sa == 0) continue;
-				var da = c.get(d + 3) / 255, oa = sa + da * (1 - sa);
-				for (k in 0...3)
-					c.set(d + k, Math.round((src.get(s + k) * sa + c.get(d + k) * da * (1 - sa)) / oa));
-				c.set(d + 3, Math.round(oa * 255));
+				helder.image.Image.over(c, 4 * (dy * cw + dx), src, 4 * (sy * n + sx));
 			}
 		}
 	}

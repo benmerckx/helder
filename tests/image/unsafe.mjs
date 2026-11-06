@@ -56,8 +56,8 @@ const own = {
 	"WebpDecoder.hx": ["a", "canvas", "d.rgba", "inner"],
 	"Vp8Decoder.hx": ["P", "U", "V", "Y", "b", "ws"],
 	"Exif.hx": ["rgba"],
-	"PngDecoder.hx": ["canvas", "dst", "info", "out", "src"],
-	"Image.hx": ["px"],
+	"PngDecoder.hx": ["canvas", "info", "out"],
+	"Image.hx": ["dst", "px", "src"], // (over: a decoder's own canvas and frame)
 	"AnimatedImage.hx": ["image.pixels"],
 };
 let raw = 0;

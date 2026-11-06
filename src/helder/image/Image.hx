@@ -232,4 +232,21 @@ class Image {
 		source = null;
 		drawing = null;
 	}
+
+	// a pixel of src at s over one of dst at d (RGBA8, straight alpha): the
+	// source's colour weighted by its alpha, the destination's by what of its
+	// alpha shows through (an APNG's frames, an icon on its background)
+	public static function over(dst:Bytes, d:Int, src:Bytes, s:Int) {
+		var sa = src.get(s + 3);
+		if (sa == 0) return;
+		var da = dst.get(d + 3);
+		if (sa == 255 || da == 0) {
+			dst.blit(d, src, s, 4);
+			return;
+		}
+		var keep = da * (255 - sa), a = sa * 255 + keep;
+		for (c in 0...3)
+			dst.set(d + c, Std.int((src.get(s + c) * sa * 255 + dst.get(d + c) * keep + (a >> 1)) / a));
+		dst.set(d + 3, Std.int((a + 127) / 255));
+	}
 }
