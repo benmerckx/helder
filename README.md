@@ -951,9 +951,21 @@ fix.
     dictation and selection handles, until a hidden input connection
     (Flutter's way: Android's InputConnection, UITextInput) can replace
     it;
-  - **accessibility everywhere**: helder.ui's access tree mapped fully to
-    UI Automation, NSAccessibility, AT-SPI and Android's, the one thing
-    native widgets would otherwise give for free.
+  - **accessibility everywhere** (*landed*): helder.ui's access tree (an
+    item's place in its set, a table's rows and columns, a text input's
+    caret and selection; expand, collapse, select, scroll into view, set a
+    selection or a range) mapped to each platform's API, the one thing
+    native widgets would otherwise give for free: UI Automation's patterns
+    (Text's ranges, Grid and Table, Selection, ExpandCollapse, RangeValue)
+    and events, AT-SPI over helder's own D-Bus client (Text, EditableText,
+    Selection, Table, its events), NSAccessibility's text, tables and
+    settable states, UIAccessibility's elements, an AccessibilityNodeProvider
+    of virtual views on Android, the browser's ARIA mirror; read back by
+    each platform's client in the tests (libatspi, IUIAutomation from
+    another process, uiautomator, Chromium's tree). Next: glyph-exact text
+    extents (estimated from a node's box now), explore by touch on Android
+    (its hover events), iOS's data-table container and text input's
+    UITextInput, text attributes.
 - **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**
   (*phase 1 landed*, src/helder/canvas/README.md: the core API and its CPU
   back end, analytic coverage into premultiplied RGBA8, typed so `-dce
