@@ -248,17 +248,148 @@ class Activity {
 		send(WINDOW_DESTROYED, true);
 	}
 
+	// (the queue is read here, on the UI thread: onInput)
 	@:hxmc.callback @:hxmc.noGc static function onInputQueueCreated(a:Ptr, q:Ptr):Void {
 		lifecycle(Mem.cstr("onInputQueueCreated"));
+		if (inputLock.isNull()) {
+			inputLock = LibC.malloc(64);
+			Threads.pthread_mutex_init(inputLock, Ptr.nil());
+			inputRing = LibC.malloc(INPUT_RECORDS * INPUT_RECORD);
+		}
+		if (!inputQueue.isNull()) Android.AInputQueue_detachLooper(inputQueue);
+		inputQueue = q;
+		Android.AInputQueue_attachLooper(q, mainLooper, LOOPER_INPUT, Callback.addr(onInput), Ptr.nil());
 		Threads.pthread_mutex_lock(lock);
 		pendingQueue = q;
 		Threads.pthread_mutex_unlock(lock);
 		send(INPUT_CREATED, true);
 	}
 
+	// (no more read; the program's thread takes what is left, finishing its keys, before the queue goes)
 	@:hxmc.callback @:hxmc.noGc static function onInputQueueDestroyed(a:Ptr, q:Ptr):Void {
 		lifecycle(Mem.cstr("onInputQueueDestroyed"));
+		if (inputQueue == q) {
+			Android.AInputQueue_detachLooper(q);
+			inputQueue = Ptr.nil();
+		}
 		send(INPUT_DESTROYED, true);
+	}
+
+	// ---- input
+
+	// The input queue read on the UI thread, as Android's own views read
+	// theirs: each motion event copied (INPUT_RECORD bytes: its action,
+	// flags, time, pointers and their history) and finished at once, so the
+	// system's input never waits for the program's frames (an event
+	// unfinished holds the window's input: adb's input swipe, which waits
+	// for each of its events to be finished, came out as a few moves a frame
+	// apart on CI's emulator, whose frames took 100 ms; and five seconds
+	// unfinished is an ANR); a key passed on unfinished (whether the program
+	// takes it, Back, is the program's: AndroidWindow finishes it). The
+	// program's thread is woken and takes them in order (peekInput,
+	// popInput). Full (INPUT_RECORDS waiting: the program stalled for
+	// seconds), an event goes back to the system unhandled.
+	public static inline var INPUT_RECORDS = 512;
+	public static inline var INPUT_RECORD = 2048;
+	public static inline var INPUT_POINTERS = 10;
+	public static inline var INPUT_HISTORY = 16;
+	// (a record: 0 its type (AINPUT_EVENT_TYPE_KEY 1, _MOTION 2), 4 the
+	// action, 8 the flags, 12 the pointers, 16 the time (ns), 24 the
+	// history's samples, 32 a key's event, 40 its queue; from 48 each
+	// pointer's id, tool type, x, y, pressure (20 bytes); from 248 each
+	// sample's time (ns), then each pointer's x, y (88 bytes))
+	public static inline var INPUT_POINTER = 48;
+	public static inline var INPUT_SAMPLE = 248;
+
+	public static var inputQueue:Ptr;
+	static var inputLock:Ptr;
+	static var inputRing:Ptr;
+	static var inputHead:Int;
+	static var inputCount:Int;
+
+	// (the UI thread's looper: the queue has events)
+	@:hxmc.callback @:hxmc.noGc static function onInput(fd:Int, events:Int, data:Ptr):Int {
+		var q = inputQueue;
+		if (q.isNull()) return 1;
+		var out = Mem.stack(8);
+		var any = false;
+		while (Android.AInputQueue_getEvent(q, out) >= 0) {
+			var ev = Mem.getPtr(out, 0);
+			if (Android.AInputQueue_preDispatchEvent(q, ev) != 0) continue;
+			var type = Android.AInputEvent_getType(ev);
+			Threads.pthread_mutex_lock(inputLock);
+			var r = inputCount < INPUT_RECORDS ? inputRing.add(((inputHead + inputCount) % INPUT_RECORDS) * INPUT_RECORD) : Ptr.nil();
+			Threads.pthread_mutex_unlock(inputLock);
+			if (r.isNull() || (type != 1 && type != 2)) {
+				Android.AInputQueue_finishEvent(q, ev, 0);
+				continue;
+			}
+			Mem.setI32(r, 0, type);
+			Mem.setPtr(r, 32, ev);
+			Mem.setPtr(r, 40, q);
+			if (type == 2) {
+				copyMotion(ev, r);
+				Mem.setPtr(r, 32, Ptr.nil());
+				Android.AInputQueue_finishEvent(q, ev, 1);
+			}
+			Threads.pthread_mutex_lock(inputLock);
+			inputCount++;
+			Threads.pthread_mutex_unlock(inputLock);
+			any = true;
+		}
+		if (any) Android.ALooper_wake(looper);
+		return 1;
+	}
+
+	// a motion event into record r (its first INPUT_POINTERS pointers, its last INPUT_HISTORY samples)
+	@:hxmc.noGc static function copyMotion(ev:Ptr, r:Ptr) {
+		Mem.setI32(r, 4, Android.AMotionEvent_getAction(ev));
+		Mem.setI32(r, 8, Android.AMotionEvent_getFlags(ev));
+		Mem.setI64(r, 16, Android.AMotionEvent_getEventTime(ev));
+		var n = Android.AMotionEvent_getPointerCount(ev).toInt();
+		if (n > INPUT_POINTERS) n = INPUT_POINTERS;
+		Mem.setI32(r, 12, n);
+		var i = 0;
+		while (i < n) {
+			var p = r.add(INPUT_POINTER + i * 20);
+			Mem.setI32(p, 0, Android.AMotionEvent_getPointerId(ev, i));
+			Mem.setI32(p, 4, Android.AMotionEvent_getToolType(ev, i));
+			Mem.setF32(p, 8, Android.AMotionEvent_getX(ev, i));
+			Mem.setF32(p, 12, Android.AMotionEvent_getY(ev, i));
+			Mem.setF32(p, 16, Android.AMotionEvent_getPressure(ev, i));
+			i++;
+		}
+		var size = Android.AMotionEvent_getHistorySize(ev).toInt();
+		var from = size > INPUT_HISTORY ? size - INPUT_HISTORY : 0;
+		Mem.setI32(r, 24, size - from);
+		var h = from;
+		while (h < size) {
+			var s = r.add(INPUT_SAMPLE + (h - from) * 88);
+			Mem.setI64(s, 0, Android.AMotionEvent_getHistoricalEventTime(ev, h));
+			i = 0;
+			while (i < n) {
+				Mem.setF32(s, 8 + i * 8, Android.AMotionEvent_getHistoricalX(ev, i, h));
+				Mem.setF32(s, 12 + i * 8, Android.AMotionEvent_getHistoricalY(ev, i, h));
+				i++;
+			}
+			h++;
+		}
+	}
+
+	// (the program's thread) the next event's record (nil: none), there until popInput
+	@:hxmc.noGc public static function peekInput():Ptr {
+		if (inputLock.isNull()) return Ptr.nil();
+		Threads.pthread_mutex_lock(inputLock);
+		var r = inputCount > 0 ? inputRing.add(inputHead * INPUT_RECORD) : Ptr.nil();
+		Threads.pthread_mutex_unlock(inputLock);
+		return r;
+	}
+
+	@:hxmc.noGc public static function popInput() {
+		Threads.pthread_mutex_lock(inputLock);
+		inputHead = (inputHead + 1) % INPUT_RECORDS;
+		inputCount--;
+		Threads.pthread_mutex_unlock(inputLock);
 	}
 
 	// (ARect: left, top, right, bottom)

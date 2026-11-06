@@ -9,7 +9,8 @@ import hxmc.unsafe.*;
 // program's thread (Activity: hxmc's runtime runs there) waits for the
 // native window when the Window is made (one with a size), then App.run
 // polls the looper: the commands of the activity's callbacks (Activity)
-// and the input queue.
+// and the input the UI thread read from the input queue (Activity.onInput:
+// finished there at once, so the system's input never waits for a frame).
 // Every finger and pen is a pointer (Pointers: Pointer* events, their
 // history as samples, their times the events', a cancel when the system
 // takes them), and nothing else: no mouse events or scrolls are made of
@@ -42,6 +43,8 @@ import hxmc.unsafe.*;
 class AndroidWindow {
 	static var current:Null<AndroidWindow> = null;
 	static var queue:Ptr = Ptr.nil();
+	// (a motion event's record, copied out of Activity's)
+	static var motionCopy:Ptr = Ptr.nil();
 	static var window:Ptr = Ptr.nil();
 	static var paused:Bool = false;
 	static final event = new Event();
@@ -180,9 +183,10 @@ class AndroidWindow {
 			if (id == Activity.LOOPER_COMMANDS) {
 				var cmd = Activity.next();
 				if (cmd >= 0) command(cmd, onEvent);
-			} else if (id == Activity.LOOPER_INPUT) input(onEvent);
-			else if (id < 0 && id != -1) break; // (ALOOPER_POLL_TIMEOUT, _ERROR; -1: woken)
+			} else if (id < 0 && id != -1) break; // (ALOOPER_POLL_TIMEOUT, _ERROR; -1: woken)
 		}
+		// (the input the UI thread read: it wakes the looper)
+		input(onEvent);
 		if (textEvents != null) textEvents((kind, text, caret) -> dispatch(onEvent, kind, caret, 0, text));
 		// (a new window with a size: Resume; a size the system changed, or its safe area: Resize)
 		var w = current;
@@ -246,13 +250,13 @@ class AndroidWindow {
 				window = Ptr.nil();
 				Activity.acknowledge();
 				if (suspend) dispatch(onEvent, Suspend);
+			// (the queue is read on the UI thread: Activity.onInput)
 			case Activity.INPUT_CREATED:
-				if (!queue.isNull()) Android.AInputQueue_detachLooper(queue);
 				queue = Activity.take(false);
-				Android.AInputQueue_attachLooper(queue, Activity.looper, Activity.LOOPER_INPUT, Ptr.nil(), Ptr.nil());
 				Activity.acknowledge();
 			case Activity.INPUT_DESTROYED:
-				if (!queue.isNull()) Android.AInputQueue_detachLooper(queue);
+				// (what it read, its keys finished, before the queue goes)
+				input(onEvent);
 				queue = Ptr.nil();
 				Activity.acknowledge();
 			case Activity.PAUSE:
@@ -307,62 +311,60 @@ class AndroidWindow {
 		Arena.scoped(a -> Log.__android_log_write(3, Mem.cstr("helder.os"),
 			a.cstring(w.isNull() ? what : what + " " + Android.ANativeWindow_getWidth(w) + "x" + Android.ANativeWindow_getHeight(w))));
 
-	// the input queue's events
+	// the input the UI thread read from the queue (Activity.onInput), in
+	// order: a motion event's copy (taken out first, its slot free for the
+	// next), a key's event (finished here: whether it was handled)
 	static function input(onEvent:Null<Event->Void>) {
-		if (queue.isNull()) return;
-		var out = Mem.stack(8);
-		while (Android.AInputQueue_getEvent(queue, out) >= 0) {
-			var ev = Mem.getPtr(out, 0);
-			if (Android.AInputQueue_preDispatchEvent(queue, ev) != 0) continue;
-			var handled = 0;
-			switch Android.AInputEvent_getType(ev) {
-				case 2: handled = motion(ev, onEvent); // AINPUT_EVENT_TYPE_MOTION
-				case 1: handled = key(ev, onEvent); // AINPUT_EVENT_TYPE_KEY
-				case _:
+		while (true) {
+			var r = Activity.peekInput();
+			if (r.isNull()) break;
+			if (Mem.getI32(r, 0) == 2) { // AINPUT_EVENT_TYPE_MOTION
+				if (motionCopy.isNull()) motionCopy = LibC.malloc(Activity.INPUT_RECORD);
+				LibC.memcpy(motionCopy, r, Activity.INPUT_RECORD);
+				Activity.popInput();
+				motion(motionCopy, onEvent);
+			} else {
+				var ev = Mem.getPtr(r, 32), q = Mem.getPtr(r, 40);
+				Activity.popInput();
+				Android.AInputQueue_finishEvent(q, ev, key(ev, onEvent));
 			}
-			Android.AInputQueue_finishEvent(queue, ev, handled);
 		}
 	}
 
-	// a MotionEvent: every pointer in it (Pointers: their slots, their
-	// events; the history's samples)
-	static function motion(ev:Ptr, onEvent:Null<Event->Void>):Int {
-		var raw = Android.AMotionEvent_getAction(ev);
-		var action = raw & 0xff, index:Int64 = (raw >> 8) & 0xff;
-		var time = ms(Android.AMotionEvent_getEventTime(ev));
+	// a motion event (its copy, Activity's record): every pointer in it
+	// (Pointers: their slots, their events; the history's samples)
+	static function motion(r:Ptr, onEvent:Null<Event->Void>) {
+		var raw = Mem.getI32(r, 4);
+		var action = raw & 0xff, index = (raw >> 8) & 0xff;
+		var time = ms(Mem.getI64(r, 16));
 		var w = current, e = event;
-		if (w == null) return 1;
-		var count = Android.AMotionEvent_getPointerCount(ev);
+		if (w == null) return;
+		var count = Mem.getI32(r, 12);
 		switch action {
-			case 0 | 5: // AMOTION_EVENT_ACTION_DOWN, _POINTER_DOWN: the pointer at index
-				var p = Pointers.press(w.owner, Android.AMotionEvent_getPointerId(ev, index), tool(ev, index), Android.AMotionEvent_getX(ev, index),
-					Android.AMotionEvent_getY(ev, index), pressure(ev, index), time);
+			case 0 | 5 if (index < count): // AMOTION_EVENT_ACTION_DOWN, _POINTER_DOWN: the pointer at index
+				var p = Pointers.press(w.owner, pointerId(r, index), tool(r, index), pointerX(r, index), pointerY(r, index), pressure(r, index), time);
 				if (p != null) send(onEvent, PointerDown, p, 1);
 			case 2: // AMOTION_EVENT_ACTION_MOVE: every pointer, its history first
-				var history = Android.AMotionEvent_getHistorySize(ev);
-				var i:Int64 = 0;
-				while (i < count) {
-					var p = Pointers.find(Android.AMotionEvent_getPointerId(ev, i), tool(ev, i));
+				var history = Mem.getI32(r, 24);
+				for (i in 0...count) {
+					var p = Pointers.find(pointerId(r, i), tool(r, i));
 					if (p != null) {
-						var x:Float = Android.AMotionEvent_getX(ev, i), y:Float = Android.AMotionEvent_getY(ev, i);
+						var x = pointerX(r, i), y = pointerY(r, i);
 						if (x != p.x || y != p.y) {
-							var h:Int64 = 0;
-							while (h < history) {
-								@:privateAccess p.sample(Android.AMotionEvent_getHistoricalX(ev, i, h), Android.AMotionEvent_getHistoricalY(ev, i, h),
-									ms(Android.AMotionEvent_getHistoricalEventTime(ev, h)));
-								h++;
+							for (h in 0...history) {
+								var s = r.add(Activity.INPUT_SAMPLE + h * 88);
+								@:privateAccess p.sample(Mem.getF32(s, 8 + i * 8), Mem.getF32(s, 12 + i * 8), ms(Mem.getI64(s, 0)));
 							}
-							@:privateAccess p.moveTo(x, y, pressure(ev, i), time);
+							@:privateAccess p.moveTo(x, y, pressure(r, i), time);
 							send(onEvent, PointerMove, p, 0);
 						}
 					}
-					i++;
 				}
-			case 1 | 6: // AMOTION_EVENT_ACTION_UP, _POINTER_UP (FLAG_CANCELED: a palm, API 33)
-				var p = Pointers.find(Android.AMotionEvent_getPointerId(ev, index), tool(ev, index));
+			case 1 | 6 if (index < count): // AMOTION_EVENT_ACTION_UP, _POINTER_UP (FLAG_CANCELED: a palm, API 33)
+				var p = Pointers.find(pointerId(r, index), tool(r, index));
 				if (p != null) {
-					var cancelled = Android.AMotionEvent_getFlags(ev) & 0x20 != 0;
-					@:privateAccess p.moveTo(Android.AMotionEvent_getX(ev, index), Android.AMotionEvent_getY(ev, index), p.pressure, time);
+					var cancelled = Mem.getI32(r, 8) & 0x20 != 0;
+					@:privateAccess p.moveTo(pointerX(r, index), pointerY(r, index), p.pressure, time);
 					Pointers.lift(p, cancelled, time);
 					send(onEvent, cancelled ? PointerCancel : PointerUp, p, cancelled ? 0 : 1);
 				}
@@ -370,8 +372,17 @@ class AndroidWindow {
 				Pointers.cancelAll(w.owner, e, onEvent);
 			case _:
 		}
-		return 1;
 	}
+
+	// (a record's pointer i: its id, x, y)
+	static inline function pointerId(r:Ptr, i:Int):Int
+		return Mem.getI32(r, Activity.INPUT_POINTER + i * 20);
+
+	static inline function pointerX(r:Ptr, i:Int):Float
+		return Mem.getF32(r, Activity.INPUT_POINTER + i * 20 + 8);
+
+	static inline function pointerY(r:Ptr, i:Int):Float
+		return Mem.getF32(r, Activity.INPUT_POINTER + i * 20 + 12);
 
 	// a pointer's event (Pointers)
 	static function send(onEvent:Null<Event->Void>, kind:EventKind, p:Pointer, button:Int) {
@@ -381,16 +392,16 @@ class AndroidWindow {
 	}
 
 	// AMOTION_EVENT_TOOL_TYPE_STYLUS, _ERASER: a pen; _MOUSE the mouse; else a finger
-	static function tool(ev:Ptr, i:Int64):PointerType
-		return switch Android.AMotionEvent_getToolType(ev, i) {
+	static function tool(r:Ptr, i:Int):PointerType
+		return switch Mem.getI32(r, Activity.INPUT_POINTER + i * 20 + 4) {
 			case 2 | 4: Pen;
 			case 3: Mouse;
 			case _: Touch;
 		}
 
 	// (a finger's force, 0 to 1: the screen's estimate where it has none)
-	static inline function pressure(ev:Ptr, i:Int64):Float
-		return Math.min(1, Android.AMotionEvent_getPressure(ev, i));
+	static inline function pressure(r:Ptr, i:Int):Float
+		return Math.min(1, Mem.getF32(r, Activity.INPUT_POINTER + i * 20 + 16));
 
 	// an event's time in ms since the first one's (a drag's speed, even when a frame read several)
 	static function ms(ns:Int64):Float {

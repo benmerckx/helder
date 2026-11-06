@@ -15,7 +15,8 @@ import Cube.Spin;
 //   frames; touches (their pointer events) and keys logged as their
 //   events, the mouse's and the scrolls too (a touch makes none), the cube
 //   turned as Cube.hx turns it (Spin: held while a finger drags it, flicked
-//   on at the drag's speed once let go), its state logged every 20 frames. The app keeps running
+//   on at the drag's speed once let go: its speed then logged), its state
+//   logged every 20 frames. The app keeps running
 //   (the screenshot comes from adb) until Back (Escape) closes the window.
 class AndroidTest {
 	static inline var WIDTH = 256;
@@ -81,6 +82,8 @@ class AndroidTest {
 				case _:
 			}
 			spin.input(e, w);
+			// (let go: the speed the release gave it, before its frames ease it back)
+			if (e.kind == PointerUp && e.pointer.type == Touch) Sys.println('AndroidTest: let go, spin speed ${Math.round(spin.speed * 1000)}');
 			// (Back is Escape: closed as the examples do; Android 12+ keeps a launcher's activity on Back)
 			if (e.kind == Close || (e.kind == KeyDown && e.key == 0xFF1B)) w.close();
 		});
