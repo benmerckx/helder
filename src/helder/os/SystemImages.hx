@@ -199,6 +199,9 @@ class SystemImages {
 			if (img.isNull()) throw ImageError.corrupt("SystemImages: ImageIO cannot decode it");
 			var pw = CG.CGImageGetWidth(img).toInt(), ph = CG.CGImageGetHeight(img).toInt();
 			var n = pw * ph * 4, buf = LibC.malloc((n : hxmc.I64));
+			// (cleared: CGContextDrawImage composites over what the bitmap holds, so an image with alpha
+			// drawn into malloc's leftovers took them in where it is not opaque)
+			LibC.memset(buf, 0, (n : hxmc.I64));
 			var space = CG.CGColorSpaceCreateWithName(CG.srgb());
 			// (kCGImageAlphaPremultipliedLast: R G B A, premultiplied as Core Graphics draws)
 			var ctx = CG.CGBitmapContextCreate(buf, pw, ph, 8, pw * 4, space, 1);
