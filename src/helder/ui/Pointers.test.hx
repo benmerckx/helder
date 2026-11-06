@@ -121,6 +121,38 @@ function tests() {
 			equals(list.scrollY, at);
 			ui.pointerUp(50, 100, 1, 1);
 		});
+		test("a flick's events read late, its lift at once: its glide as the system spaced them", () -> {
+			// (each event at its own time: ms of the system's clock, read lag ms later; the glide's scroll after 30 frames)
+			function flick(lags:Array<Float>):Float {
+				t = 10;
+				ui = new Ui(null, 300, 200);
+				list = box(ui.root, 0, 50, 300, 150);
+				list.style.overflow = Scroll;
+				item = new Node("item");
+				item.style.height = 6000;
+				item.style.shrink = 0;
+				list.append(item);
+				ui.update();
+				var times = [11000.0, 11050, 11100], ys = [190.0, 150, 110];
+				for (k in 0...3) {
+					t = (times[k] + lags[k]) / 1000;
+					var at = ui.eventTime(times[k]);
+					if (k == 0) ui.pointerDown(50, ys[k], 1, 1, Touch, 1, at) else ui.pointerMove(50, ys[k], 1, 1, at);
+				}
+				t = (11110 + lags[3]) / 1000;
+				ui.pointerUp(50, 100, 1, 1, ui.eventTime(11110));
+				for (_ in 0...30) {
+					t += 1 / 60;
+					ui.update();
+				}
+				return list.scrollY;
+			}
+			var prompt = flick([5, 5, 5, 5]);
+			assert(prompt > 200, 'glided to $prompt');
+			// (its down and moves read a slow frame late, its lift at once, the first events the ui has: the same flick)
+			var late = flick([80, 80, 60, 1]);
+			assert(Math.abs(late - prompt) < 0.01, 'glided to $late, read at once to $prompt');
+		});
 		test("a second finger's drag scrolls nothing (the first finger's alone)", () -> {
 			ui.pointerDown(50, 150, 1, 1, Touch);
 			ui.pointerDown(150, 150, 1, 2, Touch);

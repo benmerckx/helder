@@ -1026,18 +1026,29 @@ class Ui {
 	// the event being handled's time on now's clock (pointerDown's, pointerMove's, pointerUp's at;
 	// < 0: now's)
 	var eventAt = -1.0;
-	// (the least lag seen from an event's own clock to now's: the two clocks' offset)
+	// (the least lag seen from an event's own clock to now's, between gestures: the two clocks' offset)
 	var eventLag = 1e18;
 
-	// an event's own time (ms, the system's clock: helder.os.Pointer.time) on now's clock: spaced as
-	// the system spaced them, never after now (0: none known, now)
+	// an event's own time (ms, the system's clock: helder.os.Pointer.time) on now's clock, spaced as
+	// the system spaced them (0: none known, now). The offset is the least lag seen while no finger
+	// or pen is down; a gesture's events keep the one it started with, so one read sooner after it
+	// happened than those before it (a lift read at once after moves a slow frame held back) is not
+	// moved nearer to them: a flick's last interval, its speed, is the system's (with the least lag
+	// taken as it came, Android's swipe on CI's emulator, its down and moves read a frame late and
+	// its lift at once, had its lift a millisecond after its last move and glided to the end of the
+	// list). Such a time may be after now, by as much as its lag is less.
 	public function eventTime(ms:Float):Float {
 		if (ms <= 0) return now();
-		var n = now(), lag = n - ms / 1000;
-		// (the least lag, or anew when the event's clock went back or jumped: a second behind is none)
-		if (lag < eventLag || lag - eventLag > 1) eventLag = lag;
-		var t = ms / 1000 + eventLag;
-		return t > n ? n : t;
+		var lag = now() - ms / 1000;
+		// (anew when the event's clock went back or jumped: a second off is none)
+		if (Math.abs(lag - eventLag) > 1 || (lag < eventLag && !pressing())) eventLag = lag;
+		return ms / 1000 + eventLag;
+	}
+
+	// whether a finger or a pen is down
+	function pressing():Bool {
+		for (d in pDown) if (d) return true;
+		return false;
 	}
 
 	// the selected text (empty: none)
