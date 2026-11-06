@@ -10,7 +10,8 @@ using StringTools;
 // added by Enter and by the Add button, one toggled by its role and
 // label, a filter), their frames and the glow scene's against the goldens
 // here (Linux: llvmpipe, DejaVu Sans; within a tolerance),
-// the trace's lines, the frames written, and each output of the second run
+// the viewer's file dialog and context menu answered by its script, the
+// trace's lines, the frames written, and each output of the second run
 // byte for byte the first's.
 //   Check <dir> [--bless]
 class Check {
@@ -38,6 +39,7 @@ class Check {
 			image('$app-toggled.png', '$one/$app-toggled.png', bless);
 		}
 		image("glow.png", '$one/glow.png', bless);
+		viewer(tree('$one/viewer-menu.json'), tree('$one/viewer-end.json'));
 		var frames = [for (f in FileSystem.readDirectory('$one/frames')) f];
 		frames.sort(Reflect.compare);
 		check("--frames 6 --every 2: frames 0, 2 and 4", frames.join(",") == "frame_0000.png,frame_0002.png,frame_0004.png", frames.join(","));
@@ -104,6 +106,18 @@ class Check {
 		check('$app: the list where it is laid out', list != null && list.rect[0] == 24 && list.rect[2] == 432, haxe.Json.stringify(list?.rect));
 		for (n in nodes)
 			if (n.moving == true) check('$app: nothing moving at the end', false, n.path);
+	}
+
+	// the viewer: a file opened through the file dialog (the script's
+	// answer), its context menu open at the mark, an item picked from it
+	static function viewer(menu:Array<Dynamic>, end:Array<Dynamic>) {
+		var items = [for (n in menu) if (n.tag == "menu-item") n.label];
+		check("viewer: the context menu open, its items", items.length == 5 && items.contains("Fit") && items.contains("Actual Size"), items.join("|"));
+		var photo = byTag(menu, "photo");
+		check("viewer: the file dialog's answer opened", photo != null && photo.label != null && (photo.label : String).startsWith("alpha.png"), photo?.label);
+		check("viewer: the menu closed by the item picked", byTag(end, "menu") == null);
+		var t = texts(end);
+		check("viewer: the status at actual size", Lambda.exists(t, s -> s.startsWith("100% · 13×11 · PNG")), t.join("|"));
 	}
 
 	// a JSON line a frame, the tagged nodes; the count's text moving when it changed
