@@ -223,7 +223,8 @@ through a get accessor (the program's or a Haxe property's), is given as a
 function of it, which the runtime binds, so `{count() * 2}` follows count
 with no `() =>`; a literal, a name or an expression of them is set once,
 and one of a type never reactive (a string, a number, a boolean) straight
-to the renderer. A component's prop of a type that reads (`Read<T>`,
+to the renderer; a literal value naming `env()` is bound to ui's safe
+area (SafeArea, NodeRenderer.bindEnv), as Haxe's markup. A component's prop of a type that reads (`Read<T>`,
 helder's components' and the program's) whose value may read is given as
 a function of it too. The planner's facts come from the manifest (a
 renderer's elements, a component's props that read, whether its children
@@ -310,8 +311,7 @@ function Checkbox(props: {checked: Signal<boolean>, label: string}) {
 
 Not yet: the async of 7.4 (a TypeScript `async` function given to `memo`
 is not a coroutine of helder.async's), the helder.dev reload keeping a
-program's state, ui's `env()` values in a literal attribute (SafeArea: set as a
-string).
+program's state.
 
 ## Tests
 

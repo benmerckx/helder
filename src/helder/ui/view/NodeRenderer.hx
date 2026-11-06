@@ -91,6 +91,11 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	// the elements registered besides the intrinsic ones, and the nodes they make
 	public static final elements:Map<String, Void->Node> = [];
 
+	// (helder.typescript's markup: a literal value naming env(), bound to the
+	// safe area with the name's setter, as setProperty's)
+	@:noCompletion public static function bindEnv(n:Node, set:(n:Node, name:String, v:Dynamic) -> Void, name:String, value:String)
+		helder.ui.SafeArea.bind(n, set, name, value);
+
 	// (inline: a literal tag makes its own node alone)
 	public static inline function createElement(tag:String):Node
 		return switch tag {

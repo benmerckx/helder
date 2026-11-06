@@ -38,6 +38,19 @@ class UiProbe {
 		ui.update();
 	}
 
+	// the safe area's insets, as a phone's window sets them (SafeArea)
+	@:typescript public static function insets(top:Float, right:Float, bottom:Float, left:Float) {
+		SafeArea.set(top, right, bottom, left);
+		ui.update();
+	}
+
+	// the padding of the first node with tag: top right bottom left
+	@:typescript public static function padding(tag:String):String {
+		ui.update();
+		var s = ui.root.find(tag).style;
+		return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(" ");
+	}
+
 	// the tree: a node a line, indented by its depth
 	@:typescript public static function dump():String {
 		ui.update();

@@ -33,6 +33,10 @@ export declare class UiProbe {
 	static type(text: string): void;
 	// a key pressed (Key's codes)
 	static key(code: number): void;
+	// the safe area's insets, as a phone's window sets them (SafeArea)
+	static insets(top: number, right: number, bottom: number, left: number): void;
+	// the padding of the first node with tag: top right bottom left
+	static padding(tag: string): string;
 	// the tree: a node a line, indented by its depth
 	static dump(): string;
 }

@@ -649,6 +649,12 @@ class Tsx {
 		}
 		var fn = name == null ? r.setters?.fallback : r.setter(name);
 		if (fn == null) return hostCall(r, "setProperty", args, ctx);
+		// (a literal value naming env(): bound to the safe area, as the macro's setProperty does)
+		switch raw[2] {
+			case MString(v) if (v.indexOf("env(") >= 0 && r.functions.get("bindEnv") == "function"):
+				return hostCall(r, "bindEnv", [args[0], bridge.staticClosure(ident(fn)), args[1], args[2]], ctx);
+			case _:
+		}
 		return bridge.call(bridge.fn(ident(fn)), args);
 	}
 

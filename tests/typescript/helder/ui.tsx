@@ -77,3 +77,16 @@ console.log(UiProbe.dump());
 UiProbe.click("check-Walk");
 UiProbe.click("filter-done");
 console.log(UiProbe.dump());
+// a literal attribute naming env(): bound to the safe area (SafeArea), as Haxe's markup
+const safe = UiProbe.root(390, 844);
+Render.render(
+	<view tag="page" padding-left="calc(env(safe-area-inset-left) + 16px)">
+		<view tag="bar" padding-top="env(safe-area-inset-top)" padding-bottom="max(12px, env(safe-area-inset-bottom))"/>
+	</view>,
+	safe
+);
+console.log(UiProbe.padding("bar"), "|", UiProbe.padding("page"));
+UiProbe.insets(47, 0, 34, 0);
+console.log(UiProbe.padding("bar"), "|", UiProbe.padding("page"));
+UiProbe.insets(0, 47, 21, 47);
+console.log(UiProbe.padding("bar"), "|", UiProbe.padding("page"));
