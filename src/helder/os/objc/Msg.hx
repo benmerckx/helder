@@ -47,6 +47,8 @@ class Msg {
 	static function vPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Void;
 	// (an NSRange by value: two NSUIntegers)
 	static function vPtrIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64):Void;
+	// (an NSRange by value: its location and length)
+	static function vIntInt(self:Ptr, sel:Ptr, a:Int64, b:Int64):Void;
 	static function vPtrIntIntIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64, d:Int64, e:Int64):Void;
 	static function b(self:Ptr, sel:Ptr):Bool;
 	static function bPtr(self:Ptr, sel:Ptr, a:Ptr):Bool;

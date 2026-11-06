@@ -579,8 +579,12 @@ mirrors it as ARIA elements inside its canvas (the canvas's fallback
 content: in the page's accessibility tree, not drawn): load
 `src/helder/ui/imports.mjs` with the others. On macOS the window gives it to
 NSAccessibility (`MacAccess`: an element per node, its role, label, value
-and frame; press, increment and decrement come back as actions), which
-VoiceOver reads; on Windows to UI Automation (`WinAccess`: a COM
+and frame; a text input's characters, selection and lines; a table's
+rows, columns and headers, a row's and an item's index; press,
+increment and decrement come back as actions, as do a value, the focus,
+expanded and selected set; the notifications of what changed), which
+VoiceOver reads (the window lane on macOS: `MacAccessTest`,
+`MacPatternsTest`, in process); on Windows to UI Automation (`WinAccess`: a COM
 provider per node, made here: navigation, properties (an item's place in
 its set, a heading's level, off screen), bounds, the Invoke, Toggle,
 RangeValue, Value, ExpandCollapse, SelectionItem, Selection, ScrollItem,
