@@ -15,7 +15,7 @@ import helder.ui.actions.ContextPredicate;
 // action is bound to, Tab's order and the focus given back by a popup, and
 // markup's key-context, actions and track-focus
 function tests() {
-	Actions.declare("test", TestAction);
+	actions("test", TestAction);
 	describe("Context predicates", () -> {
 		var stack = [KeyContext.parse("Workspace"), KeyContext.parse("Pane"), KeyContext.parse("Editor mode=full read_only")];
 		test("identifiers, values, not, and, or, the deepest prefix", () -> {

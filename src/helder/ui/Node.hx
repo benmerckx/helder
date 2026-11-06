@@ -297,8 +297,8 @@ class Node implements Part {
 	// handles e's actions dispatched through it (Ui.dispatchAction: from the focus
 	// up): handle true takes one, false lets it bubble; state what a menu
 	// shows it as (default: Enabled). Returns what removes it.
-	public function on<T:EnumValue>(e:Enum<T>, handle:T->Bool, ?state:T->helder.ui.actions.Actions.ActionState):Void->Void {
-		var h = helder.ui.actions.Actions.ActionHandler.of(e, handle, state);
+	public function on<T>(type:helder.ui.actions.Actions.ActionType<T>, handle:T->Bool, ?state:T->helder.ui.actions.Actions.ActionState):Void->Void {
+		var h = helder.ui.actions.Actions.ActionHandler.of(type, handle, state);
 		if (actionHandlers == null) actionHandlers = [];
 		actionHandlers.push(h);
 		return () -> actionHandlers.remove(h);

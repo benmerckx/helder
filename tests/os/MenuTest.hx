@@ -33,7 +33,7 @@ class MenuTest {
 		var out = Sys.args().length > 0 ? Sys.args()[0] : "bin/os";
 		Keymap.mac = Mem.os() == 1;
 		Menus.appName = "MenuTest";
-		Actions.declare("menutest", TestAction);
+		actions("menutest", TestAction);
 		var k = Keymap.global;
 		k.bind("secondary-o", Open).bind("f11", Full).bind("secondary-k secondary-t", Tile);
 		var w = new UiWindow("MenuTest", 480, 320);

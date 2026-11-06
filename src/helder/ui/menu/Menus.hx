@@ -20,7 +20,7 @@ class Menus {
 	// the items as the platform's menus take them: labels, the keymap's
 	// shortcut for each action (its first binding where the context stack
 	// of from is), enabled and checked from Ui.actionState; ids index actions
-	public static function resolve(ui:Ui, items:Array<MenuItem>, from:Null<Node>, actions:Array<EnumValue>):Array<PlatformMenuItem> {
+	public static function resolve(ui:Ui, items:Array<MenuItem>, from:Null<Node>, actions:Array<Action>):Array<PlatformMenuItem> {
 		var stack = ui.contextStack(from);
 		var out:Array<PlatformMenuItem> = [];
 		for (it in items)
@@ -40,8 +40,8 @@ class Menus {
 		return out;
 	}
 
-	static function item(ui:Ui, label:String, action:EnumValue, stack:Array<helder.ui.actions.KeyContext>, from:Null<Node>,
-			actions:Array<EnumValue>, role:Null<MenuRole>):PlatformMenuItem {
+	static function item(ui:Ui, label:String, action:Action, stack:Array<helder.ui.actions.KeyContext>, from:Null<Node>,
+			actions:Array<Action>, role:Null<MenuRole>):PlatformMenuItem {
 		var id = actions.length;
 		actions.push(action);
 		var state = ui.actionState(action, from);
@@ -93,7 +93,7 @@ class MenuBar {
 	var epoch = -1;
 	var keymapVersion = -1;
 	var checked = 0.0;
-	var actions:Array<EnumValue> = [];
+	var chosen:Array<Action> = [];
 	var open:Null<DrawnMenu> = null;
 	var openIndex = -1;
 	final titles:Array<Node> = [];
@@ -109,7 +109,7 @@ class MenuBar {
 		build();
 		ui.beforeUpdate.push(refresh);
 		// (F10: the keymap's binding of OpenMenuBar, the first time a bar is made for it)
-		Actions.declare("menu", MenuBarAction);
+		actions("menu", MenuBarAction);
 		if (!Lambda.exists(ui.keymap.bindings(), b -> b.action != null && Actions.equals(b.action, OpenMenuBar))) ui.keymap.bind("f10", OpenMenuBar);
 		removeKey = ui.on(MenuBarAction, _ -> {
 			if (native || menus.length == 0 || helder.ui.Popups.modal(ui) != null) return false;
@@ -151,7 +151,7 @@ class MenuBar {
 		epoch = ui.inputEpoch;
 		keymapVersion = ui.keymap.version;
 		checked = now;
-		var a:Array<EnumValue> = [];
+		var a:Array<Action> = [];
 		var top:Array<PlatformMenuItem> = [for (m in menus) {
 			var r:PlatformMenuItem = {id: -1, label: m.label, items: Menus.resolve(ui, m.items, null, a)};
 			if (m.role != null) r.role = m.role;
@@ -160,8 +160,8 @@ class MenuBar {
 		var s = sign(top);
 		if (s == signature && native) return;
 		signature = s;
-		actions = a;
-		if (ui.platform.menuBar(top, id -> if (id >= 0 && id < actions.length) ui.dispatchAction(actions[id]))) {
+		chosen = a;
+		if (ui.platform.menuBar(top, id -> if (id >= 0 && id < chosen.length) ui.dispatchAction(chosen[id]))) {
 			native = true;
 			node.style.display = None;
 		} else {

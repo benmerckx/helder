@@ -28,8 +28,12 @@ import helder.view.graph.Read;
 //
 //   haxe -lib helder -cp examples/mail -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
+	// its actions (mail::Archive... in a keymap)
+	public static function declare()
+		actions("mail", MailAction);
+
 	static function main() {
-		Actions.declare("mail", MailAction);
+		declare();
 		Keymap.global.bind("e", Archive).bind("delete", Delete).bind("secondary-shift-u", MarkUnread);
 		UiWindow.run(<Surface title="Mail" width={860} height={560} theme={sheet}>{new Mail().view()}</Surface>);
 	}

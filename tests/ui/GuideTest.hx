@@ -399,6 +399,7 @@ class GuideTest implements Markup {
 		</view>;
 
 	static function shortcuts() {
+		helder.ui.actions.Actions.actions("editor", EditorAction);
 		helder.ui.actions.Keymap.global.bind("secondary-s", Save, "Editor").bind("secondary-shift-k", Clear, "Editor");
 		var ui = window(), text = signal("draft"), saved = 0;
 		Render.render(<Editor text={text} onSave={() -> saved++}/>, ui.root);

@@ -1,5 +1,6 @@
 package helder.ui.actions;
 
+import helder.ui.actions.Actions;
 import helder.ui.actions.ContextPredicate;
 
 // Key bindings: keystroke sequences to actions where a context predicate
@@ -39,7 +40,7 @@ class Keymap {
 	public function new() {}
 
 	// a default binding (keys: "secondary-o", "secondary-k secondary-s"; context: a predicate, null: anywhere)
-	public function bind(keys:String, action:Null<EnumValue>, ?context:String):Keymap {
+	public function bind(keys:String, action:Null<Action>, ?context:String):Keymap {
 		defaults.push(new Binding(Keystroke.sequence(keys), action, context));
 		version++;
 		return this;
@@ -131,7 +132,7 @@ class Keymap {
 	// the key sequences bound to an action (best first) where the stack is
 	// (null: anywhere), each one that would run it: not taken by a better
 	// binding of the same keys first
-	public function keysFor(action:EnumValue, ?stack:Array<KeyContext>):Array<Array<Keystroke>> {
+	public function keysFor(action:Action, ?stack:Array<KeyContext>):Array<Array<Keystroke>> {
 		var all = bindings(), out:Array<{keys:Array<Keystroke>, depth:Int, at:Int}> = [];
 		for (i in 0...all.length) {
 			var b = all[i];
@@ -157,7 +158,7 @@ class Keymap {
 	}
 
 	// as a menu or a tooltip shows the best of them: "Ctrl+O", "⌘K ⌘S"; null: none
-	public function label(action:EnumValue, ?stack:Array<KeyContext>):Null<String> {
+	public function label(action:Action, ?stack:Array<KeyContext>):Null<String> {
 		var k = keysFor(action, stack);
 		return k.length == 0 ? null : [for (s in k[0]) s.label()].join(" ");
 	}
@@ -173,11 +174,11 @@ class Keymap {
 class Binding {
 	public final keys:Array<Keystroke>;
 	// null: unbound (the keys passed on)
-	public final action:Null<EnumValue>;
+	public final action:Null<Action>;
 	public final context:Null<String>;
 	public final predicate:Null<ContextPredicate>;
 
-	public function new(keys:Array<Keystroke>, action:Null<EnumValue>, ?context:String) {
+	public function new(keys:Array<Keystroke>, action:Null<Action>, ?context:String) {
 		if (keys.length == 0) throw "helder.ui: a binding without keys";
 		this.keys = keys;
 		this.action = action;

@@ -1099,13 +1099,13 @@ class Ui {
 	// the chord typed so far (a binding's first keystrokes: waiting for the
 	// next, Keymap.timeout), what its keys alone run when it times out
 	public final pendingKeys:Array<{key:Int, mods:Int}> = [];
-	var pendingAction:Null<EnumValue> = null;
+	var pendingAction:Null<helder.ui.actions.Actions.Action> = null;
 	var pendingFrom:Null<Node> = null;
 	var pendingSerial = 0;
 
 	// a window's handler of e's actions (Node.on's)
-	public function on<T:EnumValue>(e:Enum<T>, handle:T->Bool, ?state:T->helder.ui.actions.Actions.ActionState):Void->Void {
-		var h = helder.ui.actions.Actions.ActionHandler.of(e, handle, state);
+	public function on<T>(type:helder.ui.actions.Actions.ActionType<T>, handle:T->Bool, ?state:T->helder.ui.actions.Actions.ActionState):Void->Void {
+		var h = helder.ui.actions.Actions.ActionHandler.of(type, handle, state);
 		actionHandlers.push(h);
 		return () -> actionHandlers.remove(h);
 	}
@@ -1133,7 +1133,7 @@ class Ui {
 
 	// the handler that would take an action from (default: the focus), the
 	// tree's up to the root, the window's, the app's (null: none)
-	function handlerOf(a:EnumValue, from:Null<Node>):Null<helder.ui.actions.Actions.ActionHandler> {
+	function handlerOf(a:helder.ui.actions.Actions.Action, from:Null<Node>):Null<helder.ui.actions.Actions.ActionHandler> {
 		var n = from != null ? from : focus != null ? focus : root;
 		while (n != null) {
 			if (n.actionHandlers != null)
@@ -1150,7 +1150,7 @@ class Ui {
 
 	// what a menu shows an action as, from (default: the focus): the state
 	// of the first handler on the path that takes it
-	public function actionState(a:EnumValue, ?from:Node):helder.ui.actions.Actions.ActionState {
+	public function actionState(a:helder.ui.actions.Actions.Action, ?from:Node):helder.ui.actions.Actions.ActionState {
 		var h = handlerOf(a, from);
 		return h == null ? Unhandled : h.state(a);
 	}
@@ -1158,7 +1158,7 @@ class Ui {
 	// dispatches an action from (default: the focus) up the tree, then to
 	// the window's and the app's handlers, until one takes it (true); a
 	// disabled one's is not run
-	public function dispatchAction(a:EnumValue, ?from:Node):Bool {
+	public function dispatchAction(a:helder.ui.actions.Actions.Action, ?from:Node):Bool {
 		inputEpoch++;
 		var n = from != null ? from : focus != null ? focus : root;
 		inline function tryAll(hs:Array<helder.ui.actions.Actions.ActionHandler>):Bool {
@@ -1208,7 +1208,7 @@ class Ui {
 		}
 		if (typed.length == 1 && typing && mods & (Key.MOD_CONTROL | Key.MOD_ALT | Key.MOD_META) == 0 && key < 0xFF00) return false;
 		// (the best binding whose action some handler takes; an unbound one stops the search)
-		var best:Null<EnumValue> = null, bestDepth = -1;
+		var best:Null<helder.ui.actions.Actions.Action> = null, bestDepth = -1;
 		for (b in m.exact) {
 			if (b.action == null) break;
 			if (handlerOf(b.action, null) != null) {

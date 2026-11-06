@@ -54,7 +54,7 @@ class AccessApp implements Markup {
 					w.ui.requestFrame();
 				};
 			case "mail":
-				helder.ui.actions.Actions.declare("mail", Mail.MailAction);
+				Mail.declare();
 				var m = new Mail();
 				w.ui.theme = Mail.sheet;
 				Render.render(m.view(), w.root);

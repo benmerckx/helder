@@ -16,7 +16,7 @@ import helder.ui.menu.Menus;
 // moving while one is open), the platform's menus given the model and set
 // again when a state changes
 function tests() {
-	Actions.declare("menu-test", MenuAction);
+	actions("menu_test", MenuAction);
 	function setup() {
 		Keymap.mac = false;
 		var ui = new Ui(new helder.story.StoryText(), 400, 300), log = [];

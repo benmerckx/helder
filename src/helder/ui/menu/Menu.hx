@@ -11,7 +11,7 @@ import helder.ui.actions.Actions;
 // application menu for About and Quit, its Window menu; its text editors'
 // copy: and paste:).
 enum MenuItem {
-	Item(label:String, action:EnumValue);
+	Item(label:String, action:Action);
 	Separator;
 	Submenu(label:String, items:Array<MenuItem>);
 	Role(role:MenuRole, ?label:String);

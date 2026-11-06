@@ -400,8 +400,9 @@ static function Confirm(props:{onYes:Void->Void}):View {
 ## Keyboard shortcuts
 
 A shortcut is a key binding of the keymap (`helder.ui.actions`) to an
-action, a value of an enum of your own. `Keymap.global.bind(keys,
-action, ?context)` binds it, once; a node's `actions` handle it while
+action, a value of an enum of your own, declared with a namespace
+(`actions("editor", EditorAction)`: `editor::Save` in a JSON keymap).
+`Keymap.global.bind(keys, action, ?context)` binds it, once; a node's `actions` handle it while
 the focus is inside that node, and `key-context` names the node for a
 binding's context. `secondary` is Control, or Command on a Mac. A key
 the focused node takes first (a text field's Control+C, a letter typed
@@ -413,6 +414,7 @@ change them.
 enum EditorAction { Save; Clear; }
 
 // (once, when the program starts)
+actions("editor", EditorAction);
 Keymap.global.bind("secondary-s", Save, "Editor").bind("secondary-shift-k", Clear, "Editor");
 
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View

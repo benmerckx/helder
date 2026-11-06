@@ -46,7 +46,7 @@ class ViewerActions {
 	public static function defaults(keymap:Keymap) {
 		if (declared) return;
 		declared = true;
-		Actions.declare("viewer", ViewerAction);
+		actions("viewer", ViewerAction);
 		var here = "Viewer && !picker && !goto && !about";
 		keymap.bind("secondary-o", Open, "Viewer");
 		for (k in ["space", "pagedown", "down", "right"])
