@@ -171,7 +171,14 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           script: |
-            sh tests/gfx/fling-diag.sh
+            sh tests/pack/android.sh bin/cli/helder bin/pack/android || echo "LINE FAILED"
+            node tests/os/dev/dev-android.mjs bin/cli/helder bin/pack/dev-emulator || echo "LINE FAILED"
+            sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx || echo "LINE FAILED"
+            sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx || echo "LINE FAILED"
+            sh tests/typescript/native/android.sh bin/cli/helder bin/pack/android-ts || echo "LINE FAILED"
+            for i in 1 2 3 4; do sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx > bin/pack/android-gfx/cube-$i.txt 2>&1; echo "cube run $i: exit $?"; grep "FAIL\|fling's speed\|android-swipe" bin/pack/android-gfx/cube-$i.txt; done; true
+            for i in 1 2 3 4; do sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx > bin/pack/android-gfx/touch-$i.txt 2>&1; echo "touch run $i: exit $?"; grep "FAIL\|let go at\|settled\|android-swipe" bin/pack/android-gfx/touch-$i.txt; done; true
+            cat bin/pack/android-gfx/cube-1.txt bin/pack/android-gfx/touch-1.txt
       - uses: actions/upload-artifact@v7
         if: always()
         with:
