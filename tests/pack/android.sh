@@ -140,4 +140,44 @@ check "golf: still running after its first frames" $?
 ! seen "Uncaught exception"
 check "golf: nothing uncaught" $?
 adb shell am force-stop $gid
+
+# helder.ui's accessibility (tests/ui/AndroidAccessCheck.hx: AccessFixture's
+# controls): the window's tree as uiautomator reads it (the content view's
+# virtual views, AndroidAccess's AccessibilityNodeProvider), each control
+# with its class, text or description and states.
+aid=org.helder.androidaccesscheck
+"$helder" build tests/ui/AndroidAccessCheck.hx --target android-x86_64 -o "$out/AndroidAccessCheck.apk"
+check "helder build tests/ui/AndroidAccessCheck.hx" $?
+adb uninstall $aid > /dev/null 2>&1
+adb install -r "$out/AndroidAccessCheck.apk"
+check "adb install AndroidAccessCheck.apk" $?
+adb logcat -c
+adb shell am start -W -n $aid/android.app.NativeActivity
+i=0
+while [ $i -lt 60 ] && ! seen "access: ready"; do
+	sleep 1
+	i=$((i + 1))
+done
+sleep 2
+adb shell uiautomator dump /sdcard/access.xml > /dev/null 2>&1
+adb pull /sdcard/access.xml "$out/access.xml" > /dev/null 2>&1
+check "uiautomator dump" $?
+seen "access: asked"
+check "access: the provider asked" $?
+dumped() {
+	grep -q -- "$1" "$out/access.xml"
+	check "access: $2" $?
+}
+dumped 'text="Save" [^>]*class="android.widget.Button"' "a button"
+dumped 'text="Remember" [^>]*class="android.widget.CheckBox"[^>]*checkable="true" checked="false"' "a checkbox"
+dumped 'class="android.widget.SeekBar" [^>]*content-desc="Volume"' "a slider"
+dumped 'text="Ada" [^>]*class="android.widget.EditText"' "a field's text"
+dumped 'text="Pear" ' "a list's item"
+dumped 'class="android.widget.GridView" [^>]*content-desc="Mail"' "a table"
+dumped 'text="Lunch" ' "a cell"
+dumped 'text="General" [^>]*selected="true"' "a tab selected"
+sed 's/></>\n</g' "$out/access.xml" | grep -c 'helder.androidaccesscheck' | sed 's/^/android.sh: access: nodes of the app: /'
+! seen "an accessibility"
+check "access: no failed node or action" $?
+adb shell am force-stop $aid
 exit $failed

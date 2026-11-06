@@ -591,7 +591,14 @@ VoiceOver reads (the window lane on macOS: `MacAccessTest`,
 the window's view a container of a UIAccessibilityElement per node
 VoiceOver stops at, its label, value, hint, traits and frame; activate,
 increment and decrement come back as actions; layout changes and
-announcements posted; `tests/ui/IosAccessCheck.hx` on CI's simulator); on Windows to UI Automation (`WinAccess`: a COM
+announcements posted; `tests/ui/IosAccessCheck.hx` on CI's simulator); on Android to an
+AccessibilityNodeProvider on NativeActivity's content view
+(`AndroidAccess`, its Java classes.dex's `org.hxmc.AccessProvider` and
+`AccessDelegate`, natives: a virtual view per node, its class, text,
+bounds, states, range, collection and item info and actions, the
+accessibility focus its own, TalkBack's order the tree's; the content
+changed, the focus and announcements sent; `tests/ui/AndroidAccessCheck.hx`
+read by `uiautomator dump` on CI's emulator); on Windows to UI Automation (`WinAccess`: a COM
 provider per node, made here: navigation, properties (an item's place in
 its set, a heading's level, off screen), bounds, the Invoke, Toggle,
 RangeValue, Value, ExpandCollapse, SelectionItem, Selection, ScrollItem,

@@ -44,7 +44,7 @@ typedef SurfaceProps = {
 // open, which sleeps while none has a frame to draw. In the browser each
 // frame's accessibility tree goes to the mirror in the canvas (WebAccess:
 // load src/helder/ui/imports.mjs), on macOS to NSAccessibility (MacAccess), on
-// iOS to UIAccessibility (IosAccess),
+// iOS to UIAccessibility (IosAccess), on Android to its AccessibilityNodeProvider (AndroidAccess),
 // on Windows to UI Automation (WinAccess), on Linux to AT-SPI (LinuxAccess),
 // and the actions asked for come back.
 //
@@ -97,6 +97,8 @@ class UiWindow {
 	var linuxAccess:Any = null;
 	// iOS's (an IosAccess)
 	var iosAccess:Any = null;
+	// Android's (an AndroidAccess)
+	var androidAccess:Any = null;
 	// the text input area last given to the window ("": off)
 	var typing = "";
 	final pass:PassDesc = {colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]};
@@ -299,7 +301,8 @@ class UiWindow {
 		} else if (Mem.os() == 2) {
 			return winAccess != null && (cast winAccess : WinAccess).listening();
 		} else if (Mem.os() == 0) {
-			if (Mem.target() < 9) return linuxAccess != null && LinuxAccess.listening();
+			if (Mem.target() < 9) return linuxAccess != null && LinuxAccess.listening() else return androidAccess != null
+				&& (cast androidAccess : AndroidAccess).listening();
 		}
 		return false;
 	}
@@ -328,6 +331,9 @@ class UiWindow {
 			if (Mem.target() < 9) {
 				if (linuxAccess == null) linuxAccess = new LinuxAccess(window, ui);
 				(cast linuxAccess : LinuxAccess).update();
+			} else {
+				if (androidAccess == null) androidAccess = new AndroidAccess(window, ui);
+				(cast androidAccess : AndroidAccess).update();
 			}
 		}
 	}
@@ -339,7 +345,7 @@ class UiWindow {
 		} else if (Mem.os() == 0) {
 			if (Mem.target() < 9) {
 				if (linuxAccess != null) LinuxAccess.dispatch();
-			}
+			} else if (androidAccess != null) AndroidAccess.dispatch();
 		}
 	}
 
@@ -424,7 +430,7 @@ class UiWindow {
 		if (Mem.os() == 0) {
 			if (Mem.target() < 9) {
 				if (linuxAccess != null) (cast linuxAccess : LinuxAccess).dispose();
-			}
+			} else if (androidAccess != null) (cast androidAccess : AndroidAccess).dispose();
 		}
 		window.close();
 		open.remove(this);

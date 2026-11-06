@@ -162,7 +162,10 @@ function tests() {
 				"Lorg/hxmc/Glue; onClick(Landroid/view/View;)V", "Lorg/hxmc/Glue; afterTextChanged(Landroid/text/Editable;)V",
 				"Lorg/hxmc/Glue; onCheckedChanged(Landroid/widget/CompoundButton;Z)V", "Lorg/hxmc/Glue; onProgressChanged(Landroid/widget/SeekBar;IZ)V",
 				"Lorg/hxmc/Glue; onLayoutChange(Landroid/view/View;IIIIIIII)V", "Lorg/hxmc/Glue; surfaceChanged(Landroid/view/SurfaceHolder;III)V",
-				"Lorg/hxmc/Glue; onKey(Landroid/view/View;ILandroid/view/KeyEvent;)Z"
+				"Lorg/hxmc/Glue; onKey(Landroid/view/View;ILandroid/view/KeyEvent;)Z", "Lorg/hxmc/AccessProvider; <init>()V",
+				"Lorg/hxmc/AccessProvider; createAccessibilityNodeInfo(I)Landroid/view/accessibility/AccessibilityNodeInfo;",
+				"Lorg/hxmc/AccessProvider; performAction(IILandroid/os/Bundle;)Z",
+				"Lorg/hxmc/AccessDelegate; getAccessibilityNodeProvider(Landroid/view/View;)Landroid/view/accessibility/AccessibilityNodeProvider;"
 			])
 				assert(methods.contains(m), m);
 		});

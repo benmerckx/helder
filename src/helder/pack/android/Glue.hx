@@ -26,6 +26,10 @@ import helder.pack.android.Dex;
 //   SURFACE_CHANGED (width, height), SURFACE_DESTROYED
 //   (SurfaceHolder.Callback: the holder), KEY (View.OnKeyListener: the key
 //   code and the action; handled when non-zero).
+// - org.hxmc.AccessProvider and org.hxmc.AccessDelegate: an
+//   AccessibilityNodeProvider and a View.AccessibilityDelegate whose
+//   methods are natives (helder.ui.draw.AndroidAccess registers them): a
+//   drawn window's accessibility tree as the content view's virtual views.
 // The classes keep hxmc's names (org.hxmc.*), which helder.os.android
 // looks up. Ported from hxmc (hxmc.android.Glue), MIT.
 class Glue {
@@ -48,7 +52,54 @@ class Glue {
 	static inline var HOLDER = "Landroid/view/SurfaceHolder;";
 
 	public static function dex():haxe.io.Bytes
-		return Dex.write([activity(), glue()]);
+		return Dex.write([activity(), glue(), accessProvider(), accessDelegate()]);
+
+	static inline var NODE_INFO = "Landroid/view/accessibility/AccessibilityNodeInfo;";
+	static inline var NODE_PROVIDER = "Landroid/view/accessibility/AccessibilityNodeProvider;";
+
+	// a constructor calling its superclass's, of no arguments
+	static function constructor(base:String):DexMethod
+		return {
+			name: "<init>",
+			ret: "V",
+			params: [],
+			access: Dex.PUBLIC | Dex.CONSTRUCTOR,
+			code: {registers: 1, ins: 1, outs: 1, insns: r -> invoke(INVOKE_DIRECT, r.method(base, "<init>", "V", []), [0]).concat([RETURN_VOID])}
+		};
+
+	// org.hxmc.AccessProvider: an AccessibilityNodeProvider whose methods are
+	// natives (helder.ui.draw.AndroidAccess's): a drawn window's nodes as
+	// virtual views
+	static function accessProvider():DexClass
+		return {
+			name: "Lorg/hxmc/AccessProvider;",
+			access: Dex.PUBLIC | Dex.FINAL,
+			superName: NODE_PROVIDER,
+			interfaces: [],
+			fields: [],
+			methods: [
+				constructor(NODE_PROVIDER),
+				{name: "createAccessibilityNodeInfo", ret: NODE_INFO, params: ["I"], access: Dex.PUBLIC | Dex.NATIVE},
+				{name: "performAction", ret: "Z", params: ["I", "I", "Landroid/os/Bundle;"], access: Dex.PUBLIC | Dex.NATIVE},
+				{name: "findFocus", ret: NODE_INFO, params: ["I"], access: Dex.PUBLIC | Dex.NATIVE}
+			]
+		};
+
+	// org.hxmc.AccessDelegate: a View.AccessibilityDelegate whose provider is a native's (the AccessProvider)
+	static function accessDelegate():DexClass {
+		var base = "Landroid/view/View$AccessibilityDelegate;";
+		return {
+			name: "Lorg/hxmc/AccessDelegate;",
+			access: Dex.PUBLIC | Dex.FINAL,
+			superName: base,
+			interfaces: [],
+			fields: [],
+			methods: [
+				constructor(base),
+				{name: "getAccessibilityNodeProvider", ret: NODE_PROVIDER, params: [VIEW], access: Dex.PUBLIC | Dex.NATIVE}
+			]
+		};
+	}
 
 	// ---- Dalvik instructions (16-bit units)
 
