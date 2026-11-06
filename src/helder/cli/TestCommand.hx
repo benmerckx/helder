@@ -187,7 +187,7 @@ class TestCommand {
 	static function writeMain(name:String, files:Array<TestFile>, regex:Bool) {
 		var main = ["// `helder test`'s runner: the test files linked here, in order", 'class $name {', "\tstatic function main() {"];
 		for (f in files)
-			main.push('\t\thelder.test.Runner.add("${lit(f.real)}", "${lit(f.linked)}", ' + (f.story ? '() -> helder.story.Stories.test(${f.module}.stories)' : '${f.module}.tests') + ');');
+			main.push('\t\thelder.test.Runner.add("${lit(f.real)}", "${lit(f.linked)}", ' + (f.story ? '() -> helder.story.Stories.test(helder.story.Stories.of("${f.module}"))' : '${f.module}.tests') + ');');
 		if (regex) main.push('\t\thelder.test.Runner.regex = p -> {\n\t\t\tvar r = new EReg(p, "");\n\t\t\ts -> r.match(s);\n\t\t};');
 		main = main.concat(["\t\thelder.test.Runner.run();", "\t}", "}", ""]);
 		var text = main.join("\n"), path = '$GEN/$name.hx';
@@ -232,7 +232,7 @@ typedef TestFile = {
 	module:String,
 	// (it opts in to interp: @:test.interp)
 	interp:Bool,
-	// a .story.hx file (its stories() registers stories, each a test: helder.story.Stories)
+	// a .story.hx file (its module-level stories, story({...}), each a test: helder.story.Stories)
 	?story:Bool,
 }
 

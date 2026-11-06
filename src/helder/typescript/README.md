@@ -153,8 +153,8 @@ read-only or turned into an accessor (TSHX100 as well).
 ### helder's API and TSX (`api/`, `lower/Api.hx`, `lower/Haxe.hx`, `lower/Tsx.hx`)
 
 A program calls helder's Haxe API through declarations: `helder/view`,
-`helder/ui`, `helder/web`, `helder/canvas` and `helder/async` (helder.async's tasks,
-each a promise: a Task<T> is a Promise<T>) (`index.d.ts` beside the packages, exported
+`helder/ui`, `helder/web`, `helder/canvas`, `helder/async` (helder.async's tasks,
+each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story` and `helder/jobs` (`index.d.ts` beside the packages, exported
 by package.json), generated from the Haxe types (below). Each declares its
 classes, each the Haxe class `__haxe` names, its functions and components
 as `const f: typeof Class.f`, that class's static, and names the module's
@@ -172,6 +172,20 @@ structs, named after the alias), the handler Haxe's macro runs
 (`ShaderDefinition`), and its output, JSON, passed to `shader` as its last
 argument. The same functions print the same text as in Haxe, and a rejected
 argument the same diagnostic (tests/typescript/definitions).
+
+Definitions of declared modules are recognised the same way, by their
+import: `keep(key, () => initial)` from `helder/dev` (a value kept across a
+reload under `helder dev`, as a signal is: its key in Hot's scope, its
+initial value's source hashed; Interop.hotKeep under -D hxmc.dev, else the
+initial value) and `story({name, render, ...})` from `helder/story` (its
+fields checked by Haxe's handler, then the call lowered as one into
+helder's API; nothing under -D helder.release) and `job(f)` from
+`helder/jobs` (f, a module-level function, run on a worker: its input,
+result and the constants it reads checked Sendable, `TsJobAdapter`; a
+function of the lowering's own calls it there, by its number, through
+`helder.jobs.script.Entry`). Their handlers are Haxe's
+(`helder.dev.KeepDefinition`, `helder.story.StoryDefinition`,
+`helder.jobs.JobDefinition`).
 
 ```tsx
 import { signal } from "helder/view";

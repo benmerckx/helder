@@ -28,6 +28,15 @@
     "./gfx": {
       "types": "./src/helder/gfx/index.ts"
     },
+    "./dev": {
+      "types": "./src/helder/dev/index.d.ts"
+    },
+    "./jobs": {
+      "types": "./src/helder/jobs/index.d.ts"
+    },
+    "./story": {
+      "types": "./src/helder/story/index.d.ts"
+    },
     "./package.json": "./package.json",
     "./*": "./*"
   },

@@ -3,9 +3,15 @@
 // tags: typescript, dev
 // Ticks on a timer until it is stopped: helder dev rebuilds it as its files
 // change and swaps it in, the count going on (a signal: fast refresh keeps
-// it, by where it is made). Edit label.ts while it runs.
+// it, by where it is made), and the builds counted (keep: a value kept by
+// its key). Edit label.ts while it runs.
 import { signal, effect } from "helder/view";
+import { keep } from "helder/dev";
 import { label } from "./label";
+
+const builds = keep("builds", () => ({ n: 0 }));
+builds.n++;
+console.log(`build ${builds.n}`);
 
 const n = signal(0);
 effect(() => n(), v => console.log(label(v)));

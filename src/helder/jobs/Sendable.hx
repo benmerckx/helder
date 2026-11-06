@@ -5,12 +5,15 @@ import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
 
+import helder.jobs.JobDefinition;
+
 using haxe.macro.TypeTools;
 
 // What can be sent to another thread or a browser's worker (as Swift's
 // Sendable): a GC job's argument and result, a Channel's values. Checked
-// at compile time (the culprit named, with where it is in the type), and
-// each one's codec generated (Wire):
+// at compile time (the culprit named, with where it is in the type: the
+// check is JobDefinition's, the same for TypeScript's jobs; Haxe's types
+// described to it here), and each one's codec generated (Wire):
 //
 //   Int, Float, Bool, haxe.Int64      copied
 //   String, haxe.io.Bytes             copied (null too)
@@ -24,41 +27,34 @@ using haxe.macro.TypeTools;
 // Dynamic, Ptr (an address means nothing in another instance), type
 // parameters, Map, recursive types.
 class Sendable {
-	static inline var WHAT = "flat values, String, Bytes, IoBuffer, hxmc structs, and anonymous structures, Arrays and Channels of these";
-
-	// ---- the check
+	// ---- the check (JobDefinition's)
 
 	// why t cannot be sent (where in t, and what), or null
 	public static function reason(t:Type):Null<String>
-		return why(t, "", []);
+		return JobDefinition.reason(sendType(t));
 
-	static function why(t:Type, at:String, seen:Array<String>):Null<String> {
-		var here = at == "" ? "" : at + ": ";
-		switch kind(t) {
-			case Bad(m):
-				return here + TypeTools.toString(t) + " is " + m;
-			case Nullable(i), Under(i, _):
-				return why(i, at, seen);
-			case List(e):
-				return why(e, at + "[]", seen);
-			case Fields(fs):
-				var key = TypeTools.toString(t);
-				if (seen.contains(key)) return here + key + " is recursive";
-				seen.push(key);
-				for (f in fs) {
-					var r = why(f.type, at + "." + f.name, seen);
-					if (r != null) return r;
-				}
-				seen.pop();
-				return null;
-			case _:
-				return null;
-		}
-	}
+	// t as the check takes it
+	public static function sendType(t:Type):SendType
+		return new SendType(TypeTools.toString(t), () -> switch kind(t) {
+			case IntK: SInt;
+			case FloatK: SFloat;
+			case BoolK: SBool;
+			case Int64K: SInt64;
+			case StringK: SString;
+			case BytesK: SBytes;
+			case BufferK: SBuffer;
+			case StructK(_): SStruct;
+			case ChannelK(_): SChannel;
+			case Nullable(i): SNull(sendType(i));
+			case Under(i, _): SUnder(sendType(i));
+			case List(e): SList(sendType(e));
+			case Fields(fs): SFields([for (f in fs) {name: f.name, type: sendType(f.type)}]);
+			case Bad(m): SBad(m);
+		});
 
 	static function check(t:Type, what:String, pos:Position) {
 		var r = reason(t);
-		if (r != null) Context.error('helder.jobs: $what cannot be sent: $r (sendable: $WHAT)', pos);
+		if (r != null) Context.error(JobDefinition.message(what, r), pos);
 	}
 
 	// ---- the codec
@@ -231,31 +227,13 @@ class Sendable {
 	// its input read and its result written) and run(input), a coroutine;
 	// the value is its one instance.
 	public static function definition(f:Expr):Expr {
-		var a = new helder.definition.HaxeAdapter("job");
-		// (static: a function named, checked by the kernel's adapter)
-		a.node(f);
-		var typed = Context.typeExpr(f);
-		var c:ClassType, cf:ClassField;
-		switch typed.expr {
-			case TField(_, FStatic(cr, fr)):
-				c = cr.get();
-				cf = fr.get();
-			case _:
-				return a.error("a job is a static or module-level function, named (Class.field, field)", f.pos);
-		}
+		var a = new JobAdapter(f);
+		// (static: a function named, checked by the kernel's adapter; its
+		// input and result Sendable, checked by the handler)
+		new JobDefinition().generate(a.node(f), a);
+		var c = a.c, cf = a.cf, args = a.args, ret = a.ret;
 		var fpath = field(classExpr(c), cf.name);
-		if (cf.params.length > 0) a.error('${cf.name} has type parameters (its values\' types must be known)', f.pos);
 		var free = cf.meta.has(":hxmc.unsafe");
-		if (free && (!cf.meta.has(":hxmc.callback") || !Context.unify(cf.type, Context.resolveType(macro:helder.jobs.Job->Int, f.pos))))
-			a.error('a GC-free job is an @:hxmc.unsafe @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
-		var args, ret;
-		switch Context.follow(cf.type) {
-			case TFun(x, r):
-				args = x;
-				ret = r;
-			case _:
-				return a.error("a job is a function", f.pos);
-		}
 		var module = c.module, pack = module.split(".");
 		pack.pop();
 		var name = (StringTools.endsWith(c.name, "_Fields_") ? module.split(".").pop() : c.name) + "_" + cf.name + "_Job";
@@ -271,13 +249,7 @@ class Sendable {
 					return helder.jobs.Jobs.runFree(hxmc.unsafe.Callback.addr($fpath), input ?? cast hxmc.unsafe.Ptr.nil());
 			}).fields;
 		} else {
-			if (args.length > 1) a.error('${cf.name} takes ${args.length} arguments (a job takes one at most: an anonymous structure for more)', f.pos);
-			if (args.length == 1) check(args[0].t, '${cf.name}\'s input', f.pos);
-			var void = switch Context.follow(ret) {
-				case TAbstract(_.get() => {name: "Void", pack: []}, _): true;
-				case _: false;
-			}
-			if (!void) check(ret, '${cf.name}\'s result', f.pos);
+			var void = isVoid(ret);
 			var call = args.length == 1 ? macro @:privateAccess $fpath(${read(args[0].t, macro r)}) : macro @:privateAccess $fpath();
 			var body = if (void) macro {
 				$call;
@@ -341,6 +313,12 @@ class Sendable {
 		return macro $p{pack.concat([name, "instance"])};
 	}
 
+	static function isVoid(t:Type):Bool
+		return switch Context.follow(t) {
+			case TAbstract(_.get() => {name: "Void", pack: []}, _): true;
+			case _: false;
+		}
+
 	// ---- Channel<T>: a class per value type (helder.jobs.gen.Channel_<hash>)
 
 	static function defined(name:String):Bool
@@ -393,6 +371,52 @@ class Sendable {
 			Context.defineType(td);
 		}
 		return TPath({pack: ["helder", "jobs", "gen"], name: name});
+	}
+}
+
+// job(f)'s Haxe adapter: f the static or module-level function named, its
+// signature from its type (a GC-free job's unchecked)
+private class JobAdapter extends helder.definition.HaxeAdapter implements helder.jobs.JobDefinition.JobAdapter {
+	public var c:ClassType;
+	public var cf:ClassField;
+	public var args:Array<{name:String, opt:Bool, t:Type}>;
+	public var ret:Type;
+
+	final f:Expr;
+
+	public function new(f:Expr) {
+		super("job");
+		this.f = f;
+	}
+
+	public function signature(_):JobSignature {
+		var typed = Context.typeExpr(f);
+		switch typed.expr {
+			case TField(_, FStatic(cr, fr)):
+				c = cr.get();
+				cf = fr.get();
+			case _:
+				return error("a job is a static or module-level function, named (Class.field, field)", f.pos);
+		}
+		if (cf.params.length > 0) error('${cf.name} has type parameters (its values\' types must be known)', f.pos);
+		var free = cf.meta.has(":hxmc.unsafe");
+		if (free && (!cf.meta.has(":hxmc.callback") || !Context.unify(cf.type, Context.resolveType(macro:helder.jobs.Job->Int, f.pos))))
+			error('a GC-free job is an @:hxmc.unsafe @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
+		switch Context.follow(cf.type) {
+			case TFun(x, r):
+				args = x;
+				ret = r;
+			case _:
+				return error("a job is a function", f.pos);
+		}
+		@:privateAccess var void = Sendable.isVoid(ret);
+		return {
+			name: cf.name,
+			inputs: [for (a in args) Sendable.sendType(a.t)],
+			result: void ? null : Sendable.sendType(ret),
+			captures: [],
+			gcFree: free
+		};
 	}
 }
 

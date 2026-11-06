@@ -1,0 +1,17 @@
+package helder.story;
+
+// helder.story for TypeScript programs (helder.typescript): story({name,
+// render, seed, store, caption, background, color}), a definition (its
+// fields checked where they are written, as Haxe's helder.story.Story.story;
+// nothing in a release build), each story's view made from its Controls;
+// tree(story), its tree mounted headless as helder test snapshots it
+// (its markup helder.ui's: the neutral elements, its renderer).
+@:typescript("helder/story")
+@:typescript.classes(helder.story.Story.Controls)
+@:typescript.types(helder.story.Story)
+@:typescript.functions(story = helder.story.Stories.define, tree = helder.story.Stories.tree)
+@:typescript.imports("helder/view")
+@:typescript.jsx(neutral)
+@:typescript.renderers(helder.ui.view.NodeRenderer)
+@:build(helder.typescript.api.Manifest.build())
+class TypeScript {}

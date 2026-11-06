@@ -81,6 +81,8 @@ abstract class Core {
 
 	// definitions' calls (helder/gfx's shader): their handlers' output
 	final definitions:Definitions;
+	// (job(f)'s: each job's function on the worker, by its number)
+	var jobs:Array<FuncInfo> = [];
 
 	public function new(src:Project, p:Program, ?api:Api, dev = false, ?defined:String->Null<String>) {
 		this.src = src;
@@ -330,6 +332,8 @@ abstract class Core {
 	abstract function layoutCall(n:Node, inner:Node, actual:Array<Node>):Null<Ex>;
 	abstract function manifest(n:Node):Manifest;
 	abstract function apiExpr(n:Node):Null<Ex>;
+
+	abstract function apiCall(n:Node):Null<Ex>;
 	abstract function apiTarget(n:Node):Null<{read:() -> Ex, write:Ex->Void}>;
 	abstract function layoutField(n:Node):Null<ClassLayout>;
 	abstract function mathCall(n:Node, callee:Node, actual:Array<Node>):Null<Ex>;

@@ -132,13 +132,13 @@ for(const name of fs.readdirSync(`${T}/configs`).sort()) {
     console.log(`PASS config ${name}`);
 }
 // Definitions (src/helder/compiler/DESIGN.md) in both languages:
-// definitions/<name>.ts and the Haxe program <Name>.hx, built natively and
+// definitions/<name>.ts (or .tsx) and the Haxe program <Name>.hx, built natively and
 // as wasm32-wasi, print the same (a shader's text in all four languages,
 // its writers' bytes); each pair of definitions/reject is refused by both
 // with the same diagnostic (expect)
 const D=`${T}/definitions`;
-for(const file of fs.readdirSync(D).filter(f=>f.endsWith('.ts')&&f!=='print.ts').sort())for(const target of targets) {
-    const stem=path.basename(file,'.ts'),main=stem[0].toUpperCase()+stem.slice(1),wasm=target!=='linux-x86_64';
+for(const file of fs.readdirSync(D).filter(f=>/\.tsx?$/.test(f)&&f!=='print.ts').sort())for(const target of targets) {
+    const stem=file.replace(/\.tsx?$/,''),main=stem[0].toUpperCase()+stem.slice(1),wasm=target!=='linux-x86_64';
     const ts=`${dir}/def-${stem}${wasm?'.wasm':''}`,hx=`${dir}/def-${main}${wasm?'.wasm':''}`;
     ok(run(compiler,[`${D}/${file}`,'-D','helder.gfx.shaders=all','--target',target,'-o',ts]),`${file} compile ${target}`);
     ok(run(compiler,['-cp','src','-cp',D,'-main',main,'-D','helder.gfx.shaders=all','-D',`hxmc.target=${target}`,'--custom-target',`hxmc=${hx}`]),`${main}.hx compile ${target}`);
@@ -148,8 +148,8 @@ for(const file of fs.readdirSync(D).filter(f=>f.endsWith('.ts')&&f!=='print.ts')
     assert.equal(a.stdout,b.stdout,`${file} and ${main}.hx print alike ${target}`);
     console.log(`PASS definition ${file} = ${main}.hx ${target}`);
 }
-for(const file of fs.readdirSync(`${D}/reject`).filter(f=>f.endsWith('.ts')).sort()) {
-    const main='Reject'+path.basename(file,'.ts').split('-').map(p=>p[0].toUpperCase()+p.slice(1)).join('');
+for(const file of fs.readdirSync(`${D}/reject`).filter(f=>/\.tsx?$/.test(f)).sort()) {
+    const main='Reject'+file.replace(/\.tsx?$/,'').split('-').map(p=>p[0].toUpperCase()+p.slice(1)).join('');
     const expect=f=>fs.readFileSync(f,'utf8').match(/expect: (.*)$/m)[1];
     const want=expect(`${D}/reject/${file}`);
     assert.equal(expect(`${D}/reject/${main}.hx`),want,`${file} and ${main}.hx expect the same diagnostic`);
@@ -157,7 +157,8 @@ for(const file of fs.readdirSync(`${D}/reject`).filter(f=>f.endsWith('.ts')).sor
     const a=run(compiler,[`${D}/reject/${file}`,'-o',out]);
     assert.notEqual(a.status,0,`${file} should be rejected`);
     assert.ok(a.stderr.includes(want),`${file} should report ${want}, got ${a.stderr}`);
-    const b=run(compiler,['-cp','src','-cp',`${D}/reject`,'-main',main,'--interp','--no-output']);
+    // (typed for hxmc: a job's checks are its)
+    const b=run(compiler,['-cp','src','-cp',`${D}/reject`,'-main',main,'--custom-target',`hxmc=${out}-hx`]);
     assert.notEqual(b.status,0,`${main}.hx should be rejected`);
     assert.ok((b.stdout+b.stderr).includes(want),`${main}.hx should report ${want}, got ${b.stdout}${b.stderr}`);
     console.log(`PASS definition rejected: ${file}, ${main}.hx`);
@@ -171,7 +172,8 @@ for(const entry of ['examples/ts-hello/main.ts','examples/ts-hello']) {
     console.log(`PASS helder run ${entry}`);
 }
 // `helder dev` of examples/ts-ticker (a copy): an edit to label.ts rebuilds
-// it and swaps it in, its signal's count going on (fast refresh's keys)
+// it and swaps it in, its signal's count going on (fast refresh's keys),
+// its builds counted by keep (a value kept by its key)
 {
     const work=`${dir}/ticker`;fs.mkdirSync(work,{recursive:true});
     for(const f of ['main.ts','label.ts'])fs.copyFileSync(`examples/ts-ticker/${f}`,`${work}/${f}`);
@@ -187,6 +189,7 @@ for(const entry of ['examples/ts-hello/main.ts','examples/ts-hello']) {
     stop('SIGINT');await new Promise(r=>setTimeout(r,1000));stop('SIGKILL');
     assert.ok(before&&after,`helder dev examples/ts-ticker: no reload seen\n${out}`);
     assert.ok(Number(after[1])>=3,`helder dev examples/ts-ticker: the count started over (TOCK ${after[1]} after tick 3)\n${out}`);
-    console.log(`PASS helder dev examples/ts-ticker (tick 3 ... TOCK ${after[1]})`);
+    assert.match(out,/build 1\n[^]*build 2\n/,`helder dev examples/ts-ticker: keep's count of builds not kept\n${out}`);
+    console.log(`PASS helder dev examples/ts-ticker (tick 3 ... TOCK ${after[1]}, build 1 ... build 2)`);
 }
 console.log(`${passed}/${(files.length+programs.length+standards.length)*targets.length} checks passed (tsc + node; native, wasm32-wasi)`);

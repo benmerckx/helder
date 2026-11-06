@@ -314,14 +314,14 @@ class Publish {
 	@:coroutine public static function screenshots(dir:String, landscape:Bool):Array<Dynamic> {
 		var p = new Project();
 		var files = p.testFiles().filter(f -> f.story == true);
-		if (files.length == 0) throw "store screenshots: no *.story.hx files (stories, one marked .store(): helder.story)";
+		if (files.length == 0) throw "store screenshots: no *.story.hx files (stories, one with store: true: helder.story)";
 		for (f in files) {
 			TestCommand.mkdirs(Path.directory(f.linked));
 			Link.make(f.real, f.linked);
 		}
 		var main = ["// `helder publish --screenshots`' program: the story files' stories, then StoreShots", "class HelderStoreMain {", "\tstatic function main() {"];
 		for (f in files)
-			main.push('\t\thelder.story.Stories.of(${f.module}.stories);');
+			main.push('\t\tfor (s in helder.story.Stories.of("${f.module}")) helder.story.Stories.add(s);');
 		main = main.concat(["\t\thelder.story.StoreShots.main();", "\t}", "}", ""]);
 		File.saveContent('${TestCommand.GEN}/HelderStoreMain.hx', main.join("\n"));
 		var cp = [];

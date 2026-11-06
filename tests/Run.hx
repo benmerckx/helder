@@ -1017,6 +1017,7 @@ class Run {
 		run(exePath("bin/dev/HotTest", HOST), ["save", "bin/dev/hot.snapshot"]);
 		run(exePath("bin/dev/HotTest", HOST), ["restore", "-"], snapshot("bin/dev/hot.snapshot"));
 		expect(exePath("bin/dev/HotTestChanged", HOST), ["restore", "-"], snapshot("bin/dev/hot.snapshot"), "changed reset: its type changed");
+		expect(exePath("bin/dev/HotTestChanged", HOST), ["restore", "-"], snapshot("bin/dev/hot.snapshot"), "dial reset: its initial value changed");
 		interp(os, "HotTest", ["save", "bin/dev/hot-eval.snapshot"]);
 		interp(os, "HotTest", ["restore", "-"], snapshot("bin/dev/hot-eval.snapshot"));
 		exe("bin/dev/RefreshTest", views.concat(["-main", "RefreshTest"]));

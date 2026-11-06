@@ -15,7 +15,7 @@ import helder.scene.render.*;
 // moon on the planet's own orbit node, so one rotation each and the
 // scene graph's world matrices do the rest. The simulation runs at 60
 // steps a second (FixedStep) whatever the display's rate; under `hxmc dev`
-// the clock survives a rebuild (helder.dev.Hot.keep). A debug overlay
+// the clock survives a rebuild (helder.dev.Keep's keep). A debug overlay
 // (helder.scene.debug, drawn with helder.ui) shows the frame times and the
 // renderer's draws; O toggles it. Escape closes.
 //
@@ -89,7 +89,7 @@ class Orbits {
 		var overlay = new helder.scene.debug.Overlay(device), stats = new helder.scene.debug.FrameStats(), showStats = true;
 		overlay.scale = window.scale;
 		// (under `hxmc dev` the clock is carried across a reload: the planets stay where they were)
-		var clock = helder.dev.Hot.keep("orbits.clock", () -> new FixedStep(1 / 60)), last = Sys.time();
+		var clock = helder.dev.Keep.keep("orbits.clock", () -> new FixedStep(1 / 60)), last = Sys.time();
 		App.run(() -> {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), _ -> orbits.at(clock.time));

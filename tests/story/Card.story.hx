@@ -8,14 +8,20 @@ import helder.view.graph.Signal;
 // helder.story's own stories (the test lane snapshots their trees in
 // Card.story.snap; the pack lane renders the store one as screenshots): a
 // card of a title and a count, its controls signals
-function stories() {
-	story("Card/plain", c -> card(c.text("title", "Fleet"), c.number("ships", 3)));
-	story("Card/many", c -> card(c.text("title", "Armada"), c.number("ships", 42), c.bool("warning", true)));
-	story("Store/fleet", c -> {
+final plain = story({name: "Card/plain", render: c -> card(c.text("title", "Fleet"), c.number("ships", 3))});
+
+final many = story({name: "Card/many", render: c -> card(c.text("title", "Armada"), c.number("ships", 42), c.bool("warning", true))});
+
+final fleet = story({
+	name: "Store/fleet",
+	store: true,
+	caption: "Command a fleet",
+	seed: 7,
+	render: c -> {
 		var n = Std.int(10 + c.random() * 90);
 		card(c.text("title", "Your fleet"), c.number("ships", n));
-	}).store({caption: "Command a fleet", seed: 7});
-}
+	}
+});
 
 private function card(title:Signal<String>, ships:Signal<Float>, ?warning:Signal<Bool>):View
 	return View.view(<view grow={1} padding={24} row-gap={12} background="#0b1020" color="#e5e7eb" font-size={16}>

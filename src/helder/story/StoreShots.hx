@@ -7,7 +7,7 @@ import helder.ui.*;
 import helder.ui.draw.*;
 import helder.view.*;
 
-// The store screenshots of the stories marked .store(): each rendered
+// The store screenshots of the stories with store: true: each rendered
 // offscreen on the GPU (helder.gfx's headless surface: Mesa's llvmpipe on
 // Linux) at each store's size as a real layout (the size in points, the
 // screen's scale), text in the system's fonts (DrawText), its caption
@@ -26,12 +26,12 @@ class StoreShots implements Markup {
 		{name: "android-phone", width: 1080, height: 1920, scale: 2.5, store: "android", type: "phoneScreenshots"},
 	];
 
-	// helder publish's program: StoreShots.main(<dir>, portrait|landscape) after the story files' stories()
+	// helder publish's program: StoreShots.main(<dir>, portrait|landscape) after the story files' stories are added (Stories.add)
 	public static function main() {
 		var args = Sys.args();
 		var dir = args[0] ?? "bin/store", landscape = args[1] == "landscape";
 		var stories = [for (s in Stories.all) if (s.screenshot != null) s];
-		if (stories.length == 0) throw "helder.story: no story marked .store() (a store screenshot)";
+		if (stories.length == 0) throw "helder.story: no story with store: true (a store screenshot)";
 		var list = [];
 		for (size in SIZES) {
 			var w = landscape ? size.height : size.width, h = landscape ? size.width : size.height;
@@ -66,7 +66,7 @@ class StoreShots implements Markup {
 		var device = Device.create(helder.os.Surface.headless(width, height));
 		var ui = new Ui(new DrawText(), width / scale, height / scale);
 		ui.scale = scale;
-		var c = new Controls(s.screenshot.seed ?? 1);
+		var c = new Controls(s.seed);
 		var o = s.screenshot;
 		var content = s.build(c);
 		if (o.caption != null) {

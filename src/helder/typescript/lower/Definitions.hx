@@ -1,6 +1,9 @@
 package helder.typescript.lower;
 
 import helder.definition.Kernel;
+import helder.dev.KeepDefinition;
+import helder.jobs.JobDefinition;
+import helder.story.StoryDefinition;
 import helder.gfx.shader.Ir;
 import helder.gfx.shader.Names;
 import helder.gfx.shader.ShaderDefinition;
@@ -21,7 +24,7 @@ using StringTools;
 // argument, JSON (helder/gfx's shader builds the value of it).
 class Definitions {
 	// the definitions by module and name
-	static final known = ["helder/gfx" => ["shader"]];
+	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"]];
 
 	final src:Project;
 	final defined:String->Null<String>;
@@ -31,18 +34,52 @@ class Definitions {
 		this.defined = defined;
 	}
 
-	// a definition's call: what its handler made, as its last argument (null: not one)
-	public function call(n:Node):Null<String> {
+	// a define's value (-D), or null
+	public function define(name:String):Null<String>
+		return defined(name);
+
+	// whether a call is a definition's (one of a declared module's is not
+	// lowered as a call into helder's API: helder/dev's keep)
+	public function defines(n:Node):Bool
+		return definition(n) != null;
+
+	function definition(n:Node):Null<{module:String, name:String, specifier:Node}> {
 		var callee = n.expression();
 		if (callee.kind != KindIdentifier) return null;
 		var from = Scope.imported(callee.file, callee.text);
-		if (from == null || !known.exists(from.module) || !known.get(from.module).contains(from.name)) return null;
+		return from == null || !known.exists(from.module) || !known.get(from.module).contains(from.name) ? null : from;
+	}
+
+	// a definition's call: what its handler made (null: not one)
+	public function call(n:Node):Null<DefinitionCall> {
+		var from = definition(n);
+		if (from == null) return null;
 		var args = n.arguments() ?? [];
 		var a = new TsAdapter(src, defined, from.name);
+		// (keep(key, init): its arguments as one array)
+		if (from.name == "keep") {
+			var slot = new KeepDefinition().generate(new KNode(KArray([for (x in args) a.node(x)]), n), a);
+			var init:Node = slot.init.source;
+			var text = n.file.text();
+			function source(x:Node):String
+				return text.substring(n.file.skipTrivia(x.pos), x.end);
+			// (as a signal's: its type by the type argument written, its initial value's source hashed)
+			var type = "ts:" + [for (t in n.typeArguments() ?? []) source(t)].join(",");
+			return Keep(slot.key, type, haxe.crypto.Md5.encode(source(init)).substr(0, 8), init);
+		}
+		if (from.name == "job") {
+			var j = new TsJobAdapter(src, defined);
+			if (args.length != 1) j.error("takes one argument, a module-level function", n);
+			var s = new JobDefinition().generate(j.node(args[0]), j);
+			return Job(s.source, [for (c in s.captures) c.name]);
+		}
 		if (args.length != 1) a.error('${from.name} takes one argument, an object literal', n);
 		var arg = a.node(args[0]);
 		return switch from.name {
-			case "shader": shaderJson(new ShaderDefinition().generate(arg, a));
+			case "shader": Generated(shaderJson(new ShaderDefinition().generate(arg, a)));
+			case "story":
+				new StoryDefinition().generate(arg, a);
+				defined("helder.release") != null ? Dropped : Checked;
 			case _: null;
 		}
 	}
@@ -95,6 +132,21 @@ class Definitions {
 			]
 		});
 	}
+}
+
+// What a definition's call is lowered to: its handler's output as the
+// function's last argument (JSON); keep's slot (Interop.hotKeep under -D
+// hxmc.dev, else init()); the call itself, its argument checked (story's);
+// nothing (a story in a release build).
+enum DefinitionCall {
+	Generated(json:String);
+	Keep(key:String, type:String, source:String, init:Node);
+	// (its argument checked: the call lowered as helder's API's, story's Stories.define)
+	Checked;
+	// (a release build's: undefined, its argument not lowered)
+	Dropped;
+	// (job(f): f's declaration, the constants it reads)
+	Job(fn:Node, captures:Array<String>);
 }
 
 // What a name of a file is bound to at its top level: an import (its
@@ -177,7 +229,7 @@ class TsAdapter implements ShaderAdapter {
 		return new KNode(switch n.kind {
 			case KindParenthesizedExpression | KindAsExpression | KindSatisfiesExpression: return node(n.expression());
 			case KindStringLiteral | KindNoSubstitutionTemplateLiteral: KString(n.text);
-			case KindNumericLiteral: KFloat(Std.parseFloat(n.text));
+			case KindNumericLiteral: KFloat(number(n.text));
 			case KindTrueKeyword: KBool(true);
 			case KindFalseKeyword: KBool(false);
 			case KindNullKeyword: KNull;
@@ -195,8 +247,23 @@ class TsAdapter implements ShaderAdapter {
 			case KindArrayLiteralExpression: KArray([for (e in n.elements()) node(e)]);
 			case KindArrowFunction | KindFunctionExpression:
 				KFunction(new KFunction(n.kind == KindFunctionExpression && n.name() != null ? n.name().text : null, params(n), n, n));
+			// (a module-level function, here or imported: by its name)
+			case KindIdentifier if (Scope.declared(n.file, n.text, KindFunctionDeclaration) != null || Scope.imported(n.file, n.text) != null): KRef(n.text);
 			case _: notStatic(n);
 		}, pos);
+	}
+
+	// (a numeric literal's value: 0x, 0o and 0b ones, separators)
+	static function number(text:String):Float {
+		var t = text.split("_").join("");
+		var lower = t.toLowerCase();
+		function digits(base:Int):Float {
+			var v = 0.0;
+			for (i in 2...t.length)
+				v = v * base + "0123456789abcdef".indexOf(lower.charAt(i));
+			return v;
+		}
+		return lower.startsWith("0x") ? digits(16) : lower.startsWith("0o") ? digits(8) : lower.startsWith("0b") ? digits(2) : Std.parseFloat(t);
 	}
 
 	static function params(f:Node):Array<String>

@@ -1,4 +1,4 @@
-import helder.dev.Hot;
+import helder.dev.Keep;
 import helder.gfx.*;
 import helder.os.*;
 import hxmc.unsafe.Mem;
@@ -10,13 +10,13 @@ import hxmc.unsafe.Mem;
 // (-D devhost_version=1, -D hxmc.dev-host) and as dylibs of later versions
 // (-D hxmc.shared, 2, 3), which the running build hands over to in turn
 // (HXMC_DEV_NEXT, a second after its first frame: Hot). Each build draws the
-// cube and prints its version, a count kept across builds (Hot.keep: the
+// cube and prints its version, a count kept across builds (keep: the
 // snapshot), the process and the host's view: the same process and view,
 // the count one more each time.
 class DevHostTest {
 	static function main() {
 		var version = haxe.macro.Compiler.getDefine("devhost_version");
-		var state = Hot.keep("state", () -> {n: 0});
+		var state = keep("state", () -> {n: 0});
 		state.n++;
 		var w = new Window("DevHostTest", 320, 240);
 		var device = Device.create(w.surface);

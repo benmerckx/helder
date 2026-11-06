@@ -1,55 +1,69 @@
 package helder.story;
 
+import haxe.macro.Expr;
+#if macro
+import haxe.macro.Context;
+import helder.definition.HaxeAdapter;
+#else
 import haxe.PosInfos;
 import helder.view.View;
 import helder.view.graph.Graph;
 import helder.view.graph.Signal;
+#end
 
 // Stories, as Storybook's: a `Foo.story.hx` file anywhere a test file may
-// be (src/, tests/, the class paths) whose module-level `stories()`
-// registers them:
+// be (src/, tests/, the class paths) whose module-level values are made by
+// story({...}), a definition (src/helder/compiler/DESIGN.md 4; its handler
+// StoryDefinition, TypeScript's helder/story the same):
 //
 //   // src/game/Inventory.story.hx
 //   package game;
 //
 //   import helder.story.Story;
 //
-//   function stories() {
-//     story("Inventory/full", c -> new Inventory(c.number("slots", 24)).view());
-//     story("Shop", c -> new Shop(c.random).view()).store({caption: "Trade across the galaxy"});
-//   }
+//   final full = story({name: "Inventory/full", render: c -> new Inventory(c.number("slots", 24)).view()});
+//   final shop = story({name: "Shop", store: true, caption: "Trade across the galaxy", seed: 7, render: c -> new Shop(c.random).view()});
 //
 // A story builds a view from its controls (Controls: each a signal with a
 // name, a number, a flag, a choice, a colour, a text: an edit updates what
 // is bound to it), in an owner of its own. Each is a test too: `helder
 // test` mounts it headless in a phone's size with text laid out without
 // fonts (StoryText) and snapshots its tree (Stories.tree: tags, boxes,
-// texts) in Foo.story.snap. A story marked .store() is a store screenshot:
-// a deterministic scene (its seed for Controls.random, transitions
-// finished, Controls.settled waited for) that `helder publish --screenshots`
-// renders at each store's sizes (StoreShots). Built into what
-// links the story files only (helder test, publish): an app's own builds
-// never see them.
-function story(name:String, build:Controls->View, ?pos:PosInfos):Story
-	return Stories.add(new Story(name, build, pos));
+// texts) in Foo.story.snap. A story with store: true is a store
+// screenshot: a deterministic scene (its seed for Controls.random,
+// transitions finished, Controls.settled waited for) that `helder publish
+// --screenshots` renders at each store's sizes (StoreShots), its caption
+// over it. The fields are literals (render a function of the controls),
+// checked where they are written. A release build (-D helder.release:
+// helder build's) has no stories: story(...) is null there, and what only
+// a story uses is not linked; helder test and publish link the story files
+// alone (an app's own builds never see them).
+@:definition macro function story(def:Expr):Expr {
+	var a = new HaxeAdapter("story");
+	var s = new StoryDefinition().generate(a.node(def), a);
+	if (Context.defined("helder.release")) return macro(null : helder.story.Story);
+	var render:Expr = s.render.source;
+	if (s.render.params.length == 0) render = macro(_ : helder.story.Story.Controls) -> $render();
+	var shot = s.store ? macro {caption: $v{s.caption}, background: $v{s.background}, color: $v{s.color}} : macro null;
+	return macro @:pos(Context.currentPos()) new helder.story.Story($v{s.name}, $render, $v{s.seed}, $shot);
+}
 
+#if !macro
 class Story {
 	public final name:String;
 	public final build:Controls->View;
-	public final pos:PosInfos;
+	// Controls.random's seed
+	public final seed:Int;
 	// a store screenshot's settings (null: not one)
-	public var screenshot(default, null):Null<StoreOptions> = null;
+	public final screenshot:Null<StoreOptions>;
+	public final pos:PosInfos;
 
-	public function new(name:String, build:Controls->View, pos:PosInfos) {
+	public function new(name:String, build:Controls->View, seed = 1, ?screenshot:StoreOptions, ?pos:PosInfos) {
 		this.name = name;
 		this.build = build;
+		this.seed = seed;
+		this.screenshot = screenshot;
 		this.pos = pos;
-	}
-
-	// a store screenshot: its caption over it (else none), its seed
-	public function store(?options:StoreOptions):Story {
-		screenshot = options ?? {};
-		return this;
 	}
 
 	// a file name of its name (Inventory/full: Inventory-full)
@@ -60,9 +74,19 @@ class Story {
 typedef StoreOptions = {
 	// a line over the screenshot, in the template's band (null: the story alone, full bleed)
 	?caption:String,
-	// Controls.random's seed (1)
-	?seed:Int,
 	// the caption band's colours (0xRRGGBB: #111827 and white)
+	?background:Int,
+	?color:Int,
+}
+
+// story({...})'s fields, as a TypeScript program gives them (helder/story:
+// Stories.define, the definition checked them where they are written)
+typedef StoryDef = {
+	name:String,
+	render:Controls->View,
+	?seed:Int,
+	?store:Bool,
+	?caption:String,
 	?background:Int,
 	?color:Int,
 }
@@ -117,3 +141,4 @@ class Controls {
 		return (x >>> 8) / 16777216.0;
 	}
 }
+#end

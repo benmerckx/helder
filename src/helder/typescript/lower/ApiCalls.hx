@@ -41,7 +41,7 @@ abstract class ApiCalls extends ClassValues {
 			case KindJsxElement | KindJsxSelfClosingElement | KindJsxFragment:
 				if (tsx == null) fail(n, "TSX is helder.view's markup: the program imports helder/view (or another module of helder's)");
 				tsx.literal(n);
-			case KindCallExpression: apiCall(n);
+			case KindCallExpression: definitions.defines(n) ? null : apiCall(n);
 			case KindNewExpression:
 				switch api.of(strip(n.expression())) {
 					case FClass(c):

@@ -550,14 +550,63 @@ abstract class Expressions extends Statements {
 		return ELocal(l);
 	}
 
+	// job(f) (helder/jobs, its check JobDefinition's): f's case among the
+	// program's jobs (helder.jobs.script.Entry.call, written once the
+	// program is lowered: Frontend), a function of its own run on the
+	// worker (a browser worker's instance: the runtime started there, the
+	// constants f reads set from those sent), and the value
+	// helder.jobs.script.Job.make's, with the constants as they are now
+	function job(n:Node, fn:Node, captures:Array<String>):Ex {
+		var name = fn.name().text;
+		if (bridge == null) fail(n, "job: helder/jobs is not declared to the program");
+		if (fn.file != n.file) fail(n, 'job: $name is another module\'s (job(f) is written in f\'s module)');
+		var f = functions.get(name);
+		if (f == null) fail(n, 'job: $name is not a plain function (it uses this, is async or a generator)');
+		var index = jobs.length;
+		var fi = Builder.func(p, "job" + index + "_" + name, TRef(RAny));
+		var cs = new Local(0, "captures", TRef(RAny)), input = new Local(1, "input", TRef(RAny));
+		fi.args = [cs, input];
+		var outer = b;
+		b = new Builder(p, fi);
+		var ready = b.runtime("libReady", []);
+		var start = b.block(() -> {
+			b.runtime("libInit", []);
+			for (feature in Features.of(src)) b.runtime("libInstall" + feature, []);
+		});
+		b.out.push(SIf(ready, Vector.fromArrayCopy([]), start));
+		if (definitions.define("hxmc.target") == "wasm32-wasi")
+			for (i in 0...captures.length) set(get(captures[i], fn), b.runtime("libGet", [ELocal(cs), b.coerce(EF64(i), TRef(RAny))]));
+		var call = ECall(f, Vector.fromArrayCopy(positional(f, fn.parameters().length == 0 ? [] : [ELocal(input)], 0)));
+		if (f.ret == TVoid) {
+			b.out.push(SExpr(call));
+			b.out.push(SReturn(b.runtime("getUndefined", [])));
+		} else b.out.push(SReturn(any(b.temp(call))));
+		b.finish();
+		b = outer;
+		jobs.push(fi);
+		return bridge.call(bridge.fn("helder_jobs_script_Job_make"), [EInt(index), pack([for (c in captures) read(get(c, n))])]);
+	}
+
 	function call(n:Node):Ex {
 		var actual = n.arguments();
 		if (actual == null) actual = [];
 		var callee = n.expression();
 		if (callee.kind == KindSuperKeyword && superInit != null) return superInit(actual);
-		// (a definition: compiled now, what its handler made its last argument)
-		var generated = definitions.call(n);
-		if (generated != null) return apply(any(expr(callee)), pack(actuals(actual).concat([EStr(generated)])));
+		// (a definition: compiled now, what its handler made its last argument; keep's slot)
+		switch definitions.call(n) {
+			case null:
+			case Generated(json): return apply(any(expr(callee)), pack(actuals(actual).concat([EStr(json)])));
+			case Keep(key, type, source, init):
+				var f = any(expr(init));
+				if (dev && bridge != null) return bridge.call(bridge.interop("hotKeep"), [f, EStr(key), EStr(type), EStr(source)]);
+				return apply(f, pack([]));
+			case Checked:
+				var x = api == null ? null : apiCall(n);
+				if (x == null) fail(n, "this definition is a call into helder's API (its module's declarations)");
+				return x;
+			case Dropped: return b.runtime("getUndefined", []);
+			case Job(fn, captures): return job(n, fn, captures);
+		}
 		if (callee.kind == KindSuperKeyword) {
 			var list = argumentList(actual);
 			var t = b.runtime("libSuperConstruct", [read(get("%class", n)), list, read(get("%newTarget", n))]);

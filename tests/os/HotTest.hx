@@ -1,4 +1,5 @@
 import helder.dev.Hot;
+import helder.dev.Keep;
 import store.Store;
 
 // helder.dev.Hot's primitives across a reload, without the dev server: the
@@ -47,7 +48,7 @@ class HotTest {
 
 	// a component's state: the same static key in each instance, the instance's scope apart
 	static function card(name:String):{value:Int}
-		return Hot.scope(name, () -> Hot.keep("state", () -> {value: 0}));
+		return Hot.scope(name, () -> keep("state", () -> {value: 0}));
 
 	static function main() {
 		var args = Sys.args();
@@ -56,8 +57,14 @@ class HotTest {
 		// a store, keyed by its variable (HotTest.main.cart)
 		var cart = Store.create(({items: [], total: 0.0} : Cart));
 		// app-level values with keys of their own
-		var point = Hot.keep("point", () -> new Point(0, 0));
-		var tree = Hot.keep("tree", () -> new Tree("root"));
+		var point = keep("point", () -> new Point(0, 0));
+		var tree = keep("tree", () -> new Tree("root"));
+		// a kept value whose initial value's source changes between the builds: reset, said so
+		#if hot_changed
+		var dial = keep("dial", () -> {at: 2});
+		#else
+		var dial = keep("dial", () -> {at: 1});
+		#end
 		// two instances of one component (Card, Card#1) and one in a scope of its own
 		var a = card("Card"), b = card("Card"), c = Hot.scope("List", () -> card("Card"));
 		// a value whose type changes between the builds: reset, never cast
@@ -92,6 +99,7 @@ class HotTest {
 				check("fresh store", cart.state.items.length == 0);
 				cart.update(s -> {items: s.items.concat(["pen"]), total: s.total + 1.5});
 				point.x = 4;
+				dial.at = 5;
 				tree.children.push(new Tree("leaf"));
 				a.value = 1;
 				b.value = 2;
@@ -107,6 +115,11 @@ class HotTest {
 				check("store kept: " + cart.state, cart.state.items.join(",") == "pen" && cart.state.total == 1.5);
 				check("object kept", point.x == 4 && point.y == 0);
 				check("graph kept", tree.children.length == 1 && tree.children[0].label == "leaf");
+				#if hot_changed
+				check("initial value changed: reset", dial.at == 2);
+				#else
+				check("kept: " + dial.at, dial.at == 5);
+				#end
 				check("instances apart: " + [a.value, b.value, c.value], a.value == 1 && b.value == 2 && c.value == 3);
 				check("enum kept", mode != null && Type.enumEq(mode, Busy(7)));
 				#if hot_changed

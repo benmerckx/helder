@@ -245,8 +245,28 @@ instead of it.
 | `job(fn)` | `(input: In) => Out`, or a module-level function | Checks the function's captures and its input and output types are Sendable (the rules of today's `helder.jobs.Sendable`). Generates the message types and the worker entry, and returns a `Job<In, Out>`. `await Decode.run(req)` in TS is `Decode.run(req)` in a Haxe coroutine. Replaces `Jobs.run(f, x)`'s macro and the `helder.jobs.gen.*` types. |
 | `image(path)`, `font`, `model`, `sound`, `bytes(path)` | a path literal relative to the file | Resolves and bundles the asset as `Asset.*` does today, and returns the typed handle. TS may also write `import icon from "./icon.png" with {type: "image"}`, which is the same definition. |
 | `actions(namespace, {...})` | an object whose keys are action names and whose arrow functions give the arguments: `{next: () => {}, zoomTo: (percent: number) => {}}` | Generates the action type: an enum in Haxe, a tagged union in TS. Also generates the keymap names (`viewer::ZoomTo`) and the JSON argument readers. Replaces the enum plus `Actions.declare` pair. The bodies are ignored; the parameters are what count. |
-| `story({caption, seed, render})` | the story's fields | Registers the story for `helder publish --dry-run` and the extension, and drops it from release builds. |
+| `story({name, render, seed, store, caption, ...})` | the story's fields | Registers the story for `helder publish --dry-run` and the extension, and drops it from release builds. |
 | `keep(key, () => initial)` | a key literal and an initialiser | Generates a dev-reload slot, replacing `Hot.keep` and `Hot.save`. |
+
+As built (step 4):
+- `keep` is `helder.dev.Keep`'s in Haxe, `helder/dev`'s in TS. Its slot is
+  a signal's: the key in Hot's scope, the value's type hashed (Haxe) or
+  its written type argument (TS), the initial value's source hashed (an
+  edit to it starts afresh, said so). `Hot.keep` is gone. `Hot.save`,
+  `load` and `onSnapshot` stay as the state libraries' primitives (signals,
+  helder.scene's HotWorld): a program writes `keep`.
+- `story` is `helder.story.Story`'s in Haxe, `helder/story`'s in TS. A
+  story file's stories are its module-level values (`Stories.of(module)`);
+  `store: true` marks a store screenshot. A release build is `-D
+  helder.release` (helder build's), where the call is null.
+- `job` is `Jobs.job`'s in Haxe, `helder/jobs`'s in TS. One handler,
+  `JobDefinition`, checks the input, the result and the constants the
+  function reads (TS's: a worker's instance does not run the program's
+  module, so they are sent with the input) against each adapter's
+  description of its types (`SendType`). In both languages the function is
+  a module-level one, named. In TS it returns `Job<In, Out>`, `run(x)` a
+  promise; the worker calls the program's function by its number
+  (`helder.jobs.script.Entry.call`, written by the lowering).
 | `uniform(value)` | a value | A uniform the shaders that read it bind (see §3). |
 
 Markup (TSX and Haxe markup) already shares its planner and stays as it is.

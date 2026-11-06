@@ -8,7 +8,7 @@ import sys.FileSystem;
 using StringTools;
 
 // `helder build [entry] [--target <t>] [-o <path>]`: a release build (-dce
-// full) into bin/<target>/<name>, its compile time and size printed; for
+// full, -D helder.release) into bin/<target>/<name>, its compile time and size printed; for
 // web the page and its modules beside the module (bin/web/<name>.html);
 // for android an APK (Android: bin/android/<name>.apk), for ios an .ipa
 // and for ios-sim an .app (Ios: bin/ios/<name>.ipa, bin/ios-sim/<name>.app);
@@ -182,7 +182,8 @@ class BuildCommand {
 			?pack:Void->String, ?prepare:Void->Array<String>):{ok:Bool, ms:Int, messages:String} {
 		TestCommand.mkdirs(Path.directory(exe));
 		var words = e.args().concat(switch mode {
-			case Release: ["-dce", "full"].concat(AssetStep.define(exe));
+			// (-D helder.release: what only development has left out, stories: helder.story)
+			case Release: ["-dce", "full", "-D", "helder.release"].concat(AssetStep.define(exe));
 			case Dev: ["-D", "hxmc.dev", "-D", "disable-hxb-cache"];
 		}).concat(extra ?? []);
 		words = words.concat(["--custom-target", 'hxmc=$exe']);

@@ -1,10 +1,10 @@
-// A console program for the cli lane: a count that helder.dev.Hot keeps
+// A console program for the cli lane: a count that helder.dev.Keep's keep keeps
 // across a reload, ticking ten times a second; `Tally <n>` stops at n
 // (a release build, which has no dev loop).
 class Tally {
 	static function main() {
 		var stop = Std.parseInt(Sys.args()[0] ?? "") ?? -1;
-		var state = helder.dev.Hot.keep("state", () -> {count: 0});
+		var state = helder.dev.Keep.keep("state", () -> {count: 0});
 		#if hxmc.dev_host
 		// (in the dev host: its process, the same for every build)
 		Sys.println("start pid=" + helder.dev.Hosted.pid());

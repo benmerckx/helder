@@ -38,9 +38,32 @@ Async.run(task -> {
 });
 ```
 
+In TypeScript (`helder/jobs`), the same definition:
+
+```ts
+import {job} from "helder/jobs";
+
+const shortest = 3;                       // a constant it reads: sent with its input
+function words(t: {text: string}): number {
+  return t.text.split(" ").filter((w) => w.length >= shortest).length;
+}
+const n = await job(words).run({text: "a fleet of ships"});   // a promise: 2
+```
+
+`f` is a module-level function of the program, named, in the module that
+calls `job(f)`; its input's and result's types are its annotations, checked
+Sendable by the same handler as Haxe's (`JobDefinition`: number, boolean,
+string, `Uint8Array`, `T | null`, arrays and object types of these). The
+module-level constants it reads (and the functions it calls read) are sent
+with its input (a browser worker's instance has a module of its own); a
+`let`, a class or helder's API is refused at the line that reads it. On the
+worker the program's function is called directly (`helder.jobs.script`:
+`Entry.call` is written by the TypeScript lowering), its values crossing as
+Haxe's serialization of them.
+
 ## Jobs
 
-`Jobs.job(f).run(?input)` (a macro) awaits `f`'s run with its input; `f` is a
+`Jobs.job(f).run(?input)` (a definition: `JobDefinition`, through `Sendable`) awaits `f`'s run with its input; `f` is a
 static function, named (`Class.field`, private too):
 
 - **GC-free** (`@:hxmc.unsafe @:hxmc.callback function (job:Job):Int`):

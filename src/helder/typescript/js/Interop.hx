@@ -242,6 +242,31 @@ class Interop {
 		return f;
 	}
 
+	// (keep(key, init), a definition: helder.typescript.lower's Definitions)
+	// the value the last build kept under key (in Hot's scope) when its
+	// initial value's source is the same, else init()'s; saved on each
+	// snapshot when it is data (as hotSignal's). Without -D hxmc.dev, init()'s.
+	public static function hotKeep(init:Dynamic, key:String, type:String, source:String):Dynamic {
+		#if hxmc.dev
+		var last:Null<{v:Dynamic, i:String}> = helder.dev.Hot.load(key, type);
+		if (last != null && last.i != source) {
+			Sys.stderr().writeString("helder.dev: " + helder.dev.Hot.path() + (helder.dev.Hot.path() == "" ? "" : "/") + key + " reset: its initial value changed\n");
+			last = null;
+		}
+		var value:Dynamic = last != null ? fromTree(last.v) : Lib.call(init, Seed.undefinedValue, []);
+		helder.dev.Hot.onSnapshot(() -> {
+			var tree:Dynamic = try toTree(value) catch (e:Dynamic) {
+				Sys.stderr().writeString("helder.dev: " + key + " not kept: " + Std.string(e) + "\n");
+				return;
+			}
+			helder.dev.Hot.save(key, {v: tree, i: source}, type);
+		});
+		return value;
+		#else
+		return Lib.call(init, Seed.undefinedValue, []);
+		#end
+	}
+
 	#if hxmc.dev
 	// (a program's value as Haxe's serializer takes it, and back)
 	static function toTree(v:Dynamic):Dynamic {

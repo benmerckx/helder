@@ -35,8 +35,6 @@ import haxe.macro.Expr;
 //   Hot.scope(name, f)       runs f with name nested in the keys made in it
 //                            (a component instance, a list item); a name
 //                            given twice in one scope becomes name#1, ...
-//   Hot.keep(key, init)      a value kept as it is: load, else init(); saved
-//                            on each snapshot
 //   Hot.path(), Hot.at(p, f) the current scope, and f run in a scope taken
 //                            earlier (code that runs later: an effect again)
 //
@@ -45,9 +43,12 @@ import haxe.macro.Expr;
 // to onSnapshot and onDispose run in the scope, and with the keys, of where
 // they were given, so that save(key) there reaches what load(key) read.
 //
+// A program keeps a value with keep(key, () -> initial) (helder.dev.Keep, a
+// definition: TypeScript's helder/dev the same), which these make.
+//
 // Without -D hxmc.dev every call compiles to nothing (macros: no argument is
-// evaluated; load is null, reloading false, here and typeOf ""; scope, at and
-// keep call their function), so a library can call them unconditionally.
+// evaluated; load is null, reloading false, here and typeOf ""; scope and at
+// call their function), so a library can call them unconditionally.
 class Hot {
 	#if (!hxmc.dev || macro)
 	// (without -D hxmc.dev; and in the macro context, where a library's macro class is compiled too)
@@ -74,9 +75,6 @@ class Hot {
 
 	public static macro function here():Expr
 		return macro "";
-
-	public static macro function keep(key:Expr, init:Expr):Expr
-		return body(init);
 	#end
 
 	public static macro function path():Expr
@@ -110,14 +108,6 @@ class Hot {
 
 	public static macro function here():Expr
 		return macro $v{HotMacro.here(Context.currentPos())};
-
-	public static macro function keep(key:Expr, init:Expr):Expr {
-		var t = switch Context.follow(Context.typeof(init)) {
-			case TFun(_, ret): ret;
-			case t: Context.error("helder.dev: Hot.keep's init is a function () -> value, not " + haxe.macro.TypeTools.toString(t), init.pos);
-		}
-		return macro helder.dev.Hot.keepValue($key, $v{HotMacro.hash(t)}, $init);
-	}
 
 	#if !macro
 	public static var reloading(get, never):Bool;
@@ -194,10 +184,16 @@ class Hot {
 		}
 	}
 
-	@:noCompletion public static function keepValue<T>(key:String, type:String, init:Void->T):T {
-		var v:Null<T> = load(key, type);
-		var value:T = v != null ? v : init();
-		onSnapshot(() -> save(key, value, type));
+	// (keep(key, init)'s slot: the value kept, boxed with its initial
+	// value's source, unless that changed; else init())
+	@:noCompletion public static function keepValue<T>(key:String, type:String, source:String, init:Void->T):T {
+		var last:Null<{v:T, i:String}> = load(key, type);
+		if (last != null && last.i != source) {
+			log((frame.path == "" ? "" : frame.path + "/") + key + " reset: its initial value changed");
+			last = null;
+		}
+		var value:T = last != null ? last.v : init();
+		onSnapshot(() -> save(key, {v: value, i: source}, type));
 		return value;
 	}
 

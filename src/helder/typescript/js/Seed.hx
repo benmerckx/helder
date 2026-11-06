@@ -207,6 +207,9 @@ class Seed {
 	// Entry points for compiled code (see Frontend).
 	public static function libInit():Void Builtins.init();
 
+	// (whether the built-ins are made: a browser worker's instance of the program, running a job, makes them)
+	public static function libReady():Bool return @:privateAccess Builtins.ready;
+
 	// (the built-ins a program uses: Builtins.install*, chosen by lower.Features)
 	public static function libInstallRegExp():Void Builtins.installRegExp();
 
@@ -446,6 +449,7 @@ class Seed {
 		// Keep the semantics layer reachable during seed lowering. Reach prunes
 		// this entry and helpers unused by the actual TypeScript program afterwards.
 		libInit();
+		if (libReady()) libHole();
 		libInstallRegExp();
 		libInstallNormalize();
 		libInstallDate();

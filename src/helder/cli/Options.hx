@@ -131,7 +131,7 @@ class Options {
 				{key: "track", names: ["--track"], value: "<t>", about: "Play's track: internal (the default), alpha, beta, production"},
 				{key: "draft", names: ["--draft"], about: "Play's release a draft (an app never published)"},
 				{key: "dry-run", names: ["--dry-run"], about: "built and signed, what is there read, what would change printed; nothing uploaded"},
-				{key: "screenshots", names: ["--screenshots"], about: "the stories marked .store() rendered at the stores' sizes, the review sheet (bin/store)"},
+				{key: "screenshots", names: ["--screenshots"], about: "the stories with store: true rendered at the stores' sizes, the review sheet (bin/store)"},
 				{key: "listing", names: ["--listing"], about: "the screenshots to the stores' listings (--play, --testflight: one; else both), the changed ones by hash"},
 				{key: "locale", names: ["--locale"], value: "<l>", about: "the listing's language (en-US)"},
 			],

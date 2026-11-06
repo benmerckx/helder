@@ -73,6 +73,19 @@ class Frontend extends ApiCalls {
 		return order;
 	}
 
+	// helder.jobs.script.Entry.call's body: the program's jobs by their number
+	function jobCalls() {
+		var fi = bridge.fn("helder_jobs_script_Entry_call");
+		var outer = b;
+		b = new Builder(p, fi);
+		for (k in 0...jobs.length) {
+			var r = b.block(() -> b.out.push(SReturn(b.coerce(b.temp(ECall(jobs[k], Vector.fromArrayCopy([any(ELocal(fi.args[1])), any(ELocal(fi.args[2]))]))), fi.ret))));
+			b.out.push(SIf(EBin(Eq, ELocal(fi.args[0]), EInt(k)), r, Vector.fromArrayCopy([])));
+		}
+		fi.body = Vector.fromArrayCopy(b.out.concat(fi.body.toArray()));
+		b = outer;
+	}
+
 	public function lower() {
 		var main = Builder.func(p, "main", TVoid);
 		b = new Builder(p, main);
@@ -132,6 +145,7 @@ class Frontend extends ApiCalls {
 		});
 		// (its agnostic literals' code for each renderer, set first)
 		if (tsx != null) body = Vector.fromArrayCopy(tsx.install().concat(body.toArray()));
+		if (jobs.length > 0) jobCalls();
 		var caught = b.local("uncaught", TRef(RAny));
 		b.f.hasTry = true;
 		b.out.push(STry(body, Vector.fromArrayCopy([{test: null, l: caught, body: b.block(() -> b.runtime("uncaught", [ELocal(caught)]))}])));

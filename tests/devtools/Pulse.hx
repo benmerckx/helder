@@ -8,7 +8,7 @@ class Pulse {
 	static final sink:Array<Array<Int>> = [for (_ in 0...16) null];
 
 	static function main() {
-		var state = helder.dev.Hot.keep("state", () -> {frames: 0});
+		var state = helder.dev.Keep.keep("state", () -> {frames: 0});
 		trace("v1 start");
 		#if hxmc.dev
 		while (helder.dev.Hot.poll()) {

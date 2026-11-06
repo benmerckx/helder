@@ -1,7 +1,7 @@
 // The dev loop on Android (CI's android job, on its emulator; not run
 // elsewhere): `helder dev --target android` on a small program drawing
 // helder.gfx's cube, built for the device adb reaches (its ABI: x86_64 on
-// the emulator), its count (Hot.keep) printed (logcat, tag hxmc), set to 3
+// the emulator), its count (keep) printed (logcat, tag hxmc), set to 3
 // on a cold start:
 // - the APK installed and started once (the dev host: its activity glue
 //   keeps the window, the EGL context and the input queue);
@@ -39,9 +39,10 @@ fs.rmSync(work, { recursive: true, force: true });
 fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const counter = path.join(work, 'app', 'Counter.hx');
 // (a drawn program without fonts: ui's need a font file on Android; the
-// cube of helder.gfx's examples, the count in Hot.keep)
+// cube of helder.gfx's examples, the count in keep)
 const v1 = `import helder.asset.Asset;
 import helder.dev.Hot;
+import helder.dev.Keep;
 import helder.gfx.*;
 import helder.os.*;
 
@@ -49,7 +50,7 @@ class Counter {
 	static var BUILD = Std.int((Sys.time() * 1000) % 1000000000);
 
 	static function main() {
-		var state = Hot.keep("state", () -> {count: 0});
+		var state = keep("state", () -> {count: 0});
 		if (!Hot.reloading) state.count = 3;
 		var w = new Window("Counter", 320, 480);
 		var device = Device.create(w.surface);

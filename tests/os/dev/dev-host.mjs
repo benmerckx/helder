@@ -5,7 +5,7 @@
 // HXMC_DEV_NEXT naming the other two, which the running build hands over to
 // in turn (helder.dev.Hot, a second after its first frame), in the same
 // process, on the same window, the GPU device kept: each build's line shows
-// its version, a count kept across the builds (Hot.keep, the snapshot) and
+// its version, a count kept across the builds (keep, the snapshot) and
 // one more, the process and the window (the HWND on Windows, the view on
 // macOS, the X11 window on Linux).
 //   node tests/os/dev/dev-host.mjs <compiler> <work dir> [target]
