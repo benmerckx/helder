@@ -9,7 +9,7 @@ import hxmc.unsafe.*;
 // made the language's ISpellChecker (its tag as BCP 47's: en-US), a word
 // checked by Check (no ISpellingError from its enumerator: right),
 // suggestions by Suggest (an IEnumString), a word added by Add (the user's
-// dictionary). No factory (Wine, older systems) or no checker for the
+// dictionary, which the checker reads again later) and Ignore (right at once). No factory (Wine, older systems) or no checker for the
 // language nor English: null.
 class WinSpell implements SpellChecker {
 	static final CLSID_FACTORY = Com.guid(0x7AB36653, 0x1796, 0x484B, [0xBD, 0xFA, 0xE7, 0x4F, 0x1D, 0xB7, 0xC1, 0xDC]);
@@ -83,8 +83,13 @@ class WinSpell implements SpellChecker {
 			list;
 		});
 
+	// (Add: the user's dictionary, which the checker reads again later; Ignore: right at once, for the run)
 	public function add(word:String)
-		Arena.scoped(a -> ISpellChecker.Add(checker, a.wstring(word)));
+		Arena.scoped(a -> {
+			var w = a.wstring(word);
+			ISpellChecker.Add(checker, w);
+			ISpellChecker.Ignore(checker, w);
+		});
 
 	static function wide(p:Ptr<UInt16>):String {
 		var b = new StringBuf(), i = 0;
@@ -126,6 +131,7 @@ class ISpellChecker {
 	@:slot(4) static function Check(self:Ptr, text:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(5) static function Suggest(self:Ptr, word:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(6) static function Add(self:Ptr, word:Ptr):Int;
+	@:slot(7) static function Ignore(self:Ptr, word:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())

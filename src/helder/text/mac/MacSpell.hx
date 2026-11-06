@@ -17,6 +17,8 @@ class MacSpell implements SpellChecker {
 	final checker:Ptr;
 
 	public static function create(lang:String):Null<SpellChecker> {
+		// (AppKit loaded: a program without a window has not yet)
+		helder.os.cocoa.CocoaWindow.AppKit.NSApplicationLoad();
 		var c = Msg.id(ObjC.cls("NSSpellChecker"), ObjC.sel("sharedSpellChecker"));
 		if (c.isNull()) return null;
 		var chosen:Null<String> = null;
