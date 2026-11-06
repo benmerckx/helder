@@ -63,14 +63,14 @@ class Project {
 	// with the same entry and options updates it with the files that changed
 	// since (by size and time), so tsgo reparses and rechecks only what they
 	// affect; none changed, it is used as it is.
-	static var last:Null<{key:String, snapshot:Int, project:String, stamps:Map<String, String>}> = null;
+	static var last:Null<{key:String, snapshot:Int, project:Dynamic, stamps:Map<String, String>}> = null;
 
 	static function stamp(file:String):String {
 		var s = try sys.FileSystem.stat(file) catch (_:Dynamic) return "";
 		return s.size + "@" + s.mtime.getTime();
 	}
 
-	static function snapshot(tsgo:Tsgo, key:String, roots:Array<String>, options:Dynamic):{snapshot:Int, project:String} {
+	static function snapshot(tsgo:Tsgo, key:String, roots:Array<String>, options:Dynamic):{snapshot:Int, project:Dynamic} {
 		var previous = last;
 		last = null;
 		if (previous != null && previous.key == key) {
@@ -87,7 +87,9 @@ class Project {
 		}
 		if (previous != null) tsgo.call("release", {snapshot: previous.snapshot});
 		var r:Dynamic = tsgo.call("createSnapshot", {createPrograms: [{rootFiles: roots, compilerOptions: options}]});
-		return {snapshot: r.snapshot, project: r.projects[0].id};
+		// (a project is named by its handle since 7.1's nightlies of November 2026, by its id before)
+		var p:Dynamic = r.projects[0];
+		return {snapshot: r.snapshot, project: p.handle != null ? p.handle : p.id};
 	}
 
 	function new(entry:String, globals:String, tsgo:Tsgo, tables:Tables) {
@@ -109,7 +111,7 @@ class Project {
 
 	var config:Null<String> = null;
 
-	function load(tsgo:Tsgo, tables:Tables, at:{snapshot:Int, project:String}, absolute:String, globals:String) {
+	function load(tsgo:Tsgo, tables:Tables, at:{snapshot:Int, project:Dynamic}, absolute:String, globals:String) {
 		var names:Array<String> = tsgo.call("getSourceFileNames", at);
 		var sources = [for (n in names) if (!StringTools.endsWith(n, ".d.ts") && n != globals) n];
 		read = sources.copy();
@@ -166,11 +168,10 @@ class Project {
 	}
 
 	// Asks the checker which symbol every identifier refers to, in one request.
-	function symbols(tsgo:Tsgo, at:{snapshot:Int, project:String}, sf:SourceFile) {
-		var key = sf.string(sf.extendedData(1, 8)), raw = sf.tables.raw(KindIdentifier);
+	function symbols(tsgo:Tsgo, at:{snapshot:Int, project:Dynamic}, sf:SourceFile) {
 		var ids = [for (i in 1...sf.count) if (sf.kindAt(i) == KindIdentifier) i];
 		if (ids.length == 0) return;
-		var result:Array<Dynamic> = tsgo.call("getSymbolsAtLocations", {snapshot: at.snapshot, project: at.project, locations: [for (i in ids) i + "." + raw + "." + key]});
+		var result:Array<Dynamic> = tsgo.call("getSymbolsAtLocations", {snapshot: at.snapshot, project: at.project, locations: [for (i in ids) sf.location(i)]});
 		for (j in 0...ids.length) if (result[j] != null) sf.symbols.set(ids[j], Std.string(result[j].reference != null ? result[j].reference.id : result[j].id));
 	}
 

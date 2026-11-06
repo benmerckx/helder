@@ -21,6 +21,9 @@ class Tables {
 	// the checker's TypeFlags and ObjectFlags, by name
 	public final typeFlags:Map<String, Int> = [];
 	public final objectFlags:Map<String, Int> = [];
+	// whether tsgo's location requests name a node by its file's identity
+	// ("index.#id": 7.1's nightlies since November 2026) or by kind and path
+	public final fileHandles:Bool;
 
 	static inline var PROPERTIES = 128;
 	static var loaded:Map<String, Tables> = [];
@@ -38,6 +41,7 @@ class Tables {
 		var pkg:Dynamic = haxe.Json.parse(File.getContent(dir + "/package.json"));
 		version = pkg.version;
 		var protocol = File.getContent(dir + "/dist/api/node/protocol.js");
+		fileHandles = StringTools.contains(File.getContent(dir + "/dist/api/node/node.js"), "getNodeRequestHandle");
 		var constant = ~/export const ([A-Z_0-9]+) = (0x[0-9A-Fa-f]+|[0-9]+);/;
 		var expected = [
 			"PROTOCOL_VERSION" => Protocol.PROTOCOL_VERSION, "NODE_LEN" => Protocol.NODE_LEN, "HEADER_SIZE" => Protocol.HEADER_SIZE,
@@ -54,7 +58,7 @@ class Tables {
 		for (i in 0...Kind.names.length) if (Kind.names[i] != "" && !byName.exists(Kind.names[i])) byName.set(Kind.names[i], i);
 		var installed = new Map<String, Int>(), max = 0;
 		var entry = ~/SyntaxKind\["([A-Za-z0-9_]+)"\] = ([0-9]+)/;
-		text = File.getContent(dir + "/dist/enums/syntaxKind.enum.js");
+		text = enumSource(dir, "syntaxKind");
 		while (entry.match(text)) {
 			var name = entry.matched(1), value = Std.parseInt(entry.matched(2));
 			if (!~/^(First|Last|Count)/.match(name) && !installed.exists(name)) {
@@ -63,7 +67,7 @@ class Tables {
 			}
 			text = entry.matchedRight();
 		}
-		if (!installed.exists("Identifier")) throw 'TSHX003: typescript@$version: no SyntaxKind table in dist/enums/syntaxKind.enum.js';
+		if (!installed.exists("Identifier")) throw 'TSHX003: typescript@$version: no SyntaxKind table in its enums';
 		kinds = new Vector(max + 1);
 		for (i in 0...kinds.length) kinds[i] = cast KindUnknown;
 		raws = new Vector(Kind.names.length);
@@ -76,12 +80,12 @@ class Tables {
 		}
 		for (e in [{name: "TypeFlags", file: "typeFlags", into: typeFlags}, {name: "ObjectFlags", file: "objectFlags", into: objectFlags}]) {
 			var flag = new EReg(e.name + '\\["([A-Za-z0-9_]+)"\\] = (-?[0-9]+)', "");
-			text = File.getContent(dir + "/dist/enums/" + e.file + ".enum.js");
+			text = enumSource(dir, e.file);
 			while (flag.match(text)) {
 				e.into.set(flag.matched(1), Std.parseInt(flag.matched(2)));
 				text = flag.matchedRight();
 			}
-			if (!e.into.exists("None")) throw 'TSHX003: typescript@$version: no ${e.name} table in dist/enums/${e.file}.enum.js';
+			if (!e.into.exists("None")) throw 'TSHX003: typescript@$version: no ${e.name} table in its enums';
 		}
 		orders = new Vector(Kind.names.length * PROPERTIES);
 		for (i in 0...orders.length) orders[i] = -1;
@@ -100,6 +104,13 @@ class Tables {
 			}
 			text = row.matchedRight();
 		}
+	}
+
+	// an enum's source: enums/<name>.js since 7.1's nightlies of November
+	// 2026, dist/enums/<name>.enum.js in 7.1.0-beta
+	static function enumSource(dir:String, name:String):String {
+		var path = dir + "/enums/" + name + ".js";
+		return File.getContent(sys.FileSystem.exists(path) ? path : dir + "/dist/enums/" + name + ".enum.js");
 	}
 
 	// the kind an installed number stands for (KindUnknown for syntax newer than Kind.hx)

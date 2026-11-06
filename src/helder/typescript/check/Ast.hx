@@ -44,6 +44,17 @@ class SourceFile {
 
 	inline function get_root():Node return node(1);
 
+	// The handle tsgo's location requests take for the node at an index:
+	// "index.#sourceFileId" (the file's identity, in its header) where the
+	// installed TypeScript's requests take that, else "index.kind.key".
+	public function location(index:Int):String {
+		if (tables.fileHandles) return index + ".#" + haxe.Int64.toStr(bytes.getInt64(HEADER_OFFSET_SOURCE_FILE_ID));
+		if (locationKey == null) locationKey = string(extendedData(1, 8));
+		return index + "." + tables.raw(kindAt(index)) + "." + locationKey;
+	}
+
+	var locationKey:Null<String> = null;
+
 	public function node(index:Int):Node {
 		var n = cache[index];
 		if (n == null) {

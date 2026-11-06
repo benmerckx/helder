@@ -67,7 +67,10 @@ preserve, no legacy decorators.
 
 `Tsgo.hx` starts the `typescript` package's tsgo (`tsc --api`, found from the
 entry's directory up) and speaks its protocol over the pipes: msgpack
-`[type, method, payload]` tuples, JSON requests. `Project.hx` creates a
+`[type, method, payload]` tuples, JSON requests. It speaks 7.1.0-beta's
+and the 7.1 nightlies' (helder's tests run the nightly of 2026-11-06),
+which name a project by its handle, a node by its file's identity
+(`index.#id`) and keep the enums in `enums/`. `Project.hx` creates a
 snapshot of the entry, with `globals.d.ts` (what the runtime provides beyond
 ECMAScript: console, timers), reports tsgo's diagnostics, then fetches each
 source file in tsgo's binary AST encoding, the symbols of its identifiers (one

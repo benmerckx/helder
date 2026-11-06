@@ -33,7 +33,7 @@ class TsType {
 // members of unions and the elements of arrays among them.
 class Types {
 	final tsgo:Tsgo;
-	final at:{snapshot:Int, project:String};
+	final at:{snapshot:Int, project:Dynamic};
 	final byId:Map<Int, TsType> = [];
 	final pending:Array<TsType> = [];
 	final number:Int;
@@ -54,7 +54,7 @@ class Types {
 		KindArrayLiteralExpression, KindObjectLiteralExpression, KindNumericLiteral, KindStringLiteral, KindAsExpression, KindNonNullExpression
 	];
 
-	public function new(tsgo:Tsgo, at:{snapshot:Int, project:String}, tables:Tables) {
+	public function new(tsgo:Tsgo, at:{snapshot:Int, project:Dynamic}, tables:Tables) {
 		this.tsgo = tsgo;
 		this.at = at;
 		number = tables.typeFlags.get("Number");
@@ -72,22 +72,19 @@ class Types {
 	// a file's types: of its expressions and names in one request, then of
 	// its functions' results
 	public function load(sf:SourceFile) {
-		var key = sf.string(sf.extendedData(1, 8));
 		var ids = [for (i in 1...sf.count) if (typed.contains(sf.kindAt(i))) i];
 		if (ids.length > 0) {
-			var result:Array<Dynamic> = tsgo.call("getTypeAtLocations", {snapshot: at.snapshot, project: at.project, locations: [for (i in ids) location(sf, i, key)]});
+			var result:Array<Dynamic> = tsgo.call("getTypeAtLocations", {snapshot: at.snapshot, project: at.project, locations: [for (i in ids) sf.location(i)]});
 			for (j in 0...ids.length) if (result[j] != null) sf.types.set(ids[j], add(result[j]));
 		}
 		for (i in 1...sf.count) if (sf.kindAt(i) == KindFunctionDeclaration || sf.kindAt(i) == KindMethodDeclaration) {
-			var signature:Dynamic = tsgo.call("getSignatureFromDeclaration", {snapshot: at.snapshot, project: at.project, location: location(sf, i, key)});
+			var signature:Dynamic = tsgo.call("getSignatureFromDeclaration", {snapshot: at.snapshot, project: at.project, location: sf.location(i)});
 			if (signature == null) continue;
 			var result:Dynamic = request("getReturnTypeOfSignature", signature.id);
 			if (result != null) sf.returns.set(i, add(result));
 		}
 		resolve();
 	}
-
-	static function location(sf:SourceFile, i:Int, key:String):String return i + "." + sf.tables.raw(sf.kindAt(i)) + "." + key;
 
 	function request(method:String, id:Dynamic):Dynamic return tsgo.call(method, {snapshot: at.snapshot, project: at.project, objectId: id});
 
