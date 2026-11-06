@@ -1,12 +1,14 @@
 // The canvas-web lane: render-web.ts's wasm32 build run in headless
 // Chromium (src/helder/os/browser.mjs, src/helder/canvas/imports.mjs: the
-// browser's own canvas), each scene's pixels written to bin/canvas/web and
-// compared with the CPU back end's (compare.mjs)
+// browser's own canvas; and the other packages' imports the module needs,
+// as helder's page chooses them: ../page-imports.mjs), each scene's pixels
+// written to bin/canvas/web and compared with the CPU back end's (compare.mjs)
 //
 //   node tests/canvas/web.mjs <module.wasm>
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { pageImports } from "../page-imports.mjs";
 
 const require = createRequire(import.meta.url);
 let pw;
@@ -14,7 +16,8 @@ try { pw = require("playwright"); } catch { try { pw = require("/opt/node-tools/
 const wasm = process.argv[2];
 mkdirSync("bin/canvas/web", { recursive: true });
 const served = { "/index.html": ["text/html", "<!doctype html><meta charset=utf-8><body></body>"], "/module.wasm": ["application/wasm", readFileSync(wasm)] };
-for (const f of ["src/helder/os/browser.mjs", "src/helder/canvas/imports.mjs", "src/helder/text/imports.mjs"]) served["/" + f] = ["text/javascript", readFileSync(f)];
+const imports = pageImports(served["/module.wasm"][1]).map(p => `src/helder/${p}/imports.mjs`);
+for (const f of ["src/helder/os/browser.mjs", ...imports]) served["/" + f] = ["text/javascript", readFileSync(f)];
 const files = {};
 for (const d of ["tests/canvas/fonts", "tests/canvas/images"])
 	for (const f of readdirSync(d)) {
@@ -29,12 +32,12 @@ await page.route("http://canvas.test/**", route => {
 	route.fulfill({ status: 200, contentType: f[0], body: Buffer.from(f[1]) });
 });
 await page.goto("http://canvas.test/index.html");
-const lines = await page.evaluate(async files => {
+const lines = await page.evaluate(async ([files, imports]) => {
 	const { run } = await import("/src/helder/os/browser.mjs");
 	const out = [];
-	const r = await run("/module.wasm", { imports: ["/src/helder/canvas/imports.mjs", "/src/helder/text/imports.mjs"], files, stdout: l => out.push(l), stderr: l => out.push("stderr: " + l) });
+	const r = await run("/module.wasm", { imports: imports.map(f => "/" + f), files, stdout: l => out.push(l), stderr: l => out.push("stderr: " + l) });
 	return out;
-}, files);
+}, [files, imports]);
 let n = 0;
 for (const l of lines) {
 	const m = l.match(/^scene (\S+) data:image\/png;base64,(.*)$/);
