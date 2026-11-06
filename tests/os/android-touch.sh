@@ -51,7 +51,8 @@ size=$(adb shell wm size | grep -o "[0-9]*x[0-9]*" | tail -1)
 W=${size%x*}
 H=${size#*x}
 echo "android-touch.sh: display ${W}x$H"
-adb shell input swipe $((W / 2)) $((H * 85 / 100)) $((W / 2)) $((H * 5 / 100)) 120
+# (as the touchscreen's events, its lift with its last move: android-swipe.mjs)
+node tests/os/android-swipe.mjs $((W / 2)) $((H * 85 / 100)) $((W / 2)) $((H * 5 / 100)) 8
 wait_for "AndroidTouchTest: let go" 20
 check "a fling: its release" $?
 wait_for "AndroidTouchTest: settled" 30
