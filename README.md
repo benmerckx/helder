@@ -316,6 +316,10 @@ Still to come:
     for `Int`); refused: `any` spread through code, mapped and conditional
     types beyond what Haxe can express, prototypes changed at run time.
     Shaders in TS (to Haxe shader classes) later, for games.
+  - **Definitions** (src/helder/compiler/DESIGN.md): helder's macros as
+    compile-time calls on plain object literals, `shader({vertex, fragment})`,
+    `job(fn)`, `actions(...)`, `image(path)`, `story(...)`, the same in TS and
+    Haxe, one handler for both; material slots and variants after TSL.
   - A proof first: the `.d.ts` for view and ui, the emitter, the counter
     and todo examples in TSX built and live-reloaded by `helder dev`; started
     once TypeScript 7.1's API is out of beta.

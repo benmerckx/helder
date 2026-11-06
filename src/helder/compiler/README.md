@@ -23,6 +23,10 @@ compilation server alike.
   types it) and its generation in hxmc's place. helder.typescript's
   (`helder.typescript.Frontend`) is the one listed.
 
+DESIGN.md: definitions, compile-time calls such as `shader({...})`, `job(fn)` and
+`actions(...)` that read as runtime code in TypeScript and in Haxe and are
+handled once for both (planned; they replace the macro forms).
+
 ```sh
 node src/helder/compiler/build.mjs          # builds helder's compiler, prints its path
 $(node src/helder/compiler/build.mjs --quiet) app.ts -o bin/app && bin/app
