@@ -5,6 +5,9 @@ import haxe.io.Bytes;
 import helder.canvas.Blend.Blender;
 import helder.canvas.Paint.Rgba;
 import helder.canvas.Paint.Shader;
+import hxmc.simd.I32x4;
+import hxmc.simd.U16x8;
+import hxmc.simd.U8x16;
 
 // A 2D canvas drawn on the CPU: paths filled by non-zero or even-odd,
 // stroked (Stroke: width, joins, caps, dashes, as outlines), images,
@@ -56,7 +59,7 @@ final class Canvas implements Painter {
 		bitmap = new Bitmap(width, height);
 		target = bitmap.pixels;
 		raster = new Raster(width, height);
-		cov = Bytes.alloc(width + 2);
+		cov = Bytes.alloc(width + 32);
 		span = new Vector(width * 4);
 		state = new State();
 		state.reset(width, height);
@@ -156,8 +159,9 @@ final class Canvas implements Painter {
 				continue;
 			}
 			raster.row(y, cov, evenOdd);
+			var sa = raster.spanStart, sb = raster.spanEnd;
 			for (x in x0...x1) {
-				var c = x < rx0 || x >= rx1 ? 0 : cov.get(x);
+				var c = x < sa || x >= sb ? 0 : cov.get(x);
 				var m = mask.get(row + x);
 				mask.set(row + x, c == 255 ? m : c == 0 ? 0 : div255(m * c));
 			}
@@ -317,28 +321,40 @@ final class Canvas implements Painter {
 		}
 		for (y in ya...yb) {
 			var inRaster = !empty && y >= ry0 && y < ry1;
-			if (inRaster) raster.row(y, cov, evenOdd);
+			// (the row's own span of coverage within the clip's columns; the whole clip's when unbounded, 0 past the span)
+			var ka = xa, kb = xb;
+			if (inRaster) {
+				raster.row(y, cov, evenOdd);
+				ka = raster.spanStart;
+				kb = raster.spanEnd;
+				if (ka < xa) ka = xa;
+				if (kb > xb) kb = xb;
+				if (ka > xb) ka = xb;
+				if (kb < ka) kb = ka;
+			}
 			if (unbounded) {
 				if (!inRaster) cov.fill(xa, xb - xa, 0) else {
-					if (rx0 > xa) cov.fill(xa, rx0 - xa, 0);
-					if (rx1 < xb) cov.fill(rx1, xb - rx1, 0);
+					if (ka > xa) cov.fill(xa, ka - xa, 0);
+					if (kb < xb) cov.fill(kb, xb - kb, 0);
 				}
-			} else if (!inRaster) continue;
+				ka = xa;
+				kb = xb;
+			} else if (!inRaster || kb <= ka) continue;
 			var row = y * width;
 			// (a colour over: integers, a run of whole coverage of an opaque one stored as it is)
 			if (shader == null && blend == null) {
-				solidSpan(row, xa, xb, mask, alpha, c);
+				solidRow(row, ka, kb, mask, alpha, c);
 				continue;
 			}
-			if (shader != null) shader.shade(xa, y, xb - xa, span);
-			for (x in xa...xb) {
+			if (shader != null) shader.shade(ka, y, kb - ka, span);
+			for (x in ka...kb) {
 				var k = cov.get(x);
 				var m = mask == null ? 255 : mask.get(row + x);
 				if (!unbounded && (k == 0 || m == 0)) continue;
 				var o = (row + x) * 4;
 				var f = unbounded ? k / 255 * alpha : k * m / 65025 * alpha;
 				if (shader != null) {
-					var so = (x - xa) * 4;
+					var so = (x - ka) * 4;
 					src.r = span[so] * f;
 					src.g = span[so + 1] * f;
 					src.b = span[so + 2] * f;
@@ -381,38 +397,130 @@ final class Canvas implements Painter {
 		raster.discard();
 	}
 
-	// a colour (0xAARRGGBB) source-over across a row's span of coverage, in
-	// integers: premultiplied by its coverage (and the clip's, and alpha)
-	// in 0 to 255, d = s + d (255 - sa) / 255; where all of it covers and
-	// it is opaque, its pixel stored as it is
-	function solidSpan(row:Int, xa:Int, xb:Int, mask:Null<Bytes>, alpha:Float, c:Int) {
+	// a colour (0xAARRGGBB) source-over across a row's coverage within
+	// columns xa to xb, by the rasterizer's runs: in integers, premultiplied
+	// by its coverage (and the clip's, and alpha) in 0 to 255, d = s + d
+	// (255 - sa) / 255; where all of it covers and it is opaque, its pixel
+	// stored as it is. Four pixels at a time in 16-bit lanes (each
+	// channel's own, the same arithmetic), the rest two channels a multiply
+	// (red and blue, green and alpha), the source made again only when the
+	// coverage changes.
+	function solidRow(row:Int, xa:Int, xb:Int, mask:Null<Bytes>, alpha:Float, c:Int) {
 		var a = Std.int(((c >>> 24) & 255) * alpha + 0.5);
 		if (a <= 0) return;
 		var r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
 		var whole = a == 255 ? (r | (g << 8) | (b << 16) | (255 << 24)) : 0;
-		var t = target;
-		for (x in xa...xb) {
-			var k = cov.get(x);
-			if (k == 0) continue;
-			if (mask != null) {
-				var m = mask.get(row + x);
-				if (m == 0) continue;
-				if (m < 255) k = div255(k * m);
+		var t = target, rs = raster.runs;
+		// (the source at coverage last: red and blue, green and alpha, and 255 less its alpha)
+		var last = -1, sRB = 0, sGA = 0, inv = 255;
+		inline function source(k:Int) {
+			if (k != last) {
+				last = k;
+				// (the source's alpha with its coverage, its colour premultiplied by it)
+				var sa = div255(a * k);
+				sRB = div255x2((r | (b << 16)) * sa);
+				sGA = div255(g * sa) | (sa << 16);
+				inv = 255 - sa;
 			}
-			var o = (row + x) * 4;
-			if (k == 255 && a == 255) {
-				t.setInt32(o, whole);
+		}
+		inline function over(o:Int) {
+			var d = t.getInt32(o);
+			t.setInt32(o, (sRB + div255x2((d & 0xFF00FF) * inv)) | ((sGA + div255x2(((d >>> 8) & 0xFF00FF) * inv)) << 8));
+		}
+		// (the colour in each pixel's lanes, alpha 255; div255 of each lane, 0 to 65025)
+		var color = U16x8.make(r, g, b, 255, r, g, b, 255), alphaV = U16x8.splat(a), c128 = U16x8.splat(128), c255 = U16x8.splat(255);
+		var wholeV = I32x4.splat(whole);
+		inline function div(v:U16x8):U16x8 {
+			var u = v + c128;
+			return (u + (u >> 8)) >> 8;
+		}
+		for (i in 0...raster.runCount) {
+			var x0 = rs[i * 3], x1 = rs[i * 3 + 1], rk = rs[i * 3 + 2];
+			if (x0 < xa) x0 = xa;
+			if (x1 > xb) x1 = xb;
+			if (x1 <= x0) continue;
+			if (rk >= 0 && mask == null) {
+				// (one coverage throughout)
+				if (rk == 255 && a == 255) {
+					var x = x0;
+					while (x + 4 <= x1) {
+						wholeV.store(t, (row + x) * 4);
+						x += 4;
+					}
+					for (x in x...x1)
+						t.setInt32((row + x) * 4, whole);
+					continue;
+				}
+				source(rk);
+				if (inv == 255) continue;
+				var sa = U16x8.splat(255 - inv);
+				var sV = div(color * sa), invV = U16x8.splat(inv);
+				var x = x0;
+				while (x + 4 <= x1) {
+					var o = (row + x) * 4;
+					var d = U8x16.load(t, o);
+					var lo = sV + div(U16x8.extendLow(d) * invV), hi = sV + div(U16x8.extendHigh(d) * invV);
+					U8x16.narrow(lo.asI16x8(), hi.asI16x8()).store(t, o);
+					x += 4;
+				}
+				for (x in x...x1)
+					over((row + x) * 4);
 				continue;
 			}
-			// (the source's alpha with its coverage, its colour premultiplied by it)
-			var sa = div255(a * k);
-			if (sa == 0) continue;
-			var inv = 255 - sa;
-			t.set(o, div255(r * sa) + div255(t.get(o) * inv));
-			t.set(o + 1, div255(g * sa) + div255(t.get(o + 1) * inv));
-			t.set(o + 2, div255(b * sa) + div255(t.get(o + 2) * inv));
-			t.set(o + 3, sa + div255(t.get(o + 3) * inv));
+			// (four at a time: none covered left as they are, all of an opaque one stored)
+			var x = x0;
+			while (x + 4 <= x1) {
+				var o = (row + x) * 4;
+				var k4 = cov.getInt32(x);
+				if (mask != null) {
+					var m4 = mask.getInt32(row + x);
+					if (m4 != -1) {
+						var km = div(U16x8.extendLow(U8x16.load32(cov, x)) * U16x8.extendLow(U8x16.load32(mask, row + x)));
+						k4 = U8x16.narrow(km.asI16x8(), km.asI16x8()).asI32x4().get(0);
+					}
+				}
+				if (k4 == 0) {
+					x += 4;
+					continue;
+				}
+				if (k4 == -1 && a == 255) {
+					wholeV.store(t, o);
+					x += 4;
+					continue;
+				}
+				var k = U8x16.splat(0).asI32x4().with(0, k4).asU8x16();
+				var kk = k.shuffle(k, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3);
+				var sl = div(alphaV * U16x8.extendLow(kk)), sh = div(alphaV * U16x8.extendHigh(kk));
+				var d = U8x16.load(t, o);
+				var lo = div(color * sl) + div(U16x8.extendLow(d) * (c255 - sl));
+				var hi = div(color * sh) + div(U16x8.extendHigh(d) * (c255 - sh));
+				U8x16.narrow(lo.asI16x8(), hi.asI16x8()).store(t, o);
+				x += 4;
+			}
+			for (x in x...x1) {
+				var k = cov.get(x);
+				if (k == 0) continue;
+				if (mask != null) {
+					var m = mask.get(row + x);
+					if (m == 0) continue;
+					if (m < 255) k = div255(k * m);
+				}
+				var o = (row + x) * 4;
+				if (k == 255 && a == 255) {
+					t.setInt32(o, whole);
+					continue;
+				}
+				source(k);
+				if (inv == 255) continue;
+				over(o);
+			}
 		}
+	}
+
+	// div255 in two 16-bit lanes at once (each 0 to 65025)
+	static inline function div255x2(v:Int):Int {
+		var t = v + 0x800080;
+		return ((t + ((t >>> 8) & 0xFF00FF)) >>> 8) & 0xFF00FF;
 	}
 
 	// a layer's pixels onto those under it, with its alpha, blend and mask,

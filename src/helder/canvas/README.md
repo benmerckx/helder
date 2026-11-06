@@ -91,13 +91,17 @@ the symbols).
 
 **The rasterizer** (`Raster`): each line's exact signed area accumulated
 per pixel, a running sum along each row (font-rs's and tiny-skia's
-analytic coverage), only the rows and columns a path touched read and
-cleared, so a small shape on a large canvas costs its own size. Curves
-are flattened within a tenth of a pixel. A colour drawn source-over takes
-an integer path (a run of whole coverage of an opaque colour stored as
-it is: a 900-pixel circle on a 1000x1000 canvas in 3.5 ms natively, 11 ms
-before it); shaders and blend modes compose in floats. SIMD (hxmc.simd)
-is not used yet: the coverage sweep is where it would pay next.
+analytic coverage). The lines are kept first, with their box, and
+accumulated into a buffer of the box's alone, in bands of rows that stay
+in the cache; of each row only the columns its lines wrote in are read,
+and a block of 16 columns no line wrote in is one run of the coverage
+carried into it (zero: skipped). So a small shape on a large canvas costs
+its own size, a thin diagonal stroke its own pixels rather than its
+box's, a large fill its edges and its runs. The sweep is four columns at
+a time (hxmc.simd, single floats). Curves are flattened within a tenth
+of a pixel. A colour drawn source-over takes an integer path, four pixels
+at a time in 16-bit lanes, a run of whole coverage of an opaque colour
+stored as it is; shaders and blend modes compose in floats.
 
 helder.ui's SVG rendering (`Svg.render`, `Path.render`) draws through it:
 its groups' opacities as layers, its clip paths as clips, its gradients
