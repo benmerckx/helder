@@ -179,5 +179,7 @@ dumped 'text="General" [^>]*selected="true"' "a tab selected"
 sed 's/></>\n</g' "$out/access.xml" | grep -c 'helder.androidaccesscheck' | sed 's/^/android.sh: access: nodes of the app: /'
 ! seen "an accessibility"
 check "access: no failed node or action" $?
+adb logcat -d > "$out/access-logcat.txt"
+grep -E "hxmc|helder|AndroidRuntime|DEBUG" "$out/access-logcat.txt" | tail -40
 adb shell am force-stop $aid
 exit $failed

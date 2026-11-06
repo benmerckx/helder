@@ -86,8 +86,6 @@ class MacPatternsTest {
 						check("a string for a range", ObjC.string(part) == "da");
 						Msg.vPtr(name, sel("setAccessibilityValue:"), ObjC.str("Bob"));
 						check("its value set", f.name.peek() == "Bob", f.name.peek());
-						Msg.vBool(name, sel("setAccessibilityFocused:"), true);
-						check("focused", w.ui.focus == w.root.find("name"));
 					}
 					var notes = find("AXTextArea", "Notes");
 					if (!notes.isNull()) check("a line for an index", Msg.iInt(notes, sel("accessibilityLineForIndex:"), 5).toInt() == 1);
@@ -106,11 +104,17 @@ class MacPatternsTest {
 						Msg.vPtr(vol, sel("setAccessibilityValue:"), Msg.idFloat(ObjC.cls("NSNumber"), ObjC.sel("numberWithDouble:"), 0.8));
 						check("a slider's value set", Math.abs(f.volume.peek() - 0.8) < 1e-9, '${f.volume.peek()}');
 					}
+					// (last: the clicks above may move the focus, as a click does)
+					if (!name.isNull()) {
+						Msg.vBool(name, sel("setAccessibilityFocused:"), true);
+						check("focused", w.ui.focus == w.root.find("name"));
+					}
 					step = 1;
 				case 1:
 					var name = find("AXTextField", "Name"), bob = find("AXRow", "Bob Lunch"), more = find("AXButton", "More");
-					check("after: focused, selected, expanded", !name.isNull() && Msg.b(name, sel("isAccessibilityFocused")) && !bob.isNull()
-						&& Msg.b(bob, sel("isAccessibilitySelected")) && !more.isNull() && Msg.b(more, sel("isAccessibilityExpanded")));
+					check("after: focused", !name.isNull() && Msg.b(name, sel("isAccessibilityFocused")), w.ui.focus == null ? "none" : w.ui.focus.tag);
+					check("after: selected", !bob.isNull() && Msg.b(bob, sel("isAccessibilitySelected")));
+					check("after: expanded", !more.isNull() && Msg.b(more, sel("isAccessibilityExpanded")));
 					check("after: the field's value", !name.isNull() && str(name, "accessibilityValue") == "Bob");
 					step = 2;
 					w.close();
@@ -120,6 +124,6 @@ class MacPatternsTest {
 		};
 		UiWindow.run();
 		Sys.println('MacPatternsTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 18 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 20 ? 0 : 1);
 	}
 }
