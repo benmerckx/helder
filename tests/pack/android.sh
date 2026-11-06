@@ -180,6 +180,6 @@ sed 's/></>\n</g' "$out/access.xml" | grep -c 'helder.androidaccesscheck' | sed 
 ! seen "an accessibility"
 check "access: no failed node or action" $?
 adb logcat -d > "$out/access-logcat.txt"
-grep -E "hxmc|helder|AndroidRuntime|DEBUG" "$out/access-logcat.txt" | tail -40
+grep -E "hxmc|helder|AndroidRuntime|DEBUG|libc|Fatal|crash|JNI" "$out/access-logcat.txt" | grep -v "CarrierSvc\|ImsResolver\|WindowManager" | tail -60
 adb shell am force-stop $aid
 exit $failed

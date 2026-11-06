@@ -31,6 +31,7 @@ class IosAccessCheck {
 	}
 
 	static function main() {
+		Sys.println("access: started");
 		var w = new UiWindow("fixture", 400, 640);
 		var f = new AccessFixture();
 		Render.render(f.view(), w.root);
@@ -42,7 +43,7 @@ class IosAccessCheck {
 			return Ptr.nil();
 		}
 		w.onFrame = () -> {
-			frames++;
+			if (++frames == 1) Sys.println("access: a first frame");
 			if (frames < 3) return;
 			var view = w.window.surface.handle;
 			switch step {

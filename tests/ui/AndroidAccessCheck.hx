@@ -12,12 +12,15 @@ class AndroidAccessCheck {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 		helder.os.android.Activity.activity;
 		#end
+		Sys.println("access: started");
 		var w = new UiWindow("fixture", 400, 640);
+		Sys.println("access: a window");
 		var f = new AccessFixture();
 		Render.render(f.view(), w.root);
 		var frames = 0, told = false;
 		w.onFrame = () -> {
-			if (++frames == 3) Sys.println("access: ready");
+			if (++frames == 1) Sys.println("access: a first frame");
+			if (frames == 3) Sys.println("access: ready");
 			#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 			var a:Null<helder.ui.draw.AndroidAccess> = cast @:privateAccess w.androidAccess;
 			if (!told && a != null && a.listening()) {

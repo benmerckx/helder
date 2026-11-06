@@ -156,7 +156,7 @@ while [ $i -lt 60 ] && ! grep -q "access: .* checks" "$out/access.txt"; do
 	sleep 1
 	i=$((i + 1))
 done
-grep "access:" "$out/access.txt"
+tail -40 "$out/access.txt"
 grep -q "access: .* checks, ok" "$out/access.txt"
 check "access: UIAccessibility's elements" $?
 xcrun simctl terminate "$udid" $aid > /dev/null 2>&1
