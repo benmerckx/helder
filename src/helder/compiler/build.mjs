@@ -62,7 +62,8 @@ const exe = path.join(cache, 'compiler', `${key}`, process.platform === 'win32' 
 if (!fs.existsSync(exe)) {
 	const t0 = Date.now();
 	fs.mkdirSync(path.dirname(exe), {recursive: true});
-	const tmp = `${exe}.${process.pid}`;
+	// (Windows: hxmc names an executable .exe, so the temporary one ends so)
+	const tmp = exe.replace(/(\.exe)?$/, `.${process.pid}$1`);
 	const launcher = path.join(path.dirname(cli), 'hxmc/bootstrap/haxe.mjs');
 	const args = ['-cp', src, '-cp', path.join(hxmc, 'haxe/src'), '-cp', path.join(hxmc, 'hxmc/src'), '-main', 'helder.compiler.Compiler',
 		'-D', 'disable-parallelism', '-D', 'hih_no_generators', ...(process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []), '--custom-target', `hxmc=${tmp}`];
@@ -72,7 +73,7 @@ if (!fs.existsSync(exe)) {
 		process.stderr.write(b.stdout + b.stderr);
 		process.exit(1);
 	}
-	fs.renameSync(tmp, exe);
+	fs.renameSync(fs.existsSync(tmp) ? tmp : `${tmp}.exe`, exe);
 	log(`built ${exe} in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 }
 console.log(exe);
