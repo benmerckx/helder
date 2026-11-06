@@ -356,7 +356,7 @@ class Ui {
 		@:privateAccess n.drawnAt = paintFrame;
 		var c0 = cullX0, c1 = cullY0, c2 = cullX1, c3 = cullY1;
 		if (m != null) {
-			canvas.pushTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+			canvas.pushTransform(m.a, m.b, m.c, m.d, m.e, m.f);
 			// (under a transform: everything drawn)
 			cullX0 = cullY0 = -1e9;
 			cullX1 = cullY1 = 1e9;

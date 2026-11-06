@@ -1,6 +1,7 @@
 package helder.ui;
 
 import helder.ui.Event;
+import helder.canvas.Matrix;
 import helder.image.Image;
 
 // A node of the UI tree: a box laid out by its parent's flexbox (Layout),
@@ -934,10 +935,10 @@ class Node implements Part {
 		while (--i >= 0) {
 			var a = chain[i], m = a.transformMatrix();
 			if (m != null) {
-				var inv = Transform.invert(m);
-				if (inv != null) {
-					var tx = inv[0] * px + inv[2] * py + inv[4];
-					py = inv[1] * px + inv[3] * py + inv[5];
+				var inv = new Matrix();
+				if (m.invertInto(inv)) {
+					var tx = inv.mapX(px, py);
+					py = inv.mapY(px, py);
 					px = tx;
 				}
 			}
@@ -1017,17 +1018,17 @@ class Node implements Part {
 			var m = a.transformMatrix();
 			if (m != null) {
 				var x = x0;
-				x0 = m[0] * x + m[2] * y0 + m[4];
-				y0 = m[1] * x + m[3] * y0 + m[5];
+				x0 = m.mapX(x, y0);
+				y0 = m.mapY(x, y0);
 				x = x1;
-				x1 = m[0] * x + m[2] * y1 + m[4];
-				y1 = m[1] * x + m[3] * y1 + m[5];
+				x1 = m.mapX(x, y1);
+				y1 = m.mapY(x, y1);
 				x = x2;
-				x2 = m[0] * x + m[2] * y2 + m[4];
-				y2 = m[1] * x + m[3] * y2 + m[5];
+				x2 = m.mapX(x, y2);
+				y2 = m.mapY(x, y2);
 				x = x3;
-				x3 = m[0] * x + m[2] * y3 + m[4];
-				y3 = m[1] * x + m[3] * y3 + m[5];
+				x3 = m.mapX(x, y3);
+				y3 = m.mapY(x, y3);
 			}
 			a = a.parent;
 		}
@@ -1042,7 +1043,7 @@ class Node implements Part {
 
 	// the transform (Style.transform about Style.transformOrigin) in window
 	// pixels, as Canvas.pushTransform takes it; null: none
-	public function transformMatrix():Null<Array<Float>> {
+	public function transformMatrix():Null<Matrix> {
 		var t = style.transform;
 		// (Sticky: moved where it sticks, then transformed there)
 		var sx = 0.0, sy = 0.0;
@@ -1051,15 +1052,15 @@ class Node implements Part {
 			sx = s[0];
 			sy = s[1];
 		}
-		if (t == null || t.isIdentity()) return sx == 0 && sy == 0 ? null : [1.0, 0, 0, 1, sx, sy];
+		if (t == null || t.isIdentity()) return sx == 0 && sy == 0 ? null : new Matrix(1, 0, 0, 1, sx, sy);
 		var o = style.transformOrigin;
 		var ox = o == null ? Math.NaN : o[0].resolve(width), oy = o == null ? Math.NaN : o[1].resolve(height);
 		ox = absX + (Math.isNaN(ox) ? width / 2 : ox);
 		oy = absY + (Math.isNaN(oy) ? height / 2 : oy);
 		var m = t.toMatrix(width, height);
 		// (about the origin: moved there, transformed, moved back)
-		m[4] += ox - (m[0] * ox + m[2] * oy) + sx;
-		m[5] += oy - (m[1] * ox + m[3] * oy) + sy;
+		m.e += ox - (m.a * ox + m.c * oy) + sx;
+		m.f += oy - (m.b * ox + m.d * oy) + sy;
 		return m;
 	}
 
@@ -1207,10 +1208,10 @@ class Node implements Part {
 		if (!inkAll && (px < inkX0 || px >= inkX1 || py < inkY0 || py >= inkY1)) return null;
 		var m = transformMatrix();
 		if (m != null) {
-			var inv = Transform.invert(m);
-			if (inv == null) return null;
-			var tx = inv[0] * px + inv[2] * py + inv[4];
-			py = inv[1] * px + inv[3] * py + inv[5];
+			var inv = new Matrix();
+			if (!m.invertInto(inv)) return null;
+			var tx = inv.mapX(px, py);
+			py = inv.mapY(px, py);
 			px = tx;
 		}
 		var inside = px >= absX && py >= absY && px < absX + width && py < absY + height;
@@ -1281,7 +1282,7 @@ class Node implements Part {
 			inkX0 = inkY0 = Math.POSITIVE_INFINITY;
 			inkX1 = inkY1 = Math.NEGATIVE_INFINITY;
 			for (k in 0...4) {
-				var x = m[0] * xs[k] + m[2] * ys[k] + m[4], y = m[1] * xs[k] + m[3] * ys[k] + m[5];
+				var x = m.mapX(xs[k], ys[k]), y = m.mapY(xs[k], ys[k]);
 				if (x < inkX0) inkX0 = x;
 				if (x > inkX1) inkX1 = x;
 				if (y < inkY0) inkY0 = y;

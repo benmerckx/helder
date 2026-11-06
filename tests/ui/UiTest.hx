@@ -345,7 +345,8 @@ class UiTest {
 	// origin; drawn by pushing the matrix around the subtree; hit and
 	// pointed at through the inverse
 	static function transforms() {
-		function near(a:Array<Float>, b:Array<Float>):Bool {
+		function near(m:helder.canvas.Matrix, b:Array<Float>):Bool {
+			var a = [m.a, m.b, m.c, m.d, m.e, m.f];
 			for (i in 0...6)
 				if (Math.abs(a[i] - b[i]) > 1e-9) return false;
 			return true;
@@ -365,10 +366,10 @@ class UiTest {
 			new Transform(["translateX"], [[1, 2]]);
 			false;
 		} catch (e:Dynamic) true;
-		check("transform: built without the text, as parse reads it; a wrong count an error", near(built, m)
-			&& new Transform(["translateX"], [[5]]).toMatrix(1, 1)[4] == 5 && counted, "" + built);
-		var inv = Transform.invert(m);
-		check("transform: inverted", inv != null && near(Transform.multiply(m, inv), [1, 0, 0, 1, 0, 0]));
+		check("transform: built without the text, as parse reads it; a wrong count an error", near(built, [m.a, m.b, m.c, m.d, m.e, m.f])
+			&& new Transform(["translateX"], [[5]]).toMatrix(1, 1).e == 5 && counted, "" + built);
+		var inv = new helder.canvas.Matrix();
+		check("transform: inverted", m.invertInto(inv) && near(m.clone().multiply(inv), [1, 0, 0, 1, 0, 0]));
 		var o = Transform.origin("left top");
 		check("transform origin: keywords", o[0].resolve(80) == 0 && o[1].resolve(40) == 0);
 		var o2 = Transform.origin("bottom");

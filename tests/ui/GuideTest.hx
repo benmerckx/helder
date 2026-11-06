@@ -239,8 +239,8 @@ class GuideTest implements Markup {
 		Render.render(<view tag="badge" width={24} height={24} radius={12} background="#ef4444" transform="rotate(15deg) scale(1.2)" transform-origin="left top"/>, other.root);
 		other.update();
 		var badge = other.root.find("badge"), bm = badge.transformMatrix();
-		check("snippets: a transform about its origin", bm != null && Math.abs(bm[0] - 1.2 * Math.cos(Math.PI / 12)) < 1e-9 && badge.width == 24
-			&& Math.abs(bm[4] - (badge.absX - (bm[0] * badge.absX + bm[2] * badge.absY))) < 1e-9);
+		check("snippets: a transform about its origin", bm != null && Math.abs(bm.a - 1.2 * Math.cos(Math.PI / 12)) < 1e-9 && badge.width == 24
+			&& Math.abs(bm.e - (badge.absX - (bm.a * badge.absX + bm.c * badge.absY))) < 1e-9);
 		check("snippets: bound holes", text(ui, "a") == "5" && text(ui, "b") == "10" && text(ui, "c") == "5", text(ui, "a") + text(ui, "b") + text(ui, "c"));
 		open(true);
 		flush();

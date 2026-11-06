@@ -1,5 +1,7 @@
 package helder.ui;
 
+import helder.canvas.Matrix;
+
 // A CSS transform (Style.transform): translate(x[, y]), translateX/Y,
 // scale(x[, y]), scaleX/Y, rotate(a), skew(x[, y]), skewX/Y and
 // matrix(a, b, c, d, e, f), composed left to right as CSS composes them,
@@ -96,51 +98,31 @@ class Transform {
 	public function isIdentity():Bool
 		return names.length == 0;
 
-	// the matrix for a box of w by h pixels, about its top left: a, b, c, d,
-	// e, f (x' = a x + c y + e, y' = b x + d y + f)
-	public function toMatrix(w:Float, h:Float):Array<Float> {
-		var m = [1.0, 0, 0, 1, 0, 0];
+	// the matrix for a box of w by h pixels, about its top left (x' = a x +
+	// c y + e, y' = b x + d y + f)
+	public function toMatrix(w:Float, h:Float):Matrix {
+		var m = new Matrix();
 		for (i in 0...names.length) {
 			var v = args[i], p = percent[i];
 			inline function len(k:Int, base:Float):Float
 				return k >= v.length ? 0 : p[k] ? v[k] / 100 * base : v[k];
-			inline function rad(k:Int):Float
-				return v[k] * Math.PI / 180;
-			var n = switch names[i] {
-				case "translate": [1.0, 0, 0, 1, len(0, w), len(1, h)];
-				case "translatex": [1.0, 0, 0, 1, len(0, w), 0];
-				case "translatey": [1.0, 0, 0, 1, 0, len(0, h)];
-				case "scale": [v[0], 0, 0, v.length > 1 ? v[1] : v[0], 0, 0];
-				case "scalex": [v[0], 0, 0, 1, 0, 0];
-				case "scaley": [1.0, 0, 0, v[0], 0, 0];
-				case "rotate": [Math.cos(rad(0)), Math.sin(rad(0)), -Math.sin(rad(0)), Math.cos(rad(0)), 0, 0];
-				case "skew": [1.0, v.length > 1 ? Math.tan(rad(1)) : 0, Math.tan(rad(0)), 1, 0, 0];
-				case "skewx": [1.0, 0, Math.tan(rad(0)), 1, 0, 0];
-				case "skewy": [1.0, Math.tan(rad(0)), 0, 1, 0, 0];
-				case _: v.copy(); // matrix
+			inline function tan(k:Int):Float
+				return k >= v.length ? 0 : Math.tan(v[k] * Math.PI / 180);
+			switch names[i] {
+				case "translate": m.translate(len(0, w), len(1, h));
+				case "translatex": m.translate(len(0, w), 0);
+				case "translatey": m.translate(0, len(0, h));
+				case "scale": m.scale(v[0], v.length > 1 ? v[1] : v[0]);
+				case "scalex": m.scale(v[0], 1);
+				case "scaley": m.scale(1, v[0]);
+				case "rotate": m.rotate(v[0] * Math.PI / 180);
+				case "skew": m.transform(1, tan(1), tan(0), 1, 0, 0);
+				case "skewx": m.transform(1, 0, tan(0), 1, 0, 0);
+				case "skewy": m.transform(1, tan(0), 0, 1, 0, 0);
+				case _: m.transform(v[0], v[1], v[2], v[3], v[4], v[5]); // matrix
 			}
-			m = multiply(m, n);
 		}
 		return m;
-	}
-
-	// m then n applied to a point: n first (m n)
-	public static function multiply(m:Array<Float>, n:Array<Float>):Array<Float>
-		return [
-			m[0] * n[0] + m[2] * n[1],
-			m[1] * n[0] + m[3] * n[1],
-			m[0] * n[2] + m[2] * n[3],
-			m[1] * n[2] + m[3] * n[3],
-			m[0] * n[4] + m[2] * n[5] + m[4],
-			m[1] * n[4] + m[3] * n[5] + m[5]
-		];
-
-	// the inverse of a matrix (null: it has none, the box flattened to a line)
-	public static function invert(m:Array<Float>):Null<Array<Float>> {
-		var det = m[0] * m[3] - m[1] * m[2];
-		if (Math.abs(det) < 1e-12) return null;
-		var a = m[3] / det, b = -m[1] / det, c = -m[2] / det, d = m[0] / det;
-		return [a, b, c, d, -(a * m[4] + c * m[5]), -(b * m[4] + d * m[5])];
 	}
 
 	// a transform origin as CSS writes it ("left top", "50% 0", "10px 20px"):
@@ -165,8 +147,8 @@ class Transform {
 				if (a.names[i] != b.names[i] || a.args[i].length != b.args[i].length || a.percent[i].join(",") != b.percent[i].join(",")) same = false;
 		if (!same) {
 			var m = a.toMatrix(0, 0), n = b.toMatrix(0, 0);
-			return matrix(m[0] + (n[0] - m[0]) * k, m[1] + (n[1] - m[1]) * k, m[2] + (n[2] - m[2]) * k, m[3] + (n[3] - m[3]) * k, m[4] + (n[4] - m[4]) * k,
-				m[5] + (n[5] - m[5]) * k);
+			return matrix(m.a + (n.a - m.a) * k, m.b + (n.b - m.b) * k, m.c + (n.c - m.c) * k, m.d + (n.d - m.d) * k, m.e + (n.e - m.e) * k,
+				m.f + (n.f - m.f) * k);
 		}
 		return new Transform(a.names.copy(), [for (i in 0...a.args.length) [for (j in 0...a.args[i].length) a.args[i][j] + (b.args[i][j] - a.args[i][j]) * k]],
 			[for (p in a.percent) p.copy()]);

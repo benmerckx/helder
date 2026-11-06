@@ -1,5 +1,6 @@
 package helder.ui;
 
+import helder.canvas.Matrix;
 import helder.image.Image;
 
 // An SVG document for icons and drawings: parsed once (Svg.parse), drawn
@@ -95,7 +96,7 @@ class Svg implements Drawing {
 		var w:Int = width != null ? width : Std.int(Math.ceil(this.width)), h:Int = height != null ? height : Std.int(Math.ceil(this.height));
 		var canvas = new SvgCanvas(w, h, color);
 		// the viewport: the viewBox fitted (or the user units at the intrinsic size)
-		var m = Matrix.identity();
+		var m = new Matrix();
 		if (viewBox != null) {
 			var sx = w / viewBox.w, sy = h / viewBox.h;
 			if (alignX == null) m = new Matrix(sx, 0, 0, sy, -viewBox.x * sx, -viewBox.y * sy) else {
@@ -110,50 +111,6 @@ class Svg implements Drawing {
 		img.drawing = ({svg: this, color: color} : Drawing.ImageDrawing);
 		return img;
 	}
-}
-
-// an affine transform: x' = a x + c y + e, y' = b x + d y + f
-class Matrix {
-	// (made each time: an svg parsed by a static initializer runs before this class's)
-	public static function identity():Matrix
-		return new Matrix(1, 0, 0, 1, 0, 0);
-
-	public final a:Float;
-	public final b:Float;
-	public final c:Float;
-	public final d:Float;
-	public final e:Float;
-	public final f:Float;
-
-	public function new(a, b, c, d, e, f) {
-		this.a = a;
-		this.b = b;
-		this.c = c;
-		this.d = d;
-		this.e = e;
-		this.f = f;
-	}
-
-	// this after m (m's points then this one's)
-	public function times(m:Matrix):Matrix
-		return new Matrix(a * m.a + c * m.b, b * m.a + d * m.b, a * m.c + c * m.d, b * m.c + d * m.d, a * m.e + c * m.f + e, b * m.e + d * m.f + f);
-
-	public inline function x(px:Float, py:Float):Float
-		return a * px + c * py + e;
-
-	public inline function y(px:Float, py:Float):Float
-		return b * px + d * py + f;
-
-	// the transform undoing this one (null: it has no area)
-	public function inverse():Null<Matrix> {
-		var det = a * d - b * c;
-		if (Math.abs(det) < 1e-12) return null;
-		return new Matrix(d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det);
-	}
-
-	// how much it scales lengths (the square root of its area's)
-	public function scale():Float
-		return Math.sqrt(Math.abs(a * d - b * c));
 }
 
 enum SvgPaint {
@@ -178,7 +135,7 @@ class SvgGradient {
 	public var fx = 0.5;
 	public var fy = 0.5;
 	public var boundingBox = true;
-	public var matrix = Matrix.identity();
+	public var matrix = new Matrix();
 	public var spread = 0;
 	public final offsets:Array<Float> = [];
 	public final colors:Array<Color> = [];
@@ -266,7 +223,7 @@ class SvgGroup {
 
 	// a rectangle as a clip
 	public static function box(x:Float, y:Float, w:Float, h:Float):Array<{path:Array<Float>, matrix:Matrix, evenOdd:Bool}>
-		return [{path: [0, x, y, 1, x + w, y, 1, x + w, y + h, 1, x, y + h, 3], matrix: Matrix.identity(), evenOdd: false}];
+		return [{path: [0, x, y, 1, x + w, y, 1, x + w, y + h, 1, x, y + h, 3], matrix: new Matrix(), evenOdd: false}];
 }
 
 class SvgShape {
@@ -319,7 +276,7 @@ class SvgParse {
 	public function root(el:Xml):SvgGroup {
 		var props = properties(el), style = SvgStyle.initial();
 		apply(style, props);
-		var g = new SvgGroup(Matrix.identity(), props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0);
+		var g = new SvgGroup(new Matrix(), props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0);
 		children(el, g, style);
 		return g;
 	}
@@ -339,7 +296,7 @@ class SvgParse {
 		if (props.get("display") == "none") return;
 		var style = inherited.copy();
 		apply(style, props);
-		var m = c.get("transform") == null ? Matrix.identity() : transform(c.get("transform"));
+		var m = c.get("transform") == null ? new Matrix() : transform(c.get("transform"));
 		var opacity = props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0;
 		// (clipped: drawn into a group of its transform with the clip, itself untransformed)
 		var clip = props.exists("clip-path") ? clipPath(props.get("clip-path")) : null;
@@ -348,7 +305,7 @@ class SvgParse {
 			g.clip = clip;
 			into.children.push(g);
 			into = g;
-			m = Matrix.identity();
+			m = new Matrix();
 		}
 		switch name {
 			case "g" | "svg" | "a" | "symbol":
@@ -357,7 +314,7 @@ class SvgParse {
 					// (a nested viewport: at x, y, clipped to its size, its viewBox fitted)
 					var x = num(c.get("x")), y = num(c.get("y"));
 					var w = c.get("width") == null ? viewW : num(c.get("width")), h = c.get("height") == null ? viewH : num(c.get("height"));
-					g = new SvgGroup(m.times(new Matrix(1, 0, 0, 1, x, y)), opacity);
+					g = new SvgGroup(m.clone().translate(x, y), opacity);
 					g.clip = SvgGroup.box(0, 0, w, h);
 					var vb = c.get("viewBox") == null ? [] : numbers(c.get("viewBox"));
 					if (vb.length == 4 && vb[2] > 0 && vb[3] > 0) {
@@ -375,7 +332,7 @@ class SvgParse {
 				var target = href != null && StringTools.startsWith(href, "#") ? ids.get(href.substr(1)) : null;
 				if (target == null || depth > 16) return;
 				var x = num(c.get("x")), y = num(c.get("y"));
-				m = m.times(new Matrix(1, 0, 0, 1, x, y));
+				m.translate(x, y);
 				var g = new SvgGroup(m, opacity), inner = g;
 				var tname = target.nodeName.substr(target.nodeName.indexOf(":") + 1);
 				if (tname == "symbol") {
@@ -412,7 +369,7 @@ class SvgParse {
 		if (StringTools.startsWith(ref, "'") || StringTools.startsWith(ref, '"')) ref = ref.substr(1, ref.length - 2);
 		var el = StringTools.startsWith(ref, "#") ? ids.get(ref.substr(1)) : null;
 		if (el == null || el.nodeName.substr(el.nodeName.indexOf(":") + 1) != "clipPath") return null;
-		var base = el.get("transform") == null ? Matrix.identity() : transform(el.get("transform"));
+		var base = el.get("transform") == null ? new Matrix() : transform(el.get("transform"));
 		var out = [];
 		for (c in el.elements()) {
 			var name = c.nodeName.substr(c.nodeName.indexOf(":") + 1);
@@ -420,7 +377,7 @@ class SvgParse {
 			if (p.get("display") == "none") continue;
 			var path = shape(name, c);
 			if (path == null || path.length == 0) continue;
-			var m = c.get("transform") == null ? base : base.times(transform(c.get("transform")));
+			var m = c.get("transform") == null ? base : base.clone().multiply(transform(c.get("transform")));
 			out.push({path: path, matrix: m, evenOdd: (p.get("clip-rule") ?? el.get("clip-rule")) == "evenodd"});
 		}
 		// (a clipPath with nothing in it clips everything away)
@@ -914,7 +871,7 @@ class SvgParse {
 
 	// a transform list: matrix, translate, scale, rotate, skewX, skewY
 	public static function transform(s:String):Matrix {
-		var m = Matrix.identity();
+		var m = new Matrix();
 		// (each name, spaces maybe, and its arguments in parentheses; anything else skipped)
 		var i = 0, n = s.length;
 		inline function letter(k:Int):Bool {
@@ -939,18 +896,15 @@ class SvgParse {
 			i = close + 1;
 			inline function arg(i:Int, def:Float):Float
 				return i < a.length ? a[i] : def;
-			var t = switch name {
-				case "matrix" if (a.length == 6): new Matrix(a[0], a[1], a[2], a[3], a[4], a[5]);
-				case "translate": new Matrix(1, 0, 0, 1, arg(0, 0), arg(1, 0));
-				case "scale": new Matrix(arg(0, 1), 0, 0, arg(1, arg(0, 1)), 0, 0);
-				case "rotate":
-					var r = arg(0, 0) * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r), x = arg(1, 0), y = arg(2, 0);
-					new Matrix(1, 0, 0, 1, x, y).times(new Matrix(c, sn, -sn, c, 0, 0)).times(new Matrix(1, 0, 0, 1, -x, -y));
-				case "skewX": new Matrix(1, 0, Math.tan(arg(0, 0) * Math.PI / 180), 1, 0, 0);
-				case "skewY": new Matrix(1, Math.tan(arg(0, 0) * Math.PI / 180), 0, 1, 0, 0);
-				case _: Matrix.identity();
+			switch name {
+				case "matrix" if (a.length == 6): m.transform(a[0], a[1], a[2], a[3], a[4], a[5]);
+				case "translate": m.translate(arg(0, 0), arg(1, 0));
+				case "scale": m.scale(arg(0, 1), arg(1, arg(0, 1)));
+				case "rotate": m.translate(arg(1, 0), arg(2, 0)).rotate(arg(0, 0) * Math.PI / 180).translate(-arg(1, 0), -arg(2, 0));
+				case "skewX": m.transform(1, 0, Math.tan(arg(0, 0) * Math.PI / 180), 1, 0, 0);
+				case "skewY": m.transform(1, Math.tan(arg(0, 0) * Math.PI / 180), 0, 1, 0, 0);
+				case _:
 			}
-			m = m.times(t);
 		}
 		return m;
 	}
@@ -989,18 +943,15 @@ class SvgCanvas {
 		out.dash = dashes == null ? null : new helder.canvas.Stroke.Dash(dashes, dashOffset);
 	}
 
-	static inline function core(m:Matrix):helder.canvas.Matrix
-		return new helder.canvas.Matrix(m.a, m.b, m.c, m.d, m.e, m.f);
-
 	public function group(g:SvgGroup, m:Matrix) {
-		var mm = m.times(g.matrix);
+		var mm = m.clone().multiply(g.matrix);
 		if (g.opacity <= 0) return;
 		canvas.save();
 		if (g.clip != null) {
 			// (the clip's shapes in one path, by the first one's rule)
 			var clip = new helder.canvas.Path(), one = new helder.canvas.Path();
 			for (c in g.clip)
-				clip.addPath(into(c.path, one), core(mm.times(c.matrix)));
+				clip.addPath(into(c.path, one), mm.clone().multiply(c.matrix));
 			canvas.resetTransform();
 			canvas.clip(clip, g.clip[0].evenOdd);
 		}
@@ -1013,7 +964,7 @@ class SvgCanvas {
 	}
 
 	function shape(s:SvgShape, m:Matrix) {
-		var mm = m.times(s.matrix), st = s.style;
+		var mm = m.clone().multiply(s.matrix), st = s.style;
 		if (s.opacity <= 0) return;
 		var fill = st.fill, stroke = st.strokeWidth > 0 ? st.stroke : None;
 		if (fill == None && stroke == None) return;
@@ -1057,14 +1008,14 @@ class SvgCanvas {
 					gr.addStop(g.offsets[k], g.colors[k]);
 				gr.spread = g.spread;
 				// (the gradient's space: the user units' (or the box's), then its transform)
-				var gm = Matrix.identity();
+				var gm = new Matrix();
 				if (g.boundingBox) {
 					var b = bounds(shapePath);
 					if (b[2] <= b[0] || b[3] <= b[1]) return false;
 					gm = new Matrix(b[2] - b[0], 0, 0, b[3] - b[1], b[0], b[1]);
 				}
-				gm = gm.times(g.matrix);
-				gr.matrix.set(gm.a, gm.b, gm.c, gm.d, gm.e, gm.f);
+				gm.multiply(g.matrix);
+				gr.matrix.copyFrom(gm);
 				paint.color = 0xFF000000;
 				paint.shader = gr;
 		}
