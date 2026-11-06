@@ -308,7 +308,6 @@ jobs:
         with: {name: text-windows, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
 
   publish-npm:
-    if: false
     needs: headless
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
