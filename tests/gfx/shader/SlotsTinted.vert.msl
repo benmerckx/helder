@@ -1,0 +1,37 @@
+#include <metal_stdlib>
+using namespace metal;
+struct SlotVertex {
+	float2 pos;
+	float4 tint;
+	float2 shift;
+};
+struct SlotView {
+	float4 scale;
+};
+struct SlotVaryings {
+	float4 clip;
+	float2 uv;
+	float4 tint;
+};
+SlotVaryings vs(SlotVertex v, SlotView view) {
+	float2 at = v.pos * view.scale.xy;
+	at = at + v.shift;
+	return SlotVaryings{float4(at, 0.0, 1.0), v.pos, v.tint};
+}
+struct SlotView_buffer {
+	float4 scale;
+};
+struct StageIn {
+	float2 pos [[attribute(0)]];
+	float4 tint [[attribute(1)]];
+	float2 shift [[attribute(2)]];
+};
+struct StageOut {
+	float4 clip [[position]];
+	float2 uv [[user(locn0)]];
+	float4 tint [[user(locn1)]];
+};
+vertex StageOut main0(StageIn i [[stage_in]], constant SlotView_buffer& u_0 [[buffer(0)]]) {
+	SlotVaryings r = vs(SlotVertex{i.pos, i.tint, i.shift}, SlotView{u_0.scale});
+	return StageOut{r.clip, r.uv, r.tint};
+}

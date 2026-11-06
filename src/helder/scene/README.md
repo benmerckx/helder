@@ -260,6 +260,20 @@ an equirectangular image behind it that also lights it (image-based ambient and 
 `renderer.inject(BeforeOpaque | AfterOpaque | AfterPass, (enc, frame) -> ...)`; features reach the renderer through
 `RenderFeature`, so unused ones are not linked.
 
+The standard material is a slot object, `pbr` (`PbrShader`; helder.gfx's
+`slots`, DESIGN.md 3 in src/helder/compiler): one shader whose variants
+are the renderer's (`pbr.variant({normalMap, skinned, instanced})`:
+`PbrShader`, `PbrNormalShader`, `PbrSkinnedShader`, `PbrInstancedShader`,
+`PbrInstancedNormalShader`; the shadow map's casters are `shadowCaster`'s)
+and whose slots a material replaces: `color`, `alpha`, `normal`,
+`roughness`, `metalness` and `emissive` (of the fragment's `PbrSurface`),
+`position` (of the vertex's `PbrPoint`). `MaterialShader.material(pbr.with({...}))`
+compiles them, at build time, into a shader of the material's own
+(`material.shader`, every variant the renderer draws with); a slot's
+parameters beyond the standard ones are blocks of its own
+(`material.uniforms`, written by its `params`). examples/glow replaces
+the emissive and colour slots.
+
 ### HDR and post-processing
 
 An offscreen renderer made with `hdr` (`new Renderer(device, true,

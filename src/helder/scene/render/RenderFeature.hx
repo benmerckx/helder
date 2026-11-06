@@ -56,4 +56,6 @@ interface NormalSource {
 	// tangents, the instances' matrices)
 	function instancedPipeline(doubleSided:Bool):helder.gfx.Pipeline;
 	function instancedSlots():Array<Int>;
+	// the vertex buffers' layout (instanced: with the instances' third), for a material's own shader
+	function layout(instanced:Bool):Array<helder.gfx.VertexBufferLayout>;
 }

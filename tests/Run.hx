@@ -866,7 +866,7 @@ class Run {
 		run(NODE, ["tests/os/back-web.mjs", "bin/os/BackWeb.wasm"]);
 	}
 
-	static final SCENE_EXAMPLES = [for (e in ["gltf-viewer", "orbits", "showroom", "falling", "walker", "chains"]) 'examples/$e'];
+	static final SCENE_EXAMPLES = [for (e in ["gltf-viewer", "orbits", "showroom", "falling", "walker", "chains", "glow"]) 'examples/$e'];
 	// the glTF samples packed for the packed scenes (the asset step)
 	static final PACKED = ["examples/gltf-viewer/sample.glb", "tests/3d/skinned.glb", "examples/showroom/normals.glb", "examples/showroom/morph.glb"];
 

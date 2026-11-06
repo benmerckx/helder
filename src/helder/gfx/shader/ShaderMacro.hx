@@ -20,6 +20,33 @@ class ShaderMacro {
 		var arg = new HaxeAdapter("shader").node(def);
 		var lower = new Lower();
 		var out = new ShaderDefinition().generate(arg, lower);
+		var stages = switch def.expr {
+			case EObjectDecl(fs): fs;
+			case _: [];
+		}
+		function stage(name:String):Expr {
+			var e = Lambda.find(stages, f -> f.field == name).expr;
+			// (the fragment function's varyings when not written)
+			return switch e.expr {
+				case EFunction(k, f) if (name == "fragment" && f.args.length > 0 && f.args[0].type == null):
+					var g = Reflect.copy(f);
+					g.args = [Reflect.copy(f.args[0])].concat(f.args.slice(1));
+					g.args[0].type = lower.haxeType(out.program.varyings).toComplexType();
+					{expr: EFunction(k, g), pos: e.pos};
+				case _: e;
+			}
+		}
+		return build(out, lower, {
+			vertex: stage("vertex"),
+			fragment: stage("fragment"),
+			vertexType: lower.stageTypes.get("vs").toComplexType(),
+			fragmentType: lower.stageTypes.get("fs").toComplexType()
+		});
+	}
+
+	// the expression of a Shader: the handler's output as literals and
+	// writers, the stages' CPU code as given (with their types)
+	public static function build(out:ShaderOutput, lower:Lower, stages:{vertex:Expr, fragment:Expr, vertexType:ComplexType, fragmentType:ComplexType}):Expr {
 		var p = out.program;
 		var pos = Context.currentPos();
 		function code(s:StageCode):Expr {
@@ -101,29 +128,13 @@ class ShaderMacro {
 				})
 			});
 		}
-		var stages = switch def.expr {
-			case EObjectDecl(fs): fs;
-			case _: [];
-		}
-		function stage(name:String):Expr {
-			var e = Lambda.find(stages, f -> f.field == name).expr;
-			// (the fragment function's varyings when not written)
-			return switch e.expr {
-				case EFunction(k, f) if (name == "fragment" && f.args.length > 0 && f.args[0].type == null):
-					var g = Reflect.copy(f);
-					g.args = [Reflect.copy(f.args[0])].concat(f.args.slice(1));
-					g.args[0].type = lower.haxeType(p.varyings).toComplexType();
-					{expr: EFunction(k, g), pos: e.pos};
-				case _: e;
-			}
-		}
 		// the shader's own class (its stages' exact types: hxmc calls a function
 		// of struct values only as such), named after its module, its field and
 		// a hash of its content: a compilation server's cached one is the same
 		var module = Context.getLocalModule(), field = Context.getLocalMethod() ?? "shader";
 		var pack = module.split(".");
 		var base = pack.pop() + "_" + field;
-		var vt = lower.stageTypes.get("vs").toComplexType(), ft = lower.stageTypes.get("fs").toComplexType();
+		var vt = stages.vertexType, ft = stages.fragmentType;
 		var vti = lower.haxeType(p.vertex.input).toComplexType();
 		var paramsExpr:Expr = {expr: EObjectDecl(params), pos: pos};
 		var pt = Context.toComplexType(Context.typeof(paramsExpr));
@@ -145,7 +156,7 @@ class ShaderMacro {
 		var exists = try Context.getType(pack.concat([name]).join(".")) != null catch (_:Dynamic) false;
 		if (!exists) Context.defineType(cls, module);
 		var tp:TypePath = {pack: pack, name: name};
-		return macro new $tp(${stage("vertex")}, ${stage("fragment")});
+		return macro new $tp(${stages.vertex}, ${stages.fragment});
 	}
 
 	static function components(n:Int):Array<Null<String>>

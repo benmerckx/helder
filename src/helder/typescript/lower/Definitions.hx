@@ -7,6 +7,7 @@ import helder.jobs.JobDefinition;
 import helder.story.StoryDefinition;
 import helder.gfx.shader.Ir;
 import helder.gfx.shader.Names;
+import helder.gfx.shader.Fold;
 import helder.gfx.shader.ShaderDefinition;
 import helder.typescript.check.Ast;
 import helder.typescript.check.Kind;
@@ -42,7 +43,15 @@ class Definitions {
 	// whether a call is a definition's (one of a declared module's is not
 	// lowered as a call into helder's API: helder/dev's keep)
 	public function defines(n:Node):Bool
-		return definition(n) != null;
+		return definition(n) != null || variantOf(n) != null;
+
+	// (a slot object's variant: <object>.variant(options), the object a
+	// module-level const made by helder/gfx's slots(...), or with(...) of one)
+	function variantOf(n:Node):Null<Node> {
+		var callee = n.expression();
+		if (callee.kind != KindPropertyAccessExpression || callee.name().text != "variant") return null;
+		return new TsAdapter(src, defined, "shader").slotsSource(callee.expression()) != null ? callee.expression() : null;
+	}
 
 	function definition(n:Node):Null<{module:String, name:String, specifier:Node}> {
 		var callee = n.expression();
@@ -54,7 +63,15 @@ class Definitions {
 	// a definition's call: what its handler made (null: not one)
 	public function call(n:Node):Null<DefinitionCall> {
 		var from = definition(n);
-		if (from == null) return null;
+		if (from == null) {
+			var self = variantOf(n);
+			if (self == null) return null;
+			var a = new TsAdapter(src, defined, "shader");
+			var def = SlotsDef.read(a.slotsSource(self), a);
+			var args = n.arguments() ?? [];
+			if (args.length > 1) a.error("variant takes one argument, an object literal of options", n);
+			return Generated(shaderJson(new ShaderDefinition().variant(def, args.length == 0 ? null : a.node(args[0]), a, n)));
+		}
 		var args = n.arguments() ?? [];
 		var a = new TsAdapter(src, defined, from.name);
 		// (keep(key, init): its arguments as one array)
@@ -220,6 +237,13 @@ class TsAdapter implements ShaderAdapter {
 	// the stage's object of parameters (its fields are its parameters: p.frame)
 	var paramsObject:Null<{name:String, fields:Map<String, SVar>}>;
 	var temps = 0;
+	// a slot object's variant (useSlots): its options and slots; the stage's
+	// third parameter's name (the object); the slots lowered; the loop
+	// variables of unrolled loops (constants)
+	var slots:Null<SlotsUse>;
+	var slotsSelf:Null<String>;
+	final slotFunctions = new Map<String, SFunction>();
+	final constants = new Map<String, SExpr>();
 
 	public function new(src:Project, defines:String->Null<String>, what:String) {
 		this.src = src;
@@ -248,16 +272,30 @@ class TsAdapter implements ShaderAdapter {
 			case KindFalseKeyword: KBool(false);
 			case KindNullKeyword: KNull;
 			case KindObjectLiteralExpression:
-				KObject([
-					for (p in n.properties())
-						switch p.kind {
-							case KindPropertyAssignment if (p.name().kind == KindIdentifier || p.name().kind == KindStringLiteral):
-								{name: p.name().text, node: node(p.initializer())};
-							case KindMethodDeclaration if (p.name().kind == KindIdentifier):
-								{name: p.name().text, node: new KNode(KFunction(new KFunction(null, params(p), p, p)), p)};
-							case _: notStatic(p);
-						}
-				]);
+				var fields:Array<KField> = [];
+				function add(f:KField) {
+					fields = fields.filter(g -> g.name != f.name);
+					fields.push(f);
+				}
+				for (p in n.properties())
+					switch p.kind {
+						case KindPropertyAssignment if (p.name().kind == KindIdentifier || p.name().kind == KindStringLiteral):
+							add({name: p.name().text, node: node(p.initializer())});
+						case KindShorthandPropertyAssignment:
+							add({name: p.name().text, node: node(p.name())});
+						case KindMethodDeclaration if (p.name().kind == KindIdentifier):
+							add({name: p.name().text, node: new KNode(KFunction(new KFunction(null, params(p), p, p)), p)});
+						// (a slot object spread: its slots(...)'s fields, those after it replacing theirs)
+						case KindSpreadAssignment:
+							var d = slotsSource(p.expression());
+							if (d == null) notStatic(p);
+							switch d.value {
+								case KObject(fs): for (f in fs) add(f);
+								case _: notStatic(p);
+							}
+						case _: notStatic(p);
+					}
+				KObject(fields);
 			case KindArrayLiteralExpression: KArray([for (e in n.elements()) node(e)]);
 			case KindArrowFunction | KindFunctionExpression:
 				KFunction(new KFunction(n.kind == KindFunctionExpression && n.name() != null ? n.name().text : null, params(n), n, n));
@@ -265,6 +303,43 @@ class TsAdapter implements ShaderAdapter {
 			case KindIdentifier if (Scope.declared(n.file, n.text, KindFunctionDeclaration) != null || Scope.imported(n.file, n.text) != null): KRef(n.text);
 			case _: notStatic(n);
 		}, pos);
+	}
+
+	// a slot object's definition: the argument of the slots(...) call a
+	// module-level const was made by (here or imported), with(...)'s
+	// overrides applied, a spread object's fields; null: not one
+	public function slotsSource(e:Node):Null<KNode> {
+		var x = strip(e);
+		switch x.kind {
+			case KindCallExpression if (strip(x.expression()).kind == KindPropertyAccessExpression && strip(x.expression()).name().text == "with"):
+				var base = slotsSource(strip(x.expression()).expression());
+				var args = x.arguments() ?? [];
+				if (base == null || args.length != 1) return null;
+				var over = node(args[0]);
+				return switch [base.value, over.value] {
+					case [KObject(bs), KObject(os)]:
+						// (checked as Haxe's with: the same diagnostics)
+						SlotsDef.read(base, this).with(over, this);
+						// (the base's fields in order, an override in its field's place)
+						new KNode(KObject([for (b in bs) Lambda.find(os, o -> o.name == b.name) ?? b]), x);
+					case _: null;
+				}
+			case KindCallExpression if (strip(x.expression()).kind == KindIdentifier):
+				var callee = strip(x.expression());
+				var from = Scope.imported(callee.file, callee.text);
+				var args = x.arguments() ?? [];
+				if (from == null || from.module != "helder/gfx" || from.name != "slots" || args.length != 1) return null;
+				return node(args[0]);
+			case KindIdentifier:
+				var d = Scope.declared(x.file, x.text, KindVariableDeclaration);
+				var from = d == null ? Scope.imported(x.file, x.text) : null;
+				if (from != null) d = declaration(from.specifier, from.name, KindVariableDeclaration);
+				if (d == null || d.initializer() == null) return null;
+				var init = strip(d.initializer());
+				return init.kind == KindCallExpression ? slotsSource(init) : null;
+			case _:
+				return null;
+		}
 	}
 
 	// (a numeric literal's value: 0x, 0o and 0b ones, separators)
@@ -291,29 +366,41 @@ class TsAdapter implements ShaderAdapter {
 
 	public function lowerStage(k:KFunction, name:String):SFunction {
 		var f:Node = k.source;
-		return lower(f.file.path + ":" + f.pos, name, f, true);
+		return lower(f.file.path + ":" + f.pos, name, f, Stage);
 	}
 
-	function lower(key:String, name:String, f:Node, stage:Bool):SFunction {
+	public function useSlots(use:SlotsUse)
+		slots = use;
+
+	function lower(key:String, name:String, f:Node, kind:LowerKind, ?input:SType):SFunction {
 		var g = functions.get(key);
 		if (g != null) return g;
 		if (active.contains(key)) error("recursion: " + active.slice(active.indexOf(key)).concat([key]).map(display).join(" -> ") + " (shader functions cannot recurse)", f);
 		active.push(key);
-		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals, object: paramsObject};
+		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals, object: paramsObject, self: slotsSelf};
 		scopes = [new Map()];
 		localNames = new Map();
 		positionLocals = new Map();
 		paramsObject = null;
+		slotsSelf = null;
 		var vs = [];
 		var ps = f.parameters();
 		var params = [], fields = [];
-		if (stage && ps.length > 2) error('a stage takes its input and one object of parameters ({frame: Frame, image: Texture2D}), not ${ps.length - 1}', f);
-		for (i in 0...ps.length) {
+		var stage = kind != Plain;
+		var count = ps.length;
+		// (a slot object's stage: its third parameter the object, m.options.x and m.color(s, p))
+		if (kind == Stage && slots != null && count == 3 && ps[2].name().kind == KindIdentifier) {
+			slotsSelf = ps[2].name().text;
+			if (ps[2].type() != null) selfType = ps[2].type();
+			count = 2;
+		}
+		if (stage && count > 2) error('a ${kind == Slot ? "slot" : "stage"} takes its input and one object of parameters ({frame: Frame, image: Texture2D}), not ${count - 1}', f);
+		for (i in 0...count) {
 			var p = ps[i];
 			if (p.name().kind != KindIdentifier) error("a destructuring is not supported in a shader", p);
 			if (!stage || i == 0) {
-				var t = p.type() != null ? typeOf(p.type()) : stage && i == 0 && varyings != null && f.kind != KindFunctionDeclaration ? varyings : error('the parameter ${p.name().text} needs its type',
-					p);
+				var t = p.type() != null ? typeOf(p.type()) : kind == Slot && i == 0 && input != null ? input : kind == Stage && i == 0 && varyings != null
+					&& f.kind != KindFunctionDeclaration ? varyings : error('the parameter ${p.name().text} needs its type', p);
 				params.push(declare(p.name().text, t, p, vs, true));
 				continue;
 			}
@@ -325,6 +412,7 @@ class TsAdapter implements ShaderAdapter {
 			for (m in members) {
 				if (m.kind != KindPropertySignature || m.type() == null) error('${p.name().text}: the parameters are fields, each typed', m);
 				var s = declare(m.name().text, typeOf(m.type()), m, vs, true);
+				s.optional = optional(m);
 				// (a field, not a local: p.frame)
 				scopes[0].remove(m.name().text);
 				paramsObject.fields.set(m.name().text, s);
@@ -344,12 +432,13 @@ class TsAdapter implements ShaderAdapter {
 		if (b.kind == KindBlock) block(b, body) else body.push(SReturn(retValue(b, body)));
 		g.body = body;
 		if (ret == null) inferred(g, f);
-		if (stage && varyings == null) varyings = g.ret;
+		if (kind == Stage && varyings == null) varyings = g.ret;
 		fn = saved.fn;
 		scopes = saved.scopes;
 		localNames = saved.names;
 		positionLocals = saved.positions;
 		paramsObject = saved.object;
+		slotsSelf = saved.self;
 		active.pop();
 		functions.set(key, g);
 		return g;
@@ -457,6 +546,10 @@ class TsAdapter implements ShaderAdapter {
 		}
 	}
 
+	// (a property signature's ?: tsgo's postfix token)
+	static function optional(m:Node):Bool
+		return m.postfixToken() != null && m.postfixToken().kind == KindQuestionToken;
+
 	function struct(key:String, name:String, literal:Node):SStruct {
 		if (building.exists(key)) error('$name contains itself', literal);
 		building.set(key, true);
@@ -469,7 +562,8 @@ class TsAdapter implements ShaderAdapter {
 				name: Names.unique(Names.sanitize(m.name().text), n -> !Lambda.exists(fields, g -> g.name == n)),
 				field: m.name().text,
 				type: t,
-				position: false
+				position: false,
+				optional: optional(m)
 			});
 		}
 		if (fields.length == 0) error('$name has no fields', literal);
@@ -538,13 +632,20 @@ class TsAdapter implements ShaderAdapter {
 						}
 				}
 			case KindIfStatement:
-				out.push(SIf(coerce(expr(n.expression(), out), TBool, n.expression()), body(n.thenStatement()),
-					n.elseStatement() == null ? null : body(n.elseStatement())));
+				var c = coerce(expr(n.expression(), out), TBool, n.expression());
+				// (a variant's test of a constant: the branch it takes alone)
+				switch c.e {
+					case EBool(k) if (slots != null):
+						if (k) inline_(n.thenStatement(), out) else if (n.elseStatement() != null) inline_(n.elseStatement(), out);
+					case _:
+						out.push(SIf(c, body(n.thenStatement()), n.elseStatement() == null ? null : body(n.elseStatement())));
+				}
 			case KindWhileStatement:
 				var pre = [];
 				var c = coerce(expr(n.expression(), pre), TBool, n.expression());
 				if (pre.length == 0) out.push(SWhile(c, body(n.statement()))) else
 					out.push(SWhile({e: EBool(true), t: TBool}, pre.concat([SIf({e: EUnop(Not, c), t: TBool}, [SBreak], null)]).concat(body(n.statement()))));
+			case KindForStatement if (slots != null && unrolled(n, out)):
 			case KindForStatement:
 				// for (init; cond; incr) body: init, then while (cond) { body; incr }
 				scopes.push(new Map());
@@ -638,11 +739,17 @@ class TsAdapter implements ShaderAdapter {
 						if (v.t != TFloat && v.t != TInt) error('-: a ${Names.typeName(v.t)} (a vector\'s is .neg())', n);
 						{e: EUnop(Neg, v), t: v.t};
 					case KindPlusToken: expr(n.operand(), out, want);
-					case KindExclamationToken: {e: EUnop(Not, coerce(expr(n.operand(), out), TBool, n.operand())), t: TBool};
+					case KindExclamationToken:
+						var v = {e: EUnop(Not, coerce(expr(n.operand(), out), TBool, n.operand())), t: TBool};
+						slots != null ? Fold.expr(v) : v;
 					case _: error("not supported in a shader", n);
 				}
 			case KindConditionalExpression:
 				var cond = coerce(expr(n.condition(), out), TBool, n.condition());
+				switch cond.e {
+					case EBool(k) if (slots != null): return expr(k ? n.whenTrue() : n.whenFalse(), out, want);
+					case _:
+				}
 				var pa = [], pb = [];
 				var x = expr(n.whenTrue(), pa, want);
 				var t = want ?? x.t;
@@ -667,14 +774,19 @@ class TsAdapter implements ShaderAdapter {
 				var args = [
 					for (f in s.fields) {
 						var given = Lambda.find(props, p -> p.name() != null && p.name().text == f.field);
-						if (given == null) error('${s.path}: the field ${f.field} is not given', n);
+						if (given == null && !f.optional) error('${s.path}: the field ${f.field} is not given', n);
 						given;
 					}
 				];
-				if (props.length != s.fields.length) error('${s.path} is built with all its fields, no others', n);
+				if (props.length != args.filter(x -> x != null).length) error('${s.path} is built with all its fields, no others', n);
 				var xs = [];
 				for (i in 0...args.length) {
 					var p = args[i];
+					// (an optional field left out: zero)
+					if (p == null) {
+						xs.push(Names.zero(s.fields[i].type));
+						continue;
+					}
 					var v = p.kind == KindShorthandPropertyAssignment ? p.name() : p.initializer();
 					var inner = positionArg(v);
 					if (inner != null) {
@@ -693,6 +805,9 @@ class TsAdapter implements ShaderAdapter {
 	function identifier(n:Node):SExpr {
 		var s = find(n.text);
 		if (s != null) return local(s);
+		if (constants.exists(n.text)) return constants.get(n.text);
+		if (slotsSelf != null && n.text == slotsSelf)
+			error('${n.text}, the slot object, is read as ${n.text}.options.<name> and called as ${n.text}.<slot>(s, p): it is no shader value', n);
 		if (paramsObject != null && n.text == paramsObject.name)
 			error('${n.text}, the stage\'s parameters, is read by its fields (${n.text}.name): it is no shader value', n);
 		// (a module-level constant of a number: its value)
@@ -710,6 +825,11 @@ class TsAdapter implements ShaderAdapter {
 	}
 
 	function binary(n:Node, out:Array<SStmt>):SExpr {
+		var r = binaryOf(n, out);
+		return slots != null ? Fold.expr(r) : r;
+	}
+
+	function binaryOf(n:Node, out:Array<SStmt>):SExpr {
 		var op = n.operatorToken().kind;
 		var x = expr(n.left(), out), y = expr(n.right(), out);
 		return switch op {
@@ -747,6 +867,11 @@ class TsAdapter implements ShaderAdapter {
 		var recv = strip(n.expression());
 		if (recv.kind == KindIdentifier && recv.text == "Math" && find("Math") == null && n.name().text == "PI") return {e: EFloat(Math.PI), t: TFloat};
 		var name = n.name().text;
+		if (slotsSelf != null && recv.kind == KindPropertyAccessExpression && strip(recv.expression()).kind == KindIdentifier
+			&& strip(recv.expression()).text == slotsSelf && find(slotsSelf) == null && recv.name().text == "options")
+			return option(name, n);
+		if (slotsSelf != null && recv.kind == KindIdentifier && recv.text == slotsSelf && find(slotsSelf) == null)
+			error('${recv.text}.$name: the slot object is read as ${recv.text}.options.<name> and called as ${recv.text}.<slot>(s, p)', n);
 		if (recv.kind == KindIdentifier && paramsObject != null && recv.text == paramsObject.name && find(recv.text) == null) {
 			var s = paramsObject.fields.get(name);
 			if (s == null) error('${recv.text} has no parameter $name', n);
@@ -790,6 +915,7 @@ class TsAdapter implements ShaderAdapter {
 		// (a vector's or a matrix's operator: a.mul(b))
 		if (callee.kind == KindPropertyAccessExpression) {
 			var recv = strip(callee.expression()), name = callee.name().text;
+			if (slotsSelf != null && recv.kind == KindIdentifier && recv.text == slotsSelf && find(slotsSelf) == null) return slotCall(name, actual, n, out, want);
 			if (recv.kind == KindIdentifier && recv.text == "Math" && find("Math") == null) return math(name, actual, n, out);
 			var a = expr(recv, out);
 			if (isMathType(a.t)) {
@@ -815,7 +941,7 @@ class TsAdapter implements ShaderAdapter {
 		if (from != null && from.module == "helder/gfx") return builtin(from.name, actual, n, out);
 		var decl = from != null ? declaration(from.specifier, from.name, KindFunctionDeclaration) : Scope.declared(callee.file, name, KindFunctionDeclaration);
 		if (decl == null) error('$name is not a shader function (shader code calls module-level functions of the program, helder/gfx\'s builtins and Math\'s)', n);
-		var g = lower(decl.file.path + ":" + decl.pos, decl.name().text, decl, false);
+		var g = lower(decl.file.path + ":" + decl.pos, decl.name().text, decl, Plain);
 		if (actual.length != g.params.length) error('${decl.name().text} takes ${g.params.length} arguments', n);
 		var xs = [for (i in 0...actual.length) coerce(expr(actual[i], out, g.params[i].type), g.params[i].type, actual[i])];
 		return {e: ECall(g, xs), t: g.ret};
@@ -887,6 +1013,131 @@ class TsAdapter implements ShaderAdapter {
 		return x.arguments()[0];
 	}
 
+	// --- slot objects' variants
+
+	// a statement inlined (a branch a variant takes)
+	function inline_(n:Node, out:Array<SStmt>) {
+		scopes.push(new Map());
+		if (n.kind == KindBlock) for (s in n.statements())
+			stmt(s, out) else stmt(n, out);
+		scopes.pop();
+	}
+
+	// m.options.<name>: the variant's value
+	function option(name:String, n:Node):SExpr {
+		var v = slots.options.get(name);
+		if (v == null) error('the slot object has no option $name', n);
+		return switch v {
+			case KBool(b): {e: EBool(b), t: TBool};
+			case KInt(i): {e: EFloat(i), t: TFloat};
+			case KFloat(f): {e: EFloat(f), t: TFloat};
+			case _: error('the option $name is a boolean or a number', n);
+		}
+	}
+
+	// for (let k = a; k < b; k++) body, a and b constants: the body once for each k, k a constant in each
+	function unrolled(n:Node, out:Array<SStmt>):Bool {
+		var init = n.initializer(), cond = n.condition(), incr = n.incrementor();
+		if (init == null || cond == null || incr == null || init.kind != KindVariableDeclarationList || init.declarations().length != 1) return false;
+		var d = init.declarations()[0];
+		if (d.name().kind != KindIdentifier || d.initializer() == null) return false;
+		var k = d.name().text;
+		var c = strip(cond), i = strip(incr);
+		if (c.kind != KindBinaryExpression || c.operatorToken().kind != KindLessThanToken || strip(c.left()).kind != KindIdentifier || strip(c.left()).text != k) return false;
+		if (!((i.kind == KindPostfixUnaryExpression || i.kind == KindPrefixUnaryExpression) && i.unaryOperator() == KindPlusPlusToken && strip(i.operand()).text == k)) return false;
+		var scratch = [];
+		var from = Fold.expr(expr(d.initializer(), scratch)), to = Fold.expr(expr(c.right(), scratch));
+		var a = switch from.e {
+			case EFloat(f) if (Math.ffloor(f) == f): Std.int(f);
+			case EInt(x): x;
+			case _: return false;
+		}
+		var b = switch to.e {
+			case EFloat(f): Math.ceil(f);
+			case EInt(x): x;
+			case _: return false;
+		}
+		if (scratch.length > 0) return false;
+		function breaks(x:Node):Bool {
+			if (x.kind == KindBreakStatement || x.kind == KindContinueStatement) return true;
+			if (x.kind == KindForStatement || x.kind == KindWhileStatement || x.kind == KindArrowFunction || x.kind == KindFunctionExpression) return false;
+			for (y in x.children())
+				if (breaks(y)) return true;
+			return false;
+		}
+		if (breaks(n.statement())) error("a loop a variant unrolls has no break or continue", n);
+		for (v in a...b) {
+			constants.set(k, {e: EFloat(v), t: TFloat});
+			inline_(n.statement(), out);
+		}
+		constants.remove(k);
+		return true;
+	}
+
+	// m.<slot>(s, p): the slot's function (the override's, else the
+	// default's), its input s; its own parameters the stage's of the same
+	// names, the others joining the stage's
+	function slotCall(name:String, actual:Array<Node>, n:Node, out:Array<SStmt>, want:Null<SType>):SExpr {
+		var node = slots.slots.get(name);
+		if (node == null) error('the slot object has no slot $name', n);
+		if (actual.length == 0 || actual.length > 2) error('a slot is called with its input and the stage\'s parameters: $slotsSelf.$name(s, p)', n);
+		var g = slotFunctions.get(name);
+		if (g == null) {
+			var f:Node = switch node.value {
+				case KFunction(k): k.source;
+				case KRef(ref):
+					var at:Node = node.pos;
+					var from = Scope.imported(at.file, ref);
+					var decl = from != null ? declaration(from.specifier, from.name, KindFunctionDeclaration) : Scope.declared(at.file, ref, KindFunctionDeclaration);
+					if (decl == null) error('the slot $name, $ref, is not a module-level function', at);
+					decl;
+				case _: error('the slot $name is a function, not ${node.describe()}', node.pos);
+			}
+			// (its input's type, when not written: what the slot object's type says)
+			var input = slotInput(name, n);
+			// (named as Haxe's: a module-level function by its own name, an override by its slot's)
+			g = lower(f.file.path + ":" + f.pos, f.kind == KindFunctionDeclaration ? f.name().text : name, f, Slot, input);
+			slotFunctions.set(name, g);
+		}
+		if (g.params.length == 0) error('the slot $name takes no input', n);
+		var xs = [coerce(expr(actual[0], out, g.params[0].type), g.params[0].type, actual[0])];
+		for (i in 0...g.fields.length)
+			xs.push(local(stageParam(g.fields[i], g.params[i + 1].type, n)));
+		if (want != null && !Names.same(g.ret, want)) error('the slot $name returns a ${Names.typeName(g.ret)}, where a ${Names.typeName(want)} is needed', n);
+		return {e: ECall(g, xs), t: g.ret};
+	}
+
+	// the type of a slot's input the slot object's type gives (the stage's third parameter's type: {color: (s: Surface, p: Params) => Vec3, ...})
+	var selfType:Null<Node>;
+
+	function slotInput(name:String, at:Node):Null<SType> {
+		if (selfType == null) return null;
+		var members = objectMembers(selfType);
+		if (members == null) return null;
+		for (m in members)
+			if (m.name() != null && m.name().text == name && m.type() != null && m.type().kind == KindFunctionType) {
+				var ps = m.type().parameters();
+				if (ps.length > 0 && ps[0].type() != null) return typeOf(ps[0].type());
+			}
+		return null;
+	}
+
+	// the stage's parameter of a name (a slot's: made one when the stage has none of it)
+	function stageParam(name:String, t:SType, at:Node):SVar {
+		if (paramsObject == null) paramsObject = {name: "p", fields: new Map()};
+		var s = paramsObject.fields.get(name);
+		if (s != null) {
+			if (!Names.same(s.type, t)) error('the parameter $name is a ${Names.typeName(s.type)} in the stage, a ${Names.typeName(t)} in a slot', at);
+			return s;
+		}
+		s = declare(name, t, at, vars.get(fn), true);
+		scopes[0].remove(name);
+		paramsObject.fields.set(name, s);
+		fn.params.push(s);
+		fn.fields.push(name);
+		return s;
+	}
+
 	// --- helpers
 
 	function coerce(x:SExpr, t:SType, at:Node):SExpr {
@@ -912,4 +1163,12 @@ class TsAdapter implements ShaderAdapter {
 			case KindParenthesizedExpression | KindAsExpression | KindSatisfiesExpression | KindNonNullExpression: strip(n.expression());
 			case _: n;
 		}
+}
+
+// what a function is lowered as: a plain function, a stage (its object of
+// parameters flattened, a slot object's third parameter), a slot
+enum abstract LowerKind(Int) {
+	var Plain;
+	var Stage;
+	var Slot;
 }

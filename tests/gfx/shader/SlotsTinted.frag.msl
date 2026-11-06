@@ -1,0 +1,36 @@
+#include <metal_stdlib>
+using namespace metal;
+struct SlotVaryings {
+	float4 clip;
+	float2 uv;
+	float4 tint;
+};
+struct SlotView {
+	float4 scale;
+};
+struct SlotSurface {
+	float2 uv;
+};
+float4 plainColor(SlotSurface s, SlotView view) {
+	return float4(s.uv, view.scale.x, 1.0);
+}
+float4 fs(SlotVaryings i, SlotView view) {
+	float4 c = plainColor(SlotSurface{i.uv}, view);
+	c = c * i.tint;
+	float sum = 0.0;
+	sum += 1.0;
+	sum += 2.0;
+	sum += 3.0;
+	return c * sum;
+}
+struct SlotView_buffer {
+	float4 scale;
+};
+struct StageOut {
+	float4 clip [[position]];
+	float2 uv [[user(locn0)]];
+	float4 tint [[user(locn1)]];
+};
+fragment float4 main0(StageOut i [[stage_in]], constant SlotView_buffer& u_0 [[buffer(0)]]) {
+	return fs(SlotVaryings{i.clip, i.uv, i.tint}, SlotView{u_0.scale});
+}

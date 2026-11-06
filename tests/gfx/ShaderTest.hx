@@ -4,6 +4,7 @@ import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import BuiltinShader;
 import InstancesShader;
+import SlotsShader;
 import TexturedShader;
 import TriangleShader;
 
@@ -169,6 +170,19 @@ class ShaderTest {
 		var t = TexturedShader.textures, tu = TexturedShader.uniforms;
 		check("TexturedShader.textures", t.length == 2 && t[0].name == "height" && t[0].binding == 0 && t[1].name == "albedo" && t[1].binding == 2
 			&& tu.length == 1 && tu[0].binding == 1, Std.string(t) + " " + Std.string(tu));
+		// a slot object's variants (SlotsShader): the attributes, varyings and parameters each reads
+		var sp = SlotsPlain.layout[0], st = SlotsTinted.layout[0];
+		check("SlotsPlain.layout", sp.stride == 8 && sp.attributes.length == 1, Std.string(sp));
+		check("SlotsTinted.layout", st.stride == 32 && st.attributes.length == 3 && st.attributes[2].offset == 24 && st.attributes[2].format == Float2,
+			Std.string(st));
+		check("SlotsPlain.textures", SlotsPlain.textures.length == 0 && SlotsTextured.textures.length == 1 && SlotsTextured.params.image.binding == 1,
+			Std.string(SlotsTextured.textures));
+		check("SlotsTinted.vertexBytes", SlotsTinted.vertexBytes([{pos: vec2(1, 2), tint: vec4(3), shift: vec2(4, 5)}]).getFloat(28) == 5);
+		var tv = SlotsTinted.vertex({pos: vec2(1, 2), tint: vec4(0.5), shift: vec2(1, 1)}, {view: {scale: vec4(2)}});
+		nearVec("SlotsTinted.vertex", tv.clip, [3, 5, 0, 1]);
+		// (tinted, taps 3: the colour times the tint, times 1 + 2 + 3)
+		nearVec("SlotsTinted.fragment", SlotsTinted.fragment(tv, {view: {scale: vec4(2)}}), [1 * 0.5 * 6, 2 * 0.5 * 6, 2 * 0.5 * 6, 0.5 * 6]);
+		nearVec("SlotsPlain.fragment", SlotsPlain.fragment(tv, {view: {scale: vec4(2)}}), [1, 2, 2, 1]);
 		var bs = TexturedShader.fragmentCode.bindings;
 		check("TexturedShader.fragmentCode.bindings", bs.length == 3 && bs[0].name == "Fade_block" && bs[0].slot == 1 && bs[1].name == "tex_2" && bs[2].name == "tex_0", Std.string(bs));
 	}
@@ -185,7 +199,13 @@ class ShaderTest {
 			{name: "TexturedShader.vert", code: TexturedShader.vertexCode},
 			{name: "TexturedShader.frag", code: TexturedShader.fragmentCode},
 			{name: "InstancesShader.vert", code: InstancesShader.vertexCode},
-			{name: "InstancesShader.frag", code: InstancesShader.fragmentCode}
+			{name: "InstancesShader.frag", code: InstancesShader.fragmentCode},
+			{name: "SlotsPlain.vert", code: SlotsPlain.vertexCode},
+			{name: "SlotsPlain.frag", code: SlotsPlain.fragmentCode},
+			{name: "SlotsTinted.vert", code: SlotsTinted.vertexCode},
+			{name: "SlotsTinted.frag", code: SlotsTinted.fragmentCode},
+			{name: "SlotsTextured.vert", code: SlotsTextured.vertexCode},
+			{name: "SlotsTextured.frag", code: SlotsTextured.fragmentCode}
 		];
 		for (c in codes)
 			for (l in ["glsl", "wgsl", "msl", "hlsl"]) {

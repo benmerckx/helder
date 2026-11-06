@@ -11,6 +11,10 @@ import helder.gfx.shader.Ir;
 interface ShaderAdapter extends Adapter {
 	function lowerStage(f:KFunction, name:String):SFunction;
 	function finish():Void;
+	// (a slot object's variant: the stages' third parameter the object,
+	// m.options.<name> its options' values, m.<slot>(s, p) its slots'
+	// functions; tests of constants folded, loops over them unrolled)
+	function useSlots(use:SlotsUse):Void;
 }
 
 // shader({vertex, fragment}) (DESIGN.md 3), the handler both languages run:
@@ -34,12 +38,24 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 		var vk = r.func("vertex"), fk = r.func("fragment");
 		if (vk == null) a.error(fk == null ? "a shader needs a vertex and a fragment function" : "a shader with a fragment function needs a vertex function", arg.pos);
 		if (fk == null) a.error("a shader with a vertex function needs a fragment function", arg.pos);
-		var p = program(a, vk, fk);
+		return output(a, vk, fk, arg.pos, false);
+	}
+
+	// a slot object's variant (Slots): its stages with its slots' functions
+	// and its options' values inlined, what they never read of the optional
+	// fields (attributes, varyings, parameters) dropped
+	public function variant(def:SlotsDef, options:Null<KNode>, a:ShaderAdapter, pos:KPos):ShaderOutput {
+		a.useSlots({options: def.values(options, a), slots: def.slots});
+		return output(a, def.vertex, def.fragment, pos, true);
+	}
+
+	function output(a:ShaderAdapter, vk:KFunction, fk:KFunction, pos:KPos, variant:Bool):ShaderOutput {
+		var p = program(a, vk, fk, variant);
 		var android = StringTools.startsWith(a.defined("hxmc.target") ?? "", "android");
 		function stage(e:SEntry):StageCode
 			return {
 				code: [
-					for (l in languages(a, arg.pos))
+					for (l in languages(a, pos))
 						{
 							language: l,
 							text: switch l {
@@ -94,9 +110,10 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 			case _: false;
 		}
 
-	function program(a:ShaderAdapter, vk:KFunction, fk:KFunction):SProgram {
+	function program(a:ShaderAdapter, vk:KFunction, fk:KFunction, variant:Bool):SProgram {
 		var vf = a.lowerStage(vk, vk.name ?? "vs"), ff = a.lowerStage(fk, fk.name ?? "fs");
 		var vpos = vk.pos, fpos = fk.pos;
+		if (variant) Prune.program(vf, ff);
 		if (vf.params.length == 0) a.error("the vertex function takes no vertex", vpos);
 		var input = switch vf.params[0].type {
 			case TStruct(s): s;
@@ -292,6 +309,107 @@ typedef ShaderOutput = {
 typedef ShaderParam = {
 	name:String,
 	resource:SResource
+}
+
+// what a slot object's variant lowers its stages with (ShaderAdapter.useSlots)
+typedef SlotsUse = {
+	options:Map<String, KValue>,
+	slots:Map<String, KNode>
+}
+
+// A slot object's definition (Slots: slots({vertex, fragment, options,
+// <slot>: ...})): its stages, which take the object as their third
+// parameter, its options' defaults (literals) and its slots (functions,
+// module-level ones by name); with(...) the same with some slots replaced.
+class SlotsDef {
+	public final vertex:KFunction;
+	public final fragment:KFunction;
+	public final options:Map<String, KNode>;
+	public final optionOrder:Array<String>;
+	public final slots:Map<String, KNode>;
+	public final slotOrder:Array<String>;
+
+	function new(vertex, fragment, options, optionOrder, slots, slotOrder) {
+		this.vertex = vertex;
+		this.fragment = fragment;
+		this.options = options;
+		this.optionOrder = optionOrder;
+		this.slots = slots;
+		this.slotOrder = slotOrder;
+	}
+
+	public static function read(arg:KNode, a:Adapter):SlotsDef {
+		var fields = switch arg.value {
+			case KObject(fs): fs;
+			case _: a.error('a slot object is an object literal ({vertex, fragment, options, <slot>: ...}), not ${arg.describe()}', arg.pos);
+		}
+		var vertex:Null<KFunction> = null, fragment:Null<KFunction> = null;
+		var options = new Map<String, KNode>(), optionOrder = [], slots = new Map<String, KNode>(), slotOrder = [];
+		for (f in fields)
+			switch [f.name, f.node.value] {
+				case ["vertex", KFunction(k)]: vertex = k;
+				case ["fragment", KFunction(k)]: fragment = k;
+				case ["vertex" | "fragment", _]: a.error('${f.name} is a function, not ${f.node.describe()}', f.node.pos);
+				case ["options", KObject(os)]:
+					for (o in os) {
+						switch o.node.value {
+							case KBool(_) | KInt(_) | KFloat(_):
+							case _: a.error('the option ${o.name} is a boolean or a number, not ${o.node.describe()}', o.node.pos);
+						}
+						options.set(o.name, o.node);
+						optionOrder.push(o.name);
+					}
+				case ["options", _]: a.error('options is an object of booleans and numbers, not ${f.node.describe()}', f.node.pos);
+				case [_, KFunction(_) | KRef(_)]:
+					slots.set(f.name, f.node);
+					slotOrder.push(f.name);
+				case [_, _]: a.error('the slot ${f.name} is a function, not ${f.node.describe()}', f.node.pos);
+			}
+		if (vertex == null || fragment == null) a.error("a slot object has a vertex and a fragment function", arg.pos);
+		return new SlotsDef(vertex, fragment, options, optionOrder, slots, slotOrder);
+	}
+
+	// the same with some slots' functions replaced (an object of them)
+	public function with(overrides:KNode, a:Adapter):SlotsDef {
+		var fields = switch overrides.value {
+			case KObject(fs): fs;
+			case _: a.error('with takes an object of slots\' functions, not ${overrides.describe()}', overrides.pos);
+		}
+		var next = new Map<String, KNode>();
+		for (k => v in slots)
+			next.set(k, v);
+		for (f in fields) {
+			if (!slots.exists(f.name)) a.error('the slot object has no slot ${f.name} (it has ' + slotOrder.join(", ") + ")", f.node.pos);
+			switch f.node.value {
+				case KFunction(_) | KRef(_):
+				case _: a.error('the slot ${f.name} is a function, not ${f.node.describe()}', f.node.pos);
+			}
+			next.set(f.name, f.node);
+		}
+		return new SlotsDef(vertex, fragment, options, optionOrder, next, slotOrder);
+	}
+
+	// the options' values: the defaults, those given replaced
+	public function values(given:Null<KNode>, a:Adapter):Map<String, KValue> {
+		var out = new Map<String, KValue>();
+		for (k => v in options)
+			out.set(k, v.value);
+		if (given == null) return out;
+		var fields = switch given.value {
+			case KObject(fs): fs;
+			case _: a.error('a variant\'s options are an object literal, not ${given.describe()}', given.pos);
+		}
+		for (f in fields) {
+			var d = options.get(f.name);
+			if (d == null) a.error('the slot object has no option ${f.name} (it has ' + optionOrder.join(", ") + ")", f.node.pos);
+			switch [d.value, f.node.value] {
+				case [KBool(_), KBool(_)] | [KInt(_) | KFloat(_), KInt(_) | KFloat(_)]:
+				case _: a.error('the option ${f.name} is ${d.describe()}, not ${f.node.describe()}', f.node.pos);
+			}
+			out.set(f.name, f.node.value);
+		}
+		return out;
+	}
 }
 
 typedef StageCode = {

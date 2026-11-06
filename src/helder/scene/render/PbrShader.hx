@@ -13,21 +13,95 @@ import helder.scene.render.Equirect;
 // specular part is the environment's colour along the reflection,
 // weighted by an analytic fit of the split-sum's lookup (Karis'), so
 // metals are not black without an environment map.
-@:structInit @:publicFields class PbrVertex {
+//
+// It is a slot object, pbr (Slots): one shader whose variants are the
+// renderer's (PbrShader; PbrNormalShader, normalMap: tangents and a normal
+// map; PbrSkinnedShader, skinned: four joints a vertex; PbrInstancedShader,
+// instanced: the world matrix per instance; PbrInstancedNormalShader) and
+// whose slots a material replaces (MaterialShader.material): color,
+// alpha, normal, roughness, metalness and emissive (the fragment's
+// surface: PbrSurface), position (the vertex's point: PbrPoint).
+
+// the combined vertex: a variant's attributes those it reads, in this order
+// (pos, normal, uv; the tangent: x, y, z and the bitangent's sign; joints
+// and weights; the instance's world matrix by columns, their w the node's
+// tint less 1 in the first three: an affine matrix's last row is 0, 0, 0, 1)
+typedef PbrVertex = {
 	var pos:Vec3;
 	var normal:Vec3;
 	var uv:Vec2;
+	@:optional var tangent:Vec4;
+	@:optional var joints:Vec4;
+	@:optional var weights:Vec4;
+	@:optional var m0:Vec4;
+	@:optional var m1:Vec4;
+	@:optional var m2:Vec4;
+	@:optional var m3:Vec4;
 }
 
-@:structInit @:publicFields class PbrVaryings {
+typedef PbrVaryings = {
 	var clip:Vec4;
 	var world:Vec3;
 	var normal:Vec3;
 	var uv:Vec2;
+	// (normal maps': the tangent turned to the world, the bitangent's sign)
+	@:optional var tangent:Vec4;
 	// the node's up (its y axis in the world: Material.ground's sphere's
 	// normal) and its tint (MeshRenderer.tint: rgb times the base colour)
 	var up:Vec3;
 	var tint:Vec3;
+}
+
+// the vertex stage's parameters: per frame, per node (instanced: none),
+// the skin (skinned: its joints' count, their matrices: Skin.update)
+typedef PbrVertexParams = {
+	var frame:PbrFrame;
+	@:optional var object:PbrObject;
+	@:optional var skin:PbrSkinInfo;
+	@:optional var jointMatrices:Texture2D;
+}
+
+// the fragment stage's: per frame, the material and its textures, the
+// shadow maps and the environment's (normal mapped: the normal map)
+typedef PbrFragmentParams = {
+	var frame:PbrFrame;
+	var material:PbrMaterial;
+	var baseColorTexture:Texture2D;
+	var metallicRoughnessTexture:Texture2D;
+	var emissiveTexture:Texture2D;
+	var occlusionTexture:Texture2D;
+	var shadowMap:Texture2D;
+	var shadowMapFar:Texture2D;
+	var environmentMap:Texture2D;
+	@:optional var normalTexture:Texture2D;
+}
+
+@:structInit @:publicFields class PbrSkinInfo {
+	var rows:Vec4; // x: the joints' count
+}
+
+typedef PbrOptions = {normalMap:Bool, skinned:Bool, instanced:Bool};
+
+// what the fragment's slots read: the point in the world, its unit normal
+// (normal mapped, before a double-sided face's turn), the material's uvs,
+// the node's unit up, the base colour (rgb: the material's times its
+// texture's, in linear light; a: their alpha)
+typedef PbrSurface = {world:Vec3, normal:Vec3, uv:Vec2, up:Vec3, baseColor:Vec4};
+
+// what the position slot reads: the vertex's point, normal and uvs (as
+// the mesh has them, before skinning and the node's matrices)
+typedef PbrPoint = {pos:Vec3, normal:Vec3, uv:Vec2};
+
+// the slot object (the stages' third parameter): its options, its slots
+typedef Pbr = {
+	options:PbrOptions,
+	color:(PbrSurface, PbrFragmentParams) -> Vec3,
+	alpha:(PbrSurface, PbrFragmentParams) -> Float,
+	normal:(PbrSurface, PbrFragmentParams) -> Vec3,
+	roughness:(PbrSurface, PbrFragmentParams) -> Float,
+	metalness:(PbrSurface, PbrFragmentParams) -> Float,
+	emissive:(PbrSurface, PbrFragmentParams) -> Vec3,
+	position:(PbrPoint, PbrVertexParams) -> Vec3
 }
 
 // per frame: the camera and the lights
@@ -112,19 +186,58 @@ function uvOf(material:PbrMaterial, uv:Vec2):Vec2
 	return vec2(dot(material.uvU.xy, uv) + material.uvU.z, dot(material.uvV.xy, uv) + material.uvV.z);
 
 // the fragment's colour at a point of the world with a unit normal n, the
-// node's unit up and its tint (also the instanced, skinned and
-// normal-mapped shaders'), uv already the material's (uvOf)
+// node's unit up and its tint, uv already the material's (uvOf), from the
+// material's own terms (the slots' defaults: CPU code, Material.test)
 function shadeAt(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, tint:Vec3, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
 		metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4 {
 	var texel = sample(baseColorTexture, uv);
-	// (the texture's sRGB decoded)
-	var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2)) * tint;
-	// (glTF's: roughness in green, metallic in blue, linear)
-	var mr = sample(metallicRoughnessTexture, uv);
+	var s:PbrSurface = {world: world, normal: facing, uv: uv, up: up, baseColor: vec4(material.baseColor.xyz * pow(texel.xyz, vec3(2.2)), material.baseColor.w * texel.w)};
+	var p:PbrFragmentParams = {
+		frame: frame,
+		material: material,
+		baseColorTexture: baseColorTexture,
+		metallicRoughnessTexture: metallicRoughnessTexture,
+		emissiveTexture: emissiveTexture,
+		occlusionTexture: occlusionTexture,
+		shadowMap: shadowMap,
+		shadowMapFar: shadowMapFar,
+		environmentMap: environmentMap
+	};
+	return shade(facing, world, uv, up, pbrColor(s, p) * tint, pbrAlpha(s, p), pbrMetalness(s, p), pbrRoughness(s, p), pbrEmissive(s, p), frame, material,
+		occlusionTexture, shadowMap, shadowMapFar, environmentMap);
+}
+
+// the slots' defaults: the base colour (the texture's sRGB decoded: the
+// surface's), its alpha, the normal as it is, metalness and roughness
+// (glTF's: roughness in green, metallic in blue, linear; a crystal
+// polished whatever its roughness), the emitted light (sRGB decoded), the
+// vertex's point as it is
+function pbrColor(s:PbrSurface, p:{}):Vec3
+	return s.baseColor.xyz;
+
+function pbrAlpha(s:PbrSurface, p:{}):Float
+	return s.baseColor.w;
+
+function pbrNormal(s:PbrSurface, p:{}):Vec3
+	return s.normal;
+
+function pbrMetalness(s:PbrSurface, p:{material:PbrMaterial, metallicRoughnessTexture:Texture2D}):Float
+	return clamp(p.material.params.x * sample(p.metallicRoughnessTexture, s.uv).z, 0, 1);
+
+function pbrRoughness(s:PbrSurface, p:{material:PbrMaterial, metallicRoughnessTexture:Texture2D}):Float
+	return clamp(mix(p.material.params.y * sample(p.metallicRoughnessTexture, s.uv).y, 0.07, p.material.ground.z), 0.04, 1);
+
+function pbrEmissive(s:PbrSurface, p:{material:PbrMaterial, emissiveTexture:Texture2D}):Vec3
+	return p.material.emissive.xyz * pow(sample(p.emissiveTexture, s.uv).xyz, vec3(2.2));
+
+function pbrPosition(v:PbrPoint, p:{}):Vec3
+	return v.pos;
+
+// the fragment's colour from its surface's terms: base (linear, tinted),
+// its alpha, metalness and roughness, the light it emits
+function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:Float, metallic:Float, rough:Float, emissive:Vec3, frame:PbrFrame,
+		material:PbrMaterial, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4 {
 	var crystal = material.ground.z;
-	var metallic = clamp(material.params.x * mr.z, 0, 1);
-	// (a crystal: polished whatever its roughness)
-	var rough = clamp(mix(material.params.y * mr.y, 0.07, crystal), 0.04, 1);
 	var v = normalize(frame.eye.xyz - world);
 	// (double-sided: a face seen from behind lit by its normal turned
 	// to the eye, not by its front's: a model's inward walls lit as walls)
@@ -176,14 +289,14 @@ function shadeAt(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, tint:Vec3, frame:Pbr
 	// (occlusion, in red, darkens the ambient only)
 	var occlusion = sample(occlusionTexture, uv).x;
 	var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
-	var emitted = material.emissive.xyz * pow(sample(emissiveTexture, uv).xyz, vec3(2.2));
+	var emitted = emissive;
 	// (city lights: on the night side, faded in past the terminator)
 	emitted = emitted * mix(1.0, smoothstep(0.12, -0.18, dot(n, l)), material.emissive.w);
 	// (the rim: grazing views, on the light's side and a little past it)
 	var edge = 1 - nv;
 	var rim = frame.rim.xyz * (pow(edge, frame.rim.w) * smoothstep(-0.25, 0.5, dot(n, l)) * day);
 	direct += rim * mix(vec3(1), base, 0.5);
-	var alpha = material.baseColor.w * texel.w;
+	var alpha = baseAlpha;
 	var coat = material.layers.x;
 	if (coat > 0) {
 		// (a clear coat (Material.clearcoat): a polished dielectric's
@@ -374,19 +487,78 @@ function aces(x:Vec3):Vec3
 function encode(c:Vec3):Vec3
 	return pow(c, vec3(1 / 2.2));
 
-final PbrShader = shader({
-	vertex: function(v:PbrVertex, p:{frame:PbrFrame, object:PbrObject}):PbrVaryings {
-		var world = p.object.model * vec4(v.pos, 1);
+// joint k's matrix from its row of the texture (rows of them: 16 R32F texels a joint)
+function joint(t:Texture2D, k:Float, rows:Float):Mat4 {
+	var y = (k + 0.5) / rows;
+	return mat4(vec4(texel(t, 0, y), texel(t, 1, y), texel(t, 2, y), texel(t, 3, y)), vec4(texel(t, 4, y), texel(t, 5, y), texel(t, 6, y), texel(t, 7, y)),
+		vec4(texel(t, 8, y), texel(t, 9, y), texel(t, 10, y), texel(t, 11, y)),
+		vec4(texel(t, 12, y), texel(t, 13, y), texel(t, 14, y), texel(t, 15, y)));
+}
+
+function texel(t:Texture2D, x:Float, y:Float):Float
+	return sampleLevel(t, vec2((x + 0.5) / 16, y), 0).x;
+
+final pbr = slots({
+	options: {normalMap: false, skinned: false, instanced: false},
+	vertex: function(v:PbrVertex, p:PbrVertexParams, m:Pbr):PbrVaryings {
+		var pos = m.position({pos: v.pos, normal: v.normal, uv: v.uv}, p);
+		var nr = v.normal;
+		if (m.options.skinned) {
+			// (moved by its four joints' matrices, weighted)
+			var j0 = joint(p.jointMatrices, v.joints.x, p.skin.rows.x), j1 = joint(p.jointMatrices, v.joints.y, p.skin.rows.x);
+			var j2 = joint(p.jointMatrices, v.joints.z, p.skin.rows.x), j3 = joint(p.jointMatrices, v.joints.w, p.skin.rows.x);
+			var q = vec4(pos, 1), n4 = vec4(v.normal, 0);
+			pos = ((j0 * q) * v.weights.x + (j1 * q) * v.weights.y + (j2 * q) * v.weights.z + (j3 * q) * v.weights.w).xyz;
+			nr = ((j0 * n4) * v.weights.x + (j1 * n4) * v.weights.y + (j2 * n4) * v.weights.z + (j3 * n4) * v.weights.w).xyz;
+		}
+		// (instanced: normals turned by the matrix's upper 3x3, exact for
+		// rotations and uniform scales; a non-uniform scale is drawn without
+		// instancing)
+		var model = m.options.instanced ? mat4(vec4(v.m0.xyz, 0), vec4(v.m1.xyz, 0), vec4(v.m2.xyz, 0), v.m3) : p.object.model;
+		var world = model * vec4(pos, 1);
 		return {
 			clip: position(p.frame.viewProj * world),
 			world: world.xyz,
-			normal: (p.object.normalMatrix * vec4(v.normal, 0)).xyz,
+			normal: m.options.instanced ? (model * vec4(nr, 0)).xyz : (p.object.normalMatrix * vec4(nr, 0)).xyz,
 			uv: v.uv,
-			up: (p.object.model * vec4(0, 1, 0, 0)).xyz,
-			tint: p.object.tint.xyz
+			tangent: m.options.normalMap ? vec4((model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w) : vec4(0),
+			up: m.options.instanced ? v.m1.xyz : (model * vec4(0, 1, 0, 0)).xyz,
+			tint: m.options.instanced ? vec3(1 + v.m0.w, 1 + v.m1.w, 1 + v.m2.w) : p.object.tint.xyz
 		};
 	},
-	fragment: function(i:PbrVaryings, p:{frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D}):Vec4
-		return shadeAt(normalize(i.normal), i.world, uvOf(p.material, i.uv), normalize(i.up), i.tint, p.frame, p.material, p.baseColorTexture, p.metallicRoughnessTexture,
-			p.emissiveTexture, p.occlusionTexture, p.shadowMap, p.shadowMapFar, p.environmentMap)
+	fragment: function(i:PbrVaryings, p:PbrFragmentParams, m:Pbr):Vec4 {
+		var ng = normalize(i.normal);
+		var uv = uvOf(p.material, i.uv);
+		var n = ng;
+		if (m.options.normalMap) {
+			// (the tangent made at right angles to the interpolated normal;
+			// the map's x and y scaled by the material's normal scale, the
+			// bitangent n x t times the sign, green up the image: glTF's)
+			var t = normalize(i.tangent.xyz - ng * dot(ng, i.tangent.xyz));
+			var b = cross(ng, t) * i.tangent.w;
+			var mapped = sample(p.normalTexture, uv).xyz * 2 - 1;
+			var scale = p.material.params.z;
+			n = normalize(t * (mapped.x * scale) + b * (mapped.y * scale) + ng * mapped.z);
+		}
+		var texel = sample(p.baseColorTexture, uv);
+		var s:PbrSurface = {
+			world: i.world,
+			normal: n,
+			uv: uv,
+			up: normalize(i.up),
+			baseColor: vec4(p.material.baseColor.xyz * pow(texel.xyz, vec3(2.2)), p.material.baseColor.w * texel.w)
+		};
+		return shade(m.normal(s, p), s.world, uv, s.up, m.color(s, p) * i.tint, m.alpha(s, p), m.metalness(s, p), m.roughness(s, p), m.emissive(s, p), p.frame,
+			p.material, p.occlusionTexture, p.shadowMap, p.shadowMapFar, p.environmentMap);
+	},
+	color: pbrColor,
+	alpha: pbrAlpha,
+	normal: pbrNormal,
+	roughness: pbrRoughness,
+	metalness: pbrMetalness,
+	emissive: pbrEmissive,
+	position: pbrPosition
 });
+
+// the standard material, its plain variant
+final PbrShader = pbr.variant();

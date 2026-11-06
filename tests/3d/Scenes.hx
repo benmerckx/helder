@@ -57,7 +57,7 @@ import helder.scene.render.*;
 //          scaled and coloured from flat arrays: one instanced draw,
 //          casting shadows on a floor; another set out of view, culled
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -146,6 +146,12 @@ class Scenes {
 				var orbits = new Orbits(device);
 				orbits.at(TIME);
 				enc -> orbits.draw(enc);
+			case "glow":
+				// a material of its own (examples/glow: pbr's emissive and colour slots replaced), its orbs instanced
+				var glow = new Glow(device);
+				glow.at(TIME);
+				renderer = glow.renderer;
+				enc -> glow.draw(enc);
 			case "physics":
 				var falling = new Falling(device);
 				for (_ in 0...STEPS)

@@ -56,6 +56,18 @@ class Names {
 			case _: a == b;
 		}
 
+	// a type's zero (an optional field left out of a struct's value)
+	public static function zero(t:SType):SExpr
+		return switch t {
+			case TBool: {e: EBool(false), t: t};
+			case TInt: {e: EInt(0), t: t};
+			case TFloat: {e: EFloat(0), t: t};
+			case TVec(_): {e: ENew([{e: EFloat(0), t: TFloat}]), t: t};
+			case TMat4: {e: ENew([for (_ in 0...4) {e: ENew([{e: EFloat(0), t: TFloat}]), t: TVec(4)}]), t: t};
+			case TStruct(s): {e: ENew([for (f in s.fields) zero(f.type)]), t: t};
+			case _: throw "zero";
+		}
+
 	// a type as the diagnostics name it
 	public static function typeName(t:SType):String
 		return switch t {

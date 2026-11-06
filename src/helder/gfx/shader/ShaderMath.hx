@@ -17,7 +17,9 @@ import haxe.macro.Expr;
 //
 // And the shader definition, shader({vertex, fragment}) (Shader), with
 // position(v), which marks the varyings' clip-space position where the
-// vertex stage builds them ({clip: position(m * p), uv: v.uv}).
+// vertex stage builds them ({clip: position(m * p), uv: v.uv}); slots({vertex,
+// fragment, options, <slot>: ...}), a shader with slots and options whose
+// variants are shaders (Slots).
 #if !macro
 @:build(helder.gfx.shader.VecBuild.builtins())
 #end
@@ -25,6 +27,10 @@ class ShaderMath {
 	// a pipeline's two stages, compiled at build time (Shader)
 	@:definition public static macro function shader(def:Expr):Expr
 		return helder.gfx.shader.ShaderMacro.shader(def);
+
+	// a shader with slots and options (Slots): its variants compiled at build time
+	@:definition public static macro function slots(def:Expr):Expr
+		return helder.gfx.shader.SlotsMacro.slots(def);
 
 	#if !macro
 	// the clip-space position among a vertex stage's varyings (its value as it is)

@@ -48,6 +48,15 @@ class Lower implements ShaderAdapter {
 	final positionLocals = new Map<Int, Bool>();
 	// the stage's object of parameters (its fields are its parameters: p.frame)
 	var paramsObject:Null<{id:Int, name:String, fields:Map<String, SVar>}>;
+	// a slot object's variant (useSlots): its options and slots; the stage's
+	// third parameter (the object: -1 none); the slots lowered; the loop
+	// variables of unrolled loops (constants)
+	var slots:Null<SlotsUse>;
+	var slotsSelf = -1;
+	final slotFunctions = new Map<String, SFunction>();
+	final constants = new Map<Int, SExpr>();
+	// the module scopes a slot object's functions are typed in (its own module's imports: Scopes)
+	public final scopes = new Map<Expr, Scopes.Scope>();
 
 	// the function being lowered
 	var fn:SFunction;
@@ -65,6 +74,18 @@ class Lower implements ShaderAdapter {
 
 	public function finish()
 		names.unhide(vars);
+
+	public function useSlots(use:SlotsUse)
+		slots = use;
+
+	// an expression typed without inlining, in its scope (a slot object's
+	// module's imports, else the definition's caller's)
+	function typeIn(source:Expr, e:Expr):TypedExpr {
+		var scope = scopes.get(source);
+		function typed()
+			return Context.withOptions({allowInlining: false}, () -> Context.typeExpr(e));
+		return scope == null ? typed() : Context.withImports(scope.imports, scope.usings, typed);
+	}
 
 	public function haxeType(s:SStruct):Type
 		return haxeTypes.get(s);
@@ -87,14 +108,14 @@ class Lower implements ShaderAdapter {
 			f.args = [Reflect.copy(f.args[0])].concat(f.args.slice(1));
 			f.args[0].type = ct;
 		}
-		var te = Context.withOptions({allowInlining: false}, () -> Context.typeExpr({expr: EFunction(FAnonymous, f), pos: e.pos}));
+		var te = typeIn(e, {expr: EFunction(FAnonymous, f), pos: e.pos});
 		var tf = switch strip(te).expr {
 			case TFunction(tf): tf;
 			case _: throw "lowerStage";
 		}
 		if (varyings == null) varyings = tf.t;
 		stageTypes.set(name, te.t);
-		return lower("<stage>." + name, name, tf, e.pos, true);
+		return lower("<stage>." + name, name, tf, e.pos, Stage);
 	}
 
 	// a static or module-level function called by shader code
@@ -114,17 +135,25 @@ class Lower implements ShaderAdapter {
 		return lower(key, cf.name, tf, cf.pos);
 	}
 
-	function lower(key:String, name:String, tf:TFunc, pos:Position, stage = false):SFunction {
+	function lower(key:String, name:String, tf:TFunc, pos:Position, kind = Plain):SFunction {
 		active.push(key);
-		var saved = {fn: fn, locals: locals, names: localNames, object: paramsObject};
+		var saved = {fn: fn, locals: locals, names: localNames, object: paramsObject, self: slotsSelf};
 		locals = new Map();
 		localNames = new Map();
 		paramsObject = null;
+		slotsSelf = -1;
 		var vs = [];
 		var params = [], fields = [];
-		if (stage && tf.args.length > 2)
-			error('a stage takes its input and one object of parameters ({frame: Frame, image: Texture2D}), not ${tf.args.length - 1}', pos);
-		for (i in 0...tf.args.length) {
+		var stage = kind != Plain;
+		var count = tf.args.length;
+		// (a slot object's stage: its third parameter the object, m.options.x and m.color(s, p))
+		if (kind == Stage && slots != null && count == 3) {
+			slotsSelf = tf.args[2].v.id;
+			count = 2;
+		}
+		if (stage && count > 2)
+			error('a ${kind == Slot ? "slot" : "stage"} takes its input and one object of parameters ({frame: Frame, image: Texture2D}), not ${count - 1}', pos);
+		for (i in 0...count) {
 			var v = tf.args[i].v;
 			if (!stage || i == 0) {
 				params.push(declare(v, pos, vs));
@@ -135,7 +164,9 @@ class Lower implements ShaderAdapter {
 			if (a == null) error('${v.name}: a stage\'s parameters are an object of uniform blocks and textures ({frame: Frame, image: Texture2D}), not a ${v.t.toString()}', pos);
 			paramsObject = {id: v.id, name: v.name, fields: new Map()};
 			for (f in sortedFields(a)) {
-				var s = declareNamed(f.name, type(f.type, f.pos), f.pos, vs, true);
+				var optional = f.meta.has(":optional");
+				var s = declareNamed(f.name, type(optional ? unNull(f.type) : f.type, f.pos), f.pos, vs, true);
+				s.optional = optional;
 				paramsObject.fields.set(f.name, s);
 				params.push(s);
 				fields.push(f.name);
@@ -153,6 +184,7 @@ class Lower implements ShaderAdapter {
 		locals = saved.locals;
 		localNames = saved.names;
 		paramsObject = saved.object;
+		slotsSelf = saved.self;
 		active.pop();
 		functions.set(key, f);
 		return f;
@@ -174,6 +206,14 @@ class Lower implements ShaderAdapter {
 		list.push(s);
 		return s;
 	}
+
+	// (an optional field's type: T of Null<T>)
+	static function unNull(t:Type):Type
+		return switch t {
+			case TAbstract(a, [u]) if (a.get().name == "Null" && a.get().pack.length == 0): u;
+			case TType(td, []) if (td.get().name == "Null"): unNull(td.get().type);
+			case _: t;
+		}
 
 	// (an anonymous structure's fields, through typedefs)
 	static function anonOf(t:Type):Null<AnonType>
@@ -304,11 +344,13 @@ class Lower implements ShaderAdapter {
 		building.set(key, true);
 		var fields:Array<SField> = [];
 		for (f in cfs) {
+			var optional = f.meta.has(":optional");
 			fields.push({
 				name: Names.unique(Names.sanitize(f.name), n -> !Lambda.exists(fields, g -> g.name == n)),
 				field: f.name,
-				type: type(f.type, f.pos),
-				position: false
+				type: type(optional ? unNull(f.type) : f.type, f.pos),
+				position: false,
+				optional: optional
 			});
 			if (fields[fields.length - 1].type == TTexture) error('$key.${f.name}: a texture is not a struct field (it is a parameter)', f.pos);
 		}
@@ -320,9 +362,14 @@ class Lower implements ShaderAdapter {
 	}
 
 	// a struct's value from its fields' (position(x): that field is the clip-space position)
-	function build(s:SStruct, args:Array<TypedExpr>, out:Array<SStmt>):SExpr {
+	function build(s:SStruct, args:Array<Null<TypedExpr>>, out:Array<SStmt>):SExpr {
 		var xs = [];
 		for (i in 0...args.length) {
+			// (an optional field left out: zero)
+			if (args[i] == null) {
+				xs.push(Names.zero(s.fields[i].type));
+				continue;
+			}
 			var x = args[i], p = positionArg(x);
 			if (p != null) {
 				s.fields[i].position = true;
@@ -364,8 +411,16 @@ class Lower implements ShaderAdapter {
 	function stmt(e:TypedExpr, out:Array<SStmt>) {
 		switch e.expr {
 			case TBlock(el):
-				for (x in el)
-					stmt(x, out);
+				var i = 0;
+				while (i < el.length) {
+					// (a variant's loop over constants, as Haxe's typer writes a for over a...b: unrolled)
+					if (slots != null && i + 2 < el.length && unrolled(el[i], el[i + 1], el[i + 2], out)) {
+						i += 3;
+						continue;
+					}
+					stmt(el[i], out);
+					i++;
+				}
 			case TMeta(_, x) | TParenthesis(x):
 				stmt(x, out);
 			case TVar(v, {expr: TUnop(op = OpIncrement | OpDecrement, true, {expr: TLocal(i)})}) if (locals.exists(i.id)):
@@ -374,6 +429,8 @@ class Lower implements ShaderAdapter {
 				out.push(SDecl(s, local(i)));
 				out.push(SAssign(i, op == OpIncrement ? Add : Sub, one(i.type)));
 			case TVar(v, init):
+				// (a typedef's struct first, as written: named after it, not after its value's literal)
+				namedStruct(v.t, e.pos);
 				var p = init == null ? null : positionArg(init);
 				if (p != null) {
 					positionLocals.set(v.id, true);
@@ -383,7 +440,14 @@ class Lower implements ShaderAdapter {
 				var s = declare(v, e.pos);
 				out.push(SDecl(s, x == null ? null : coerce(x, s.type, init.pos)));
 			case TIf(c, a, b):
-				out.push(SIf(coerce(expr(c, out), TBool, c.pos), block(a), b == null ? null : block(b)));
+				var x = coerce(expr(c, out), TBool, c.pos);
+				// (a variant's test of a constant: the branch it takes alone)
+				switch x.e {
+					case EBool(k) if (slots != null):
+						if (k) stmt(a, out) else if (b != null) stmt(b, out);
+					case _:
+						out.push(SIf(x, block(a), b == null ? null : block(b)));
+				}
 			case TWhile(c, body, true):
 				var pre = [];
 				var x = coerce(expr(c, pre), TBool, c.pos);
@@ -393,6 +457,15 @@ class Lower implements ShaderAdapter {
 				error("do-while is not supported in a shader (use while)", e.pos);
 			case TFor(v, it, body):
 				switch it.expr {
+					case TBinop(OpInterval, a, b) if (slots != null && constantRange(a, b) != null):
+						// (a variant's loop over constants: unrolled, its variable a constant in each copy)
+						var r = constantRange(a, b);
+						if (breaks(body)) error("a loop a variant unrolls has no break or continue", e.pos);
+						for (k in r.from...r.to) {
+							constants.set(v.id, {e: EInt(k), t: TInt});
+							stmt(body, out);
+						}
+						constants.remove(v.id);
 					case TBinop(OpInterval, a, b):
 						// var i = a, end = b; while (i < end) { var v = i; i++; body }
 						var i = temp(TInt), end = temp(TInt);
@@ -470,6 +543,9 @@ class Lower implements ShaderAdapter {
 			case TConst(TString(_)): error("a String is not a shader value", e.pos);
 			case TConst(TNull): error("null is not a shader value", e.pos);
 			case TConst(TThis | TSuper): error("a shader function is static: no this", e.pos);
+			case TLocal(v) if (constants.exists(v.id)): constants.get(v.id);
+			case TLocal(v) if (v.id == slotsSelf):
+				error('${v.name}, the slot object, is read as ${v.name}.options.<name> and called as ${v.name}.<slot>(s, p): it is no shader value', e.pos);
 			case TLocal(v):
 				if (paramsObject != null && v.id == paramsObject.id)
 					error('${v.name}, the stage\'s parameters, is read by its fields (${v.name}.name): it is no shader value', e.pos);
@@ -497,7 +573,12 @@ class Lower implements ShaderAdapter {
 				var v = expr(x, out);
 				if (v.t != TFloat && v.t != TInt) error('-: a ${Names.typeName(v.t)}', e.pos);
 				{e: EUnop(Neg, v), t: v.t};
-			case TUnop(OpNot, false, x): {e: EUnop(Not, coerce(expr(x, out), TBool, x.pos)), t: TBool};
+			case TUnop(OpNot, false, x):
+				var v = coerce(expr(x, out), TBool, x.pos);
+				switch v.e {
+					case EBool(k) if (slots != null): {e: EBool(!k), t: TBool};
+					case _: {e: EUnop(Not, v), t: TBool};
+				}
 			case TUnop(OpNegBits, false, x): {e: EUnop(BitNot, coerce(expr(x, out), TInt, x.pos)), t: TInt};
 			case TUnop(op = OpIncrement | OpDecrement, postfix, x):
 				// the value before (x++) or after (++x)
@@ -511,6 +592,11 @@ class Lower implements ShaderAdapter {
 				var t = type(e.t, e.pos);
 				if (t == TTexture) error("a texture is chosen by no condition (pass the parameter on)", e.pos);
 				var cond = coerce(expr(c, out), TBool, c.pos);
+				// (a variant's choice by a constant: the branch it takes alone)
+				switch cond.e {
+					case EBool(k) if (slots != null): return coerce(expr(k ? a : b, out), t, e.pos);
+					case _:
+				}
 				var pa = [], pb = [];
 				var x = coerce(expr(a, pa), t, a.pos), y = coerce(expr(b, pb), t, b.pos);
 				if (pa.length == 0 && pb.length == 0) {e: ECond(cond, x, y), t: t} else {
@@ -534,6 +620,8 @@ class Lower implements ShaderAdapter {
 			case TField(x, FAnon(cf)):
 				switch strip(x).expr {
 					case TLocal(v) if (paramsObject != null && v.id == paramsObject.id): local(paramsObject.fields.get(cf.get().name));
+					case TField({expr: TLocal(v)}, FAnon(o)) if (v.id == slotsSelf && o.get().name == "options"): option(cf.get().name, e);
+					case TLocal(v) if (v.id == slotsSelf): error('${v.name}.${cf.get().name}: the slot object is read as ${v.name}.options.<name> and called as ${v.name}.<slot>(s, p)', e.pos);
 					case _: field(x, null, cf.get(), e, out);
 				}
 			case TField(_, FStatic(c, cf)): constant(c.get(), cf.get(), e);
@@ -544,14 +632,14 @@ class Lower implements ShaderAdapter {
 					case TStruct(s): s;
 					case _: error("an anonymous object is not a shader value (a struct is)", e.pos);
 				}
-				var args = [
+				var args:Array<Null<TypedExpr>> = [
 					for (f in s.fields) {
 						var given = Lambda.find(fs, x -> x.name == f.field);
-						if (given == null) error('${s.path}: the field ${f.field} is not given', e.pos);
-						given.expr;
+						if (given == null && !f.optional) error('${s.path}: the field ${f.field} is not given', e.pos);
+						given == null ? null : given.expr;
 					}
 				];
-				if (fs.length != s.fields.length) error('${s.path} is built with all its fields, no others', e.pos);
+				if (fs.length != args.filter(x -> x != null).length) error('${s.path} is built with all its fields, no others', e.pos);
 				build(s, args, out);
 			case TArrayDecl(_) | TArray(_, _): error("arrays are not supported in a shader (yet)", e.pos);
 			case TFunction(_): error("a closure is not supported in a shader", e.pos);
@@ -563,6 +651,11 @@ class Lower implements ShaderAdapter {
 	}
 
 	function binary(op:Binop, a:TypedExpr, b:TypedExpr, e:TypedExpr, out:Array<SStmt>):SExpr {
+		var r = binaryOf(op, a, b, e, out);
+		return slots != null ? Fold.expr(r) : r;
+	}
+
+	function binaryOf(op:Binop, a:TypedExpr, b:TypedExpr, e:TypedExpr, out:Array<SStmt>):SExpr {
 		var t = type(e.t, e.pos);
 		var x = expr(a, out), y = expr(b, out);
 		return switch op {
@@ -644,7 +737,9 @@ class Lower implements ShaderAdapter {
 	function call(f:TypedExpr, args:Array<TypedExpr>, e:TypedExpr, out:Array<SStmt>):SExpr {
 		var t = type(e.t, e.pos);
 		var c:ClassType, cf:ClassField;
-		switch f.expr {
+		switch strip(f).expr {
+			case TField({expr: TLocal(v)}, FAnon(slot)) if (v.id == slotsSelf):
+				return slotCall(slot.get(), args, e, out);
 			case TField(_, FStatic(cr, cfr)):
 				c = cr.get();
 				cf = cfr.get();
@@ -721,6 +816,141 @@ class Lower implements ShaderAdapter {
 		return {e: ECall(g, xs), t: g.ret};
 	}
 
+	// --- slot objects' variants ---
+
+	// m.options.<name>: the variant's value
+	function option(name:String, e:TypedExpr):SExpr {
+		var v = slots.options.get(name);
+		if (v == null) error('the slot object has no option $name', e.pos);
+		var t = type(e.t, e.pos);
+		return switch [v, t] {
+			case [KBool(b), TBool]: {e: EBool(b), t: TBool};
+			case [KInt(i), TInt]: {e: EInt(i), t: TInt};
+			case [KFloat(f), TInt] if (Math.ffloor(f) == f): {e: EInt(Std.int(f)), t: TInt};
+			case [KInt(i), TFloat]: {e: EFloat(i), t: TFloat};
+			case [KFloat(f), TFloat]: {e: EFloat(f), t: TFloat};
+			case _: error('the option $name is a ${Names.typeName(t)}, not ${new KNode(v, null).describe()}', e.pos);
+		}
+	}
+
+	// var g = a; var g1 = b; while (g < g1) { var k = g++; body }, a and b
+	// constants: the body once for each k, k a constant in each
+	function unrolled(first:TypedExpr, second:TypedExpr, loop:TypedExpr, out:Array<SStmt>):Bool {
+		switch [first.expr, second.expr, strip(loop).expr] {
+			case [TVar(g, a), TVar(g1, b), TWhile({expr: TBinop(OpLt, {expr: TLocal(x)}, {expr: TLocal(y)})}, {expr: TBlock(body)}, true)]
+				if (a != null && b != null && x.id == g.id && y.id == g1.id && body.length > 0):
+				var k = switch body[0].expr {
+					case TVar(k, {expr: TUnop(OpIncrement, true, {expr: TLocal(z)})}) if (z.id == g.id): k;
+					case _: return false;
+				}
+				var r = constantRange(a, b);
+				if (r == null) return false;
+				var rest = body.slice(1);
+				for (x in rest)
+					if (breaks(x)) error("a loop a variant unrolls has no break or continue", x.pos);
+				for (n in r.from...r.to) {
+					constants.set(k.id, {e: EInt(n), t: TInt});
+					for (x in rest)
+						stmt(x, out);
+				}
+				constants.remove(k.id);
+				return true;
+			case _:
+				return false;
+		}
+	}
+
+	// a loop's bounds, when both are constants
+	function constantRange(a:TypedExpr, b:TypedExpr):Null<{from:Int, to:Int}> {
+		var scratch = [];
+		var x = Fold.expr(expr(a, scratch)), y = Fold.expr(expr(b, scratch));
+		return switch [x.e, y.e] {
+			case [EInt(i), EInt(j)] if (scratch.length == 0): {from: i, to: j};
+			case _: null;
+		}
+	}
+
+	static function breaks(e:TypedExpr):Bool {
+		var found = false;
+		function visit(x:TypedExpr)
+			switch x.expr {
+				case TBreak | TContinue: found = true;
+				case TWhile(_, _, _) | TFor(_, _, _) | TFunction(_):
+				case _: haxe.macro.TypedExprTools.iter(x, visit);
+			}
+		visit(e);
+		return found;
+	}
+
+	// m.<slot>(s, p): the slot's function (the override's, else the
+	// default's), its input s; its own parameters the stage's of the same
+	// names, the others joining the stage's
+	function slotCall(field:ClassField, args:Array<TypedExpr>, e:TypedExpr, out:Array<SStmt>):SExpr {
+		var name = field.name;
+		var node = slots.slots.get(name);
+		if (node == null) error('the slot object has no slot $name', e.pos);
+		if (args.length == 0 || args.length > 2) error('a slot is called with its input and the stage\'s parameters: m.$name(s, p)', e.pos);
+		var g = slotFunctions.get(name);
+		if (g == null) {
+			g = switch node.value {
+				case KFunction(k):
+					var source:Expr = k.source;
+					var f = switch source.expr {
+						case EFunction(_, f): f;
+						case _: throw "slot";
+					}
+					// (its input's type, when not written: what the stage passes)
+					if (f.args.length > 0 && f.args[0].type == null) {
+						f = Reflect.copy(f);
+						f.args = [Reflect.copy(f.args[0])].concat(f.args.slice(1));
+						f.args[0].type = Context.toComplexType(switch field.type.follow() {
+							case TFun(as, _) if (as.length > 0): as[0].t;
+							case _: args[0].t;
+						});
+					}
+					if (f.args.length > 1 && f.args[1].type == null) error('the slot $name: its parameters\' type is written ({time: Float})', source.pos);
+					var te = typeIn(source, {expr: EFunction(FAnonymous, f), pos: source.pos});
+					switch strip(te).expr {
+						case TFunction(tf): lower("<slot>." + name, name, tf, source.pos, Slot);
+						case _: throw "slot";
+					}
+				case KRef(ref):
+					var r = helder.definition.HaxeAdapter.refs.get(ref);
+					if (r == null) error('the slot $name, $ref, is not a function', node.pos);
+					var te = Sources.typed(r.c, r.cf);
+					if (te == null) error('${display(r.c, r.cf)} has no source a shader can compile (a static or module-level function written in Haxe)', node.pos);
+					switch strip(te).expr {
+						case TFunction(tf): lower(path(r.c) + "." + r.cf.name, r.cf.name, tf, r.cf.pos, Slot);
+						case _: error('the slot $name is not a function', node.pos);
+					}
+				case _: error('the slot $name is a function, not ${node.describe()}', node.pos);
+			}
+			slotFunctions.set(name, g);
+		}
+		if (g.params.length == 0) error('the slot $name takes no input', e.pos);
+		var xs = [coerce(expr(args[0], out), g.params[0].type, args[0].pos)];
+		for (i in 0...g.fields.length)
+			xs.push(local(stageParam(g.fields[i], g.params[i + 1].type, e.pos)));
+		var want = type(e.t, e.pos);
+		if (!Names.same(g.ret, want)) error('the slot $name returns a ${Names.typeName(g.ret)}, where a ${Names.typeName(want)} is needed', e.pos);
+		return {e: ECall(g, xs), t: g.ret};
+	}
+
+	// the stage's parameter of a name (a slot's: made one when the stage has none of it)
+	function stageParam(name:String, t:SType, pos:Position):SVar {
+		if (paramsObject == null) paramsObject = {id: -1, name: "p", fields: new Map()};
+		var s = paramsObject.fields.get(name);
+		if (s != null) {
+			if (!Names.same(s.type, t)) error('the parameter $name is a ${Names.typeName(s.type)} in the stage, a ${Names.typeName(t)} in a slot', pos);
+			return s;
+		}
+		s = declareNamed(name, t, pos, vars.get(fn), true);
+		paramsObject.fields.set(name, s);
+		fn.params.push(s);
+		fn.fields.push(name);
+		return s;
+	}
+
 	// --- helpers ---
 
 	function coerce(x:SExpr, t:SType, pos:Position):SExpr {
@@ -746,5 +976,13 @@ class Lower implements ShaderAdapter {
 
 	static function path(c:ClassType):String
 		return c.pack.concat([c.name]).join(".");
+}
+
+// what a function is lowered as: a plain function, a stage (its object of
+// parameters flattened, a slot object's third parameter), a slot
+enum abstract LowerKind(Int) {
+	var Plain;
+	var Stage;
+	var Slot;
 }
 #end

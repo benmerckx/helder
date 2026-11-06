@@ -18,6 +18,9 @@ import helder.definition.Kernel;
 // source is its expression, which the handler's lowering types at the
 // call (Context.typeExpr, in the caller's imports).
 class HaxeAdapter implements Adapter {
+	// the module-level functions and constants references named, by path
+	public static final refs = new Map<String, {c:ClassType, cf:ClassField, expr:Expr}>();
+
 	// the definition's name, prefixed to its diagnostics ("shader: ...")
 	public final what:String;
 
@@ -51,6 +54,8 @@ class HaxeAdapter implements Adapter {
 						{name: f.field, node: node(f.expr)};
 					}
 				]);
+			// ({}: Haxe's parser's empty block)
+			case EBlock([]): KObject([]);
 			case EArrayDecl(items): KArray([for (x in items) node(x)]);
 			case EFunction(kind, f):
 				var name = switch kind {
@@ -74,7 +79,9 @@ class HaxeAdapter implements Adapter {
 				switch cf.kind {
 					case FVar(_, AccNever | AccCtor | AccInline) | FMethod(_):
 						var c = c.get();
-						c.pack.concat([c.name, cf.name]).join(".");
+						var path = c.pack.concat([c.name, cf.name]).join(".");
+						refs.set(path, {c: c, cf: cf, expr: Context.storeTypedExpr(t)});
+						path;
 					case _: error('${cf.name} is not a constant (a definition reads module-level finals and other definitions)', e.pos);
 				}
 			case _: notStatic(e);

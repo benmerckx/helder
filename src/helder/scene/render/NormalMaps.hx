@@ -77,4 +77,7 @@ class NormalMaps implements RenderFeature implements RenderFeature.NormalSource 
 
 	public function instancedSlots():Array<Int>
 		return instancedSlotList;
+
+	public function layout(instanced:Bool):Array<VertexBufferLayout>
+		return instanced ? INSTANCED_LAYOUT : LAYOUT;
 }

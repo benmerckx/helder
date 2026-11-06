@@ -198,6 +198,17 @@ the stage's uniform blocks and textures, read as `p.tint`; a field both
 stages name is one resource. `params` has a field for each: a uniform
 block's writer (`UniformWriter`), a texture's slot (`TextureSlot`).
 
+A shader written once with parts to replace is a slot object,
+`slots({vertex, fragment, options, <slot>: ...})` (`Slots`): its stages
+take the object as a third parameter, `m.options.<name>` an option and
+`m.<slot>(s, p)` a slot (a function with a default; its own parameters
+the stage's of the same names, the others joining them). `variant(options)`
+is a shader compiled at build time with the options folded (an `if` on
+one takes its branch, a loop over constants is unrolled), the slots
+inlined and what it never reads of the optional fields (`@:optional`:
+vertex attributes, varyings, parameters) dropped; `with({<slot>: ...})`
+replaces slots. helder.scene's standard material is one (`pbr`).
+
 In TypeScript, `import {shader, position, vec4, ...} from "helder/gfx"`: the
 same definition with the operators as methods (`a.mul(b)`) and type
 aliases as the structs, compiled to the same text (helder.typescript's

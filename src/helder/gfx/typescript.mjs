@@ -272,6 +272,44 @@ export function shader<V, I, VR extends [] | [object], FR extends [] | [object]>
 		},
 	};
 }
+
+// slots({vertex, fragment, options, <slot>: ...}): a shader with slots and
+// options (src/helder/gfx/shader/Slots.hx). The stages take the object as
+// their third parameter (m.options.<name>, m.<slot>(s, p)); variant(options)
+// is a definition (compiled at build time: the options folded, the slots
+// inlined, what a variant never reads of the optional fields dropped),
+// with(slots) the object with some slots replaced, as is {...object, <slot>}
+// given to slots(...).
+type Stage<F> = F extends (i: infer I, p: infer P, m: any) => infer R ? (i: I, p: P) => R : never;
+type InputOf<F> = F extends (i: infer I, ...rest: any[]) => any ? I : never;
+type ParamsOfStage<F> = F extends (i: any, p: infer P, ...rest: any[]) => any ? P : {};
+// (an override's own parameters join the variants': X, their intersection)
+type Intersect<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+type SlotParams<O> = Intersect<{[K in keyof O]-?: O[K] extends (s: any, p: infer P) => any ? P : {}}[keyof O]>;
+export type SlotsDef = {options: object, vertex: (v: any, p: any, m: any) => any, fragment: (i: any, p: any, m: any) => Vec4};
+export type Slots<D extends SlotsDef, X = {}> = D & {
+	variant(options?: Partial<D["options"]>): Shader<InputOf<D["vertex"]>, Stage<D["vertex"]>, Stage<D["fragment"]>, ParamsOfStage<D["vertex"]> & ParamsOfStage<D["fragment"]> & X>,
+	with<O extends {[K in Exclude<keyof D, "vertex" | "fragment" | "options">]?: (s: any, p: any) => any}>(slots: O): Slots<D, X & SlotParams<O>>,
+};
+
+export function slots<D extends SlotsDef>(def: D): Slots<D> {
+	return {
+		...def,
+		variant(options?: any, generated?: string): any {
+			// (the handler's output: the call's last argument)
+			if (typeof options === "string") {
+				generated = options;
+				options = undefined;
+			}
+			if (generated === undefined) throw new Error("slots: a variant is a definition, compiled by helder's compiler (the object and its options static)");
+			const m = {...def, options: {...def.options, ...(options ?? {})}};
+			return shader({vertex: (v: any, p: any) => def.vertex(v, p, m), fragment: (i: any, p: any) => def.fragment(i, p, m)}, generated);
+		},
+		with(over: any): any {
+			return slots({...def, ...over});
+		},
+	};
+}
 `);
 const text = out.join('\n');
 const file = new URL('./index.ts', import.meta.url);

@@ -407,10 +407,11 @@ class Renderer {
 			var many = n > 1;
 			var skin = p.skinned ? skinSource : null;
 			var normals = skin == null && mapped(p) ? normalSource : null;
-			var want = many ? (normals != null ? normals.instancedPipeline(m.doubleSided) : m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m) : (m.doubleSided ? doubleSided : pipeline);
+			var own = m.shader != null ? custom(m, many ? (normals != null ? 4 : 3) : skin != null ? 2 : normals != null ? 1 : 0) : null;
+			var want = own != null ? own.pipeline : many ? (normals != null ? normals.instancedPipeline(m.doubleSided) : m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
-				slots = many ? (normals != null ? normals.instancedSlots() : instancedSlots) : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
+				slots = own != null ? own.slots : many ? (normals != null ? normals.instancedSlots() : instancedSlots) : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
 				enc.setUniforms(slots[0], frameBytes);
 				current = want;
 				material = null;
@@ -450,8 +451,9 @@ class Renderer {
 				if (p.skinned) continue;
 				var m = p.material;
 				var normals = mapped(p) ? normalSource : null;
-				enc.setPipeline(normals != null ? normals.instancedPipeline(m.doubleSided) : m.doubleSided ? instancedDoubleSided : instancedPipeline);
-				var slots = normals != null ? normals.instancedSlots() : instancedSlots;
+				var own = m.shader != null ? custom(m, normals != null ? 4 : 3) : null;
+				enc.setPipeline(own != null ? own.pipeline : normals != null ? normals.instancedPipeline(m.doubleSided) : m.doubleSided ? instancedDoubleSided : instancedPipeline);
+				var slots = own != null ? own.slots : normals != null ? normals.instancedSlots() : instancedSlots;
 				enc.setUniforms(slots[0], frameBytes);
 				bindMaterial(enc, slots, m, normals);
 				enc.setVertexBuffer(0, p.vertices);
@@ -479,6 +481,41 @@ class Renderer {
 		enc.setTexture(slots[11], sf != null ? sf.mapFar : noShadow, nearest);
 		if (environment != null) environment.bind(enc, slots[12]) else enc.setTexture(slots[12], white, sampler);
 		if (normals != null) enc.setTexture(slots[10], m.normalTexture, ms);
+		// (a shader of its own: its own blocks, after the renderer's slots)
+		if (m.shader != null && m.uniforms != null)
+			for (i in 0...m.shader.blocks.length) {
+				var bytes = m.uniforms.get(m.shader.blocks[i].name);
+				if (bytes != null && slots[13 + i] >= 0) enc.setUniforms(slots[13 + i], bytes);
+			}
+	}
+
+	// a material's own shader's pipeline and slots for a kind of draw (0
+	// plain, 1 normal mapped, 2 skinned, 3 instanced, 4 instanced and normal
+	// mapped), made when first drawn; its own blocks' slots after the renderer's
+	final customs = new Map<MaterialShader, Array<Null<{pipeline:Pipeline, slots:Array<Int>}>>>();
+
+	function custom(m:Material, kind:Int):{pipeline:Pipeline, slots:Array<Int>} {
+		var s = m.shader;
+		var list = customs.get(s);
+		if (list == null) customs.set(s, list = []);
+		var blend = kind == 0 && m.blend;
+		var k = kind * 2 + (m.doubleSided ? 1 : 0) + (blend ? 10 + 2 * (cast m.blending : Int) : 0);
+		var c = list[k];
+		if (c == null) {
+			var v = switch kind {
+				case 0: s.plain;
+				case 1: s.normalMapped;
+				case 2: s.skinned;
+				case 3: s.instanced;
+				case _: s.instancedNormalMapped;
+			}
+			var cull:helder.gfx.Cull = m.doubleSided ? None : Back;
+			var d = blend ? v.pipeline({cull: cull, depthCompare: Less, depthWrite: false, blend: m.blending}) : v.pipeline({cull: cull, depthCompare: Less, depthWrite: true});
+			if (kind == 1 || kind == 4) d.layout = normalSource.layout(kind == 4);
+			if (kind == 3) d.layout = INSTANCED_LAYOUT;
+			c = list[k] = {pipeline: create(d), slots: slotsOf(v.uniforms, v.textures).concat([for (b in s.blocks) b.bindings[kind]])};
+		}
+		return c;
 	}
 
 	// the draw list cut into batches: a run of draws of one primitive (one

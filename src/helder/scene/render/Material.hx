@@ -76,6 +76,11 @@ class Material {
 	// glTF's alphaMode MASK: fragments whose alpha is below it are dropped,
 	// the rest opaque (0: none)
 	public var alphaCutoff = 0.0;
+	// a shader of its own (MaterialShader.material: pbr with slots
+	// replaced), null: the standard one; the blocks of its own, by their
+	// parameters' names (its slots' parameters the standard ones are not)
+	public var shader:Null<MaterialShader> = null;
+	public var uniforms:Null<Map<String, haxe.io.Bytes>> = null;
 	// a clear coat over the surface (KHR_materials_clearcoat): how much (0
 	// to 1) and its roughness; a polished dielectric layer (f0 0.04) whose
 	// reflection, from the sun and the environment, is added over the base

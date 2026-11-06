@@ -39,7 +39,9 @@ typedef SField = {
 	field:String, // Haxe's
 	type:SType,
 	// the clip-space position of a vertex stage's output (built position(...))
-	position:Bool
+	position:Bool,
+	// (an optional field, ?tangent: a variant drops it where it is never read)
+	?optional:Bool
 }
 
 class SVar {
@@ -47,6 +49,8 @@ class SVar {
 	public final type:SType;
 	// assigned after its declaration (WGSL: var, else let; a parameter: copied)
 	public var assigned = false;
+	// (a stage's parameter from an optional field of its parameters: a variant drops it where it is never read)
+	public var optional = false;
 
 	public function new(name, type) {
 		this.name = name;
