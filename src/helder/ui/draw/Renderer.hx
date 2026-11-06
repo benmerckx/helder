@@ -7,6 +7,7 @@ import helder.ui.*;
 import helder.ui.draw.DrawText;
 import helder.image.Image;
 import helder.image.PngDecoder;
+import helder.image.Resize;
 
 // helder.ui's Canvas on helder.gfx: a frame's rectangles, shadows, glyphs and
 // images become quads of one vertex buffer (UiShader: four vertices each,
@@ -679,49 +680,11 @@ class Renderer implements Canvas {
 			if (d != null) {
 				var k = size / b.ppem;
 				var w = Std.int(Math.max(1, Math.round(d.width * k))), h = Std.int(Math.max(1, Math.round(d.height * k)));
-				r = {image: new Image(w, h, scaleDown(d.rgba, d.width, d.height, w, h)), left: b.left * k, top: Math.round(b.top * k)};
+				r = {image: new Image(w, h, Resize.area(d.rgba, d.width, d.height, w, h)), left: b.left * k, top: Math.round(b.top * k)};
 			}
 		}
 		colorGlyphs.set(key, r);
 		return r;
-	}
-
-	// RGBA8 pixels (straight alpha) to a smaller size: each pixel the
-	// average of the source area it covers, weighted by alpha
-	static function scaleDown(src:Bytes, sw:Int, sh:Int, w:Int, h:Int):Bytes {
-		var out = Bytes.alloc(w * h * 4);
-		var fx = sw / w, fy = sh / h;
-		for (y in 0...h) {
-			var y0 = y * fy, y1 = y0 + fy;
-			for (x in 0...w) {
-				var x0 = x * fx, x1 = x0 + fx;
-				var r = 0.0, g = 0.0, b = 0.0, a = 0.0, area = 0.0;
-				var sy = Std.int(y0);
-				while (sy < y1 && sy < sh) {
-					var wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
-					var sx = Std.int(x0);
-					while (sx < x1 && sx < sw) {
-						var wgt = (Math.min(x1, sx + 1) - Math.max(x0, sx)) * wy;
-						var o = 4 * (sy * sw + sx), al = src.get(o + 3) * wgt;
-						r += src.get(o) * al;
-						g += src.get(o + 1) * al;
-						b += src.get(o + 2) * al;
-						a += al;
-						area += wgt;
-						sx++;
-					}
-					sy++;
-				}
-				var o = 4 * (y * w + x);
-				if (a > 0) {
-					out.set(o, Std.int(r / a + 0.5));
-					out.set(o + 1, Std.int(g / a + 0.5));
-					out.set(o + 2, Std.int(b / a + 0.5));
-				}
-				out.set(o + 3, Std.int(a / area + 0.5));
-			}
-		}
-		return out;
 	}
 
 	// --- vertices ---

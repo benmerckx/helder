@@ -6,7 +6,8 @@ import hxmc.simd.*;
 // RGBA8 images made smaller on the CPU: half (each pixel the mean of four,
 // straight alpha weighted by it), two output pixels at once where all four
 // sources of both are opaque (hxmc.simd: sums of 16-bit lanes), the rest
-// one by one; toFit halves until the image is within w x h.
+// one by one; toFit halves until the image is within w x h; area to any
+// smaller size.
 class Resize {
 	public static function half(src:Bytes, w:Int, h:Int, ?mem:ImageMemory):{width:Int, height:Int, rgba:Bytes} {
 		var nw = (w + 1) >> 1, nh = (h + 1) >> 1, out = (mem ?? ImageMemory.gc).bytes(nw * nh * 4);
@@ -42,6 +43,40 @@ class Resize {
 		while (r.width > w || r.height > h)
 			r = half(r.rgba, r.width, r.height, mem);
 		return r;
+	}
+
+	// sw x sh to any smaller w x h: each pixel the mean of the source's area
+	// under it (as a browser draws an image small), straight alpha weighted by it
+	public static function area(src:Bytes, sw:Int, sh:Int, w:Int, h:Int, ?mem:ImageMemory):Bytes {
+		var out = (mem ?? ImageMemory.gc).bytes(w * h * 4);
+		for (y in 0...h) {
+			GcPoint.poll();
+			var y0 = y * sh / h, y1 = (y + 1) * sh / h;
+			for (x in 0...w) {
+				var x0 = x * sw / w, x1 = (x + 1) * sw / w;
+				var r = 0.0, g = 0.0, b = 0.0, a = 0.0, total = 0.0;
+				var sy = Std.int(y0);
+				while (sy < y1 && sy < sh) {
+					var wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
+					var sx = Std.int(x0);
+					while (sx < x1 && sx < sw) {
+						var wgt = (Math.min(x1, sx + 1) - Math.max(x0, sx)) * wy;
+						var p = 4 * (sy * sw + sx), pa = src.get(p + 3) * wgt;
+						r += src.get(p) * pa;
+						g += src.get(p + 1) * pa;
+						b += src.get(p + 2) * pa;
+						a += pa;
+						total += wgt;
+						sx++;
+					}
+					sy++;
+				}
+				var o = 4 * (y * w + x);
+				if (a > 0) out.setInt32(o, Std.int(r / a + 0.5) | (Std.int(g / a + 0.5) << 8) | (Std.int(b / a + 0.5) << 16) | (Std.int(a / total + 0.5) << 24));
+				else out.setInt32(o, 0);
+			}
+		}
+		return out;
 	}
 
 	// (one output pixel: the alpha-weighted mean of its four sources)

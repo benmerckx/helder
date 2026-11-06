@@ -132,11 +132,12 @@ class Icons {
 		}
 	}
 
-	// a square image of side n scaled to side m: each output pixel the
-	// average of the source's area under it (down), or bilinear (up),
-	// premultiplied
+	// a square image of side n scaled to side m: down, each output pixel the
+	// average of the source's area under it (helder.image's Resize.area); up,
+	// bilinear, premultiplied
 	public static function scale(rgba:Bytes, n:Int, m:Int):Bytes {
 		if (n == m) return rgba;
+		if (m < n) return helder.image.Resize.area(rgba, n, n, m, m);
 		var out = Bytes.alloc(m * m * 4);
 		inline function px(x:Int, y:Int, k:Int):Float {
 			var p = 4 * (y * n + x), a = rgba.get(p + 3);
@@ -145,31 +146,13 @@ class Icons {
 		var acc = [0.0, 0, 0, 0];
 		for (y in 0...m)
 			for (x in 0...m) {
+				var fx = (x + 0.5) * n / m - 0.5, fy = (y + 0.5) * n / m - 0.5;
+				if (fx < 0) fx = 0;
+				if (fy < 0) fy = 0;
+				var ix = Std.int(fx), iy = Std.int(fy), tx = fx - ix, ty = fy - iy;
+				var jx = ix + 1 < n ? ix + 1 : ix, jy = iy + 1 < n ? iy + 1 : iy;
 				for (k in 0...4)
-					acc[k] = 0;
-				if (m < n) {
-					var x0 = x * n / m, x1 = (x + 1) * n / m, y0 = y * n / m, y1 = (y + 1) * n / m;
-					var total = 0.0;
-					for (sy in Math.floor(y0)...Math.ceil(y1)) {
-						var wy = Math.min(sy + 1, y1) - Math.max(sy, y0);
-						for (sx in Math.floor(x0)...Math.ceil(x1)) {
-							var w = wy * (Math.min(sx + 1, x1) - Math.max(sx, x0));
-							for (k in 0...4)
-								acc[k] += w * px(sx, sy, k);
-							total += w;
-						}
-					}
-					for (k in 0...4)
-						acc[k] /= total;
-				} else {
-					var fx = (x + 0.5) * n / m - 0.5, fy = (y + 0.5) * n / m - 0.5;
-					if (fx < 0) fx = 0;
-					if (fy < 0) fy = 0;
-					var ix = Std.int(fx), iy = Std.int(fy), tx = fx - ix, ty = fy - iy;
-					var jx = ix + 1 < n ? ix + 1 : ix, jy = iy + 1 < n ? iy + 1 : iy;
-					for (k in 0...4)
-						acc[k] = (px(ix, iy, k) * (1 - tx) + px(jx, iy, k) * tx) * (1 - ty) + (px(ix, jy, k) * (1 - tx) + px(jx, jy, k) * tx) * ty;
-				}
+					acc[k] = (px(ix, iy, k) * (1 - tx) + px(jx, iy, k) * tx) * (1 - ty) + (px(ix, jy, k) * (1 - tx) + px(jx, jy, k) * tx) * ty;
 				var o = 4 * (y * m + x), a = acc[3];
 				for (k in 0...3)
 					out.set(o + k, a <= 0 ? 0 : Math.round(Math.min(255, acc[k] * 255 / a)));
