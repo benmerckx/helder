@@ -506,7 +506,8 @@ class Natives {
 		var id = global("jni_member");
 		return wrap(name, s.params, kinds, ret, fn, (xs, raw) -> {
 			var c = b.temp(EGlobal(cls, TF64));
-			var member = read(id, () -> call(script("jniMember"), [c, EStr(ctor ? "<init>" : name), EStr(d), EInt(kind)]));
+			// (a constructor's ID is an instance method's: GetMethodID's, called through NewObjectA)
+			var member = read(id, () -> call(script("jniMember"), [c, EStr(ctor ? "<init>" : name), EStr(d), EInt(ctor ? 0 : kind)]));
 			var env = b.temp(call(script("jniEnv"), []));
 			var target = self ? xs[0] : EConv(F2L, c);
 			var at = 0;
