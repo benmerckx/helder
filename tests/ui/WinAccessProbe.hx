@@ -186,7 +186,8 @@ class WinAccessProbe {
 		if (t == 50000 || t == 50002 || t == 50015 || t == 50004 || t == 50005) check('$t has a name', n != "");
 		var b = bounds(e);
 		check('$t:$n: bounds', b.length == 4 && b[2] >= 0 && b[3] >= 0);
-		if (b.length == 4 && frame.length == 4 && prop(e, 30022) != true)
+		// (ours: the window's title bar and buttons are the system's, above its client area)
+		if (b.length == 4 && frame.length == 4 && prop(e, 30022) != true && prop(e, 30024) == "helder")
 			check('$t:$n: inside the window', b[0] >= frame[0] - 1 && b[1] >= frame[1] - 1 && b[0] + b[2] <= frame[0] + frame[2] + 1 && b[1] + b[3] <= frame[1] + frame[3] + 1,
 				b.join(",") + " in " + frame.join(","));
 		for (c in children(e)) {
@@ -271,10 +272,29 @@ class WinAccessProbe {
 		return cast o;
 	}
 
+	// the interfaces a handler answers: IUnknown, the four handlers' (two Int64 each)
+	static final handlerIids:Ptr<Int64> = {
+		var t:Ptr<Int64> = LibC.malloc(80);
+		var k = 0;
+		for (g in ["00000000-0000-0000-c000-000000000046", "146c3c17-f12e-4e22-8c27-f894b9b79c69", "40cd37d4-c756-4b0c-8c6f-bddfeeb13b50",
+			"e81d1b4e-11c5-42f8-9754-e7036c79f054", "c270f6b5-5c69-4290-9745-7a7f97169468"]) {
+			var p:Ptr<Int64> = cast guid(g);
+			t[k++] = p[0];
+			t[k++] = p[1];
+		}
+		t;
+	}
+
 	@:hxmc.callback @:hxmc.unsafe static function hQuery(self:Ptr, iid:Ptr, o:Ptr<Ptr>):Int {
-		// (any of the handlers' interfaces, IUnknown: the one object)
-		o.value = self;
-		return 0;
+		// (IUnknown or a handler's: the one object; anything else, IMarshal's, not)
+		var g:Ptr<Int64> = cast iid;
+		for (k in 0...5)
+			if (g[0] == handlerIids[2 * k] && g[1] == handlerIids[2 * k + 1]) {
+				o.value = self;
+				return 0;
+			}
+		o.value = Ptr.nil();
+		return 0x80004002;
 	}
 
 	@:hxmc.callback @:hxmc.unsafe static function hAddRef(self:Ptr):Int

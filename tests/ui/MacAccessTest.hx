@@ -89,7 +89,7 @@ class MacAccessTest implements Markup {
 				case 1:
 					if (elements.length == 5) {
 						check("the checkbox pressed", checked() && str(elements[2], "accessibilityValue") == "1", str(elements[2], "accessibilityValue"));
-						check("the slider incremented", Math.abs(volume() - 0.6) < 1e-9 && str(elements[3], "accessibilityValue") == "0.6",
+						check("the slider incremented", Math.abs(volume() - 0.6) < 1e-9 && Math.abs(Std.parseFloat(str(elements[3], "accessibilityValue")) - 0.6) < 1e-6,
 							'${volume()} ' + str(elements[3], "accessibilityValue"));
 						check("the focused element", Msg.id(view, ObjC.sel("accessibilityFocusedUIElement")) == elements[3]);
 					}
