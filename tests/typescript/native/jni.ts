@@ -31,6 +31,7 @@ const StringBuilder = native.jni({
 	},
 });
 
+console.log("native.jni: started");
 const sdk = Version.SDK_INT();
 const b = StringBuilder.new("jni ");
 StringBuilder.append(b, 42);
