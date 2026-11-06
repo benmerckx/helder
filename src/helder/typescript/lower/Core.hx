@@ -334,6 +334,8 @@ abstract class Core {
 	abstract function apiExpr(n:Node):Null<Ex>;
 
 	abstract function apiCall(n:Node):Null<Ex>;
+
+	abstract function assetImport(n:Node):Void;
 	abstract function apiTarget(n:Node):Null<{read:() -> Ex, write:Ex->Void}>;
 	abstract function layoutField(n:Node):Null<ClassLayout>;
 	abstract function mathCall(n:Node, callee:Node, actual:Array<Node>):Null<Ex>;

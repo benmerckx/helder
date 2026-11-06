@@ -31,6 +31,9 @@
     "./dev": {
       "types": "./src/helder/dev/index.d.ts"
     },
+    "./asset": {
+      "types": "./src/helder/asset/index.d.ts"
+    },
     "./jobs": {
       "types": "./src/helder/jobs/index.d.ts"
     },

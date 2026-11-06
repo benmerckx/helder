@@ -57,7 +57,7 @@ function hashTree(dir, h) {
 	}
 	return h;
 }
-const key = ['helder/compiler', 'helder/typescript', 'helder/definition', 'helder/gfx/shader', 'helder/dev', 'helder/story', 'helder/jobs'].reduce((h, pkg) => hashTree(path.join(src, pkg), h.update(pkg)), crypto.createHash('sha256')).update(version).update(hxmc).digest('hex').slice(0, 16);
+const key = ['helder/compiler', 'helder/typescript', 'helder/definition', 'helder/gfx/shader', 'helder/dev', 'helder/story', 'helder/jobs', 'helder/asset'].reduce((h, pkg) => hashTree(path.join(src, pkg), h.update(pkg)), crypto.createHash('sha256')).update(version).update(hxmc).digest('hex').slice(0, 16);
 const exe = path.join(cache, 'compiler', `${key}`, process.platform === 'win32' ? 'helder-compiler.exe' : 'helder-compiler');
 if (!fs.existsSync(exe)) {
 	const t0 = Date.now();

@@ -587,6 +587,24 @@ abstract class Expressions extends Statements {
 		return bridge.call(bridge.fn("helder_jobs_script_Job_make"), [EInt(index), pack([for (c in captures) read(get(c, n))])]);
 	}
 
+	// image(path)... (helder/asset): the handle helder.asset.ScriptAssets
+	// makes of its key's marker (TsAssets), and its file in a dev build
+	function asset(n:Node, kind:String, path:String, file:Null<String>):Ex {
+		if (bridge == null) fail(n, "Asset." + kind + ": helder/asset is not declared to the program");
+		var args = [EStr(TsAssets.marker(path))];
+		if (file != null) args.push(EStr(file));
+		return bridge.call(bridge.fn("helder_asset_ScriptAssets_" + kind), args);
+	}
+
+	// `import x from "./x.png" with {type: "image"}`: x set to the asset's handle
+	function assetImport(n:Node) {
+		var a = TsAssets.imported(n);
+		var clause = n.importClause();
+		if (a == null || clause == null || clause.name() == null) return;
+		var file = TsAssets.find(src, a.kind, a.path, n, definitions.define);
+		set(get(clause.name().text, n), asset(n, a.kind, a.path, TsAssets.devFile(file, definitions.define)));
+	}
+
 	function call(n:Node):Ex {
 		var actual = n.arguments();
 		if (actual == null) actual = [];
@@ -606,6 +624,7 @@ abstract class Expressions extends Statements {
 				return x;
 			case Dropped: return b.runtime("getUndefined", []);
 			case Job(fn, captures): return job(n, fn, captures);
+			case AssetCall(kind, path, file): return asset(n, kind, path, file);
 		}
 		if (callee.kind == KindSuperKeyword) {
 			var list = argumentList(actual);

@@ -15,6 +15,7 @@ import haxe.macro.Type;
 //                                                        // a class's static as a function of the module
 //   @:typescript.types(helder.view.graph.Signal, ...)   // abstracts (interfaces, unions) and opaque classes
 //   @:typescript.imports("helder/view")                  // modules whose types it names
+//   @:typescript.references("imports.d.ts")              // files beside it it references (ambient modules)
 //   @:typescript.jsx(neutral)                            // its part of JSX: the neutral elements (ui's events)
 //   @:typescript.renderers(helder.web.StaticRenderer)    // renderers its markup reaches its types do not name
 //   @:build(helder.typescript.api.Manifest.build())      // its manifest, made when it is typed
@@ -69,6 +70,8 @@ class Modules {
 		}
 		for (e in metaParams(c, ":typescript.imports"))
 			mod.imports.push(string(e));
+		for (e in metaParams(c, ":typescript.references"))
+			mod.references.push(string(e));
 		for (e in metaParams(c, ":typescript.jsx"))
 			mod.jsx.push(haxe.macro.ExprTools.toString(e));
 		for (e in metaParams(c, ":typescript.renderers"))
@@ -161,6 +164,8 @@ class ApiModule {
 	public final functions:Array<{alias:String, cls:ApiClass, field:String}> = [];
 	public final types:Array<Type> = [];
 	public final imports:Array<String> = [];
+	// declaration files beside it it references (/// <reference path>: ambient modules)
+	public final references:Array<String> = [];
 	public final jsx:Array<String> = [];
 	public final renderers:Array<String> = [];
 	// (the classes among its types: opaque, made by helder only)

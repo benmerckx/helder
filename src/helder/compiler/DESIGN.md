@@ -267,6 +267,10 @@ As built (step 4):
   a module-level one, named. In TS it returns `Job<In, Out>`, `run(x)` a
   promise; the worker calls the program's function by its number
   (`helder.jobs.script.Entry.call`, written by the lowering).
+- `image`, `font`, `model`, `sound`, `bytes` are `Asset.*` in Haxe,
+  `helder/asset`'s in TS (one check, `AssetCheck`); TS's import of a file
+  with a type is the same definition. TS bundles a program's assets when
+  its build starts (`TsAssets`), as `AssetMacro` does from the macro.
 | `uniform(value)` | a value | A uniform the shaders that read it bind (see §3). |
 
 Markup (TSX and Haxe markup) already shares its planner and stays as it is.

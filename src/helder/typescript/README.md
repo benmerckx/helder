@@ -154,7 +154,7 @@ read-only or turned into an accessor (TSHX100 as well).
 
 A program calls helder's Haxe API through declarations: `helder/view`,
 `helder/ui`, `helder/web`, `helder/canvas`, `helder/async` (helder.async's tasks,
-each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story` and `helder/jobs` (`index.d.ts` beside the packages, exported
+each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story`, `helder/jobs` and `helder/asset` (`index.d.ts` beside the packages, exported
 by package.json), generated from the Haxe types (below). Each declares its
 classes, each the Haxe class `__haxe` names, its functions and components
 as `const f: typeof Class.f`, that class's static, and names the module's
@@ -183,9 +183,12 @@ helder's API; nothing under -D helder.release) and `job(f)` from
 `helder/jobs` (f, a module-level function, run on a worker: its input,
 result and the constants it reads checked Sendable, `TsJobAdapter`; a
 function of the lowering's own calls it there, by its number, through
-`helder.jobs.script.Entry`). Their handlers are Haxe's
-(`helder.dev.KeepDefinition`, `helder.story.StoryDefinition`,
-`helder.jobs.JobDefinition`).
+`helder.jobs.script.Entry`). `image(path)`, `font`, `model`, `sound` and `bytes` from `helder/asset`,
+and `import icon from "./icon.png" with {type: "image"}`, are Haxe's
+`Asset.*` (the file found and bundled when the build starts: `TsAssets`).
+Their handlers are Haxe's (`helder.dev.KeepDefinition`,
+`helder.story.StoryDefinition`, `helder.jobs.JobDefinition`,
+`helder.asset.AssetCheck`).
 
 ```tsx
 import { signal } from "helder/view";

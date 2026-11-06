@@ -21,10 +21,8 @@ class AssetDefinition implements Definition<HaxeAdapter, Expr> {
 	}
 
 	public function generate(arg:KNode, a:HaxeAdapter):Expr {
-		var path = switch arg.value {
-			case KString(s): s;
-			case _: a.error('takes the file\'s path, a string literal, not ${arg.describe()}', arg.pos);
-		}
+		// (the check: AssetCheck's, TypeScript's the same)
+		var path = new AssetCheck(kind).generate(arg, a);
 		return switch kind {
 			case "model": AssetMacro.model(path);
 			case "embed": AssetMacro.embed(path);

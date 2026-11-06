@@ -191,3 +191,25 @@ macro embeds a file and the CLI copies one (`Bundle`'s note). A Bytes
 view of an embedded file without the copy (the data is read-only, and a
 Bytes may be written), sounds decoded, assets by a path known only at run
 time bundled (`Model.load` fetches one, unbundled).
+
+## TypeScript
+
+`helder/asset` has the same definitions (their check `AssetCheck`, as
+`Asset.*`'s): `image(path)`, `font`, `model`, `sound` and `bytes`, each a
+handle; `loaded(asset)` is a promise of its value, `ready(asset)` whether it
+is here. A file of the program may also be imported with its type, the same
+definition:
+
+```ts
+import {bytes, loaded} from "helder/asset";
+import icon from "./icon.png" with {type: "image"};
+
+const data = await loaded(bytes("files/level.bin"));
+```
+
+The path is a literal, the file beside the program's file or in the
+project (`-D helder.root`, else the working directory); it is bundled when
+the build starts as `AssetMacro` bundles it (the executable's resources on
+desktop, beside the module for the web; not in dev builds, which read it
+from disk): `helder.typescript.lower.TsAssets`. A model's names are typed
+in Haxe only.

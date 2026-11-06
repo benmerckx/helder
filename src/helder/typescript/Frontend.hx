@@ -55,6 +55,8 @@ class Frontend implements helder.compiler.Plugin {
 		try {
 			project = Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"]), p -> api = new Api(p));
 			phase("check (tsgo)");
+			// (its assets' files bundled: the executable's resources are the build's before it is typed)
+			helder.typescript.lower.TsAssets.bundle(com, project);
 		} catch (e:Dynamic) {
 			if (Sys.getEnv("HELDER_TS_DEBUG") == "1") Sys.stderr().writeString(haxe.CallStack.toString(haxe.CallStack.exceptionStack()) + "\n");
 			error = Std.string(e);

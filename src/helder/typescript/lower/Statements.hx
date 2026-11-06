@@ -24,6 +24,7 @@ abstract class Statements extends Functions {
 		here = n;
 		if (buffered(n, labels)) return;
 		switch (n.kind) {
+			case KindImportDeclaration if (TsAssets.imported(n) != null): assetImport(n);
 			case KindImportDeclaration | KindExportDeclaration: // (bindings: see linkModule)
 			case KindExportAssignment:
 				if (n.isExportEquals()) fail(n, "export = is not supported; use export default");

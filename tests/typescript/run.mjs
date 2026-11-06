@@ -139,6 +139,9 @@ for(const name of fs.readdirSync(`${T}/configs`).sort()) {
 const D=`${T}/definitions`;
 for(const file of fs.readdirSync(D).filter(f=>/\.tsx?$/.test(f)&&f!=='print.ts').sort())for(const target of targets) {
     const stem=file.replace(/\.tsx?$/,''),main=stem[0].toUpperCase()+stem.slice(1),wasm=target!=='linux-x86_64';
+    // (a case for some targets only: `// targets: <t>,...` in it)
+    const only=fs.readFileSync(`${D}/${file}`,'utf8').match(/^\/\/ targets: (.*)$/m)?.[1].split(',');
+    if(only&&!only.includes(target))continue;
     const ts=`${dir}/def-${stem}${wasm?'.wasm':''}`,hx=`${dir}/def-${main}${wasm?'.wasm':''}`;
     ok(run(compiler,[`${D}/${file}`,'-D','helder.gfx.shaders=all','--target',target,'-o',ts]),`${file} compile ${target}`);
     ok(run(compiler,['-cp','src','-cp',D,'-main',main,'-D','helder.gfx.shaders=all','-D',`hxmc.target=${target}`,'--custom-target',`hxmc=${hx}`]),`${main}.hx compile ${target}`);

@@ -183,7 +183,8 @@ class Declarations {
 				case _: Context.error("helder.typescript: @:typescript.jsx is base or neutral", decl.pos);
 			}
 		}
-		var head = [for (l in Docs.of(decl.pos)) "//" + (l == "" ? "" : " " + l)];
+		var head = [for (r in m.references) '/// <reference path="./$r" />'];
+		head = head.concat([for (l in Docs.of(decl.pos)) "//" + (l == "" ? "" : " " + l)]);
 		head.push("//");
 		head.push("// Generated from helder's Haxe types (helder.typescript.api.Declarations: node");
 		head.push("// src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.");

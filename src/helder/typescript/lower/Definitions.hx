@@ -1,6 +1,7 @@
 package helder.typescript.lower;
 
 import helder.definition.Kernel;
+import helder.asset.AssetCheck;
 import helder.dev.KeepDefinition;
 import helder.jobs.JobDefinition;
 import helder.story.StoryDefinition;
@@ -24,7 +25,7 @@ using StringTools;
 // argument, JSON (helder/gfx's shader builds the value of it).
 class Definitions {
 	// the definitions by module and name
-	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"]];
+	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS];
 
 	final src:Project;
 	final defined:String->Null<String>;
@@ -66,6 +67,12 @@ class Definitions {
 			// (as a signal's: its type by the type argument written, its initial value's source hashed)
 			var type = "ts:" + [for (t in n.typeArguments() ?? []) source(t)].join(",");
 			return Keep(slot.key, type, haxe.crypto.Md5.encode(source(init)).substr(0, 8), init);
+		}
+		if (from.module == "helder/asset") {
+			var a = new TsAdapter(src, defined, "Asset." + from.name);
+			if (args.length != 1) a.error("takes the file's path, a string literal", n);
+			var path = new AssetCheck(from.name).generate(a.node(args[0]), a);
+			return AssetCall(from.name, path, TsAssets.devFile(TsAssets.find(src, from.name, path, n, defined), defined));
 		}
 		if (from.name == "job") {
 			var j = new TsJobAdapter(src, defined);
@@ -147,6 +154,8 @@ enum DefinitionCall {
 	Dropped;
 	// (job(f): f's declaration, the constants it reads)
 	Job(fn:Node, captures:Array<String>);
+	// (image(path)...: the kind, the path, the file where the program reads it from disk)
+	AssetCall(kind:String, path:String, file:Null<String>);
 }
 
 // What a name of a file is bound to at its top level: an import (its

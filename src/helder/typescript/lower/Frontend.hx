@@ -65,7 +65,7 @@ class Frontend extends ApiCalls {
 			visiting.set(m, true);
 			for (s in statementsOf(m.file)) {
 				var spec = moduleSpecifier(s);
-				if (spec != null && !declared(spec)) visit(targetModule(spec));
+				if (spec != null && !declared(spec) && TsAssets.imported(s) == null) visit(targetModule(spec));
 			}
 			order.push(m);
 		}
@@ -182,6 +182,8 @@ class Frontend extends ApiCalls {
 				}
 			}
 		}
+		// (an asset's import: its binding, set where the import is: Expressions.assetImport)
+		for (n in sourceStatements) if (TsAssets.imported(n) != null && n.importClause() != null && n.importClause().name() != null) global(n.importClause().name().text);
 		for (n in sourceStatements) if ((n.kind == KindClassDeclaration || n.kind == KindEnumDeclaration || n.kind == KindModuleDeclaration) && n.name() != null && !hasModifier(n, KindDeclareKeyword) && !env.exists(n.name().text)) global(n.name().text);
 		m.others = [for (n in sourceStatements) if (n.kind == KindFunctionDeclaration && n.body() != null && (n.name() == null || !functions.exists(n.name().text))) n];
 		for (n in m.others) if (n.name() != null) global(n.name().text);
@@ -236,7 +238,7 @@ class Frontend extends ApiCalls {
 		for (n in statementsOf(m.file)) switch (n.kind) {
 			case KindImportDeclaration:
 				var clause = n.importClause();
-				if (clause == null) continue;
+				if (clause == null || TsAssets.imported(n) != null) continue;
 				if (clause.isTypeOnly() || declared(n.moduleSpecifier())) continue;
 				var target = targetModule(n.moduleSpecifier());
 				if (clause.name() != null) bind(clause.name().text, target.exports.get("default"));
