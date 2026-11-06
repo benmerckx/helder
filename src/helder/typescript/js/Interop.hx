@@ -205,6 +205,63 @@ class Interop {
 	// (what a renderer cannot do: an agnostic literal's code for it, a component it has no version of)
 	public static function fail(message:String):Dynamic throw message;
 
+	// (helder dev) the signal f, its value the last build's signal's of this
+	// key (Hot's, in its scope) when its initial value's source is the same;
+	// saved on each snapshot when it is data (helder.view.Refresh's, for a
+	// program's values: undefined, numbers, strings, booleans, null, arrays
+	// and plain objects of them)
+	public static function hotSignal(f:Dynamic, key:String, type:String, init:String):Dynamic {
+		#if hxmc.dev
+		var s:helder.view.graph.Signal<Dynamic> = cast unwrap(f);
+		var last:Null<{v:Dynamic, i:String}> = helder.dev.Hot.load(key, type);
+		if (last != null && last.i != init) {
+			Sys.stderr().writeString("helder.dev: " + helder.dev.Hot.path() + (helder.dev.Hot.path() == "" ? "" : "/") + key + " reset: its initial value changed\n");
+			last = null;
+		}
+		if (last != null) @:privateAccess s.node().value = toHaxe(fromTree(last.v));
+		helder.view.graph.Graph.onCleanup(helder.dev.Hot.onSnapshot(() -> {
+			var tree:Dynamic = try toTree(toJs(s.peek())) catch (e:Dynamic) {
+				Sys.stderr().writeString("helder.dev: " + key + " not kept: " + Std.string(e) + "\n");
+				return;
+			}
+			helder.dev.Hot.save(key, {v: tree, i: init}, type);
+		}));
+		#end
+		return f;
+	}
+
+	#if hxmc.dev
+	// (a program's value as Haxe's serializer takes it, and back)
+	static function toTree(v:Dynamic):Dynamic {
+		if (v == Seed.undefinedValue) return {u: true};
+		if (v == null || Std.isOfType(v, Float) || Std.isOfType(v, String) || Std.isOfType(v, Bool)) return v;
+		if (Std.isOfType(v, JsArray)) return {a: [for (x in (v : JsArray).items) x == Lib.hole ? {u: true} : toTree(x)]};
+		if (Std.isOfType(v, JsObject) && (v : JsObject).proto == Builtins.ObjectProto && !Std.isOfType(v, JsFunction)) {
+			var o:JsObject = v, kv:Array<Dynamic> = [];
+			for (k in Lib.keys(o)) {
+				kv.push(k);
+				kv.push(toTree(Lib.get(o, k)));
+			}
+			return {o: kv};
+		}
+		throw "not data (" + Seed.typeOf(v) + ")";
+	}
+
+	static function fromTree(t:Dynamic):Dynamic {
+		if (t == null || Std.isOfType(t, Float) || Std.isOfType(t, String) || Std.isOfType(t, Bool)) return t;
+		if (Reflect.hasField(t, "u")) return Seed.undefinedValue;
+		if (Reflect.hasField(t, "a")) return Lib.array([for (x in (t.a : Array<Dynamic>)) fromTree(x)]);
+		var kv:Array<Dynamic> = t.o;
+		var o = new JsObject(Builtins.ObjectProto);
+		var i = 0;
+		while (i < kv.length) {
+			o.setOwn(kv[i], fromTree(kv[i + 1]));
+			i += 2;
+		}
+		return o;
+	}
+	#end
+
 	// (a program of helder's API with promises or timers: its event loop
 	// on helder.async's, which helder.os's App turns between its frames, and
 	// which commits helder.view's writes at the end of each of its turns)

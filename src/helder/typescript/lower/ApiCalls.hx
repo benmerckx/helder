@@ -114,7 +114,8 @@ abstract class ApiCalls extends ClassValues {
 						var m = apiClass(c, n);
 						var member = apiMember(m, name, true, n);
 						if (member.mount) return mount(n, member);
-						return bridge.callStatic(m, member, apiArguments(actual, member.type), where());
+						var r = bridge.callStatic(m, member, apiArguments(actual, member.type), where());
+						return dev && c.path == "helder.view.graph.Graph" && name == "signalValue" && actual.length == 1 ? hotSignal(n, r) : r;
 					case FClass(c): return fail(n, c.name + " is a class: construct it with new");
 					case null: return null;
 				}
@@ -138,6 +139,45 @@ abstract class ApiCalls extends ClassValues {
 			case _:
 				return null;
 		}
+	}
+
+	// (helder dev) a signal made by signal(value), kept across reloads as
+	// Haxe's (helder.view.Refresh): keyed by where it is made (the module,
+	// the function or class, the variable; Hot's scope adds the component
+	// instance's), its value's type by the type argument written, its
+	// initial value's source hashed (an edit to it starts afresh)
+	function hotSignal(n:Node, made:Ex):Ex {
+		var parts = [Project.relative(n.file.path).split(".")[0]];
+		var name:Null<String> = null;
+		var p = n.parent;
+		while (p != null && p.kind == KindParenthesizedExpression) p = p.parent;
+		if (p != null && (p.kind == KindVariableDeclaration || p.kind == KindPropertyDeclaration || p.kind == KindPropertyAssignment) && p.name() != null && p.name().kind == KindIdentifier)
+			name = p.name().text;
+		var outer = p;
+		while (outer != null && outer.kind != KindSourceFile) {
+			var found:Null<String> = switch outer.kind {
+				case KindFunctionDeclaration | KindMethodDeclaration | KindClassDeclaration if (outer.name() != null): outer.name().text;
+				case KindArrowFunction | KindFunctionExpression if (outer.parent != null && outer.parent.kind == KindVariableDeclaration && outer.parent.name().kind == KindIdentifier):
+					outer.parent.name().text;
+				case _: null;
+			}
+			if (found != null) {
+				parts.push(found);
+				break;
+			}
+			outer = outer.parent;
+		}
+		var scope = parts.join(".");
+		if (name == null) {
+			var seen = hotUnnamed.get(scope) ?? 0;
+			hotUnnamed.set(scope, seen + 1);
+			name = "#" + seen;
+		}
+		var text = n.file.text();
+		function source(x:Node):String return text.substring(n.file.skipTrivia(x.pos), x.end);
+		var type = "ts:" + [for (t in n.typeArguments() ?? []) source(t)].join(",");
+		var init = haxe.crypto.Md5.encode(source(n.arguments()[0])).substr(0, 8);
+		return bridge.call(bridge.interop("hotSignal"), [any(made), EStr(scope + "." + name), EStr(type), EStr(init)]);
 	}
 
 	// Render.render(content, parent) and insert(content, parent, before): the

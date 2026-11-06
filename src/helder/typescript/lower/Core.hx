@@ -76,6 +76,8 @@ abstract class Core {
 	var tsx:Null<Tsx> = null;
 	// (hxmc dev: components mounted with fast refresh's keys)
 	final dev:Bool;
+	// (helder dev: signals made where no name says, numbered in their function)
+	var hotUnnamed:Map<String, Int> = [];
 
 	public function new(src:Project, p:Program, ?api:Api, dev = false) {
 		this.src = src;

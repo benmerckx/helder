@@ -52,7 +52,15 @@ Under `helder dev` the build lists the program's files for the watcher
 come back as the compiler's, at their file, line and columns, and the
 JavaScript event loop answers the dev server between its timers
 (`helder.dev.Hot.poll`, as helder.os.App's loop does), so a reload swaps the
-new build in. A reload starts the program over: its state is not kept yet.
+new build in. A reload starts the program afresh and its signals where they were, as
+Haxe's (helder.view.Refresh): a signal made by `signal(value)` is kept by
+where it is made (the module, the function or class, the variable; a
+component instance's scope around it, as the markup's), its value saved
+on each snapshot when it is data (numbers, strings, booleans, null,
+undefined, arrays and plain objects of them), read back when the next
+build makes it again, unless the initial value's source changed (an edit
+to it starts afresh) or its type argument did (`ApiCalls.hotSignal`,
+`Interop.hotSignal`). A plain variable starts over, as in Haxe.
 
 ## Checking (`check/`)
 
@@ -335,8 +343,6 @@ const user = memo(async () => {
 	return r.name;
 });
 ```
-
-Not yet: the helder.dev reload keeping a program's state.
 
 ## Tests
 
