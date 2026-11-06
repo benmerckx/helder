@@ -26,6 +26,55 @@ a project; the default: .) is what is built, the flags where it runs:
 phone, emulator or simulator), `-o` (the output), `--` (the program's
 arguments). `helder <entry>` is `helder dev <entry>`.
 
+## TypeScript quick start
+
+An app can be written in TypeScript and TSX instead of Haxe: the program is
+checked by the app's TypeScript 7.1 (tsgo) and compiled to the same native
+or wasm output, with no JavaScript in it ([helder.typescript](src/helder/typescript/README.md)).
+
+```sh
+npm install helder@nightly typescript@next   # TypeScript 7.1 (7.1.0-beta or a 7.1 nightly)
+```
+
+`src/main.tsx` (examples/ts-counter, shortened):
+
+```tsx
+import { signal } from "helder/view";
+import { UiWindow, Surface } from "helder/ui";
+
+const count = signal(0);
+
+UiWindow.run(
+	<Surface title="Counter" width={320} height={200}>
+		<view grow={1} align-items="center" justify="center" row-gap={12}>
+			<text font-size={32}>{count}</text>
+			<view:button padding="8 16" onPress={() => count(c => c + 1)}>+1</view:button>
+		</view>
+	</Surface>
+);
+```
+
+```sh
+npx helder dev                    # built, run, rebuilt on each save: its signals keep their values
+npx helder build                  # bin/<target>/<name>
+npx helder build --target web     # a page
+```
+
+A `tsconfig.json` is optional (helder's defaults without one); one that is
+there must be strict, ES modules resolved as a bundler does (`"module":
+"esnext"`, `"moduleResolution": "bundler"`), `"jsx": "preserve"`, without
+the DOM library. helder's API comes with the package as declarations
+generated from its Haxe types: `helder/view` (signals, memos, effects,
+`For`, `Show`...: a hole that reads in TSX is bound, as in Haxe's markup),
+`helder/ui` (`UiWindow`, `Surface`, `Event`, `Key`; the neutral elements
+`view`, `text`, `field`, `scroll`, `view:button`...), `helder/web`,
+`helder/canvas` (the browser's Canvas 2D, natively) and `helder/async`.
+`async` functions run on helder's loop (`memo(async () => ...)` is an async
+computation, cancelled when superseded); typed arrays, `Map`, `Set`,
+`RegExp`, `Date`, `JSON` and promises are there, `eval`, `Proxy` and DOM
+globals are not. Examples: examples/ts-counter, ts-todo, ts-ticker,
+ts-hello.
+
 ## Aims
 
 - **One package, one CLI.** `helder` is all a user installs: it carries the
@@ -302,8 +351,10 @@ Still to come:
     IR inside helder's compiler (hxmc's, with this frontend), JavaScript's semantics from a
     runtime in Haxe; `helder dev` keeps tsgo up in the compilation server
     and feeds it the watcher's changes; errors and stack traces mapped back
-    to the `.ts` lines, as `.test.hx` paths are. Still to come: the CLI's
-    entries, helder's API from TS, TSX.
+    to the `.ts` lines, as `.test.hx` paths are. Built: the CLI's
+    entries, helder's API from TS through a manifest of its Haxe types,
+    TSX, async functions on helder.async's loop, typed arrays, fast
+    refresh of signals; not yet BigInt.
   - **TSX as helder.view's markup**, typed against helder's elements and
     compiled by its macros to direct calls on signals, no virtual DOM;
     `<Scene>` in TSX once scenes take markup.
@@ -337,9 +388,11 @@ Still to come:
       against node.
     Kept Haxe's: the GC-free tier (`hxmc.unsafe`), definitions' handlers
     (written in Haxe, used from both), libraries for Haxe written in TS.
-  - A proof first: the `.d.ts` for view and ui, the emitter, the counter
-    and todo examples in TSX built and live-reloaded by `helder dev`; started
-    once TypeScript 7.1's API is out of beta.
+  - A proof first (done): the `.d.ts` for view, ui, web, canvas and async
+    (generated, in the package's `exports`), the emitter, the counter and
+    todo examples in TSX (examples/ts-counter, ts-todo) built and
+    live-reloaded by `helder dev` with their state (the TypeScript quick
+    start above).
 
 ### 3. Foundations
 

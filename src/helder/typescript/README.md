@@ -153,7 +153,8 @@ read-only or turned into an accessor (TSHX100 as well).
 ### helder's API and TSX (`api/`, `lower/Api.hx`, `lower/Haxe.hx`, `lower/Tsx.hx`)
 
 A program calls helder's Haxe API through declarations: `helder/view`,
-`helder/ui` and `helder/web` (`index.d.ts` beside the packages, exported
+`helder/ui`, `helder/web`, `helder/canvas` and `helder/async` (helder.async's tasks,
+each a promise: a Task<T> is a Promise<T>) (`index.d.ts` beside the packages, exported
 by package.json), generated from the Haxe types (below). Each declares its
 classes, each the Haxe class `__haxe` names, its functions and components
 as `const f: typeof Class.f`, that class's static, and names the module's

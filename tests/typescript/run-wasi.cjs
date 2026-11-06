@@ -20,8 +20,28 @@ catch (e) {
 }
 const wasi = new WASI({ version: 'preview1', args: [path.resolve(file), ...args], env: { ...process.env, PWD: process.cwd() }, preopens: { '/': '/' }, returnOnExit: true });
 const imports = wasi.getImportObject();
-// Other modules' imports (helder_async's start and wake: headless, the
-// program turns helder.async's loop itself) are functions doing nothing.
-for (const i of WebAssembly.Module.imports(wasm))
-	if (i.kind === 'function' && !(i.module in imports && i.name in imports[i.module])) (imports[i.module] ??= {})[i.name] = () => 0;
-process.exitCode = wasi.start(new WebAssembly.Instance(wasm, imports)) ?? 0;
+// (an exit inside a turn: WASI's proc_exit throws its symbol, the code kept on the WASI object)
+const exitCode = Object.getOwnPropertySymbols(wasi).find(k => k.description === 'kExitCode');
+let instance;
+const host = {
+	call(f, ...a) {
+		try {
+			return instance.exports.__indirect_function_table.get(f)(...a);
+		} catch (e) {
+			if (typeof e !== 'symbol') throw e;
+			process.exit(exitCode ? wasi[exitCode] : 1);
+		}
+	}
+};
+(async () => {
+	// helder.async's loop turned by node's, as a page's would (src/helder/async/imports.mjs:
+	// a program's timers and promises under helder's API); other modules' imports do nothing
+	if (WebAssembly.Module.imports(wasm).some(i => i.module === 'helder_async')) {
+		const url = require('node:url').pathToFileURL(path.join(__dirname, '../../src/helder/async/imports.mjs')).href;
+		Object.assign(imports, (await import(url)).default(host));
+	}
+	for (const i of WebAssembly.Module.imports(wasm))
+		if (i.kind === 'function' && !(i.module in imports && i.name in imports[i.module])) (imports[i.module] ??= {})[i.name] = () => 0;
+	instance = new WebAssembly.Instance(wasm, imports);
+	process.exitCode = wasi.start(instance) ?? 0;
+})();

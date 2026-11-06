@@ -22,6 +22,9 @@
     "./canvas": {
       "types": "./src/helder/canvas/index.d.ts"
     },
+    "./async": {
+      "types": "./src/helder/async/index.d.ts"
+    },
     "./package.json": "./package.json",
     "./*": "./*"
   },

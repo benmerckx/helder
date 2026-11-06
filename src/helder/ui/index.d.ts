@@ -26,7 +26,7 @@ export type UiView = unknown;
 // open, which sleeps while none has a frame to draw. In the browser each
 // frame's accessibility tree goes to the mirror in the canvas (WebAccess:
 // load src/helder/ui/imports.mjs), on macOS to NSAccessibility (MacAccess), on
-// iOS to UIAccessibility (IosAccess),
+// iOS to UIAccessibility (IosAccess), on Android to its AccessibilityNodeProvider (AndroidAccess),
 // on Windows to UI Automation (WinAccess), on Linux to AT-SPI (LinuxAccess),
 // and the actions asked for come back.
 //

@@ -8,7 +8,9 @@ import haxe.exceptions.CancellationException;
 import helder.async.Node.Body;
 
 // A task: a Node with a result, awaited (hxcoro's ICoroTask). Made by
-// Node.async, Async.launch, Async.run.
+// Node.async, Async.launch, Async.run. (A TypeScript program awaits one as a
+// promise: helder.typescript.js.Interop.)
+@:typescript.type("Promise<T>")
 class Task<T> extends Node implements IContinuation<T> implements IDispatchObject {
 	final body:Null<Body<T>>;
 	var result:Null<T>;

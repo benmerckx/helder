@@ -33,6 +33,7 @@ class Interop {
 		if (Std.isOfType(v, Float)) return v;
 		if (Std.isOfType(v, Array)) return Lib.array([for (x in (v : Array<Dynamic>)) toJs(x)]);
 		// (helder's async work, a task, an asset's load: a promise of its answer)
+		if (Std.isOfType(v, helder.async.Task)) return taskPromise(v);
 		if (Std.isOfType(v, helder.view.graph.Awaitable)) return Promises.ofAwaitable(v);
 		// (helder's bytes: a Uint8Array sharing them)
 		if (Std.isOfType(v, haxe.io.Bytes)) return TypedArrays.ofBytes(v);
@@ -44,6 +45,17 @@ class Interop {
 			return o;
 		}
 		return v;
+	}
+
+	// a task of helder.async's as a promise: its result, its error as an
+	// Error (a cancellation an AbortError); the promise cancelled, the task
+	static function taskPromise(t:helder.async.Task<Dynamic>):Dynamic {
+		var later = new helder.view.graph.Awaitable.Later<Dynamic>();
+		t.onCompletion((r, e) -> if (e == null) later.resolve(r) else if (Std.isOfType(e, haxe.exceptions.CancellationException)) later.reject(Promises.abortError())
+			else later.reject(Builtins.makeError("Error", e.message)));
+		var p:Promises.JsPromise = Promises.ofAwaitable(later);
+		p.canceller = () -> t.cancel();
+		return p;
 	}
 
 	// a JavaScript value as Haxe code takes one untyped: arrays Haxe's,
@@ -288,9 +300,15 @@ private class LoopHost implements Promises.EventHost {
 		return () -> t.close();
 	}
 
-	// (under helder dev, the dev server heard each turn: its reload ends it)
-	public function run()
+	// (under helder dev, the dev server heard each turn: its reload ends it;
+	// in the browser it returns, the page turning the loop)
+	public function run() {
+		#if (hxmc.target == "wasm32-wasi")
+		loop.run();
+		#else
 		while (Promises.devTurn() && loop.turn(#if hxmc.dev 0.05 #else -1 #end)) {}
+		#end
+	}
 }
 
 private class Checkpoint implements haxe.coro.dispatchers.IDispatchObject {
