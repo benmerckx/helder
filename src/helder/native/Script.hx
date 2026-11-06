@@ -232,7 +232,14 @@ private class ScriptJni {
 	static final classes = new Map<String, hxmc.unsafe.Ptr>();
 
 	public static function env():hxmc.unsafe.Ptr {
-		var vm = hxmc.unsafe.Mem.getPtr(helder.os.android.Activity.activity, 8);
+		// (a cell of hxmc's own JNI calls, named here only: the program counts
+		// as one calling Java (hxmc_stack_flags' JNI, DataGen.jniCells), so its
+		// main keeps the thread's own stack: ART's AttachCurrentThread checks
+		// the stack pointer against the stack the thread was given, and aborts
+		// on hxmc's reserved stack (InitStackHwm's FindStackTop); written, so
+		// the reference stays)
+		hxmc.unsafe.Mem.setI64(hxmc.unsafe.Mem.sym("hxmc$jni$68656c646572206e6174697665"), 0, 1);
+		var vm =hxmc.unsafe.Mem.getPtr(helder.os.android.Activity.activity, 8);
 		var out:hxmc.unsafe.Ptr<hxmc.unsafe.Ptr> = hxmc.unsafe.LibC.malloc(8);
 		out.value = hxmc.unsafe.Ptr.nil();
 		// (JNI_VERSION_1_6; JNI_EDETACHED: attached)

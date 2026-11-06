@@ -264,7 +264,10 @@ functions. Pointers are numbers; `native.string`, `native.bytes`,
   through JNIEnv's table (the program's thread attached to the
   activity's VM: `Script`'s ScriptJni, as helder.os.android.Jni's are the
   main thread's) with their arguments as jvalues (`Call<T>MethodA`); a
-  Java exception thrown with its text; strings as java.lang.Strings.
+  Java exception thrown with its text; strings as java.lang.Strings. Such
+  a program's main keeps its thread's own stack, as one of hxmc's Java
+  calls does (ART checks a thread attaching against the stack it was
+  given, and aborts on hxmc's reserved one).
 
 Each is refused at its line where its system is not (objc but on Apple's,
 com but on Windows, jni but on Android: a platform test of helder/platform
