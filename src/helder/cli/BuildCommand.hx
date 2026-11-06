@@ -28,6 +28,7 @@ class BuildCommand {
 			Term.err(Style.status("error", Fail, Std.string(err)));
 			return 1;
 		}
+		if (andRun && o.has("headless")) return HeadlessCommand.run(o, e);
 		var host = Compiler.hostTarget();
 		var mobile = Options.mobile(e.target);
 		if (mobile != null) {

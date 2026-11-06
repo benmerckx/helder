@@ -125,6 +125,13 @@ class UiWindow {
 		// (macOS': NSTextFields over the window; not iOS's, whose Mem.os() is macOS's too: no AppKit there)
 		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
 		open.push(this);
+		#if helder.headless
+		// (a headless run: the ui's events and clock the run's virtual time, the first window's nodes its tree)
+		Ui.now = () -> helder.headless.Time.now;
+		var run = helder.headless.Headless.run;
+		Clock.reducedMotion = run.reducedMotion;
+		if (run.inspector == null) run.inspector = new UiInspector(ui);
+		#end
 		// (the window's standard actions: closed as by its close button, fullscreen; Quit: every window asked)
 		ui.on(helder.ui.actions.Actions.StandardAction, a -> switch a {
 			case CloseWindow:
@@ -186,7 +193,7 @@ class UiWindow {
 	// first (now: what the frame's events started, Ui.now's, is not after
 	// it, as the vsync's time App.frame.time may be)
 	public function frame() {
-		Clock.tick(haxe.Timer.stamp());
+		Clock.tick(helder.headless.Time.stamp());
 		var s = window.scale;
 		renderer.scale = device.width / Math.max(1, Math.round(device.width / s));
 		ui.resize(device.width / renderer.scale, device.height / renderer.scale);
@@ -451,7 +458,7 @@ class UiWindow {
 	@:typescript public static function run(?content:RootView) {
 		if (content != null) Render.open(content);
 		App.run(() -> {
-			var now = haxe.Timer.stamp();
+			var now = helder.headless.Time.stamp();
 			if (now - darkAsked > 1) {
 				darkAsked = now;
 				// (the user's keymap file, read again when it changed: the menus' labels too)

@@ -9,7 +9,8 @@ import hxmc.unsafe.*;
 // program's thread (Activity: hxmc's runtime runs there) waits for the
 // native window when the Window is made (one with a size), then App.run
 // polls the looper: the commands of the activity's callbacks (Activity)
-// and the input queue.
+// and the input the UI thread read from the input queue (Activity.onInput:
+// finished there at once, so the system's input never waits for a frame).
 // Every finger and pen is a pointer (Pointers: Pointer* events, their
 // history as samples, their times the events', a cancel when the system
 // takes them), and nothing else: no mouse events or scrolls are made of

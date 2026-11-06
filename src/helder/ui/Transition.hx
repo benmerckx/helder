@@ -35,6 +35,11 @@ class Transition {
 	public static final EASE_OUT = [0.0, 0.0, 0.58, 1.0];
 	public static final EASE_IN_OUT = [0.42, 0.0, 0.58, 1.0];
 
+	// whether property (a Style name) is a colour or the opacity: what still
+	// eases under reduced motion (Clock.reducedMotion), where travel jumps
+	public static function fades(property:String):Bool
+		return property != "transform" && property != "shadow" && property != "ringWidth";
+
 	// the timing of property (a Style name), null when it does not ease: its duration, delay, easing
 	public function timing(property:String):Null<{duration:Float, delay:Float, easing:Array<Float>}> {
 		var k = properties.lastIndexOf(property);

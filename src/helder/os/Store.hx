@@ -23,7 +23,10 @@ import hxmc.unsafe.*;
 // A store that cannot be read (none yet, damaged) opens empty; one that
 // cannot be written (a read-only disk, a private window) keeps its values
 // for the run (written false). dir puts the file elsewhere (tests; wasm32
-// without localStorage, as under node's WASI: "." by default).
+// without localStorage, as under node's WASI: "." by default). In a
+// headless run (-D helder.headless) a store without dir starts empty and
+// stays in memory: what an earlier run, or the user's own app, kept does
+// not change what the run shows, and the run keeps nothing.
 class Store {
 	public final name:String;
 	// the file (the web: "")
@@ -39,6 +42,9 @@ class Store {
 		this.path = path;
 		this.web = web;
 		var text:Null<String> = null;
+		#if helder.headless
+		if (path == "") return;
+		#end
 		#if (hxmc.target == "wasm32-wasi")
 		if (web) {
 			var h = Arena.scopedValue(a -> helder.os.web.Dom.store_get(a.cstring(item())));
@@ -58,6 +64,9 @@ class Store {
 		if (!~/^[A-Za-z0-9._-]+$/.match(name) || name.charAt(0) == ".") throw 'helder.os.Store: a name of letters, digits, ".", "-" and "_": $name';
 		#if (hxmc.target == "wasm32-wasi")
 		if (dir == null && helder.os.web.Dom.store_available() != 0) return new Store(name, "", true);
+		#end
+		#if helder.headless
+		if (dir == null) return new Store(name, "", false);
 		#end
 		return new Store(name, dir != null ? dir + "/" + name + ".json" : place(name), false);
 	}
@@ -126,6 +135,9 @@ class Store {
 	}
 
 	function write() {
+		#if helder.headless
+		if (path == "" && !web) return;
+		#end
 		#if (hxmc.target == "wasm32-wasi")
 		if (web) {
 			var t = text();

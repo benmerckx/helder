@@ -718,7 +718,8 @@ class Style {
 		if (m != null)
 			for (k in 0...m.length)
 				if (m[k].name == name) i = k;
-		var t = r.transition == null || !drawn || node.ui == null || from == null || to == null || from == to ? null : r.transition.timing(name);
+		var t = r.transition == null || !drawn || node.ui == null || from == null || to == null || from == to
+			|| (Clock.reducedMotion && !Transition.fades(name)) ? null : r.transition.timing(name);
 		if (t == null) {
 			if (i < 0) return false;
 			m.splice(i, 1);

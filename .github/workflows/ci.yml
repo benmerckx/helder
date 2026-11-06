@@ -90,11 +90,11 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: sudo apt-get install -qqy --no-install-recommends weston wayland-protocols libwayland-dev libwayland-egl1 libxkbcommon0
-      - name: gfx, 3d, audio, ui, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
-        run: bun run test -k gfx 3d audio ui-draw window viewer-window viewer-package wayland dbus system-text system-images canvas-gpu
+      - name: gfx, 3d, audio, ui, helder run --headless, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
+        run: bun run test -k gfx 3d audio ui-draw headless-run window viewer-window viewer-package wayland dbus system-text system-images canvas-gpu
       - uses: actions/upload-artifact@v7
         if: always()
-        with: {name: images, path: "bin/gfx/**/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
+        with: {name: images, path: "bin/gfx/**/*.png\nbin/headless-run/**/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
 
   browser:
     if: false

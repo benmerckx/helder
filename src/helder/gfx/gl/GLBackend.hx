@@ -246,6 +246,17 @@ class GLBackend {
 		start();
 	}
 
+	// (a headless surface resized, helder.headless's window: a new pbuffer of its size, current)
+	function resizeHeadless() {
+		if (Mem.os() == 3) return;
+		Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), context);
+		Egl.eglDestroySurface(display, eglSurface);
+		Arena.scoped(a -> eglSurface = Egl.eglCreatePbufferSurface(display, config, ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])));
+		if (eglSurface.isNull()) fail("cannot create the EGL surface");
+		if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+		querySize();
+	}
+
 	// (the context is current)
 	function start() {
 		querySize();
@@ -553,6 +564,7 @@ class GLBackend {
 		ring ^= 1;
 		cursor = 0;
 		if (surface.kind != Headless) querySize();
+		else if (Mem.os() != 3 && (surface.width != width || surface.height != height)) resizeHeadless();
 		return true;
 	}
 

@@ -1,0 +1,11 @@
+{
+  "events": [
+    {"t": 0.2, "type": "key", "name": "o", "secondary": true},
+    {"t": 0.3, "type": "file-dialog", "path": "apps/viewer/tests/fixtures/folder/alpha.png"},
+    {"t": 0.8, "type": "key", "name": "i"},
+    {"t": 1.0, "type": "tap", "tag": "photo", "button": "right"},
+    {"t": 1.2, "type": "mark", "name": "menu"},
+    {"t": 1.5, "type": "menu-pick", "label": "Actual Size"},
+    {"t": 2.0, "type": "mark", "name": "end"}
+  ]
+}

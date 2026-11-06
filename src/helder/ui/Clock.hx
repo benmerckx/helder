@@ -7,6 +7,11 @@ package helder.ui;
 class Clock {
 	// the last tick's time
 	public static var now(default, null) = 0.0;
+	// the system asks for reduced motion (a headless run's --reduced-motion):
+	// what moves a node's place, size or shape jumps to its end (Style's
+	// transitions of transform and shadow, Motion's transition and spring),
+	// fades and colours still ease
+	public static var reducedMotion = false;
 	static final steps:Array<Float->Bool> = [];
 
 	public static function add(step:Float->Bool)

@@ -29,8 +29,21 @@ class Window {
 	// other's code is never reached, as long as no field or method has its type)
 	final native:Any;
 
+	// (a build for a headless run, -D helder.headless: every window a
+	// helder.os.headless.HeadlessWindow, the others' code not linked)
+	static inline final HEADLESS = #if helder.headless true #else false #end;
+
+	inline function headless():helder.os.headless.HeadlessWindow
+		return cast native;
+
 	@:typescript public function new(title:String, width:Int, height:Int) {
 		this.title = title;
+		if (HEADLESS) {
+			native = new helder.os.headless.HeadlessWindow(this, width, height);
+			surface = headless().surface;
+			App.windows.push(this);
+			return;
+		}
 		native = Mem.platform() >= 1 ? new UIKitWindow(this, title, width, height) : Mem.os() == 1 ? new CocoaWindow(this, title, width, height) : Mem.os() == 2 ? new Win32Window(this, title, width,
 			height) : Mem.os() == 3 ? new CanvasWindow(this, title, width, height) : Mem.target() >= 9 ? new AndroidWindow(this, title, width,
 				height) : WaylandWindow.active() ? new WaylandWindow(this, title, width, height) : new X11Window(this, title, width, height);
@@ -54,7 +67,7 @@ class Window {
 	@:typescript public var scale(get, never):Float;
 
 	function get_scale():Float
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).scale : Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : Mem.target() >= 9 ? (cast native : AndroidWindow).scale : Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).scale() : 1;
+		return HEADLESS ? headless().scale : Mem.platform() >= 1 ? (cast native : UIKitWindow).scale : Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : Mem.target() >= 9 ? (cast native : AndroidWindow).scale : Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).scale() : 1;
 
 	// the safe area: the insets from each edge, in pixels, that the system's
 	// bars, a notch, a display cutout or rounded corners leave clear, as
@@ -67,16 +80,16 @@ class Window {
 	public var safeRight(get, never):Int;
 
 	function get_safeTop():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeTop : Mem.target() >= 9 ? (cast native : AndroidWindow).safeTop : 0;
+		return HEADLESS ? 0 : Mem.platform() >= 1 ? (cast native : UIKitWindow).safeTop : Mem.target() >= 9 ? (cast native : AndroidWindow).safeTop : 0;
 
 	function get_safeLeft():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeLeft : Mem.target() >= 9 ? (cast native : AndroidWindow).safeLeft : 0;
+		return HEADLESS ? 0 : Mem.platform() >= 1 ? (cast native : UIKitWindow).safeLeft : Mem.target() >= 9 ? (cast native : AndroidWindow).safeLeft : 0;
 
 	function get_safeBottom():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeBottom : Mem.target() >= 9 ? (cast native : AndroidWindow).safeBottom : 0;
+		return HEADLESS ? 0 : Mem.platform() >= 1 ? (cast native : UIKitWindow).safeBottom : Mem.target() >= 9 ? (cast native : AndroidWindow).safeBottom : 0;
 
 	function get_safeRight():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeRight : Mem.target() >= 9 ? (cast native : AndroidWindow).safeRight : 0;
+		return HEADLESS ? 0 : Mem.platform() >= 1 ? (cast native : UIKitWindow).safeRight : Mem.target() >= 9 ? (cast native : AndroidWindow).safeRight : 0;
 
 	// the system's bars hidden, the app on the whole screen (a game's): on
 	// Android immersive (the status and navigation bars hidden, a swipe
@@ -88,10 +101,10 @@ class Window {
 	public var immersive(get, set):Bool;
 
 	function get_immersive():Bool
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).immersive : Mem.target() >= 9 ? (cast native : AndroidWindow).immersive : false;
+		return HEADLESS ? false : Mem.platform() >= 1 ? (cast native : UIKitWindow).immersive : Mem.target() >= 9 ? (cast native : AndroidWindow).immersive : false;
 
 	function set_immersive(on:Bool):Bool {
-		if (closed || on == immersive) return on;
+		if (closed || on == immersive || HEADLESS) return on;
 		if (Mem.platform() >= 1) (cast native : UIKitWindow).setImmersive(on) else if (Mem.target() >= 9) AndroidWindow.setImmersive(cast native, on);
 		return on;
 	}
@@ -113,7 +126,7 @@ class Window {
 		if (c == Auto) c = Default;
 		if (c == cursor || closed) return c;
 		cursor = c;
-		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setCursor(c) else if (Mem.os() == 2) (cast native : Win32Window).setCursor(c) else if (Mem.os() == 3)
+		if (HEADLESS) {} else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setCursor(c) else if (Mem.os() == 2) (cast native : Win32Window).setCursor(c) else if (Mem.os() == 3)
 			(cast native : CanvasWindow).setCursor(c) else if (Mem.target() >= 9) {} else (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).setCursor(c) : (cast native : X11Window).setCursor(c));
 		return c;
 	}
@@ -139,7 +152,7 @@ class Window {
 	public function startTextInput(x:Int, y:Int, width:Int, height:Int) {
 		if (closed) return;
 		typing = true;
-		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(true, x, y, width, height) else if (Mem.os() == 2)
+		if (HEADLESS) helder.headless.Headless.run.textInputAt(x, y, width, height) else if (Mem.os() == 3) (cast native : CanvasWindow).textInput(true, x, y, width, height) else if (Mem.os() == 2)
 			(cast native : Win32Window).textInputArea(x, y, width, height) else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).textInput(true, x, y,
 				width, height) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(true, x, y, width, height) else if (Std.isOfType(native, WaylandWindow))
 			(cast native : WaylandWindow).textInputOn(x, y, width, height);
@@ -153,14 +166,14 @@ class Window {
 	// changes; the input method's edits of it come as TextReplace (and
 	// TextInput, TextEditing). Nothing elsewhere
 	public function textContext(text:String, start:Int, end:Int, multiline = false, secret = false) {
-		if (closed || !typing) return;
+		if (closed || !typing || HEADLESS) return;
 		if (Mem.os() == 2) (cast native : Win32Window).textContext(secret ? "" : text, secret ? 0 : start, secret ? 0 : end) else if (Mem.os() == 0 && Mem.target() < 9 && Std.isOfType(native, WaylandWindow))
 			(cast native : WaylandWindow).textContext(text, start, end, multiline, secret);
 	}
 
 	public function stopTextInput() {
 		typing = false;
-		if (closed) return;
+		if (closed || HEADLESS) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.os() == 2) (cast native : Win32Window).stopTextInput() else if (Mem.platform() >= 1) {} else if (Mem.os() == 1)
 			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(false, 0, 0, 0, 0) else if (Std.isOfType(native, WaylandWindow))
 			(cast native : WaylandWindow).textInputOff();
@@ -169,7 +182,7 @@ class Window {
 	function set_title(v:String):String {
 		if (v == title) return v;
 		title = v;
-		if (native == null || closed) return v;
+		if (native == null || closed || HEADLESS) return v;
 		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setTitle(v) else if (Mem.os() == 2) (cast native : Win32Window).setTitle(v) else if (Mem.os() == 3)
 			(cast native : CanvasWindow).setTitle(v) else if (Mem.target() >= 9) {} else (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).setTitle(v) : (cast native : X11Window).setTitle(v));
 		return v;
@@ -179,14 +192,14 @@ class Window {
 	// canvas's CSS size); a Resize event follows
 	public function resize(width:Int, height:Int) {
 		if (closed) return;
-		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).resize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).resize(width,
+		if (HEADLESS) headless().resize(width, height) else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).resize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).resize(width,
 			height) else if (Mem.os() == 3) (cast native : CanvasWindow).resize(width, height) else if (Mem.target() >= 9) {} else
 			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).resize(width, height) : (cast native : X11Window).resize(width, height));
 	}
 
 	// the smallest content the user may resize it to, in points (the browser: the canvas's CSS minimum)
 	public function setMinSize(width:Int, height:Int) {
-		if (closed) return;
+		if (closed || HEADLESS) return;
 		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setMinSize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).setMinSize(width,
 			height) else if (Mem.os() == 3) (cast native : CanvasWindow).setMinSize(width, height) else if (Mem.target() >= 9) {} else
 			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).setMinSize(width, height) : (cast native : X11Window).setMinSize(width, height));
@@ -200,11 +213,11 @@ class Window {
 	public var fullscreen(get, set):Bool;
 
 	function get_fullscreen():Bool
-		return closed ? false : Mem.platform() >= 1 ? false : Mem.os() == 1 ? (cast native : CocoaWindow).isFullscreen() : Mem.os() == 2 ? (cast native : Win32Window).fullscreen : Mem.os() == 3 ? false : Mem.target() >= 9 ? false : (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).fullscreen : (cast native : X11Window).fullscreen);
+		return closed ? false : HEADLESS ? headless().fullscreen : Mem.platform() >= 1 ? false : Mem.os() == 1 ? (cast native : CocoaWindow).isFullscreen() : Mem.os() == 2 ? (cast native : Win32Window).fullscreen : Mem.os() == 3 ? false : Mem.target() >= 9 ? false : (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).fullscreen : (cast native : X11Window).fullscreen);
 
 	function set_fullscreen(on:Bool):Bool {
 		if (closed || on == fullscreen) return on;
-		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setFullscreen(on) else if (Mem.os() == 2) (cast native : Win32Window).setFullscreen(on) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+		if (HEADLESS) headless().fullscreen = on else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).setFullscreen(on) else if (Mem.os() == 2) (cast native : Win32Window).setFullscreen(on) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
 			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).setFullscreen(on) : (cast native : X11Window).setFullscreen(on));
 		return on;
 	}
@@ -213,13 +226,16 @@ class Window {
 	// screen's top left (pixels on X11; macOS: the main screen's); null where
 	// a window has no place of its own (the browser, phones)
 	public function position():Null<{x:Int, y:Int}>
-		return closed ? null : Mem.platform() >= 1 ? null : Mem.os() == 1 ? (cast native : CocoaWindow).position() : Mem.os() == 2 ? (cast native : Win32Window).position() : Mem.os() == 3 ? null : Mem.target() >= 9 ? null : (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).position() : (cast native : X11Window).position());
+		return closed ? null : HEADLESS ? {x: headless().x, y: headless().y} : Mem.platform() >= 1 ? null : Mem.os() == 1 ? (cast native : CocoaWindow).position() : Mem.os() == 2 ? (cast native : Win32Window).position() : Mem.os() == 3 ? null : Mem.target() >= 9 ? null : (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).position() : (cast native : X11Window).position());
 
 	// its content's top left moved to x, y (as position: a place it had, kept
 	// across runs)
 	public function moveTo(x:Int, y:Int) {
 		if (closed) return;
-		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).moveTo(x, y) else if (Mem.os() == 2) (cast native : Win32Window).moveTo(x, y) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+		if (HEADLESS) {
+			headless().x = x;
+			headless().y = y;
+		} else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).moveTo(x, y) else if (Mem.os() == 2) (cast native : Win32Window).moveTo(x, y) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
 			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).moveTo(x, y) : (cast native : X11Window).moveTo(x, y));
 	}
 
@@ -227,7 +243,7 @@ class Window {
 	// file to this one): X11's _NET_ACTIVE_WINDOW, Windows'
 	// SetForegroundWindow, macOS's makeKeyAndOrderFront: and the app activated
 	public function raise() {
-		if (closed) return;
+		if (closed || HEADLESS) return;
 		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).raise() else if (Mem.os() == 2) (cast native : Win32Window).raise() else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
 			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).raise() : (cast native : X11Window).raise());
 	}
@@ -235,7 +251,7 @@ class Window {
 	@:typescript public function close() {
 		if (closed) return;
 		closed = true;
-		if (Mem.platform() >= 1) (cast native : UIKitWindow).destroy() else if (Mem.os() == 1) (cast native : CocoaWindow).destroy() else if (Mem.os() == 2) (cast native : Win32Window).destroy() else if (Mem.os() == 3)
+		if (HEADLESS) {} else if (Mem.platform() >= 1) (cast native : UIKitWindow).destroy() else if (Mem.os() == 1) (cast native : CocoaWindow).destroy() else if (Mem.os() == 2) (cast native : Win32Window).destroy() else if (Mem.os() == 3)
 			(cast native : CanvasWindow).destroy() else if (Mem.target() >= 9) (cast native : AndroidWindow).destroy() else (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).destroy() : (cast native : X11Window).destroy());
 		App.windows.remove(this);
 	}

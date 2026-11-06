@@ -86,7 +86,6 @@ class AndroidTest {
 				case _:
 			}
 			spin.input(e, w);
-			if (e.kind == PointerUp) Sys.println('AndroidTest: diag released speed ${Math.round(spin.speed * 1000)}');
 			// (let go: the speed the release gave it, before its frames ease it back)
 			if (e.kind == PointerUp && e.pointer.type == Touch) Sys.println('AndroidTest: let go, spin speed ${Math.round(spin.speed * 1000)}');
 			// (Back is Escape: closed as the examples do; Android 12+ keeps a launcher's activity on Back)

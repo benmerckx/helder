@@ -146,7 +146,7 @@ class Pointers {
 	// its pointer event to send (a press of the first button down, the release
 	// of the last, a move)
 	@:allow(helder.os) static function mouse(e:Event):Bool {
-		var p = slots[0], time = haxe.Timer.stamp() * 1000;
+		var p = slots[0], time = helder.headless.Time.stamp() * 1000;
 		// (the DOM's buttons: left 1, right 2, middle 4)
 		var bit = e.button == 1 ? 1 : e.button == 3 ? 2 : e.button == 2 ? 4 : 0;
 		var kind:EventKind = None;
