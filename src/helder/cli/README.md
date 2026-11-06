@@ -26,6 +26,8 @@ helder build --target android                 # bin/android/<name>.apk (arm64), 
 helder build --target android --bundle        # bin/android/<name>.aab for Google Play, signed with the release key
 helder publish --play [--track beta] [--dry-run]   # the .aab to Google Play's track (internal by default)
 helder publish --testflight [--dry-run]       # the signed .ipa to App Store Connect, for TestFlight
+helder build --target macos --package         # a desktop's release in bin/dist: macOS's .app in a zip (windows-x86_64: the .exe; linux-x86_64: a .tar.gz, a Flatpak manifest)
+helder publish --notarize [--dry-run]         # on a Mac: the macOS release notarised by notarytool, stapled
 helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's; signed for the App Store with HELDER_IOS_*); --target ios-sim: bin/ios-sim/<name>.app
 helder run --target android -d emulator-5554  # built for the device's ABI, installed, started, its logcat here
 helder dev --target ios                       # on the booted simulator: installed once, each build swapped in
@@ -92,6 +94,27 @@ booted.
   `file_handlers`: Finder's Open With, helder.os's `App.onOpen`).
   x86-64's runtime objects from @hxmc/darwin-x64 (HXMC_RT_DIR) on an
   Apple silicon Mac.
+- **Desktop releases** (`--package`, `Desktop.hx`): `bin/dist/<name>-<version>-<platform>`
+  (`-o` another directory), the manifest's version. macOS: the universal
+  `.app` (sealed: `_CodeSignature/CodeResources`; each slice signed ad hoc,
+  or by a Developer ID identity, `HELDER_MACOS_IDENTITY` or
+  `HELDER_MACOS_CERTIFICATE` and `HELDER_MACOS_KEY`, with the hardened
+  runtime and Apple's timestamp, `HELDER_MACOS_TIMESTAMP_URL`) in a zip;
+  `helder publish --notarize` (a Mac's `xcrun notarytool` with
+  `HELDER_ASC_KEY_ID`, `HELDER_ASC_ISSUER_ID`, `HELDER_ASC_KEY`, the
+  .p8 written for it and removed after; `XCRUN` names another) submits it,
+  waits, prints the log when refused, staples the ticket and zips again.
+  Windows: the `.exe` made a GUI program, its icon and version as
+  resources, signed by Authenticode with `HELDER_WINDOWS_IDENTITY` or
+  `HELDER_WINDOWS_CERTIFICATE` and `HELDER_WINDOWS_KEY` (timestamped by
+  `HELDER_WINDOWS_TIMESTAMP_URL`, DigiCert's by default, `none`), or by
+  `HELDER_WINDOWS_SIGN_COMMAND` (a command given the file's path: a cloud
+  HSM's signer), in a zip. Linux: a `.tar.gz` (the program, `install.sh`,
+  `share/applications/<id>.desktop` with the manifest's file types,
+  hicolor icons from 16 to 512, AppStream metainfo) and
+  `<id>.flatpak.json` (the tarball by its SHA-256, the freedesktop
+  runtime). Every secret is a file's path or its text, and none is
+  printed.
 - **Entries**:
   - nothing: the working directory, a project;
   - a project directory: `package.json` and `src/Main.hx`;

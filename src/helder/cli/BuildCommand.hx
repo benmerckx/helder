@@ -12,7 +12,8 @@ using StringTools;
 // web the page and its modules beside the module (bin/web/<name>.html);
 // for android an APK (Android: bin/android/<name>.apk), for ios an .ipa
 // and for ios-sim an .app (Ios: bin/ios/<name>.ipa, bin/ios-sim/<name>.app);
-// for macos a universal app bundle (Mac: bin/macos/<Label>.app).
+// for macos a universal app bundle (Mac: bin/macos/<Label>.app); with
+// --package a desktop's release in bin/dist (Desktop: a zip, a .tar.gz).
 // `helder run [entry] [-o <path>] [-- args...]`: the same for this machine,
 // then run; with --target android or ios on a device (-d, else the one
 // there is: Devices.pick), installed and started there, its output here.
@@ -32,6 +33,15 @@ class BuildCommand {
 		if (mobile != null) {
 			var code = andRun ? runMobile(o, e, mobile) : buildMobile(o, e, mobile);
 			return code;
+		}
+		if (o.has("package")) {
+			var t = e.target == "host" ? host : e.target;
+			if (andRun || !Desktop.isDesktop(t)) {
+				Term.err(Style.usage('helder ${o.command}: --package: helder build --target macos, windows-x86_64 or linux-x86_64 (a desktop release)'));
+				return 2;
+			}
+			Term.out(Style.header("build", [t, "package", e.label()]));
+			return Desktop.pack(e, t, o.out);
 		}
 		if (e.target == "macos") {
 			if (andRun) {

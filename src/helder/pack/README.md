@@ -1,12 +1,27 @@
 # helder.pack
 
 The packagers `helder build` uses for phones (src/helder/cli: Android.hx,
-Ios.hx): pure functions from the program and the app's settings to the
-bytes of the package, with no SDK, no Xcode and no Mac. Ported from hxmc
-(MIT), then grown here.
+Ios.hx) and for the desktops' releases (Desktop.hx, Mac.hx: `--package`):
+pure functions from the program and the app's settings to the bytes of
+the package, with no SDK, no Xcode and no Mac. Ported from hxmc (MIT),
+then grown here.
 
-- `Zip`, `Buf`, `Entropy`: a stored zip (and its reader), a byte buffer,
-  the system's random source.
+- `Zip`, `Buf`, `Entropy`: a zip (stored, or an entry deflated: `deflate`)
+  and its reader, a byte buffer, the system's random source.
+- `Deflate`, `Tar`: deflate's raw stream and gzip's file (helder.image's
+  PngEncoder's compressor: LZ77 and the fixed Huffman codes, pure Haxe),
+  a ustar archive (files with their modes, directories, links; a fixed
+  time, root's owner): Linux's .tar.gz.
+- `Timestamp`: RFC 3161's request for a signature's bytes and its reply's
+  token (the caller posts it: helder.cli's curl), for Authenticode and
+  Developer ID signatures.
+- `windows`: `Pe` (a PE32+ executable made a GUI program; a resource
+  section appended: `Resources`' icon in several sizes, DIBs and a PNG at
+  256, RT_GROUP_ICON, and VS_VERSIONINFO; the checksum, imagehlp's) and
+  `Authenticode` (the image's SHA-256 in an SpcIndirectDataContent, a CMS
+  SignedData by the certificate's RSA or P-256 key with signtool's signed
+  attributes, an RFC 3161 timestamp's token unsigned, the WIN_CERTIFICATE
+  appended; osslsigncode verify passes it).
 - `android`: the APK (`Apk`: AndroidManifest.xml in binary XML, `Axml`;
   resources.arsc, `Arsc`; classes.dex when the program needs it, `Dex`,
   `Glue`, `Classes`; 16 KB alignment; the v2 signature with the debug key,
@@ -19,7 +34,10 @@ bytes of the package, with no SDK, no Xcode and no Mac. Ported from hxmc
   with codesign's rules, the .ipa), property lists (`Plist`), the app
   icon's asset catalog (`AssetCatalog`).
 - `apple`: what iOS and macOS share: the distribution code signature
-  (`CodeSign`, `Identity`, `Rsa`), macOS's `.icns` (`Icns`).
+  (`CodeSign`, `Identity`, `Rsa`; ad hoc without an identity), macOS's
+  `.icns` (`Icns`), a macOS bundle's seal and signature (`MacBundle`:
+  CodeResources with codesign's macOS rules, each slice of the universal
+  executable signed binding it, `Fat`).
 
 ## The asset catalog (a minimal actool)
 
@@ -93,8 +111,14 @@ the provisioning profile's plist (its signature is Apple's to check:
 the device's and App Store Connect's); `CodeSign.checkProfile` rejects a
 profile without the certificate, expired or for another platform, and
 warns for one with devices (not App Store's) or a chain that stops at the
-leaf. No timestamp (App Store and TestFlight do not need one; notarisation
-would); no fat binaries, nested code or frameworks.
+leaf. A timestamp when asked for (`timestamp`: an RFC 3161 token over the
+CMS's signature, as the signer's unsigned id-aa-timeStampToken; App Store
+and TestFlight need none, notarisation does), and the hardened runtime
+(`runtime`: CodeDirectory 0x20500, CS_RUNTIME). Without an identity the
+signature is ad hoc, as `codesign -s -` writes one: the CodeDirectory with
+CS_ADHOC, an empty requirement set and an empty CMS blob; Info.plist and
+CodeResources still bound. A fat binary is signed slice by slice
+(`MacBundle.sign`); no nested code or frameworks.
 
 ## Verified where
 

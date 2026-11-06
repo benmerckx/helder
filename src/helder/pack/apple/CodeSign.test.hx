@@ -204,4 +204,64 @@ function tests() {
 			assert(CodeSign.cdhash(s).length == 32);
 		});
 	});
+
+	describe("ad hoc, and with a timestamp (macOS: Desktop's)", () -> {
+		final info = Bytes.ofString("<plist>info</plist>"), res = Bytes.ofString("<plist>resources</plist>");
+		function slots(signed:Bytes):Map<Int, Int> {
+			var blobs = new Map<Int, Int>();
+			for (k in 0...be(signed, 0x4100 + 8))
+				blobs.set(be(signed, 0x4100 + 12 + 8 * k), 0x4100 + be(signed, 0x4100 + 16 + 8 * k));
+			return blobs;
+		}
+		test("ad hoc: CS_ADHOC, Info.plist and CodeResources bound, no requirement, an empty CMS", () -> {
+			var s = CodeSign.sign(exe(), {identifier: "org.example.viewer", identity: null, infoPlist: info, resources: res});
+			var b = slots(s), cd = b.get(0);
+			equals([for (k in 0...be(s, 0x4108)) be(s, 0x4100 + 12 + 8 * k)], [0, 2, 0x10000]);
+			equals([be(s, cd + 8), be(s, cd + 12), be(s, cd + 48)], [0x20400, CodeSign.CS_ADHOC, 0]);
+			var hashOff = be(s, cd + 16);
+			equals(s.sub(cd + hashOff - 32, 32).toHex(), haxe.crypto.Sha256.make(info).toHex());
+			equals(s.sub(cd + hashOff - 96, 32).toHex(), haxe.crypto.Sha256.make(res).toHex());
+			equals(s.sub(b.get(2), 12).toHex(), "fade0c010000000c00000000");
+			equals(s.sub(b.get(0x10000), 8).toHex(), "fade0b0100000008");
+		});
+		test("the hardened runtime and a timestamp's token: unsigned attribute 1.2.840.113549.1.9.16.2.14 over the signature", () -> {
+			var stamped:Null<Bytes> = null;
+			var token = Der.seq([Der.oid("1.2.840.113549.1.7.2"), Der.tlv(0xa0, Der.seq([Der.small(3)]))]);
+			var s = CodeSign.sign(exe(), {
+				identifier: "org.example.viewer",
+				identity: id,
+				infoPlist: info,
+				resources: res,
+				runtime: 0x0B0000,
+				timestamp: sig -> {
+					stamped = sig;
+					token;
+				}
+			});
+			var b = slots(s), cd = b.get(0);
+			equals([be(s, cd + 8), be(s, cd + 12), be(s, cd + 88)], [0x20500, CodeSign.CS_RUNTIME, 0x0B0000]);
+			var c = s.sub(b.get(0x10000) + 8, be(s, b.get(0x10000) + 4) - 8);
+			var sd = Der.children(c, Der.children(c, Der.children(c, Der.read(c, 0))[1])[0]);
+			var si = Der.children(c, Der.children(c, sd[4])[0]);
+			equals(si.length, 7);
+			equals(si[6].tag, 0xa1);
+			equals(c.sub(si[5].start, si[5].end - si[5].start).toHex(), stamped.toHex());
+			var attr = Der.children(c, Der.children(c, si[6])[0]);
+			equals(Certificate.oidString(c, attr[0]), "1.2.840.113549.1.9.16.2.14");
+			var v = Der.children(c, attr[1])[0];
+			equals(c.sub(v.at, v.end - v.at).toHex(), token.toHex());
+		});
+		test("RFC 3161: the request for a signature's SHA-256, the reply's token", () -> {
+			var req = helder.pack.Timestamp.request(Bytes.ofString("sig"), Bytes.ofHex("0102"));
+			equals(req.toHex(), Der.seq([
+				Der.small(1),
+				Der.seq([Der.seq([Der.oid("2.16.840.1.101.3.4.2.1"), Bytes.ofHex("0500")]), Der.tlv(0x04, haxe.crypto.Sha256.make(Bytes.ofString("sig")))]),
+				Der.tlv(0x02, Bytes.ofHex("0102")),
+				Der.tlv(0x01, Bytes.ofHex("ff"))
+			]).toHex());
+			var token = Der.seq([Der.oid("1.2.840.113549.1.7.2")]);
+			equals(helder.pack.Timestamp.token(Der.seq([Der.seq([Der.small(0)]), token])).toHex(), token.toHex());
+			throws(() -> helder.pack.Timestamp.token(Der.seq([Der.seq([Der.small(2)])])));
+		});
+	});
 }

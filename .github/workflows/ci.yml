@@ -16,6 +16,7 @@
 #   throwaway identity, checked by codesign and assetutil on a macOS runner.
 # - desktop-macos, desktop-windows: the window lane (and helder's viewer,
 #   apps/viewer) on a macOS and a Windows runner;
+# - the viewer's releases are release.yml's (a tag viewer-v<version>);
 # - publish-npm: on pushes to main once headless passes, the package as a
 #   nightly (<version>-nightly.<date>.<commit>, npm's tag nightly), as
 #   hxmc publishes @hxmc/cli's (NPM_TOKEN, with provenance).
@@ -78,14 +79,14 @@ jobs:
       - name: System packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji fonts-freefont-ttf libharfbuzz0b libfreetype6 fontconfig libtiff6 libheif1 libheif-plugin-aomdec libraw23t64
+          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji fonts-freefont-ttf libharfbuzz0b libfreetype6 fontconfig libtiff6 libheif1 libheif-plugin-aomdec libraw23t64 osslsigncode desktop-file-utils appstream
       # (a headless weston for the wayland lane, the protocols' XML; without them the lane only builds)
       - name: Wayland's packages
         timeout-minutes: 6
         continue-on-error: true
         run: sudo apt-get install -qqy --no-install-recommends weston wayland-protocols libwayland-dev libwayland-egl1 libxkbcommon0
-      - name: gfx, 3d, audio, touch, ui, window, the viewer's (Mesa llvmpipe, Xvfb), Wayland (a headless weston), the platform's text
-        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window wayland dbus system-text system-images canvas-gpu
+      - name: gfx, 3d, audio, touch, ui, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
+        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window viewer-package wayland dbus system-text system-images canvas-gpu
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: images, path: "bin/gfx/**/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
@@ -244,8 +245,8 @@ jobs:
           # (HXMC_RT_DIR is where helder's compiler looks then: arm64's objects there too)
           cp -R node_modules/@hxmc/darwin-arm64/macos-arm64 "$RUNNER_TEMP/rt/package/"
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
-      - name: window, the viewer (its tests, its builds, a real window, its app bundle)
-        run: bun run test -k window viewer viewer-window viewer-app system-images system-text
+      - name: window, the viewer (its tests, its builds, a real window, its app bundle, its release packages)
+        run: bun run test -k window viewer viewer-window viewer-app viewer-package system-images system-text
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: text-macos, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}

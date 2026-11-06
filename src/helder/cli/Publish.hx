@@ -13,7 +13,7 @@ import sys.io.File;
 
 using StringTools;
 
-// `helder publish [entry] --play | --testflight [--track <t>] [--draft] [--dry-run]`:
+// `helder publish [entry] --play | --testflight | --notarize [--track <t>] [--draft] [--dry-run]`:
 // the release built, signed and uploaded through the store's own API, as
 // fastlane, EAS Submit and Codemagic do, without them (HTTP by curl):
 //
@@ -35,6 +35,12 @@ using StringTools;
 //   MD5), the upload's state read back. TestFlight takes the build once
 //   App Store Connect has processed it.
 //
+// - --notarize (macOS, on a Mac: Apple's notary service through
+//   notarytool, the same API key): the release's zip (Desktop.pack, a
+//   Developer ID identity's: HELDER_MACOS_*) submitted and waited for, its
+//   log printed when refused, the ticket stapled to the .app and the zip
+//   made again (Desktop.notarize).
+//
 // --dry-run builds and signs, gets the token and reads what is there (the
 // track's releases; the app), prints what would change, and uploads or
 // commits nothing (a Play edit it opened is deleted). HELDER_PLAY_API and
@@ -44,9 +50,9 @@ class Publish {
 	public static inline var ASC = "https://api.appstoreconnect.apple.com";
 
 	@:coroutine public static function run(o:Options):Int {
-		var play = o.has("play"), testflight = o.has("testflight"), shots = o.has("screenshots"), listing = o.has("listing");
-		if (!shots && !listing && play == testflight) {
-			Term.err(Style.usage("helder publish: --play or --testflight, or --screenshots, --listing (helder publish --help)"));
+		var play = o.has("play"), testflight = o.has("testflight"), shots = o.has("screenshots"), listing = o.has("listing"), notarize = o.has("notarize");
+		if (!shots && !listing && !notarize && play == testflight || notarize && (play || testflight || shots || listing)) {
+			Term.err(Style.usage("helder publish: --play or --testflight, --notarize, or --screenshots, --listing (helder publish --help)"));
 			return 2;
 		}
 		var e = try Entry.of(o) catch (err:Dynamic) {
@@ -54,6 +60,13 @@ class Publish {
 			return 2;
 		}
 		var dry = o.has("dry-run");
+		if (notarize) return try {
+			Term.out(Style.header("publish", ["notarisation", e.main]));
+			Desktop.notarize(e, o.out, dry);
+		} catch (err:Dynamic) {
+			Term.err(Style.status("error", Fail, Std.string(err)));
+			1;
+		}
 		if (shots || listing) return try {
 			Term.out(Style.header("publish", ["store screenshots", e.main]));
 			var dir = "bin/store";
@@ -220,6 +233,14 @@ class Publish {
 	// {"key_id", "issuer_id", "private_key"}, its path or text), else
 	// HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID and HELDER_ASC_KEY (the .p8)
 	public static function ascKey():{id:String, issuer:String, key:PrivateKey} {
+		var k = ascKeyText();
+		var key = try PrivateKey.fromPem(k.pem) catch (err:String) throw 'HELDER_ASC_KEY: $err';
+		if (key.ec == null) throw "HELDER_ASC_KEY: not an App Store Connect key (a P-256 .p8)";
+		return {id: k.id, issuer: k.issuer, key: key};
+	}
+
+	// the API key's id, issuer id and the .p8's text (notarytool's --key is a file)
+	public static function ascKeyText():{id:String, issuer:String, pem:String} {
 		var id = Sys.getEnv("HELDER_ASC_KEY_ID"), issuer = Sys.getEnv("HELDER_ASC_ISSUER_ID"), key = Sys.getEnv("HELDER_ASC_KEY");
 		var bundle = Sys.getEnv("HELDER_ASC_API_KEY");
 		if (bundle != null && bundle.trim() != "") {
@@ -232,9 +253,7 @@ class Publish {
 		var missing = [for (n => v in ["HELDER_ASC_KEY_ID" => id, "HELDER_ASC_ISSUER_ID" => issuer, "HELDER_ASC_KEY" => key]) if (v == null || v.trim() == "") n];
 		missing.sort(Reflect.compare);
 		if (missing.length > 0) throw 'App Store Connect takes an API key: HELDER_ASC_API_KEY, or ${missing.join(", ")} not given (the key\'s id, its issuer id, the .p8)';
-		var k = try PrivateKey.fromPem(textOrFile("HELDER_ASC_KEY", key)) catch (err:String) throw 'HELDER_ASC_KEY: $err';
-		if (k.ec == null) throw "HELDER_ASC_KEY: not an App Store Connect key (a P-256 .p8)";
-		return {id: id.trim(), issuer: issuer.trim(), key: k};
+		return {id: id.trim(), issuer: issuer.trim(), pem: textOrFile("HELDER_ASC_KEY", key)};
 	}
 
 	public static function ascToken(k:{id:String, issuer:String, key:PrivateKey}):String {

@@ -389,7 +389,13 @@ collection only when it allocates or blocks.
     in the test lane, a time-boxed fuzzer (image-fuzz, CI's headless
     job), `hxmc.unsafe`'s uses against a reviewed list (src/helder/image/README.md).
 - **An image viewer, `apps/viewer`**: an app of helder alone on Windows,
-  macOS and Linux (apps/viewer/README.md). Phase 1 done: a file or folder
+  macOS and Linux (apps/viewer/README.md), ready for its first release:
+  a PDF's pages (the next one drawn ahead, go to page), an about card and
+  its version, and its packages by `helder build --package` (a universal
+  .app signed ad hoc or by a Developer ID and notarised, a signed GUI
+  .exe with its icon and version, a .tar.gz and a Flatpak manifest),
+  released from a tag `viewer-v<version>` (.github/workflows/release.yml).
+  Phase 1 done: a file or folder
   from the command line, a drop (helder.os's `Drop`: WM_DROPFILES,
   macOS's dragging destination, XDND) or an in-app picker; fitted
   (never past 100%), sRGB-correct trilinear mipmaps, animations played,

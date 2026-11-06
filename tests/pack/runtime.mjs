@@ -7,10 +7,13 @@
 //   rt-<16 hex> of benmerckx/hxmc that @hxmc/cli's package.json names
 //   ("hxmc": {"rt"}), as helder.cli.Runtime fetches them (HELDER_RT_URL:
 //   another place for the releases, <it>/<tag>/<asset>).
+// - with --desktop also macos-x86_64 and windows-x86_64 (@hxmc/darwin-x64,
+//   @hxmc/win32-x64), the desktop releases' builds from any host (the
+//   viewer-package lane, the release workflow: helder build --package).
 // What it cannot get it says, and leaves out (the lane then skips those
 // builds, or fails with PACK_REQUIRE=1). curl does the downloads (it
 // follows the environment's proxy settings).
-//   node tests/pack/runtime.mjs <dir>
+//   node tests/pack/runtime.mjs <dir> [--desktop]
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -19,7 +22,9 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const dir = path.resolve(process.argv[2] ?? 'bin/pack/rt');
+const args = process.argv.slice(2);
+const desktop = args.includes('--desktop');
+const dir = path.resolve(args.filter((a) => !a.startsWith('--'))[0] ?? 'bin/pack/rt');
 const cli = JSON.parse(fs.readFileSync(path.join(repo, 'node_modules/@hxmc/cli/package.json'), 'utf8'));
 const version = cli.version;
 const tag = /^rt-[0-9a-f]+$/.test(cli.hxmc?.rt ?? '') ? cli.hxmc.rt : null;
@@ -34,25 +39,34 @@ const curl = (url) => {
 };
 fs.mkdirSync(dir, { recursive: true });
 
-// iOS's: @hxmc/darwin-arm64's macos-arm64/
-const installed = path.join(repo, 'node_modules/@hxmc/darwin-arm64/macos-arm64');
-if (has('macos-arm64')) console.log('runtime: macos-arm64 there');
-else if (fs.existsSync(path.join(installed, 'rt.o'))) {
-	fs.mkdirSync(path.join(dir, 'macos-arm64'), { recursive: true });
-	for (const o of OBJECTS) fs.copyFileSync(path.join(installed, o), path.join(dir, 'macos-arm64', o));
-	console.log('runtime: macos-arm64 from node_modules/@hxmc/darwin-arm64');
-} else {
-	const tgz = curl(`https://registry.npmjs.org/@hxmc/darwin-arm64/-/darwin-arm64-${version}.tgz`);
-	if (!tgz) console.log(`runtime: no @hxmc/darwin-arm64@${version} on npm: no iOS builds`);
-	else {
-		const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'helder-rt-'));
-		fs.writeFileSync(path.join(tmp, 'p.tgz'), tgz);
-		execFileSync('tar', ['xzf', path.join(tmp, 'p.tgz'), '-C', tmp, 'package/macos-arm64']);
-		fs.mkdirSync(path.join(dir, 'macos-arm64'), { recursive: true });
-		for (const o of OBJECTS) fs.copyFileSync(path.join(tmp, 'package/macos-arm64', o), path.join(dir, 'macos-arm64', o));
-		fs.rmSync(tmp, { recursive: true, force: true });
-		console.log(`runtime: macos-arm64 from @hxmc/darwin-arm64@${version}`);
+// a target's objects from its npm package (installed here, else the registry's at @hxmc/cli's version)
+const fromNpm = (pkg, target, what) => {
+	const installed = path.join(repo, `node_modules/@hxmc/${pkg}/${target}`);
+	if (has(target)) console.log(`runtime: ${target} there`);
+	else if (fs.existsSync(path.join(installed, 'rt.o'))) {
+		fs.mkdirSync(path.join(dir, target), { recursive: true });
+		for (const o of OBJECTS) fs.copyFileSync(path.join(installed, o), path.join(dir, target, o));
+		console.log(`runtime: ${target} from node_modules/@hxmc/${pkg}`);
+	} else {
+		const tgz = curl(`https://registry.npmjs.org/@hxmc/${pkg}/-/${pkg}-${version}.tgz`);
+		if (!tgz) console.log(`runtime: no @hxmc/${pkg}@${version} on npm: no ${what} builds`);
+		else {
+			const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'helder-rt-'));
+			fs.writeFileSync(path.join(tmp, 'p.tgz'), tgz);
+			execFileSync('tar', ['xzf', path.join(tmp, 'p.tgz'), '-C', tmp, `package/${target}`]);
+			fs.mkdirSync(path.join(dir, target), { recursive: true });
+			for (const o of OBJECTS) fs.copyFileSync(path.join(tmp, `package/${target}`, o), path.join(dir, target, o));
+			fs.rmSync(tmp, { recursive: true, force: true });
+			console.log(`runtime: ${target} from @hxmc/${pkg}@${version}`);
+		}
 	}
+};
+
+// iOS's: @hxmc/darwin-arm64's macos-arm64/ (a universal macOS app's arm64 slice too)
+fromNpm('darwin-arm64', 'macos-arm64', 'iOS');
+if (desktop) {
+	fromNpm('darwin-x64', 'macos-x86_64', 'macOS x86-64');
+	fromNpm('win32-x64', 'windows-x86_64', 'Windows');
 }
 
 // Android's: the release @hxmc/cli's package.json names ("hxmc": {"rt"}),

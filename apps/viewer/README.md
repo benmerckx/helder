@@ -1,11 +1,164 @@
-# viewer
+# Viewer
 
-helder's image viewer: a native app for Windows, macOS and Linux, built
-on helder alone (helder.os's window, helder.gfx, helder.ui, helder.image's
-decoders, helder.jobs). PNG (and APNG), JPEG, GIF and WebP, animations
-played; also what the system decodes (helder.os's SystemImages: WIC,
-ImageIO, Linux's libtiff, libheif, libavif and libraw where installed):
-TIFF, HEIC, AVIF, RAW where the system has their codecs, upright.
+A fast image viewer for Windows, macOS and Linux. Open a file and you
+can step through every image in its folder. It is a single small program
+built on helder alone, with no browser engine and no runtime to install.
+
+- **Opens** PNG and APNG, JPEG, GIF, WebP and PDF on every system, and
+  TIFF, HEIC/HEIF, AVIF and camera RAW files where the system has their
+  codecs (Windows' WIC, macOS's ImageIO, Linux's libtiff, libheif,
+  libavif and libraw).
+- **A folder in order.** Files are sorted the way people count (`img2`
+  before `img10`), and the neighbours of the current file are decoded
+  ahead, so the next image is already there. The folder is watched, so
+  files you add or change show up.
+- **Sharp at any size.** Images are filtered in linear light when they
+  are scaled down. JPEGs are decoded at the size they are shown, and very
+  large images (9000 pixels or more) are drawn in tiles. EXIF orientation
+  is applied.
+- **Animations play**: GIF, WebP and APNG.
+- **PDFs, page by page.** The next page is drawn ahead in the background,
+  and you can go straight to a page by its number.
+- **Desktop integration**: "Open with", the system's open dialog, drag
+  and drop, one window that later launches hand their file to, and the
+  window's size and place remembered between runs.
+
+## Install
+
+Download the package for your system from the
+[releases](https://github.com/benmerckx/helder/releases) page.
+
+**macOS 11 or later** (Apple silicon and Intel): unzip
+`viewer-<version>-macos-universal.zip` and move `Viewer.app` to
+Applications. Viewer then shows up in Finder's "Open With" menu for images
+and PDFs. If the release is not notarised, macOS blocks it the first time
+you open it: Control-click the app and choose Open, or go to System
+Settings > Privacy & Security and click Open Anyway.
+
+**Windows 10 or later** (x86-64): unzip
+`viewer-<version>-windows-x86_64.zip` and run `Viewer\viewer.exe`. To add
+it to "Open with" for your account, run `viewer.exe --register` once. If
+the release is unsigned, SmartScreen may warn you: click More info, then
+Run anyway.
+
+**Linux** (x86-64, glibc; X11 or Wayland with OpenGL ES or OpenGL, which
+Mesa provides):
+
+```sh
+tar xzf viewer-<version>-linux-x86_64.tar.gz
+cd viewer-<version> && sh install.sh      # into ~/.local; PREFIX=/usr/local sudo sh install.sh for everyone
+viewer ~/Pictures
+```
+
+`install.sh` puts the program in `~/.local/bin` and its menu entry, file
+types and icons in `~/.local/share`. To use Viewer as a Flatpak instead,
+put `org.helder.viewer.flatpak.json` next to the tarball and run
+`flatpak-builder --user --install --install-deps-from=flathub build
+org.helder.viewer.flatpak.json`, then `flatpak run org.helder.viewer`.
+
+From the command line on any system, `viewer photo.jpg` opens a file in
+its folder, `viewer folder/` opens a folder's first image, `viewer --new`
+opens a second window, and `viewer --version` prints the version.
+
+## Shortcuts
+
+Ctrl is Cmd on macOS.
+
+| | |
+| --- | --- |
+| Open a file | Ctrl+O, or drop a file on the window |
+| Next, previous image | Right or Down, Left or Up; Space, Page Down; Backspace, Page Up; the mouse wheel while the image fits |
+| First, last image | Home, End |
+| Zoom in, out | `+`, `-`; Ctrl and the wheel; a trackpad's pinch; the wheel once zoomed in |
+| Fit, 100% | `0`, `1`; a double click toggles between them |
+| Pan | drag the image |
+| PDF: next, previous page | Page Down, Space or `]`; Page Up, Backspace or `[`; the wheel while the page fits |
+| PDF: first, last page | Ctrl+Home, Ctrl+End |
+| PDF: go to page | G or Ctrl+G, type the number, Enter |
+| Full screen | F11 or Enter (Ctrl+Cmd+F on macOS); Escape leaves it |
+| Status line | I: the zoom, the size, the format, the page, the place in the folder |
+| Copy the file's path | Ctrl+Shift+C; a right click has Show in Folder and Open with Default App too |
+| Menus | the menu bar (on Linux in the window: F10) |
+| Quit | Ctrl+Q (Cmd+Q) |
+
+Every shortcut can be changed in `helder-viewer-keymap.json` in the
+viewer's settings folder (`~/.local/share/helder-viewer` on Linux,
+`%APPDATA%\helder-viewer` on Windows, `~/Library/Application
+Support/helder-viewer` on macOS). For example, to make N go to the next
+image and turn off Space:
+
+```json
+[{"context": "Viewer", "bindings": {"n": "viewer::Next", "space": null}}]
+```
+
+The file is read again when it changes. The actions are listed in
+`src/viewer/ViewerActions.hx`.
+
+## Formats
+
+| Format | Where | Notes |
+| --- | --- | --- |
+| PNG, APNG | everywhere | animations played |
+| JPEG | everywhere | EXIF orientation applied; decoded at the size shown |
+| GIF | everywhere | animations played |
+| WebP | everywhere | lossy, lossless, animated; EXIF orientation applied |
+| PDF | everywhere | every page; JPEG 2000 and CCITT images; password-protected files are not opened |
+| TIFF, HEIC/HEIF, AVIF | Windows, macOS; Linux with libtiff, libheif, libavif | the first frame |
+| RAW (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2) | where the system has the camera's codec; Linux with libraw | |
+
+A file that is damaged, cut short, not an image or larger than the
+viewer's limits (268 megapixels, 65,536 pixels a side) shows why in place
+of the image, and the keys go on to the next one.
+
+## Releasing
+
+A tag `viewer-v<version>` builds the three packages and attaches them to
+a draft GitHub Release (`.github/workflows/release.yml`); the owner
+publishes the draft. The version must be `helder.webmanifest`'s
+`"helder": {"version"}`, and `"build"` should rise with each release.
+`viewer-v<version>-dry` runs everything and publishes nothing (the
+packages are the run's artifacts).
+
+```sh
+git tag viewer-v0.1.0-dry && git push origin viewer-v0.1.0-dry   # a rehearsal
+git tag viewer-v0.1.0 && git push origin viewer-v0.1.0           # the draft release
+```
+
+The packages are `helder build --package` (src/helder/cli/Desktop.hx,
+helder.pack), which builds them on any host. The other desktops' runtime
+objects come from `node tests/pack/runtime.mjs bin/pack/rt --desktop` and
+are passed with `HXMC_RT_DIR=bin/pack/rt`:
+
+```sh
+bun run helder build --target linux-x86_64 --package apps/viewer     # bin/dist: .tar.gz, Flatpak manifest
+bun run helder build --target windows-x86_64 --package apps/viewer   # bin/dist: .zip of the .exe
+bun run helder build --target macos --package apps/viewer            # bin/dist: .zip of Viewer.app
+bun run helder publish --notarize apps/viewer                        # on a Mac: notarised and stapled
+```
+
+Signing is optional. Each secret holds the file's text, is read from
+the environment, and is never printed. When a secret is missing, the
+workflow warns and the package ships unsigned (Windows) or signed ad hoc
+(macOS):
+
+| Secret | What |
+| --- | --- |
+| `HELDER_MACOS_CERTIFICATE`, `HELDER_MACOS_KEY` (or `HELDER_MACOS_IDENTITY`, both in one PEM) | a Developer ID Application certificate with Apple's Developer ID G2 intermediate, and its unencrypted key (PEM: `openssl pkcs12 -in id.p12 -nokeys -out id.pem`, `-nocerts -nodes -out id.key`). helder signs the app with the hardened runtime and Apple's timestamp |
+| `HELDER_ASC_KEY_ID`, `HELDER_ASC_ISSUER_ID`, `HELDER_ASC_KEY` | the App Store Connect API key that `helder publish --testflight` uses; here notarytool uses it to notarise (together with the Developer ID secrets) |
+| `HELDER_WINDOWS_CERTIFICATE`, `HELDER_WINDOWS_KEY` (or `HELDER_WINDOWS_IDENTITY`) | a code signing certificate with its chain, and its key (PEM). helder signs with Authenticode, timestamped by DigiCert's TSA (repository variable `HELDER_WINDOWS_TIMESTAMP_URL` for another, `none` for no timestamp) |
+
+Code signing certificates issued for Windows today keep their key in a
+hardware module or a cloud service, so the key cannot be exported as PEM.
+For those, set the repository variable `HELDER_WINDOWS_SIGN_COMMAND` to a
+command that signs the file whose path is appended (jsign,
+AzureSignTool, signtool), and pass that command's own credentials in
+secrets that it reads.
+
+## For developers
+
+The viewer is built on helder alone (helder.os's window, helder.gfx,
+helder.ui, helder.image's decoders, helder.pdf, helder.jobs). It is a
+desktop app: it is not built for the web.
 
 ```sh
 bun run helder build apps/viewer                 # bin/<target>/viewer (--target windows-x86_64, macos-arm64)
@@ -13,22 +166,6 @@ apps/viewer/bin/linux-x86_64/viewer photo.jpg    # a file: its folder, at it
 apps/viewer/bin/linux-x86_64/viewer ~/Pictures   # a folder: its first image
 bun run test viewer viewer-window                # its tests; a real window on the GPU
 ```
-
-## Using it
-
-| | |
-| --- | --- |
-| Open | the command line's file or folder; a file dropped on the window; Ctrl+O (Cmd+O) a picker: a folder's listing in a card (its folders entered, an image opened; Escape closes it) |
-| Next, previous | Right, Down, Page Down, Space; Left, Up, Page Up, Backspace; the wheel while fitted (a notch each); wrapping at the ends |
-| First, last | Home, End |
-| Zoom | the wheel when zoomed, Ctrl and the wheel, a trackpad's pinch: about the cursor, stopping at 100% and at the fit on their way; `+` and `-` by steps; `0` the fit, `1` 100%; a double click the fit and 100% in turn |
-| Pan | a drag (let go moving, it glides a little) |
-| Open dialog | Ctrl+O (Cmd+O): the system's (Windows' IFileOpenDialog, macOS's NSOpenPanel, Linux's xdg-desktop-portal), else the in-app picker |
-| One viewer | a second launch hands its file to the first (a loopback port in its store, a token) and ends; `--new`: a viewer of its own |
-| Open with | `viewer --register`: this user's file types (Windows' registry, Linux's .desktop file); macOS: the app bundle (`bun run helder build --target macos apps/viewer`: `bin/macos/Viewer.app`, universal, its document types from `helder.webmanifest`'s `file_handlers`) |
-| Window | F11 or Enter fullscreen, Escape leaves it; I the status line (zoom, size, format, the file's size, its place in the folder) |
-| Menus | File (Open…, Open Recent: the last eight files, Quit) and View (Fit, Actual Size, Zoom In, Zoom Out, Previous, Next, Full Screen, Status Line): macOS's menu bar, Windows' in the window, drawn in the window on Linux (F10); a right click on the image: Copy Path (Ctrl+Shift+C), Show in Folder (Finder, Explorer, the file manager's FileManager1), Open with Default App, Fit, Actual Size |
-| Keys | every key above is an action of the viewer's keymap (`ViewerActions.hx`: `viewer::Next`, `viewer::ZoomIn`...), the menus' shortcuts the same bindings; a JSON file beside the store (`helder-viewer-keymap.json`, helder.ui's keymap format: `[{"context": "Viewer", "bindings": {"n": "viewer::Next", "space": null}}]`) overrides them, read again when it changes |
 
 The title is the file's name, its place in the folder and its size
 (`photo.jpg · 3 / 128 · 4032×3024`). A file that cannot be read, is not
@@ -38,7 +175,7 @@ in place of the image, and the keys go on to the next. The window's
 size and place, and the status line, are kept between runs (helder.os's
 `Store`, `helder-viewer`).
 
-## How it works
+### How it works
 
 - **FolderModel** (`src/viewer/FolderModel.hx`): the folder's images in
   natural order (`img2` before `img10`, without case), the one shown,
@@ -67,6 +204,21 @@ size and place, and the status line, are kept between runs (helder.os's
   and again larger when a zoom needs its pixels (`refine`: the smaller
   one shown meanwhile); a still image past 128 MP on the GPU is halved
   until within (its size stays the file's).
+- **PdfPages** (`PdfPages.hx`): a PDF's pages, each a decode of its own
+  (`Decode.key`: the path, the page after a newline), so they go through
+  the cache, the tiles and the zoom an image's do: its 100% two pixels a
+  point (4096 a side at most), drawn at the view's side, again larger when
+  a zoom needs it (`refine`); the page shown first, then the next and the
+  previous page, then the folder's neighbours. The two documents opened
+  last are kept open on the jobs' side with helder.pdf's own cache of
+  decoded images and page contents (`PdfLimits.imageCache`, 48 MB each),
+  so the next page decodes none of what the last one did; one page is
+  drawn at a time under a lock; each page has its own decompression
+  budget; a changed file is opened again. The key context `pdf` (a
+  document of several pages) gives Page Down, Space and `]` to the pages,
+  the arrows stay the folder's; `goto` is the go to page card's.
+- **Version** (`Version.hx`): `helder.webmanifest`'s version, read at
+  compile time, the about card's and `--version`'s.
 - **ViewCamera** (`ViewCamera.hx`): the scale (device pixels per image
   pixel) and the image point at the view's centre; fitted by default
   (the whole image, never above 100%, centred), zooms about a point that
@@ -89,7 +241,7 @@ size and place, and the status line, are kept between runs (helder.os's
   **Shell** (`Shell.hx`) the window (`UiWindow`, `<Surface>`
   with `onDrop`), its markup, the jobs, the watch, the settings.
 
-## Tests
+### Tests
 
 `bun run test viewer` (`helder test` in this directory, natively, and on
 Eval the camera's maths; the viewer is a desktop app, not built for the
@@ -117,7 +269,44 @@ DejaVu Sans, only then). CI runs the tests in its
 headless job, the window on Linux (gfx), macOS and Windows (the desktop
 jobs).
 
-## Text in any script
+`bun run test viewer-package`: the three releases built by `helder build
+--package` (Linux's on Linux; Windows' signed by tests/pack/signing's
+throwaway identity; macOS's ad hoc) and checked (tests/pack/DesktopCheck.hx,
+then osslsigncode, desktop-file-validate and appstreamcli where installed,
+codesign on a Mac).
+
+### Packages
+
+- **macOS**: the universal `Viewer.app` (arm64 and x86-64) in a zip. Its
+  document types come from `helder.webmanifest`'s `file_handlers`, so
+  Finder's "Open With" lists it. Its icon is the manifest's on Apple's
+  grid. The bundle is sealed (`_CodeSignature/CodeResources`) and each
+  slice is signed by helder.pack's own codesign: ad hoc, or by a
+  Developer ID with the hardened runtime and Apple's timestamp, which is
+  what notarisation asks for. `helder publish --notarize` submits it with
+  notarytool and staples the ticket. A DMG would need hdiutil on a Mac
+  and gives nothing a zip does not, so the package is a zip.
+- **Windows**: `viewer.exe` in a zip, made a GUI program (no console
+  window), with its icon from 16 to 256 pixels and its version
+  information as resources, and signed with Authenticode when a
+  certificate is configured. "Open with" is the program's own
+  `--register` (the user's registry). There is no MSIX: an MSIX must be
+  signed to install at all, and it would sandbox the folder browsing the
+  viewer is for.
+- **Linux**: a `.tar.gz` (the program, `install.sh`, a `.desktop` file
+  whose `MimeType` holds the file types, hicolor icons from 16 to 512, and
+  AppStream metainfo) and a **Flatpak** manifest built from it. Flatpak
+  rather than an AppImage: the program is one executable that loads the
+  system's EGL, X11 or Wayland, fontconfig and codecs at run time, so an
+  AppImage would bundle nothing but itself and still depend on the host.
+  An AppImage also needs squashfs tools, a downloaded runtime and FUSE,
+  and its file types only register with an extra daemon. The Flatpak
+  manifest is text that is reproducible from the tarball (by its SHA-256);
+  its freedesktop runtime has those libraries and the GPU drivers, its
+  desktop file and icons are exported with the file types, and it is the
+  form Flathub takes.
+
+### Text in any script
 
 File names, the title and the status line in any script: helder.text's
 platform engine (HarfBuzz and FreeType on Linux, DirectWrite, Core Text)
@@ -130,7 +319,12 @@ Arabic name, the name itself right to left inside it, UAX #9).
 Thai, CJK, emoji and mixed names (FolderModel.test.hx lists and decodes
 them).
 
-## Not yet
+### Not yet
 
 On Linux, libraw's and HEVC's paths (HEIC needs libheif's libde265 plugin)
-have no fixture in the tests; colour management.
+have no fixture in the tests; colour management; a PDF's password
+(no prompt), its text selection and search; the window's maximised state
+(helder.os has no call for it); an X11 window's class (WM_CLASS: helder.os
+sets none, so an X11 desktop matches the window to its menu entry by its
+title alone; Wayland's app_id is the program's name, `StartupWMClass` in
+the desktop file).

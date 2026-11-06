@@ -34,18 +34,27 @@ using StringTools;
 // against none). The formats as Apple's Security framework documents them
 // (cs_blobs.h, requirement.h) and as apple-codesign (rcodesign, MPL-2.0;
 // https://github.com/indygreg/apple-platform-rs) describes them: written
-// from those descriptions, no code taken. No timestamp (App Store and
-// TestFlight do not need one; notarisation would).
+// from those descriptions, no code taken. A timestamp (an RFC 3161 token
+// over the signature, helder.pack.Timestamp: notarisation's, Developer
+// ID's) when one is asked for; App Store and TestFlight need none. Without
+// an identity, ad hoc, as `codesign -s -` signs a bundle: the CodeDirectory
+// (CS_ADHOC) binding Info.plist and CodeResources, no requirements, an
+// empty CMS (a macOS app downloaded unsigned: opened by the user's leave,
+// not refused as damaged).
 class CodeSign {
 	static inline var PAGE = 4096;
 	public static inline var CS_RUNTIME = 0x10000;
+	public static inline var CS_ADHOC = 0x2;
+	// (the room a timestamp's token takes: Apple's are about 5 KB)
+	static inline var TIMESTAMP_ROOM = 12288;
 
 	// the signed executable (exe: hxmc's, signed ad hoc)
 	public static function sign(exe:Bytes, o:SignOptions):Bytes {
 		var m = MachO.parse(exe);
 		var codeLimit = m.sigOff;
-		var team = o.team ?? o.identity.leaf.organizationalUnit;
-		var reqs = requirements(designated(o.identifier, o.identity));
+		var adhoc = o.identity == null;
+		var team = adhoc ? null : o.team ?? o.identity.leaf.organizationalUnit;
+		var reqs = adhoc ? blob(0xfade0c01, Bytes.ofHex("00000000")) : requirements(designated(o.identifier, o.identity));
 		var ent = o.entitlements == null ? null : blob(0xfade7171, entitlementsXml(o.entitlements));
 		var der = o.entitlements == null ? null : blob(0xfade7172, entitlementsDer(o.entitlements));
 		var time = o.time ?? Date.now();
@@ -58,7 +67,8 @@ class CodeSign {
 		if (ent != null) others.push({slot: 5, data: ent});
 		if (der != null) others.push({slot: 7, data: der});
 		// (the CMS's length: built with a stand-in digest and signature)
-		var cmsMax = cms(Bytes.alloc(cdLen), o.identity, time, (_) -> Bytes.alloc(o.identity.key.signatureLength())).length + 8 + 16;
+		var cmsMax = adhoc ? 8 : cms(Bytes.alloc(cdLen), o.identity, time, (_) -> Bytes.alloc(o.identity.key.signatureLength())).length + 8 + 16
+			+ (o.timestamp != null ? TIMESTAMP_ROOM : 0);
 		var count = 2 + others.length;
 		var size = 12 + 8 * count + cdLen + cmsMax;
 		for (x in others)
@@ -75,7 +85,7 @@ class CodeSign {
 		cd.u32(0xfade0c02);
 		cd.u32(cdLen);
 		cd.u32(o.runtime != null ? 0x20500 : 0x20400);
-		cd.u32(o.runtime != null ? CS_RUNTIME : 0);
+		cd.u32((o.runtime != null ? CS_RUNTIME : 0) | (adhoc ? CS_ADHOC : 0));
 		var identOff = header, teamOff = teamB == null ? 0 : header + ident.length + 1;
 		var hashOff = header + ident.length + 1 + (teamB == null ? 0 : teamB.length + 1) + 32 * nSpecial;
 		cd.u32(hashOff);
@@ -123,7 +133,7 @@ class CodeSign {
 		}
 		var cdBlob = cd.toBytes();
 		if (cdBlob.length != cdLen) throw "CodeSign: the CodeDirectory's length";
-		var sig = blob(0xfade0b01, cms(cdBlob, o.identity, time, o.identity.key.sign));
+		var sig = blob(0xfade0b01, adhoc ? Bytes.alloc(0) : cms(cdBlob, o.identity, time, o.identity.key.sign, o.timestamp));
 		var blobs = [{slot: 0, data: cdBlob}].concat(others).concat([{slot: 0x10000, data: sig}]);
 		var sb = new Be();
 		var total = 12 + 8 * blobs.length;
@@ -348,7 +358,9 @@ class CodeSign {
 	static function attr(oid:String, values:Array<Bytes>):Bytes
 		return Der.seq([Der.oid(oid), Der.set(values)]);
 
-	public static function cms(cd:Bytes, id:Identity, time:Date, sign:Bytes->Bytes):Bytes {
+	// (timestamp: the signature's bytes to an RFC 3161 token, carried as the
+	// signer's unsigned id-aa-timeStampToken)
+	public static function cms(cd:Bytes, id:Identity, time:Date, sign:Bytes->Bytes, ?timestamp:Bytes->Bytes):Bytes {
 		var sha256 = Der.seq([Der.oid("2.16.840.1.101.3.4.2.1")]);
 		var digest = haxe.crypto.Sha256.make(cd);
 		var hashes = Plist.xml(PDict(["cdhashes" => PArray([PData(digest.sub(0, 20))])]));
@@ -364,14 +376,16 @@ class CodeSign {
 		var signed = cat(attrs);
 		var signature = sign(Der.tlv(0x31, signed));
 		var leaf = id.leaf;
-		var signer = Der.seq([
+		var fields = [
 			Der.small(1),
 			Der.seq([leaf.issuer, leaf.serial]),
 			sha256,
 			Der.tlv(0xa0, signed),
 			id.key.algorithm(),
 			Der.tlv(0x04, signature)
-		]);
+		];
+		if (timestamp != null) fields.push(Der.tlv(0xa1, attr("1.2.840.113549.1.9.16.2.14", [timestamp(signature)])));
+		var signer = Der.seq(fields);
 		var data = Der.seq([
 			Der.small(1),
 			Der.set([sha256]),
@@ -389,7 +403,8 @@ class CodeSign {
 typedef SignOptions = {
 	// the CodeDirectory's identifier: the bundle id
 	identifier:String,
-	identity:Identity,
+	// null: ad hoc
+	identity:Null<Identity>,
 	// the team id (else the certificate's OU)
 	?team:String,
 	?infoPlist:Bytes,
@@ -400,7 +415,9 @@ typedef SignOptions = {
 	?runtime:Int,
 	// LC_BUILD_VERSION's sdk (0xMMmmpp), null: as linked
 	?sdk:Int,
-	?time:Date
+	?time:Date,
+	// an RFC 3161 token for the CMS's signature (helder.pack.Timestamp), null: none
+	?timestamp:Bytes->Bytes
 };
 
 // a thin 64-bit Mach-O's load commands the signature touches

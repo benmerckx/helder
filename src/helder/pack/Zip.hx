@@ -10,7 +10,9 @@ class Zip {
 	// 1: the local header's extra field padded, Android's alignment field
 	// 0xd935, as zipalign -P 16 and apksigner write it), with a Unix mode
 	// when it has one (an .ipa's executable: 0755); a fixed date
-	// (1981-01-01): the same input gives the same bytes
+	// (1981-01-01): the same input gives the same bytes. An entry with
+	// deflate is deflated (Deflate.raw: method 8) where that makes it
+	// smaller, a desktop release's archive (helder.cli.Desktop)
 	public static function stored(entries:Array<ZipEntry>):Bytes {
 		var out = new Buf(1 << 20), cd = new Buf(4096);
 		inline function dosTime(b:Buf) {
@@ -20,18 +22,21 @@ class Zip {
 		for (e in entries) {
 			var at = out.len, name = Bytes.ofString(e.name);
 			var crc = haxe.crypto.Crc32.make(e.data);
+			var packed = e.deflate == true && e.align <= 1 ? Deflate.raw(e.data) : null;
+			if (packed != null && packed.length >= e.data.length) packed = null;
+			var method = packed != null ? 8 : 0, body = packed ?? e.data;
 			// the data's offset: header (30) + name + extra (4 + 2 + padding)
 			var aligned = e.align > 1;
 			var extra = aligned ? 6 : 0, dataAt = at + 30 + name.length + extra;
 			var pad = aligned ? (e.align - (dataAt % e.align)) % e.align : 0;
 			extra += pad;
 			out.u32(0x04034b50);
-			out.u16(10); // version needed
+			out.u16(method == 8 ? 20 : 10); // version needed
 			out.u16(0x0800); // flags: UTF-8 names
-			out.u16(0); // stored
+			out.u16(method); // stored, or deflated
 			dosTime(out);
 			out.u32(crc);
-			out.u32(e.data.length);
+			out.u32(body.length);
 			out.u32(e.data.length);
 			out.u16(name.length);
 			out.u16(extra);
@@ -42,15 +47,15 @@ class Zip {
 				out.u16(e.align);
 				out.zeros(pad);
 			}
-			out.bytes(e.data);
+			out.bytes(body);
 			cd.u32(0x02014b50);
-			cd.u16(e.mode != null ? 0x30a : 10); // version made by (3: Unix, with a mode)
-			cd.u16(10);
+			cd.u16((e.mode != null ? 0x300 : 0) | (method == 8 ? 20 : 10)); // version made by (3: Unix, with a mode)
+			cd.u16(method == 8 ? 20 : 10);
 			cd.u16(0x0800);
-			cd.u16(0);
+			cd.u16(method);
 			dosTime(cd);
 			cd.u32(crc);
-			cd.u32(e.data.length);
+			cd.u32(body.length);
 			cd.u32(e.data.length);
 			cd.u16(name.length);
 			cd.u16(0); // extra
@@ -126,5 +131,5 @@ class Zip {
 	}
 }
 
-typedef ZipEntry = {name:String, data:Bytes, align:Int, ?mode:Int};
+typedef ZipEntry = {name:String, data:Bytes, align:Int, ?mode:Int, ?deflate:Bool};
 typedef ZipRead = {name:String, data:Bytes, method:Int, dataAt:Int, mode:Null<Int>};

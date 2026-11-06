@@ -1,0 +1,243 @@
+# The viewer's release (apps/viewer/README.md, "Releasing"): a tag
+# viewer-v<version> (the version apps/viewer/helder.webmanifest's
+# "helder": {"version"}) builds the three desktops' packages with
+# `helder build --package` (helder.cli.Desktop, helder.pack) and attaches
+# them to a draft GitHub Release; viewer-v<version>-dry runs all of it and
+# publishes nothing (the packages are the run's artifacts). Nobody but the
+# owner pushes the tags.
+# - linux-windows (Ubuntu): Linux's .tar.gz and Flatpak manifest, Windows'
+#   zip (both built here: hxmc cross-compiles), checked (DesktopCheck,
+#   osslsigncode, desktop-file-validate, appstreamcli), the Linux build run
+#   under Xvfb on a photo and a PDF;
+# - macos (macOS): the universal .app in a zip, signed by a Developer ID
+#   identity and notarised (helder publish --notarize: notarytool,
+#   stapler) where its secrets are set, else ad hoc; codesign --verify,
+#   spctl and stapler validate when notarised; opened with a photo;
+# - windows-smoke (Windows): the zip's .exe run (--version, a photo shown);
+# - release: the draft release with the packages and their SHA-256s.
+# Secrets, each optional (the store pipeline's names and model: a file's
+# text in the secret, never printed; missing, that step is skipped with a
+# warning and the package ships unsigned or ad hoc):
+#   HELDER_MACOS_CERTIFICATE, HELDER_MACOS_KEY   a Developer ID Application certificate (PEM, with Apple's
+#                                                Developer ID G2 intermediate) and its key (PEM, unencrypted)
+#                                                (or HELDER_MACOS_IDENTITY: both in one PEM)
+#   HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID,     the App Store Connect API key TestFlight's publish uses;
+#   HELDER_ASC_KEY                               here notarytool's (with the Developer ID identity)
+#   HELDER_WINDOWS_CERTIFICATE, HELDER_WINDOWS_KEY  a code signing certificate (PEM, with its chain) and its key
+#                                                (or HELDER_WINDOWS_IDENTITY); Authenticode by helder, timestamped
+#                                                by DigiCert's TSA (the variable HELDER_WINDOWS_TIMESTAMP_URL: another)
+# A key that lives in a cloud HSM (today's Windows certificates): the
+# repository variable HELDER_WINDOWS_SIGN_COMMAND, a command given the .exe's
+# path (jsign, AzureSignTool...), its own credentials in secrets it names.
+name: release
+
+on:
+  push:
+    tags: ['viewer-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP: apps/viewer
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      dry: ${{ steps.v.outputs.dry }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: The tag's version is the manifest's
+        id: v
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          v="${tag#viewer-v}"
+          dry=false
+          case "$v" in *-dry) v="${v%-dry}"; dry=true ;; esac
+          m=$(node -p "JSON.parse(require('fs').readFileSync('$APP/helder.webmanifest', 'utf8')).helder.version")
+          if [ "$v" != "$m" ]; then echo "::error::the tag says $v, $APP/helder.webmanifest's \"helder\": {\"version\"} says $m"; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "dry=$dry" >> "$GITHUB_OUTPUT"
+          echo "viewer $v (dry run: $dry)"
+
+  linux-windows:
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: System packages (the checks' tools; Mesa and Xvfb for the smoke run)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qqy --no-install-recommends osslsigncode desktop-file-utils appstream xvfb xauth libegl1 libegl-mesa0 libgl1-mesa-dri fonts-dejavu-core
+      - name: Windows' runtime objects (npm's @hxmc/win32-x64)
+        run: node tests/pack/runtime.mjs bin/pack/rt --desktop
+      - name: Linux's package
+        run: bun run helder build --target linux-x86_64 --package "$APP" -o bin/dist
+      - name: Windows' package
+        env:
+          HXMC_RT_DIR: ${{ github.workspace }}/bin/pack/rt
+          HELDER_WINDOWS_IDENTITY: ${{ secrets.HELDER_WINDOWS_IDENTITY }}
+          HELDER_WINDOWS_CERTIFICATE: ${{ secrets.HELDER_WINDOWS_CERTIFICATE }}
+          HELDER_WINDOWS_KEY: ${{ secrets.HELDER_WINDOWS_KEY }}
+          HELDER_WINDOWS_TIMESTAMP_URL: ${{ vars.HELDER_WINDOWS_TIMESTAMP_URL }}
+          HELDER_WINDOWS_SIGN_COMMAND: ${{ vars.HELDER_WINDOWS_SIGN_COMMAND }}
+        run: |
+          if [ -z "$HELDER_WINDOWS_IDENTITY$HELDER_WINDOWS_CERTIFICATE$HELDER_WINDOWS_SIGN_COMMAND" ]; then
+            echo "::warning::no Windows signing secrets (HELDER_WINDOWS_CERTIFICATE, HELDER_WINDOWS_KEY): the .exe ships unsigned"
+          fi
+          bun run helder build --target windows-x86_64 --package "$APP" -o bin/dist
+      - name: Checked (DesktopCheck; osslsigncode, desktop-file-validate, appstreamcli)
+        run: |
+          set -e
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          haxe -cp src -cp tests/pack --run DesktopCheck bin/dist org.helder.viewer bin/dist/*.tar.gz bin/dist/*windows*.zip
+          desktop-file-validate bin/dist/check/org.helder.viewer.desktop
+          appstreamcli validate --no-net bin/dist/check/org.helder.viewer.metainfo.xml
+          if osslsigncode verify -in bin/dist/check/viewer.exe > bin/dist/check/osslsigncode.txt 2>&1; then echo "the .exe's signature verifies"; else grep -q "No signature found" bin/dist/check/osslsigncode.txt && echo "the .exe is unsigned" || { cat bin/dist/check/osslsigncode.txt; exit 1; }; fi
+      - name: The Linux package run (Xvfb, llvmpipe) on a photo and a PDF
+        run: |
+          set -e
+          mkdir -p bin/smoke && tar xzf bin/dist/*.tar.gz -C bin/smoke
+          exe=$(ls -d bin/smoke/*/viewer)
+          "$exe" --version
+          xvfb-run -a "$exe" --new --exit-after 3 "$APP/tests/fixtures/folder/photo 2.jpg" | tee bin/smoke/photo.txt
+          grep -q "(shown" bin/smoke/photo.txt
+          xvfb-run -a "$exe" --new --exit-after 3 "$APP/tests/fixtures/pdf/pages.pdf" | tee bin/smoke/pdf.txt
+          grep -q "page 1 / 3 (shown" bin/smoke/pdf.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-linux-windows
+          path: |
+            bin/dist/*.tar.gz
+            bin/dist/*.flatpak.json
+            bin/dist/*windows*.zip
+          if-no-files-found: error
+
+  macos:
+    needs: version
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: macOS x86-64's runtime objects (the universal bundle's second slice)
+        run: |
+          node tests/pack/runtime.mjs bin/pack/rt --desktop
+          echo "HXMC_RT_DIR=$PWD/bin/pack/rt" >> "$GITHUB_ENV"
+      - name: The package, signed (Developer ID, notarised) or ad hoc
+        env:
+          HELDER_MACOS_IDENTITY: ${{ secrets.HELDER_MACOS_IDENTITY }}
+          HELDER_MACOS_CERTIFICATE: ${{ secrets.HELDER_MACOS_CERTIFICATE }}
+          HELDER_MACOS_KEY: ${{ secrets.HELDER_MACOS_KEY }}
+          HELDER_ASC_KEY_ID: ${{ secrets.HELDER_ASC_KEY_ID }}
+          HELDER_ASC_ISSUER_ID: ${{ secrets.HELDER_ASC_ISSUER_ID }}
+          HELDER_ASC_KEY: ${{ secrets.HELDER_ASC_KEY }}
+        run: |
+          if [ -z "$HELDER_MACOS_IDENTITY$HELDER_MACOS_CERTIFICATE" ]; then
+            echo "::warning::no Developer ID secrets (HELDER_MACOS_CERTIFICATE, HELDER_MACOS_KEY): the app is signed ad hoc and not notarised (Gatekeeper asks the user to allow it)"
+            bun run helder build --target macos --package "$APP" -o bin/dist
+          elif [ -z "$HELDER_ASC_KEY_ID" ] || [ -z "$HELDER_ASC_ISSUER_ID" ] || [ -z "$HELDER_ASC_KEY" ]; then
+            echo "::warning::no App Store Connect API key (HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID, HELDER_ASC_KEY): signed by the Developer ID, not notarised"
+            bun run helder build --target macos --package "$APP" -o bin/dist
+          elif [ "${{ needs.version.outputs.dry }}" = "true" ]; then
+            bun run helder publish --notarize --dry-run "$APP" -o bin/dist
+          else
+            bun run helder publish --notarize "$APP" -o bin/dist
+            echo "NOTARISED=1" >> "$GITHUB_ENV"
+          fi
+      - name: Checked by Apple's tools, opened with a photo
+        run: |
+          set -e
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          haxe -cp src -cp tests/pack --run DesktopCheck bin/dist org.helder.viewer bin/dist/*macos*.zip
+          mkdir -p bin/smoke && ditto -x -k bin/dist/*macos*.zip bin/smoke
+          app="$PWD/bin/smoke/Viewer.app"
+          codesign --verify --deep --strict -vvvv "$app"
+          codesign -dvvv "$app" 2>&1 | grep -E "Identifier|Format|Signature|Authority|Timestamp|Runtime|flags" || true
+          if [ "${NOTARISED:-}" = "1" ]; then xcrun stapler validate "$app"; spctl -a -t exec -vv "$app"; fi
+          "$app/Contents/MacOS/viewer" --version
+          report="$PWD/bin/smoke/report.txt"
+          open -W -n -a "$app" "$PWD/$APP/tests/fixtures/folder/photo 2.jpg" --args --new --exit-after 5 --report "$report"
+          cat "$report"
+          grep -q "viewer: photo 2.jpg" "$report"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-macos
+          path: bin/dist/*macos*.zip
+          if-no-files-found: error
+
+  windows-smoke:
+    needs: linux-windows
+    runs-on: windows-2025
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: packages-linux-windows
+          path: bin/dist
+      - name: The .exe run (--version, a photo shown)
+        run: |
+          set -e
+          mkdir -p bin/smoke && unzip -q bin/dist/*windows*.zip -d bin/smoke
+          exe=$(ls bin/smoke/*/viewer.exe)
+          "$exe" --version | tee bin/smoke/version.txt
+          grep -q "Viewer" bin/smoke/version.txt
+          "$exe" --new --exit-after 3 "$APP/tests/fixtures/folder/photo 2.jpg" | tee bin/smoke/photo.txt
+          grep -q "(shown" bin/smoke/photo.txt
+          powershell -NoProfile -Command "(Get-Item '$exe').VersionInfo | Format-List ProductName,ProductVersion,FileVersion; (Get-AuthenticodeSignature '$exe').Status"
+
+  release:
+    needs: [version, linux-windows, macos, windows-smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: bin/dist
+          merge-multiple: true
+      - name: The draft release (a dry run publishes nothing)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          DRY: ${{ needs.version.outputs.dry }}
+        run: |
+          set -e
+          cd bin/dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          {
+            echo "Viewer $VERSION, helder's image viewer: PNG, JPEG, GIF, WebP, PDF, and TIFF, HEIC, AVIF, RAW where the system decodes them."
+            echo
+            echo "- macOS 11 or later (Apple silicon and Intel): unzip, move Viewer.app to Applications."
+            echo "- Windows 10 or later (x86-64): unzip, run viewer.exe; \`viewer.exe --register\` adds it to Open with."
+            echo "- Linux (x86-64, glibc): \`tar xzf\` and \`sh install.sh\` (into ~/.local), or the Flatpak manifest."
+            echo
+            echo "Install steps, shortcuts and formats: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/apps/viewer/README.md"
+          } > notes.md
+          if [ "$DRY" = "true" ]; then
+            echo "dry run: the release viewer-v$VERSION would be drafted with:"; ls -la
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "Viewer $VERSION" --notes-file notes.md \
+            $(ls | grep -v '^notes.md$')

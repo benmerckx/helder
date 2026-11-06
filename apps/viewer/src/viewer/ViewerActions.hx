@@ -7,7 +7,8 @@ import helder.ui.menu.Menu;
 // The viewer's actions (helder.ui.actions: viewer::Next... in a keymap),
 // its default keymap, its menus and its context menu. The keys and the
 // menus' shortcuts are one: the keymap's (a user's file over it:
-// ~/.config/helder-viewer/keymap.json, Store's folder elsewhere).
+// helder-viewer-keymap.json in the Store's folder: ~/.local/share/helder-viewer,
+// %APPDATA%\helder-viewer, ~/Library/Application Support/helder-viewer).
 enum ViewerAction {
 	Open;
 	OpenRecent(path:String);

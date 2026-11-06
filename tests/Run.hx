@@ -47,6 +47,7 @@ class Run {
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
 		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
+		{name: "viewer-package", about: "the viewer's releases (helder build --package: helder.cli.Desktop, helder.pack): Linux's .tar.gz and Flatpak manifest (on Linux), Windows' zip signed by tests/pack/signing's throwaway identity, macOS's universal .app in a zip, ad hoc; checked on Eval (tests/pack/DesktopCheck.hx: the tarball's entries, the .desktop file, the icons, the metainfo; the .exe's GUI subsystem, resources, checksum and Authenticode digest; the bundle's seal and each slice's signature), then by osslsigncode verify, desktop-file-validate and appstreamcli where installed, codesign --verify on a Mac; the runtime objects of the other desktops fetched by tests/pack/runtime.mjs --desktop", run: viewerPackage},
 		{name: "system-text", about: "helder.text on the platform's own stack (tests/text/SystemTextTest.hx, natively: Linux's fontconfig, HarfBuzz and FreeType, Windows' DirectWrite, macOS's Core Text): each script's fallback face, a family found, Devanagari, Bengali and Tamil shaped (reordered and split vowels), TextLayout through it, glyphs rasterised; each script drawn with the platform's engine and helder's (bin/text/system-<os>.png; GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemText},
 		{name: "system-images", about: "helder.os's system decoders (tests/os/SystemImagesTest.hx: Windows' WIC, macOS's ImageIO): a TIFF of a known gradient, plain and LZW, its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a side; ImageLimits before any pixel; a file that is no image (GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemImages},
 		{name: "dbus", about: "helder.os's D-Bus client against a real dbus-daemon (Linux: dbus-run-session): Hello, ListNames, a service's half, then xdg-desktop-portal's FileChooser OpenFile against a stand-in portal (its arguments, its Response's URI as the path picked; tests/os/DBusTest.hx)", run: dbus},
@@ -318,6 +319,12 @@ class Run {
 		var said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("viewer: photo 2.jpg · 5 / 6 · 1242×1048 (shown") < 0) throw new Failed('the viewer did not show the photo: $said');
+		// (a PDF's first page, its pages counted)
+		var pdf = '$wine$exe --new --exit-after 3 apps/viewer/tests/fixtures/pdf/pages.pdf';
+		if (Sys.systemName() == "Linux") shell('xvfb-run -a $pdf > $out') else shell('$pdf > $out');
+		said = File.getContent(out);
+		Sys.print(said);
+		if (said.indexOf("viewer: pages.pdf · 1 / 1 · page 1 / 3 (shown") < 0) throw new Failed('the viewer did not show the PDF\'s first page: $said');
 		// (again with no system font found: its own, not a stop)
 		var nofont = 'HELDER_NO_SYSTEM_FONTS=1 $cmd';
 		if (Sys.systemName() == "Linux") shell('HELDER_NO_SYSTEM_FONTS=1 xvfb-run -a $cmd > $out') else shell('$nofont > $out');
@@ -366,6 +373,59 @@ class Run {
 		var said = FileSystem.exists(report) ? File.getContent(report) : "(no report)";
 		Sys.print(said);
 		if (said.indexOf("viewer: photo 2.jpg") < 0) throw new Failed('the bundle, opened with a file, did not show it: $said');
+		// (sealed and signed ad hoc by helder: codesign's own check of the bundle)
+		run("codesign", ["--verify", "--deep", "--strict", "-vvvv", app]);
+		run("codesign", ["-dvvv", app]);
+	}
+
+	// (the releases of the three desktops from this machine: Linux's on
+	// Linux, Windows' and macOS's with their runtime objects from npm)
+	static function viewerPackage() {
+		var h = helderCli();
+		run(NODE, ["tests/pack/runtime.mjs", "bin/pack/rt", "--desktop"]);
+		var rt = FileSystem.fullPath("bin/pack/rt"), out = "bin/viewer-package";
+		rmrf(out);
+		mkdirs(out);
+		var id = "org.helder.viewer", made = [];
+		if (HOST.startsWith("linux-")) {
+			run(h, ["build", "--target", HOST, "--package", "apps/viewer", "-o", out]);
+			made.push('$out/' + [for (f in FileSystem.readDirectory(out)) if (f.endsWith(".tar.gz")) f][0]);
+		}
+		var signing = FileSystem.fullPath("tests/pack/signing");
+		if (FileSystem.exists('$rt/windows-x86_64/rt.o')) {
+			run(h, ["build", "--target", "windows-x86_64", "--package", "apps/viewer", "-o", out], [
+				"HXMC_RT_DIR" => rt,
+				"HELDER_WINDOWS_CERTIFICATE" => '$signing/cert.pem',
+				"HELDER_WINDOWS_KEY" => '$signing/key.pem',
+				"HELDER_WINDOWS_TIMESTAMP_URL" => "none"
+			]);
+			made.push('$out/' + [for (f in FileSystem.readDirectory(out)) if (f.indexOf("windows") > 0) f][0]);
+		} else Sys.println("viewer-package: no windows-x86_64 runtime objects: its package skipped");
+		if (FileSystem.exists('$rt/macos-arm64/rt.o') && FileSystem.exists('$rt/macos-x86_64/rt.o')) {
+			run(h, ["build", "--target", "macos", "--package", "apps/viewer", "-o", out], ["HXMC_RT_DIR" => rt]);
+			made.push('$out/' + [for (f in FileSystem.readDirectory(out)) if (f.indexOf("macos") > 0) f][0]);
+		} else Sys.println("viewer-package: no macOS runtime objects: its package skipped");
+		interp(cps(["src", "tests/pack"]), "DesktopCheck", [out, id].concat(made));
+		var have = (tool:String) -> try {
+			var p = new Process(Sys.systemName() == "Windows" ? "where" : "which", [tool]);
+			var ok = p.exitCode() == 0;
+			p.close();
+			ok;
+		} catch (_:Dynamic) false;
+		if (FileSystem.exists('$out/check/viewer.exe')) {
+			if (have("osslsigncode")) run("osslsigncode", ["verify", "-in", '$out/check/viewer.exe', "-CAfile", '$signing/ca.pem']);
+			else Sys.println("viewer-package: no osslsigncode: the Authenticode signature checked by DesktopCheck alone");
+		}
+		if (FileSystem.exists('$out/check/$id.desktop') && have("desktop-file-validate")) run("desktop-file-validate", ['$out/check/$id.desktop']);
+		if (FileSystem.exists('$out/check/$id.metainfo.xml') && have("appstreamcli")) run("appstreamcli", ["validate", "--no-net", '$out/check/$id.metainfo.xml']);
+		if (HOST.startsWith("macos-")) {
+			var zip = [for (f in FileSystem.readDirectory(out)) if (f.indexOf("macos") > 0) f][0];
+			if (zip != null) {
+				mkdirs('$out/unzipped');
+				run("ditto", ["-x", "-k", '$out/$zip', '$out/unzipped']);
+				run("codesign", ["--verify", "--deep", "--strict", "-vvvv", '$out/unzipped/Viewer.app']);
+			}
+		}
 	}
 
 	// (Windows and macOS; a Windows target from Linux under Wine; macOS: a HEIC made by sips)

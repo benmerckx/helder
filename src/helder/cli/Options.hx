@@ -74,7 +74,12 @@ class Options {
 			common: ["target", "device", "out"],
 			own: [
 				{key: "release", names: ["--release"], about: "a release build (what build makes anyway)"},
-				{key: "bundle", names: ["--bundle"], about: "android: an App Bundle (.aab) for Google Play, signed by the release key"}
+				{key: "bundle", names: ["--bundle"], about: "android: an App Bundle (.aab) for Google Play, signed by the release key"},
+				{
+					key: "package",
+					names: ["--package"],
+					about: "a desktop's release in bin/dist (-o: another directory): macos a signed .app in a zip; windows-* the signed .exe in a zip; linux-* a .tar.gz and a Flatpak manifest"
+				}
 			],
 		},
 		{
@@ -111,13 +116,18 @@ class Options {
 		},
 		{
 			name: "publish",
-			usage: "[entry] --play | --testflight | --screenshots | --listing [options]",
-			about: "a release built, signed and uploaded: Google Play's track, or TestFlight",
+			usage: "[entry] --play | --testflight | --notarize | --screenshots | --listing [options]",
+			about: "a release built, signed and uploaded: Google Play's track, TestFlight, or Apple's notary service",
 			entry: true,
 			common: ["out"],
 			own: [
 				{key: "play", names: ["--play"], about: "to Google Play (the App Bundle; HELDER_PLAY_SERVICE_ACCOUNT)"},
 				{key: "testflight", names: ["--testflight"], about: "to TestFlight (the .ipa; HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID, HELDER_ASC_KEY)"},
+				{
+					key: "notarize",
+					names: ["--notarize"],
+					about: "macOS: the release's zip (build --package, a Developer ID's: HELDER_MACOS_*) notarised by Apple (notarytool, the same API key) and stapled"
+				},
 				{key: "track", names: ["--track"], value: "<t>", about: "Play's track: internal (the default), alpha, beta, production"},
 				{key: "draft", names: ["--draft"], about: "Play's release a draft (an app never published)"},
 				{key: "dry-run", names: ["--dry-run"], about: "built and signed, what is there read, what would change printed; nothing uploaded"},
