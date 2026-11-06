@@ -18,8 +18,8 @@ import hxmc.unsafe.*;
 // label, value (a text's, a toggle's state, a range's text or percent,
 // a tab's selection), hint (the description), traits (button, link,
 // image, header, static text, adjustable, selected, not enabled; a text
-// input, a search field), and frame in the view's points
-// (accessibilityFrameInContainerSpace). Nothing is built until UIKit
+// input, a search field), and frame on the screen (the view's points
+// converted to the window's). Nothing is built until UIKit
 // first asks the view for its elements; from then on updated after each
 // frame from what changed (AccessTree.changes), UIKit told
 // (UIAccessibilityLayoutChangedNotification, with the focused element: the
@@ -218,7 +218,14 @@ class IosAccess {
 		rect.value.origin.y = n.y * k;
 		rect.value.size.width = n.width * k;
 		rect.value.size.height = n.height * k;
-		Msg.vRect(e, ObjC.sel("setAccessibilityFrameInContainerSpace:"), rect.value);
+		// (in the window's points, which on iOS are the screen's: accessibilityFrame;
+		// accessibilityFrameInContainerSpace alone read back as nothing on iOS 26)
+		var w = Msg.rectRectPtr(view, ObjC.sel("convertRect:toView:"), rect.value, Ptr.nil());
+		rect.value.origin.x = w.origin.x;
+		rect.value.origin.y = w.origin.y;
+		rect.value.size.width = w.size.width;
+		rect.value.size.height = w.size.height;
+		Msg.vRect(e, ObjC.sel("setAccessibilityFrame:"), rect.value);
 	}
 
 	// --- the classes' methods ---

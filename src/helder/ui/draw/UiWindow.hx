@@ -180,7 +180,7 @@ class UiWindow {
 	// there is something new to draw
 	public function needsFrame():Bool
 		return redraw || ui.needsFrame || Clock.active || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale
-			|| (Ui.accessEpoch != accessSent && accessListening());
+			|| (Ui.accessEpoch != accessSent && accessListening()) || accessPending();
 
 	// draws a frame (the loop calls it when needsFrame): the clock ticked
 	// first (now: what the frame's events started, Ui.now's, is not after
@@ -198,7 +198,7 @@ class UiWindow {
 		if (!redraw && !ui.needsFrame && capture == null && device.width == drawnW && device.height == drawnH && s == drawnScale) {
 			updateTextInput();
 			// (what assistive technology reads changed, nothing drawn: a semantics' state)
-			if (Ui.accessEpoch != accessSent && accessListening()) sendAccess();
+			if ((Ui.accessEpoch != accessSent && accessListening()) || accessPending()) sendAccess();
 			return;
 		}
 		var enc = device.beginFrame();
@@ -303,6 +303,15 @@ class UiWindow {
 		} else if (Mem.os() == 0) {
 			if (Mem.target() < 9) return linuxAccess != null && LinuxAccess.listening() else return androidAccess != null
 				&& (cast androidAccess : AndroidAccess).listening();
+		}
+		return false;
+	}
+
+	// whether an adapter was asked for a tree it has not had (Android's: its
+	// provider answers on another thread, from what the last frame published)
+	function accessPending():Bool {
+		if (Mem.os() == 0) {
+			if (Mem.target() >= 9) return androidAccess != null && AndroidAccess.pending;
 		}
 		return false;
 	}

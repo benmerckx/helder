@@ -42,6 +42,8 @@ class AndroidAccess {
 	static var jargs:Ptr = Ptr.nil();
 	static var location:Ptr = Ptr.nil();
 	static var asked = false;
+	// (asked, nothing published yet: a frame wanted, UiWindow.needsFrame's)
+	public static var pending = false;
 	// where the delegate went (tests): "" until it did
 	public static var state = "";
 	static final lock = new sys.thread.Mutex();
@@ -141,6 +143,7 @@ class AndroidAccess {
 	// the tree after a frame: published, the events of what changed
 	public function update() {
 		if (!asked) return;
+		pending = false;
 		var t = ui.accessTree(), old = tree;
 		var c = t.changes(old);
 		if (old != null && c.nodes.length == 0 && c.removed.length == 0 && old.focus == t.focus) return;
@@ -363,6 +366,7 @@ class AndroidAccess {
 	@:hxmc.callback static function nodeInfo(env:Ptr, self:Ptr, id:Int):Ptr {
 		if (!asked) {
 			asked = true;
+			pending = true;
 			MainThread.wake();
 		}
 		return try info(id) catch (e:Dynamic) {
