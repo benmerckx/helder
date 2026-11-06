@@ -50,13 +50,14 @@ class Definitions {
 	public function defines(n:Node):Bool
 		return definition(n) != null || variantOf(n) != null || nativeOf(n) != null;
 
-	// (helder/native's native.c(...): its kind, c)
+	// (helder/native's native.c(...), native.objc, native.com, native.jni: its kind)
 	function nativeOf(n:Node):Null<String> {
 		var callee = n.expression();
 		if (callee.kind != KindPropertyAccessExpression || callee.expression().kind != KindIdentifier) return null;
 		var from = Scope.imported(callee.file, callee.expression().text);
 		if (from == null || from.module != "helder/native" || from.name != "native") return null;
-		return callee.name().text == "c" ? "c" : null;
+		var k = callee.name().text;
+		return k == "c" || k == "objc" || k == "com" || k == "jni" ? k : null;
 	}
 
 	// (a slot object's variant: <object>.variant(options), the object a
@@ -76,9 +77,10 @@ class Definitions {
 
 	// a definition's call: what its handler made (null: not one)
 	public function call(n:Node):Null<DefinitionCall> {
-		if (nativeOf(n) != null) {
+		var kind = nativeOf(n);
+		if (kind != null) {
 			var args = n.arguments() ?? [];
-			return Native(args.length == 1 ? args[0] : null);
+			return Native(kind, args.length == 1 ? args[0] : null);
 		}
 		var from = definition(n);
 		if (from == null) {
@@ -206,8 +208,8 @@ enum DefinitionCall {
 	// (helder/test's assertions: the call's position, "file:line", its argument at index,
 	// the ones before it not given undefined)
 	Located(index:Int, at:String);
-	// (helder/native's native.c(def): the C functions of def's fns, Natives')
-	Native(def:Null<Node>);
+	// (helder/native's native.c(def), objc, com, jni: kind's functions of def, Natives')
+	Native(kind:String, def:Null<Node>);
 }
 
 // What a name of a file is bound to at its top level: an import (its

@@ -39,6 +39,7 @@ class JniEnv {
 	@:slot(116) static function CallStaticObjectMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Ptr;
 	@:slot(131) static function CallStaticIntMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Int;
 	@:slot(143) static function CallStaticVoidMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Void;
+	@:slot(144) static function GetStaticFieldID(env:Ptr, cls:Ptr, name:Ptr, sig:Ptr):Ptr;
 	@:slot(163) static function NewString(env:Ptr, chars:Ptr, length:Int):Ptr;
 	@:slot(164) static function GetStringLength(env:Ptr, s:Ptr):Int;
 	@:slot(215) static function RegisterNatives(env:Ptr, cls:Ptr, methods:Ptr, count:Int):Int;

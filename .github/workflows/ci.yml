@@ -9,14 +9,16 @@
 #   screen fixture (tests/pack/Screen.hx: its window, safe area and the
 #   display's frames, a rotation, the background), helder dev's loop there
 #   (tests/os/dev/dev-android.mjs), the cube's window and touches
-#   (tests/gfx/android.sh), a drawn ui's touch fling (tests/os/android-touch.sh);
+#   (tests/gfx/android.sh), a drawn ui's touch fling (tests/os/android-touch.sh),
+#   native.jni from TypeScript (tests/typescript/native/android.sh);
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
 #   runner (helder run, simctl), the screen fixture, codesign --verify and
 #   plutil; the cube's window and touches (tests/gfx/ios.sh: SimTap's clicks).
 # - ios-signing: an iPhone's app signed for distribution by helder with a
 #   throwaway identity, checked by codesign and assetutil on a macOS runner.
 # - desktop-macos, desktop-windows: the window lane (and helder's viewer,
-#   apps/viewer) on a macOS and a Windows runner;
+#   apps/viewer), and helder/native from TypeScript (typescript-native:
+#   Objective-C, COM) on a macOS and a Windows runner;
 # - the viewer's releases are release.yml's (a tag viewer-v<version>);
 # - publish-npm: on pushes to main once headless passes, the package as a
 #   nightly (<version>-nightly.<date>.<commit>, npm's tag nightly), as
@@ -170,6 +172,7 @@ jobs:
             node tests/os/dev/dev-android.mjs bin/cli/helder bin/pack/dev-emulator
             sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx
             sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx
+            sh tests/typescript/native/android.sh bin/cli/helder bin/pack/android-ts
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -179,6 +182,7 @@ jobs:
             bin/pack/android/*.png
             bin/pack/android-gfx/*.txt
             bin/pack/android-gfx/*.png
+            bin/pack/android-ts/*.txt
             bin/pack/*.apk
           retention-days: 7
           if-no-files-found: ignore
@@ -266,8 +270,8 @@ jobs:
           # (HXMC_RT_DIR is where helder's compiler looks then: arm64's objects there too)
           cp -R node_modules/@hxmc/darwin-arm64/macos-arm64 "$RUNNER_TEMP/rt/package/"
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
-      - name: window, the viewer (its tests, its builds, a real window, its app bundle, its release packages)
-        run: bun run test -k window viewer viewer-window viewer-app viewer-package system-images system-text
+      - name: window, the viewer (its tests, its builds, a real window, its app bundle, its release packages), helder/native from TypeScript (Core Foundation, Objective-C)
+        run: bun run test -k window viewer viewer-window viewer-app viewer-package system-images system-text typescript-native
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: text-macos, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
@@ -289,8 +293,8 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: window, the viewer (its tests, its builds, a real window), the system's decoders
-        run: bun run test -k window viewer viewer-window system-images system-text
+      - name: window, the viewer (its tests, its builds, a real window), the system's decoders, helder/native from TypeScript (COM)
+        run: bun run test -k window viewer viewer-window system-images system-text typescript-native
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: text-windows, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}

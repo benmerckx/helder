@@ -67,8 +67,8 @@ class Verifier {
 			case ECapture(li, i, clos):
 				if (f.lambda != li || i < 0 || i >= li.captures.length) error("invalid capture");
 				expression(clos);
-			// (a C function declared to hxmc's tables: helder/native's native.c)
-			case ECallHost(sym, args, _) if (hxmc.ir.CInterop.SIGS.exists(sym) && hxmc.ir.CInterop.USER.exists(sym)):
+			// (a C function declared to hxmc's tables, or a call through an address of one of its signatures: helder/native's definitions)
+			case ECallHost(sym, args, _) if (hxmc.ir.CInterop.SIGS.exists(sym) && (hxmc.ir.CInterop.USER.exists(sym) || StringTools.startsWith(sym, hxmc.ir.CInterop.INDIRECT))):
 				if (hxmc.ir.CInterop.SIGS.get(sym).args.length != args.length) error('C function $sym: arity');
 				for (a in args) expression(a);
 			case ECallHost(_, _, _): error("frontend cannot introduce unverified runtime symbols");

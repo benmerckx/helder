@@ -382,8 +382,9 @@ Still to come:
     - native interop as definitions (`native.c({lib, fns})`, `native.com`,
       `native.objc`, `native.jni`) generating the externs, with hxmc's
       interop types declared (`native.c` done: helder/native, its C types,
-      pointers and buffers, on hxmc's extern machinery; objc, com and jni
-      not yet);
+      pointers and buffers, on hxmc's extern machinery; and objc, com and jni:
+      messages, vtable slots with IIDs and CLSIDs, JNI descriptors, run on a
+      Mac, Windows and Android's emulator in CI; not yet: callbacks);
     - small functions inlined and generics over numbers specialised, branded
       number types free (hot paths in TS near Haxe's speed) (branded
       numbers and `T extends number` typed as numbers; small functions are

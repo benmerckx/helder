@@ -204,27 +204,60 @@ the other branch calls is not reached and not linked (tests/typescript/platform:
 a Windows branch's kernel32 import absent from the Linux and WASI builds,
 in TypeScript and Haxe).
 
-`helder/native` (src/helder/native/index.ts) calls C:
-`native.c({lib, fns: {strlen: (s: cstring): usize => 0}})` is a definition
-whose functions' annotations are their C signatures (helder/native's
-`i8` ... `u64`, `isize`, `usize`, `f32`, `f64`, `bool`, `cstring`,
-`pointer`, `buffer`; `number`, `boolean`, `string`, `void`), their bodies
-never run. Each is lowered (`Expressions.nativeLibrary`) to a direct
-function calling the symbol through hxmc's own extern machinery (its
-signature, library and safe region in `hxmc.ir.CInterop`'s tables, as a
-Haxe `@:hxmc.c @:hxmc.lib(lib)` extern's), its arguments converted (a
+`helder/native` (src/helder/native/index.ts) calls C, Objective-C, COM and
+Java: `native.c`, `native.objc`, `native.com` and `native.jni` are
+definitions whose functions' annotations are their signatures
+(helder/native's `i8` ... `u64`, `isize`, `usize`, `f32`, `f64`, `bool`,
+`cstring`, `pointer`, `buffer`, `id`, `jstring`, `Java<"a/b/C">`; `number`,
+`boolean`, `string`, `void`), their bodies never run. Each is lowered
+(`lower/Natives.hx`) to a direct function calling through hxmc's own
+extern machinery, as Haxe's interop does (`hxmc.ir.CInterop`'s tables:
+the signature, the library, the safe region), its arguments converted (a
 string a malloc'd UTF-8 copy for the call, a Uint8Array's bytes copied in
 and back: `helder.native.Script`), and the result an object of those
-functions. Pointers are numbers; `native.string`, `native.bytes` and
-`native.free` read and free C's memory. No `lib` is libc (in Linux's glibc
-mode libc.so.6; `m` and `c` there are libm.so.6 and libc.so.6); wasm32-wasi
-has no C library, so a function there needs the module its host imports
-it from. tests/typescript/native: libc.ts (getpid, strlen, memset into a
-buffer, strdup and strchr, libm) natively, statically and with glibc;
-corefoundation.ts on a Mac. Not yet: `native.objc`, `native.com`,
-`native.jni` (Haxe's `@:hxmc.objc`, `@:hxmc.com` and `@:hxmc.jni` classes
-are hxmc's own lowering of typed Haxe classes, which the frontend does not
-make), callbacks, structs by value, variadic functions.
+functions. Pointers are numbers; `native.string`, `native.bytes`,
+`native.free` and `native.guid` read, free and make C's memory.
+
+- `native.c({lib, fns: {strlen: (s: cstring): usize => 0}})`: each a call
+  of the symbol (a Haxe `@:hxmc.c @:hxmc.lib(lib)` extern's). No `lib` is
+  libc (in Linux's glibc mode libc.so.6; `m` and `c` there are libm.so.6
+  and libc.so.6); wasm32-wasi has no C library, so a function there needs
+  the module its host imports it from.
+- `native.objc({class, lib, statics, methods})`: messages through
+  objc_msgSend's address (dlsym's), one indirect C signature per shape as
+  helder.os.objc.Msg's, to the class (objc_getClass) or the first argument;
+  a key's selector its name with each `_` a colon (a quoted key as it is);
+  the class and the selectors found once; `lib` a framework loaded with
+  the program.
+- `native.com({iid, clsid, base, methods})`: an interface's methods by
+  their vtable slots, in order after `base` (IUnknown's three, the
+  default), each taking the interface's pointer first (helder.os.VTable's
+  calls through `word(word(self, 0), slot)`); QueryInterface, AddRef and
+  Release, `iid` (the IID in C's memory) and, with a CLSID, `create()`
+  (CoInitializeEx, CoCreateInstance; a failure thrown with its HRESULT).
+- `native.jni({class, statics, methods, fields, staticFields})`: a Java
+  class's methods (`new` a constructor) and fields' reads by their JNI
+  descriptors, made from the annotations, each ID found once; called
+  through JNIEnv's table (the program's thread attached to the
+  activity's VM: `Script`'s ScriptJni, as helder.os.android.Jni's are the
+  main thread's) with their arguments as jvalues (`Call<T>MethodA`); a
+  Java exception thrown with its text; strings as java.lang.Strings.
+
+Each is refused at its line where its system is not (objc but on Apple's,
+com but on Windows, jni but on Android: a platform test of helder/platform
+leaves the call out elsewhere). `tests/typescript/native.mjs` (the
+typescript-native lane, in the typescript lane too): libc.ts (getpid,
+strlen, memset into a buffer, strdup and strchr, libm) natively,
+statically and with glibc; corefoundation.ts and objc.ts (NSProcessInfo's
+processName, NSString) on a Mac (CI's desktop-macos); com.ts (WIC's
+factory by its CLSID, a bitmap made, its size read through
+IWICBitmapSource) on Windows (desktop-windows) and under Wine; jni.ts
+(Build.VERSION.SDK_INT, System's properties, a StringBuilder) on
+Android's emulator (the android job, `native/android.sh`). Not yet:
+callbacks (a TypeScript object implementing a COM interface, an
+Objective-C delegate class, a Java interface's proxy: Haxe's
+`@:hxmc.callback` entries are static functions with a fixed symbol, which
+the frontend does not make), structs by value, variadic functions.
 
 `helder/test` (src/helder/test/index.ts, TypeScript over
 `helder/test/runner`) is helder.test for `*.test.ts(x)`: its assertions'

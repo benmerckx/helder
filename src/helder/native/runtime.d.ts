@@ -26,4 +26,37 @@ export declare class Script {
 	static free(at: number): void;
 	// n bytes at an address, copied
 	static bytesAt(at: number, n: number): Uint8Array;
+	// the word (a pointer, 8 bytes) at index of the words at an address: a
+	// vtable's entry (native.com's and native.jni's methods: the function at
+	// a slot of an object's table, word(word(object, 0), slot))
+	static word(at: number, index: number): number;
+	// a GUID ("{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}") in C's memory, its 16
+	// bytes as Windows lays them out, kept for the process (native.com's IIDs
+	// and CLSIDs)
+	static guid(text: string): number;
+	// a COM object of the class clsid, by its interface iid (native.com's
+	// create: CoInitializeEx once, apartment-threaded, then CoCreateInstance
+	// in process or local; a failure thrown with its HRESULT)
+	static comCreate(clsid: number, iid: number): number;
+	// JNI (native.jni; Android): the calling thread's JNIEnv (the program's
+	// thread attached to the activity's VM: ScriptJni)
+	static jniEnv(): number;
+	// a class by its name (android/os/Build$VERSION), a global reference
+	// kept for the process
+	static jniClass(name: string): number;
+	// a method's ID (kind 0: an instance's, 1: a static one) or a field's
+	// (2: an instance's, 3: a static one) by its name and JNI descriptor; a
+	// missing one thrown
+	static jniMember(cls: number, name: string, descriptor: string, kind: number): number;
+	// the arguments of the next JNI call (jvalue[16]): argument i set (kind:
+	// 0 an integer or a reference, 1 a jfloat, 2 a jdouble, 3 a jboolean)
+	static jniArg(i: number, kind: number, v: number): void;
+	// the address of those arguments
+	static jniArgs(): number;
+	// after a JNI call: a pending Java exception thrown (its text), cleared
+	static jniCheck(): void;
+	// a java.lang.String of s (a local reference; 0 for null)
+	static jniString(s: string | null): number;
+	// a java.lang.String's text (null for 0), its local reference deleted
+	static jniText(at: number): string | null;
 }
