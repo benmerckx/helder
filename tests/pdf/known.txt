@@ -1,0 +1,4 @@
+# Pages the pdf lane expects to fail (check.mjs: reported as known, not
+# failing the lane; one that passes is reported, to be taken off): a page and why.
+jpx: JPXDecode (JPEG 2000) is not decoded yet (the image left out)
+ccitt: CCITTFaxDecode (Group 3 and 4 fax) is not decoded yet (the image left out)

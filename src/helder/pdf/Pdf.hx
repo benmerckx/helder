@@ -15,6 +15,7 @@ import helder.canvas.Painter;
 //   var pdf = Pdf.open(bytes);                 // Document: PdfError when it is not one
 //   var bitmap = Pdf.render(pdf, 0, 2.0);      // page 1 at 2 pixels a point, on the CPU
 //   Pdf.draw(pdf.pages[0], painter, scale);    // onto any Painter (the GPU's, a recording)
+//   Pdf.text(pdf.pages[0]);                    // its text
 class Pdf {
 	public static function open(bytes:Bytes, password = "", ?limits:PdfLimits):Document
 		return new Document(bytes, password, limits);
@@ -37,7 +38,18 @@ class Pdf {
 		if (background) painter.clear(0xFFFFFFFF);
 		var it = new Interpreter(page.doc, painter, pageMatrix(page, scale));
 		it.run(page.contents(), page.resources);
+		it.annotations(page.dict.get("Annots"), page.resources);
 		painter.resetTransform();
+	}
+
+	// the page's text: its characters in content order (ToUnicode, else the glyph names), a space at a
+	// gap, a newline at a new line; nothing painted
+	public static function text(page:Page):String {
+		var it = new Interpreter(page.doc, new helder.canvas.Canvas(1, 1), new Matrix());
+		it.textOnly = true;
+		it.text = new StringBuf();
+		it.run(page.contents(), page.resources);
+		return it.text.toString();
 	}
 
 	// the page's pixels at scale (pixels a point), on the CPU

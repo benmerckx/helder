@@ -45,6 +45,13 @@ class Interpreter {
 	var tm = new Matrix();
 	var tlm = new Matrix();
 
+	// (text: the characters shown, appended in content order, a space at a gap and a newline at a new line;
+	// textOnly: nothing painted, no image decoded: the text alone)
+	public var text:Null<StringBuf> = null;
+	public var textOnly = false;
+	var lastText:Null<Matrix> = null;
+	var lastSize = 0.0;
+
 	public function new(doc:Document, painter:Painter, base:Matrix) {
 		this.doc = doc;
 		this.painter = painter;
@@ -165,7 +172,7 @@ class Interpreter {
 			case "rg": gs.fillSpace = ColorSpace.RGB; gs.fillComps = [n(0), n(1), n(2)]; gs.fillPattern = null;
 			case "K": gs.strokeSpace = ColorSpace.CMYK; gs.strokeComps = [n(0), n(1), n(2), n(3)]; gs.strokePattern = null;
 			case "k": gs.fillSpace = ColorSpace.CMYK; gs.fillComps = [n(0), n(1), n(2), n(3)]; gs.fillPattern = null;
-			case "sh": shading(res, Values.name(operands[0], ""));
+			case "sh": if (!textOnly) shading(res, Values.name(operands[0], ""));
 			case "Do": xobject(res, Values.name(operands[0], ""));
 			// text
 			case "BT":
@@ -228,6 +235,11 @@ class Interpreter {
 
 	// the path painted, clipped by when W came first, then cleared
 	function paintPath(fill:Bool, strokeIt:Bool, evenOdd:Bool) {
+		if (textOnly) {
+			pendingClip = 0;
+			path = new Path();
+			return;
+		}
 		device();
 		if (fill) {
 			if (prepare(true)) painter.fill(path, paint, evenOdd);
@@ -247,9 +259,9 @@ class Interpreter {
 	}
 
 	function setStroke() {
-		// (a width of 0: the thinnest line the device draws, a pixel)
+		// (a width of 0, or one thinner than a pixel: the thinnest line the device draws, a pixel, as viewers do)
 		var s = base.clone().multiply(gs.ctm).maxScale();
-		stroke.width = gs.lineWidth > 0 ? gs.lineWidth : 1 / Math.max(s, 1e-9);
+		stroke.width = gs.lineWidth * s >= 1 ? gs.lineWidth : 1 / Math.max(s, 1e-9);
 		stroke.cap = gs.cap == 1 ? Cap.round : gs.cap == 2 ? Cap.square : Cap.butt;
 		stroke.join = gs.join == 1 ? Join.round : gs.join == 2 ? Join.bevel : Join.miter;
 		stroke.miterLimit = gs.miter;
@@ -378,12 +390,13 @@ class Interpreter {
 			i += len;
 			// (the text rendering matrix: font size, horizontal scale and rise, then Tm)
 			var trm = tm.clone().multiply(new Matrix(fs * th, 0, 0, fs, 0, gs.rise));
-			if (f.type3) type3Glyph(f, code, trm) else if (mode != 3 && mode != 7) f.outline(code, glyphs, trm);
+			if (text != null) addText(f, code, trm);
+			if (textOnly) {} else if (f.type3) type3Glyph(f, code, trm) else if (mode != 3 && mode != 7) f.outline(code, glyphs, trm);
 			var w0 = f.width(code) / 1000;
 			var space = len == 1 && code == 32 ? gs.wordSpacing : 0;
 			if (f.vertical) tm.translate(0, -(w0 * fs + gs.charSpacing + space)) else tm.translate((w0 * fs + gs.charSpacing + space) * th, 0);
 		}
-		if (f.type3 || glyphs.isEmpty()) return;
+		if (f.type3 || textOnly || glyphs.isEmpty()) return;
 		device();
 		if (mode == 0 || mode == 2 || mode == 4 || mode == 6) if (prepare(true)) painter.fill(glyphs, paint);
 		if (mode == 1 || mode == 2 || mode == 5 || mode == 6) if (prepare(false)) {
@@ -394,6 +407,21 @@ class Interpreter {
 			if (textClip == null) textClip = new Path();
 			textClip.addPath(glyphs);
 		}
+	}
+
+	// a code's characters into text: a newline when the baseline moved, a space at a gap of a quarter em
+	function addText(f:PdfFont, code:Int, trm:Matrix) {
+		var u = f.unicodeOf(code);
+		if (u == "") return;
+		var m = gs.ctm.clone().multiply(trm), size = Math.sqrt(m.c * m.c + m.d * m.d);
+		if (lastText != null) {
+			var dy = Math.abs(m.f - lastText.f), dx = m.e - lastText.e;
+			if (dy > Math.max(size, lastSize) * 0.5) text.add("\n") else if (dx > Math.max(size, lastSize) * 0.25 && u != " ") text.add(" ");
+		}
+		text.add(u);
+		// (where the next would start: past this one's advance)
+		lastText = m.clone().multiply(new Matrix(1, 0, 0, 1, f.width(code) / 1000, 0));
+		lastSize = size;
 	}
 
 	function type3Glyph(f:PdfFont, code:Int, trm:Matrix) {
@@ -510,10 +538,59 @@ class Interpreter {
 		if (d == null) return;
 		switch Values.name(d.get("Subtype")) {
 			case "Image":
+				if (textOnly) return;
 				var fill = gs.fillSpace.kind == "Pattern" ? 0xFF000000 : gs.fillSpace.rgb(gs.fillComps);
 				var b = PdfImage.decode(doc, d, v, res, withAlpha(fill, 1));
 				drawImage(b, Values.bool(doc.resolve(d.get("Interpolate"))));
-			case "Form":
+			case "Form": form(d, v, res);
+			case _:
+		}
+	}
+
+	// the page's annotations, each by its normal appearance (/AP /N, by /AS when it has states) mapped
+	// into its /Rect, as viewers print them; hidden ones (/F's Hidden, NoView) and popups left out
+	public function annotations(annots:PdfValue, res:Null<PdfDict>) {
+		var list = Values.arr(doc.resolve(annots));
+		if (list == null || textOnly) return;
+		for (av in list) {
+			var a = Values.dict(doc.resolve(av));
+			if (a == null || Values.name(a.get("Subtype")) == "Popup" || Values.int(doc.resolve(a.get("F"))) & (2 | 32) != 0) continue;
+			var ap = Values.dict(doc.resolve(a.get("AP")));
+			var n = ap == null ? PNull : doc.resolve(ap.get("N"));
+			switch n {
+				case PStream(_, _):
+				case PDict(states): n = doc.resolve(states.get(Values.name(doc.resolve(a.get("AS")), "Off")));
+				case _: continue;
+			}
+			var d = Values.dict(n), rect = Values.nums(doc.resolve(a.get("Rect")));
+			if (d == null || rect == null || rect.length != 4) continue;
+			var bbox = Values.nums(doc.resolve(d.get("BBox"))) ?? [0.0, 0, 1, 1];
+			var fm = Values.nums(doc.resolve(d.get("Matrix")));
+			var m = fm != null && fm.length == 6 ? new Matrix(fm[0], fm[1], fm[2], fm[3], fm[4], fm[5]) : new Matrix();
+			// (the box through its matrix, its bounds onto the rectangle)
+			var xs = [], ys = [];
+			for (c in [[bbox[0], bbox[1]], [bbox[2], bbox[1]], [bbox[0], bbox[3]], [bbox[2], bbox[3]]]) {
+				xs.push(m.a * c[0] + m.c * c[1] + m.e);
+				ys.push(m.b * c[0] + m.d * c[1] + m.f);
+			}
+			var x0 = Lambda.fold(xs, Math.min, xs[0]), x1 = Lambda.fold(xs, Math.max, xs[0]);
+			var y0 = Lambda.fold(ys, Math.min, ys[0]), y1 = Lambda.fold(ys, Math.max, ys[0]);
+			if (x1 - x0 <= 0 || y1 - y0 <= 0) continue;
+			var rx0 = Math.min(rect[0], rect[2]), ry0 = Math.min(rect[1], rect[3]);
+			var sx = (Math.max(rect[0], rect[2]) - rx0) / (x1 - x0), sy = (Math.max(rect[1], rect[3]) - ry0) / (y1 - y0);
+			pushState();
+			gs.ctm.transform(sx, 0, 0, sy, rx0 - x0 * sx, ry0 - y0 * sy);
+			try form(d, n, res) catch (e:PdfError) {
+				if (e.kind == TooLarge) throw e;
+			}
+			popState();
+		}
+	}
+
+	// a Form XObject: its matrix, clipped to its box, its own resources, a transparency group apart
+	function form(d:PdfDict, v:PdfValue, res:Null<PdfDict>) {
+		switch v {
+			case _:
 				if (depth >= doc.limits.maxDepth) return;
 				var content = doc.stream(v);
 				var fm = Values.nums(doc.resolve(d.get("Matrix")));
@@ -598,7 +675,7 @@ class Interpreter {
 		}
 		var data = p.b.sub(s, Std.int(Math.max(0, e - s)));
 		p.pos = e + 3;
-		try {
+		if (!textOnly) try {
 			var fill = gs.fillSpace.kind == "Pattern" ? 0xFF000000 : gs.fillSpace.rgb(gs.fillComps);
 			drawImage(PdfImage.decode(doc, d, PNull, res, fill, data), Values.bool(d.get("Interpolate")));
 		} catch (e:PdfError) {

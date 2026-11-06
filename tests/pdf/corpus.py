@@ -4,7 +4,12 @@
 # pypdf (AES-128 and AES-256 encryption, object and xref streams),
 # LibreOffice (TrueType subsets, a table, images), and PDF written by hand
 # (a Type 3 font, an inline image, a shading, a tiling pattern, a damaged
-# xref). Everything in it is this repository's or public domain (Bitstream
+# xref), and pages as they come from the world: a scanned page (a JPEG of
+# a page of text, a little rotated and noisy), a JPX image and a CCITT G4
+# scan (helder decodes neither yet: tests/pdf/known.txt), CJK text
+# (LibreOffice: Type 0 fonts, Identity-H), a long document (120 pages),
+# form fields (ReportLab's AcroForm: widgets with appearance streams).
+# Everything in it is this repository's or public domain (Bitstream
 # Charter: its license allows redistribution). Run again when it changes,
 # then the references (tests/pdf/pdfjs.mjs):
 #
@@ -14,6 +19,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.colors import CMYKColor, Color
 from reportlab.pdfbase import pdfmetrics
 from pypdf import PdfReader, PdfWriter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+import random
 
 OUT = os.path.join(os.path.dirname(__file__), "corpus")
 os.makedirs(OUT, exist_ok=True)
@@ -102,6 +109,87 @@ def raw(path, damaged=False):
     out.write(b"trailer\n<< /Size %d /Root %d 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, cat, x + (11 if damaged else 0)))
     open(path, "wb").write(out.getvalue())
 
+def image_page(path, w, h, extra, data, pw=W, ph=H):
+    # a page of one image XObject, written by hand (the filters ReportLab does not write)
+    objs = []
+    def obj(b): objs.append(b); return len(objs)
+    img = obj(b"<< /Type /XObject /Subtype /Image /Width %d /Height %d %s /Length %d >>\nstream\n" % (w, h, extra, len(data)) + data + b"\nendstream")
+    content = b"q %d 0 0 %d 0 0 cm /Im0 Do Q" % (pw, ph)
+    cont = obj(b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream")
+    obj(b"<< /Type /Page /Parent 4 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R /Resources << /XObject << /Im0 %d 0 R >> >> >>" % (pw, ph, cont, img))
+    obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+    obj(b"<< /Type /Catalog /Pages 4 0 R >>")
+    out = io.BytesIO(); out.write(b"%PDF-1.5\n"); offs = []
+    for i, o in enumerate(objs): offs.append(out.tell()); out.write(b"%d 0 obj\n" % (i + 1) + o + b"\nendobj\n")
+    x = out.tell(); out.write(b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1))
+    for o in offs: out.write(b"%010d 00000 n \n" % o)
+    out.write(b"trailer\n<< /Size %d /Root 5 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, x)); open(path, "wb").write(out.getvalue())
+
+LINES = ["A scanned page of text, as a copier makes it:", "a little rotated, a little noisy, grey,", "a JPEG of it on a page of its own.", "0123456789 ABCDEFGHIJKLM nopqrstuvwxyz"]
+
+def page_bitmap(dpi, mode="L"):
+    k = dpi / 72; img = Image.new(mode, (int(W * k), int(H * k)), 255 if mode == "L" else 1)
+    d = ImageDraw.Draw(img); f = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", int(14 * k))
+    for i, l in enumerate(LINES): d.text((int(20 * k), int((30 + i * 28) * k)), l, font=f, fill=0)
+    d.rectangle([int(20 * k), int(150 * k), int(340 * k), int(220 * k)], outline=0, width=int(2 * k))
+    return img
+
+def scanned(path):
+    random.seed(3)
+    img = page_bitmap(150).rotate(0.6, resample=Image.BICUBIC, fillcolor=250).filter(ImageFilter.GaussianBlur(0.6))
+    img = Image.eval(img, lambda v: max(0, min(255, int(v * 0.92 + 12))))
+    px = img.load()
+    for _ in range(4000): px[random.randrange(img.width), random.randrange(img.height)] = random.randrange(150, 255)
+    b = io.BytesIO(); img.save(b, "JPEG", quality=70)
+    image_page(path, img.width, img.height, b"/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode", b.getvalue())
+
+def jpx(path):
+    img = page_bitmap(100).convert("RGB")
+    d = ImageDraw.Draw(img); d.ellipse([60, 220, 200, 300], fill=(200, 40, 60)); d.ellipse([260, 220, 420, 300], fill=(30, 120, 220))
+    b = io.BytesIO(); img.save(b, "JPEG2000", quality_mode="rates", quality_layers=[30])
+    image_page(path, img.width, img.height, b"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode", b.getvalue())
+
+def ccitt(path):
+    img = page_bitmap(200, "1")
+    t = io.BytesIO(); img.save(t, "TIFF", compression="group4", strip_size=2**30); tif = Image.open(io.BytesIO(t.getvalue()))
+    off, n = tif.tag_v2[273][0], tif.tag_v2[279][0]
+    image_page(path, img.width, img.height, b"/ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns %d /Rows %d /BlackIs1 false >>" % (img.width, img.height), t.getvalue()[off:off + n])
+
+def cjk(path):
+    html = """<html><body>
+<h2 style="font-family:'IPAGothic'">日本語のテキスト</h2>
+<p style="font-family:'IPAGothic'">これは日本語の段落です。ひらがな、カタカナ、漢字。</p>
+<p style="font-family:'WenQuanYi Zen Hei'">这是中文段落：简体字，标点符号。</p>
+<p style="font-family:'WenQuanYi Zen Hei'">한국어 문장도 있습니다.</p>
+</body></html>"""
+    with tempfile.TemporaryDirectory() as t:
+        src = os.path.join(t, "cjk.html")
+        open(src, "w").write(html)
+        subprocess.run(["soffice", "--headless", "--convert-to", "pdf:writer_web_pdf_Export", "--outdir", t, src], check=True, capture_output=True)
+        open(path, "wb").write(open(os.path.join(t, "cjk.pdf"), "rb").read())
+
+def long(path):
+    random.seed(5)
+    words = "the of and to in is that for it as with was on be by this are from at or an have not which".split()
+    c = canvas.Canvas(path, pagesize=(W, H))
+    for p in range(120):
+        c.setFont("Helvetica-Bold", 14); c.drawString(20, 210, "Chapter %d" % (p + 1))
+        c.setFont("Times-Roman", 10)
+        for i in range(14): c.drawString(20, 185 - i * 12, " ".join(random.choice(words) for _ in range(12)))
+        c.setFont("Helvetica", 8); c.drawString(170, 8, str(p + 1)); c.showPage()
+    c.save()
+
+def forms(path):
+    c = canvas.Canvas(path, pagesize=(W, H))
+    c.setFont("Helvetica", 12); c.drawString(20, 210, "A form, its fields as ReportLab writes them")
+    f = c.acroForm
+    c.drawString(20, 175, "Name"); f.textfield(name="name", value="Ada Lovelace", x=90, y=168, width=200, height=22, borderColor=Color(0.2, 0.3, 0.6), fillColor=Color(0.93, 0.95, 1), fontSize=12)
+    c.drawString(20, 140, "Agree"); f.checkbox(name="agree", x=90, y=134, size=18, checked=True, buttonStyle="check", borderColor=Color(0.2, 0.3, 0.6))
+    c.drawString(20, 105, "Colour"); f.choice(name="colour", value="Green", options=["Red", "Green", "Blue"], x=90, y=98, width=120, height=22, fontSize=12)
+    f.radio(name="size", value="s", selected=True, x=90, y=60, size=16, buttonStyle="circle"); f.radio(name="size", value="m", selected=False, x=120, y=60, size=16, buttonStyle="circle")
+    c.drawString(20, 63, "Size")
+    c.showPage(); c.save()
+
 standard(f"{OUT}/standard-fonts.pdf")
 standard(f"{OUT}/rc4-128.pdf", encrypt=__import__("reportlab.lib.pdfencrypt", fromlist=["StandardEncryption"]).StandardEncryption("", "owner", strength=128))
 type1(f"{OUT}/type1-charter.pdf")
@@ -111,4 +199,10 @@ aes(f"{OUT}/libreoffice.pdf", f"{OUT}/aes-256.pdf", "AES-256")
 streams(f"{OUT}/type1-charter.pdf", f"{OUT}/object-streams.pdf")
 raw(f"{OUT}/type3-shading-pattern.pdf")
 raw(f"{OUT}/damaged-xref.pdf", damaged=True)
+scanned(f"{OUT}/scanned.pdf")
+jpx(f"{OUT}/jpx.pdf")
+ccitt(f"{OUT}/ccitt.pdf")
+cjk(f"{OUT}/cjk.pdf")
+long(f"{OUT}/long-120.pdf")
+forms(f"{OUT}/forms.pdf")
 print("corpus.py:", sorted(os.listdir(OUT)))

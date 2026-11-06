@@ -41,9 +41,20 @@ class PdfFont {
 	var cidToGid:Null<Bytes> = null;
 	var cmap:Null<CMap> = null;
 	var unitsPerEm = 1000.0;
+	// (the font's ToUnicode: codes to their characters)
+	var toUnicode:Null<Map<Int, String>> = null;
 
 	public function new(doc:Document, d:PdfDict) {
 		this.doc = doc;
+		var tu = doc.resolve(d.get("ToUnicode"));
+		switch tu {
+			case PStream(_, _):
+				toUnicode = try CMap.toUnicode(doc.stream(tu)) catch (e:PdfError) {
+					if (e.kind == TooLarge) throw e;
+					null;
+				}
+			case _:
+		}
 		var subtype = Values.name(d.get("Subtype"), "Type1");
 		if (subtype == "Type0") {
 			composite = true;
@@ -144,7 +155,7 @@ class PdfFont {
 			var f1 = doc.resolve(fd.get("FontFile")), f2 = doc.resolve(fd.get("FontFile2")), f3 = doc.resolve(fd.get("FontFile3"));
 			try {
 				if (f2 != PNull) {
-					face = FontFile.parse(doc.stream(f2));
+					face = FontFile.parse(doc.stream(f2), 0, false);
 					unitsPerEm = face.unitsPerEm;
 					return;
 				}
@@ -152,7 +163,7 @@ class PdfFont {
 					var sub = Values.name(Values.dict(f3).get("Subtype"), "");
 					var bytes = doc.stream(f3);
 					if (sub == "OpenType" || (bytes.length > 4 && bytes.getString(0, 4) == "OTTO")) {
-						face = FontFile.parse(bytes);
+						face = FontFile.parse(bytes, 0, false);
 						unitsPerEm = face.unitsPerEm;
 						return;
 					}
@@ -214,6 +225,23 @@ class PdfFont {
 		return missingWidth;
 	}
 
+	// a code's characters: by ToUnicode, else by its glyph name ("" when neither says)
+	public function unicodeOf(code:Int):String {
+		if (toUnicode != null) {
+			var s = toUnicode.get(code);
+			if (s != null) return s;
+		}
+		if (composite) return "";
+		var n = names[code];
+		var u = n != null ? Encodings.unicode(n) : -1;
+		// (a name no table knows, or none: the code as ASCII, as pdf.js does)
+		if (u < 0 && code >= 32 && code < 127) u = code;
+		if (u < 0 || u > 0x10FFFF) return "";
+		var b = new StringBuf();
+		b.addChar(u);
+		return b.toString();
+	}
+
 	public function glyphName(code:Int):Null<String>
 		return code >= 0 && code < 256 ? names[code] : null;
 
@@ -222,7 +250,10 @@ class PdfFont {
 		if (face == null) return 0;
 		if (composite) {
 			var cid = cmap.cid(code);
-			if (substitute) return face.glyph(cmap.unicode(code, cid));
+			if (substitute) {
+				var u = unicodeOf(code);
+				return u == "" ? 0 : face.glyph(StringTools.fastCodeAt(u, 0));
+			}
 			if (cidToGid != null) return cid * 2 + 1 < cidToGid.length ? (cidToGid.get(cid * 2) << 8) | cidToGid.get(cid * 2 + 1) : 0;
 			return cid;
 		}
@@ -418,8 +449,67 @@ class CMap {
 		return 0;
 	}
 
-	public function unicode(code:Int, cid:Int):Int
-		return cid;
+	// a ToUnicode CMap: bfchar (a code, its characters as UTF-16BE) and bfrange (the last byte counting up, or an array)
+	public static function toUnicode(b:Bytes):Map<Int, String> {
+		var out = new Map<Int, String>();
+		var p = new Parser(b);
+		var stack:Array<PdfValue> = [];
+		var ops = 0, total = 0;
+		// (UTF-16BE, its last unit plus add: a bfrange's code past its first)
+		function utf16(s:Bytes, add:Int):String {
+			var units = [for (i in 0...s.length >> 1) (s.get(i * 2) << 8) | s.get(i * 2 + 1)];
+			if (units.length > 0) units[units.length - 1] += add;
+			var buf = new StringBuf(), i = 0;
+			while (i < units.length) {
+				var u = units[i++];
+				if (u >= 0xD800 && u < 0xDC00 && i < units.length) u = 0x10000 + ((u - 0xD800) << 10) + (units[i++] - 0xDC00);
+				if (u > 0 && u <= 0x10FFFF) buf.addChar(u);
+			}
+			return buf.toString();
+		}
+		while (p.pos < p.end && ops++ < 2000000) {
+			var v = p.next();
+			if (v != null) {
+				stack.push(v);
+				continue;
+			}
+			var k = p.keyword;
+			if (k == "" && p.pos >= p.end) break;
+			switch k {
+				case "endbfchar":
+					var i = 0;
+					while (i + 1 < stack.length) {
+						var lo = Values.str(stack[i]), dst = Values.str(stack[i + 1]);
+						if (lo != null && dst != null) out.set(num(lo), utf16(dst, 0));
+						i += 2;
+					}
+				case "endbfrange":
+					var i = 0;
+					while (i + 2 < stack.length) {
+						var lo = Values.str(stack[i]), hi = Values.str(stack[i + 1]);
+						if (lo != null && hi != null) {
+							var a = num(lo), z = num(hi);
+							if (z - a > 65535 || (total += z - a + 1) > 1 << 20) z = a - 1;
+							switch stack[i + 2] {
+								case PArray(list):
+									for (c in a...z + 1) {
+										var d = c - a < list.length ? Values.str(list[c - a]) : null;
+										if (d != null) out.set(c, utf16(d, 0));
+									}
+								case PStr(d):
+									for (c in a...z + 1)
+										out.set(c, utf16(d, c - a));
+								case _:
+							}
+						}
+						i += 3;
+					}
+				case _:
+			}
+			stack.resize(0);
+		}
+		return out;
+	}
 }
 
 // A bare CFF's charset: glyph names (or a CID-keyed font's cids) to glyph ids

@@ -1,0 +1,4 @@
+Charter, Type 1
+Embedded: eexec, charstrings
+accents: éèê üö Åç
+Qg&fi

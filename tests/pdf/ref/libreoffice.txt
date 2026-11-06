@@ -1,0 +1,7 @@
+LibreOffice writer
+A paragraph in bold,
+italic and serif text, with colour.
+Script Text
+Greek Ελληνικά
+Cyrillic Кириллица
+Mono mono 0123

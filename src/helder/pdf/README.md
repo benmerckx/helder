@@ -31,8 +31,10 @@ helder.pdf.Pdf.draw(doc.pages[3], painter, 1.5);
   (R5 and R6: SHA-256, and R6's hash 2.B with SHA-384 and SHA-512), each
   object's key; AES, RC4 and SHA-512 here, checked against FIPS vectors.
 - **Rendering** (`Interpreter`): the graphics state, paths, both fill
-  rules, strokes (dashes, joins, caps, a zero width as one pixel), clips,
-  colours in DeviceGray, RGB and CMYK (naive), CalGray, CalRGB, Lab,
+  rules, strokes (dashes, joins, caps, a width under a pixel as one pixel, as
+  viewers draw it), clips,
+  colours in DeviceGray, RGB and CMYK (pdf.js's fitted
+  conversion), CalGray, CalRGB, Lab,
   ICCBased (by its alternate), Indexed, Separation and DeviceN (their tint
   transform), functions of types 0, 2, 3 and 4 (PostScript), axial and
   radial shadings (sh and shading patterns) as gradients, tiling patterns
@@ -40,13 +42,17 @@ helder.pdf.Pdf.draw(doc.pages[3], painter, 1.5);
   /SMask, stencil masks, colour keys, image masks; an enlarged image's
   samples unsmoothed unless /Interpolate), inline images, form XObjects
   (their matrix and bounding box, a transparency group's opacity and blend
-  mode as a layer), ExtGState's opacities, blend modes and line styles.
+  mode as a layer), ExtGState's opacities, blend modes and line styles;
+  annotations by their normal appearance (/AP /N, its /AS state) in their
+  /Rect, form fields' widgets among them, hidden ones left out.
 - **Text** (`PdfFont`): simple and composite fonts, encodings (Standard,
-  WinAnsi, MacRoman, /Differences; glyph names to Unicode), /Widths and
+  WinAnsi, MacRoman, /Differences; glyph names to Unicode), ToUnicode
+  (bfchar, bfrange: `Pdf.text(page)`, a substitute face's characters), /Widths and
   /W, CMaps (codespaces, cid ranges; Identity-H and -V), the text state
   (spacing, scaling, rise, leading, every render mode, clipping by text);
   glyphs as outlines from the embedded program: TrueType and OpenType
-  (helder.text's FontFile; a symbolic font's (3,0) and (1,0) cmaps), bare
+  (helder.text's FontFile, a subset with no Unicode cmap read all the
+  same; a symbolic font's (3,0) and (1,0) cmaps), bare
   CFF and CID-keyed CFF (helder.text's Cff, the charset read here), Type 1
   (`Type1`: eexec, charstrings, subrs, seac, flex), Type 3 (its glyph
   procedures run); a font not embedded from the system by its name
@@ -57,14 +63,18 @@ helder.pdf.Pdf.draw(doc.pages[3], painter, 1.5);
   runs, an image's pixels; every bound checked before the work, every
   failure a typed `PdfError` (corrupt, too large, unsupported, encrypted).
 - Not yet: soft masks (/SMask in an ExtGState), function-based and mesh
-  shadings, optional content, annotations' appearances, the writing half
+  shadings, optional content, JPXDecode, CCITTFaxDecode and JBIG2Decode (an image
+  in them left out), the writing half
   (merging, selecting pages, compressing).
 
 The image viewer opens PDFs too (apps/viewer: page 1, at the size shown).
 
 Tests: the pdf lane (page 1 of each corpus file, tests/pdf/corpus made by
-ReportLab, pypdf, LibreOffice and by hand: corpus.py, against pdf.js's in
-Chromium: pdfjs.mjs, tests/pdf/ref; 9 of 9 within tolerance), the pdf-fuzz
+ReportLab, pypdf, LibreOffice and by hand: corpus.py; a scanned page,
+CJK text, a 120-page document, form fields among them; against pdf.js's
+in Chromium: pdfjs.mjs, tests/pdf/ref; check.mjs: of the 3x3 blocks either
+inks at most 10% apart, and the text against pdf.js's getTextContent;
+13 of 15, the JPX and CCITT pages known failures: known.txt), the pdf-fuzz
 lane (the corpus mutated for 30 s, each mutant ending in pixels or a
 PdfError: about 13,000 mutants, none otherwise), Crypto.test.hx (the test
 lane).

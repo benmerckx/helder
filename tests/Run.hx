@@ -60,7 +60,7 @@ class Run {
 		{name: "canvas-gpu", about: "helder.canvas's GPU back end (helder.canvas.gpu, on helder.gfx; Linux: Mesa's llvmpipe): the canvas lane's reference scenes drawn by it (tests/canvas/render-gpu.ts) against the CPU back end's, the reference (compare.mjs: bin/canvas/gpu-report.md, gpu-report-contact.png); examples/canvas-window in a real window (Linux: Xvfb), its 30th frame checked", run: canvasGpu},
 		{name: "canvas-web", about: "helder.canvas's web back end (helder.canvas.web: the browser's own Canvas 2D, src/helder/canvas/imports.mjs): the reference scenes as wasm32 (tests/canvas/render-web.ts) in headless Chromium (web.mjs), against Chromium's references (compare.mjs: bin/canvas/web-report.md)", run: canvasWeb},
 		{name: "canvas-doc", about: "helder.canvas's documents (helder.canvas.doc): the reference scenes recorded by the DOM facade (tests/canvas/render-doc.ts) as one multi-page PDF (PdfWriter) and an SVG each (SvgWriter), the PDF drawn by poppler (pdftoppm, where installed) and the SVGs by Chromium (doc.mjs), against the CPU back end's pixels (compare.mjs: bin/canvas/pdf-report.md, svg-report.md; composite's unbounded operators and the dots of zero-length subpaths have no vector form; shadows and filters are not written yet)", run: canvasDoc},
-		{name: "pdf", about: "helder.pdf: page 1 of each corpus PDF (tests/pdf/corpus, made by ReportLab, pypdf, LibreOffice and by hand: tests/pdf/corpus.py: the standard 14 fonts, Type 1, TrueType, Type 3, RC4, AES-128 and AES-256, object streams, a shading, a tiling pattern, an inline image, a damaged xref) drawn natively against pdf.js's (tests/pdf/ref, pdfjs.mjs) within a tolerance (compare.mjs: bin/pdf/report.md); its crypto and limits are the test lane's (src/helder/pdf/*.test.hx)", run: pdfLane},
+		{name: "pdf", about: "helder.pdf: page 1 of each corpus PDF (tests/pdf/corpus, made by ReportLab, pypdf, LibreOffice and by hand: tests/pdf/corpus.py: the standard 14 fonts, Type 1, TrueType, Type 3, RC4, AES-128 and AES-256, object streams, a shading, a tiling pattern, an inline image, a damaged xref) drawn natively against pdf.js's (tests/pdf/ref, pdfjs.mjs): of the 3x3 blocks either inks at most 10% off, of the page 2%, and its text (Pdf.text) against pdf.js's getTextContent (check.mjs: bin/pdf/report.md); its crypto and limits are the test lane's (src/helder/pdf/*.test.hx)", run: pdfLane},
 		{name: "pdf-fuzz", about: "helder.pdf under a time-boxed mutation fuzzer (tests/pdf/Fuzz.hx, natively): the corpus mutated, each mutant opened and drawn under small limits, ending in pixels or a PdfError (FUZZ_SECONDS, FUZZ_SEED)", run: pdfFuzz},
 		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder's compiler (helder.compiler, with this frontend) natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
 		{name: "examples", about: "every example (Haxe, TypeScript) built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too; then the golf example's recorded rounds replayed natively and as wasm32-wasi (examples/golf/GolfReplay.hx)", run: examples},
@@ -160,8 +160,7 @@ class Run {
 	static function pdfLane() {
 		exe("bin/pdf/PdfRender", cps(["src", "tests/pdf"]).concat(["-main", "PdfRender"]).concat(targetArgs(HOST)));
 		run(exePath("bin/pdf/PdfRender", HOST), []);
-		// (the naive CMYK to RGB: pdf.js converts by a fit of Adobe's, a few levels apart on CMYK fills)
-		run(NODE, ["tests/canvas/compare.mjs", "bin/pdf/ours", "tests/pdf/ref", "bin/pdf/report", "white", "standard-fonts=0.08,rc4-128=0.08,aes-128=0.08"]);
+		run(NODE, ["tests/pdf/check.mjs", "bin/pdf/ours", "tests/pdf/ref", "bin/pdf/report"]);
 	}
 
 	static function pdfFuzz() {
@@ -188,7 +187,8 @@ class Run {
 		var compiler = StringTools.trim(output(NODE, ["src/helder/compiler/build.mjs", "--quiet"]));
 		run(compiler, ["tests/canvas/render-web.ts", "-o", "bin/canvas/render-web.wasm"].concat(targetArgs("wasm32-wasi")));
 		run(NODE, ["tests/canvas/web.mjs", "bin/canvas/render-web.wasm"]);
-		run(NODE, ["tests/canvas/compare.mjs", "bin/canvas/web", "tests/canvas/ref", "bin/canvas/web-report"]);
+		// (the references are Chromium 153's; CI's Playwright has 141, whose zero-length subpaths' caps differ: caps looser)
+		run(NODE, ["tests/canvas/compare.mjs", "bin/canvas/web", "tests/canvas/ref", "bin/canvas/web-report", "-", "caps=0.03"]);
 	}
 
 	static function canvasGpu() {

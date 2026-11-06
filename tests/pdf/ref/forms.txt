@@ -1,0 +1,5 @@
+A form, its fields as ReportLab writes them
+Name
+Agree
+Colour
+Size

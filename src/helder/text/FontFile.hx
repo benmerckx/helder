@@ -129,14 +129,15 @@ class FontFile {
 	}
 
 	// the face at index of a font file's bytes (a collection has several)
-	public static function parse(data:Bytes, index = 0):FontFile
-		return new FontFile(data, index);
+	// (unicode false: a face with no Unicode cmap read all the same, its glyph() 0 for every character; a PDF's subset fonts)
+	public static function parse(data:Bytes, index = 0, unicode = true):FontFile
+		return new FontFile(data, index, unicode);
 
 	// the number of faces in the file (1, or a collection's)
 	public static function faceCount(data:Bytes):Int
 		return data.length >= 12 && data.getString(0, 4) == "ttcf" ? u32(data, 8) : 1;
 
-	function new(data:Bytes, index:Int) {
+	function new(data:Bytes, index:Int, unicode = true) {
 		this.data = data;
 		this.index = index;
 		var tag = data.getString(0, 4);
@@ -190,7 +191,7 @@ class FontFile {
 		if (tables.exists("fvar") && glyf != 0)
 			vars = new Variations(data, tables.get("fvar"), tables.exists("avar") ? tables.get("avar") : -1, tables.exists("gvar") ? tables.get("gvar") : -1);
 		readNames();
-		chooseCmap();
+		chooseCmap(unicode);
 		if (italic == false && subfamily.toLowerCase().indexOf("italic") >= 0 || subfamily.toLowerCase().indexOf("oblique") >= 0) italic = true;
 	}
 
@@ -225,7 +226,7 @@ class FontFile {
 	// the instance at values by axis tag (["wght" => 700]; the defaults for
 	// the others): a face of its own (its own id), the same data
 	public function instance(values:Map<String, Float>):FontFile {
-		var f = new FontFile(data, index);
+		var f = new FontFile(data, index, cmap >= 0);
 		if (vars == null) return f;
 		f.vars = vars;
 		f.coords = vars.normalize(values);
@@ -1221,7 +1222,7 @@ class FontFile {
 
 	// --- tables ---
 
-	function chooseCmap() {
+	function chooseCmap(required:Bool) {
 		var c = tables.get("cmap");
 		var n = u16(data, c + 2);
 		var best = -1, bestScore = -1;
@@ -1241,6 +1242,10 @@ class FontFile {
 				best = off;
 			}
 		}
+		if (best < 0 && !required) {
+			cmap = -1;
+			return;
+		}
 		if (best < 0) throw "FontFile: no Unicode character map";
 		cmap = best;
 		cmapFormat = u16(data, best);
@@ -1248,6 +1253,7 @@ class FontFile {
 
 	function lookup(cp:Int):Int {
 		var c = cmap;
+		if (c < 0) return 0;
 		if (cmapFormat == 12) {
 			var groups = u32(data, c + 12);
 			var lo = 0, hi = groups - 1;

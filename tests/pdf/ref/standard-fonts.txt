@@ -1,0 +1,3 @@
+Helvetica Bold, 20 pt
+Times Roman: the quick brown fox
+Courier 12: 0123456789 {}[]
