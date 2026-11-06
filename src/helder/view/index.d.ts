@@ -83,6 +83,13 @@ export declare class View {
 	private readonly view: never;
 }
 
+// options of a signal and a memo
+export type NodeOptions<T> = { equals?: (arg0: T, arg1: T) => boolean; unobserved?: () => void; ownedWrite?: boolean };
+
+// a root's content (Root): a literal expected as one holds components only,
+// a component returning one is a root (<Surface>), no renderer's markup
+export type RootView = unknown;
+
 // Mounting content: render and insert go to the runtime (ViewRuntime) of the
 // renderer whose nodes parent is, chosen by its type when compiling (its
 // class's @:rendered, HostMacro.rendererOf); what is mounted there is made
@@ -114,7 +121,7 @@ export declare class Render {
 export declare class Graph {
 	// (a value's signal, as TypeScript's signal(v) calls it: index.d.ts)
 	static signalValue<T>(value: T extends Function ? never : T): Signal<T>;
-	static memo<T>(fn: (prev: T | null) => T, options?: { equals?: (arg0: T, arg1: T) => boolean; unobserved?: () => void; ownedWrite?: boolean }): Memo<T>;
+	static memo<T>(fn: (prev: T | null) => T, options?: NodeOptions<T>): Memo<T>;
 	// compute runs now and again when what it read changes; apply after the
 	// commit, given its value and the previous one (the first: at the next
 	// flush); error, when given, takes compute's errors (else the nearest

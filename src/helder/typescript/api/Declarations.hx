@@ -28,6 +28,14 @@ class Declarations {
 
 	static function run(decls:Array<String>, check:Bool) {
 		var api = Modules.of(decls);
+		typedefs = new Map();
+		// (the typedefs of the modules' packages their declarations name:
+		// written until no new one turns up)
+		var found = -1;
+		while (found != Lambda.count(typedefs)) {
+			found = Lambda.count(typedefs);
+			for (m in api.modules) module(api, m);
+		}
 		var stale = [];
 		for (m in api.modules) {
 			var text = module(api, m);
@@ -55,6 +63,54 @@ class Declarations {
 		return out;
 	}
 
+	// A typedef of a module's package (the longest of their packages its
+	// own is or is under) that a declaration names: declared by that module
+	// as `export type` and named where no other type of the module has its
+	// name; one whose text differs taken and given (an @:typescript.input or
+	// output in it: a ViewOf<R>, a props' children) is declared as taken,
+	// named where it is (an argument: props) and written out where given.
+	static var typedefs:Map<String, {module:ApiModule, name:String, type:DefType, named:Bool, takenOnly:Bool}> = new Map();
+
+	static function owner(api:Api, b:BaseType):Null<ApiModule> {
+		var best:Null<ApiModule> = null, length = -1;
+		var pack = b.pack.join(".");
+		for (m in api.modules) {
+			var parts = m.decl.split(".");
+			parts.pop();
+			var p = parts.join(".");
+			if ((pack == p || StringTools.startsWith(pack, p + ".")) && p.length > length) {
+				best = m;
+				length = p.length;
+			}
+		}
+		return best;
+	}
+
+	static function typedefFound(api:Api, where:Map<String, {module:ApiModule, name:String}>, dt:DefType, declared:BaseType->Null<String>):Null<{module:ApiModule, name:String}> {
+		var k = key(dt);
+		var t = typedefs.get(k);
+		if (t == null) {
+			var m = owner(api, dt);
+			if (m == null || dt.meta.has(":typescript.type")) return null;
+			var taken = false;
+			for (other in where) if (other.module == m && other.name == dt.name) taken = true;
+			for (other in typedefs) if (other.module == m && other.name == dt.name) taken = true;
+			typedefs.set(k, t = {module: m, name: dt.name, type: dt, named: false, takenOnly: false});
+			if (!taken) {
+				var writer:TypeWriter = {write: _ -> {}, declared: declared};
+				var before = TypeEmitter.output;
+				TypeEmitter.output = false;
+				var input = TypeEmitter.toString(writer, dt.type);
+				TypeEmitter.output = true;
+				var output = TypeEmitter.toString(writer, dt.type);
+				TypeEmitter.output = before;
+				t.named = true;
+				t.takenOnly = input != output;
+			}
+		}
+		return t.named && !(t.takenOnly && TypeEmitter.output) ? {module: t.module, name: t.name} : null;
+	}
+
 	static function key(b:BaseType):String
 		return b.module + ":" + b.name;
 
@@ -72,6 +128,13 @@ class Declarations {
 		var imports = new Map<String, Array<String>>();
 		function declared(b:BaseType):Null<String> {
 			var d = where.get(key(b));
+			if (d == null) {
+				var path = StringTools.endsWith(b.module, "." + b.name) || b.module == b.name ? b.module : b.module + "." + b.name;
+				d = switch (try Context.getType(path) catch (_:Dynamic) null) {
+					case TType(r, _) if (key(r.get()) == key(b)): typedefFound(api, where, r.get(), declared);
+					case _: null;
+				}
+			}
 			if (d == null) return null;
 			if (d.module != m) {
 				var names = imports.get(d.module.name);
@@ -97,6 +160,12 @@ class Declarations {
 				case TType(d, _): e.emitTypedef(d.get().name, d.get());
 				case _:
 			}
+		}
+		var own = [for (t in typedefs) if (t.named && t.module == m) t];
+		own.sort((a, b) -> Reflect.compare(a.name, b.name));
+		for (t in own) {
+			e.line();
+			e.emitTypedef(t.name, t.type);
 		}
 		for (c in m.classes) {
 			e.line();

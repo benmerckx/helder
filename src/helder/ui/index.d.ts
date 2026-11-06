@@ -5,9 +5,17 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
-import type {Read, View} from "helder/view";
+import type {Read, RootView, View} from "helder/view";
 
 declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", __module: "helder.ui.TypeScript"};
+
+// <Surface>'s props (UiWindow.Surface)
+export type SurfaceProps = { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; onDrop?: (files: string[], x: number, y: number) => void; ref?: (arg0: UiWindow) => void; antialias?: boolean; children?: UiView };
+
+// helder.ui's markup (helder.view.ViewOf): a component returning one is
+// pinned to ui, a children prop typed so makes its content ui's (a
+// boundary's: <Surface>, <Ui> in a scene)
+export type UiView = unknown;
 
 // A window showing a UI tree drawn with the GPU: an helder.os Window, its
 // gfx Device, a Renderer and the Ui (root: the tree's root node, in the
@@ -34,9 +42,9 @@ declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Ev
 export declare class UiWindow {
 	// the app loop: every UiWindow's frames and events until the last closes
 	// (on the web it returns, the frames going on); content, when given, opened first
-	static run(content?: unknown): void;
+	static run(content?: RootView): void;
 	// <Surface>: a window (a canvas on the web), its children rendered into its ui's root; closed with its owner
-	static Surface(props: { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; onDrop?: (files: string[], x: number, y: number) => void; ref?: (arg0: UiWindow) => void; antialias?: boolean; children?: unknown }): View;
+	static Surface(props: SurfaceProps): View;
 }
 
 export declare const Surface: typeof UiWindow.Surface;

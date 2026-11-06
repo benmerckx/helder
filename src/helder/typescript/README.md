@@ -249,7 +249,9 @@ each declaration in its Haxe source. The printer and the type mapping are
 benmerckx/genes' declaration typing (its TypeEmitter and
 DefinitionEmitter, MIT: `api/dts/LICENSE.genes`), reworked: Haxe's typed
 classes from the module, a type named only where a module declares it (an
-import of another module's), else written out (a typedef's structure, an
+import of another module's; a typedef of a module's package it names, its
+`export type`, as taken where its text differs given: `SurfaceProps`,
+`NodeOptions<T>`), else written out (an
 abstract's @:from types or the type under it, an enum abstract's values, a
 class no module declares `unknown`), `@:typescript.type("...")` on a type,
 a field or an argument its text (genes' `@:genes.type`), the type's
@@ -308,8 +310,7 @@ function Checkbox(props: {checked: Signal<boolean>, label: string}) {
 
 Not yet: the async of 7.4 (a TypeScript `async` function given to `memo`
 is not a coroutine of helder.async's), the helder.dev reload keeping a
-program's state, a module's typedefs named in the declarations (written
-out), ui's `env()` values in a literal attribute (SafeArea: set as a
+program's state, ui's `env()` values in a literal attribute (SafeArea: set as a
 string).
 
 ## Tests
