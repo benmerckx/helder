@@ -158,7 +158,7 @@ class AndroidAccess {
 			published = t;
 			event(2048, HOST); // TYPE_WINDOW_CONTENT_CHANGED
 			if (focusMoved != 0) event(8, focusMoved); // TYPE_VIEW_FOCUSED
-			for (s in said)
+			if (enabled()) for (s in said)
 				Jni.call(host, m("android.view.View", "announceForAccessibility", "(Ljava/lang/CharSequence;)V"), Jni.string(s.text).toI64());
 		});
 	}
@@ -185,8 +185,20 @@ class AndroidAccess {
 	}
 
 	// an event of a virtual view (HOST: the content view's own)
+	static var manager = Ptr.nil();
+
+	// (whether a service listens: the system refuses events otherwise)
+	static function enabled():Bool {
+		if (manager.isNull()) {
+			var m = Jni.obj(Jni.activity, m("android.content.Context", "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;"), Jni.string("accessibility").toI64());
+			if (m.isNull()) return false;
+			manager = Jni.global(m);
+		}
+		return Jni.bool(manager, m("android.view.accessibility.AccessibilityManager", "isEnabled", "()Z"));
+	}
+
 	static function event(type:Int, id:Int) {
-		if (host.isNull()) return;
+		if (host.isNull() || !enabled()) return;
 		var e = Jni.staticObj(cls("android.view.accessibility.AccessibilityEvent"), sm("android.view.accessibility.AccessibilityEvent", "obtain",
 			"(I)Landroid/view/accessibility/AccessibilityEvent;"), type);
 		Jni.call(e, m("android.view.accessibility.AccessibilityRecord", "setSource", "(Landroid/view/View;I)V"), host.toI64(), id);

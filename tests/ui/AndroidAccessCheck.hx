@@ -27,8 +27,8 @@ class AndroidAccessCheck {
 				Sys.println("access: the delegate " + (helder.ui.draw.AndroidAccess.state == "" ? "not installed" : helder.ui.draw.AndroidAccess.state));
 				#end
 			}
-			// (a few frames: the layout settled; then frames as the tree asks them, a service's first question one)
-			if (frames < 3) w.ui.requestFrame();
+			// (frames until a service asked: its question seen in one)
+			if (!told) w.ui.requestFrame();
 			#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 			var a:Null<helder.ui.draw.AndroidAccess> = cast @:privateAccess w.androidAccess;
 			if (!told && a != null && a.listening()) {
