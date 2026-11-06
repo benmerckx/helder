@@ -34,14 +34,7 @@ class ActionsDefinition implements Definition<ActionsAdapter, ActionsOutput> {
 		for (d in a.declared(parts[1])) {
 			var name = d.name.charAt(0).toUpperCase() + d.name.substr(1);
 			if (Lambda.exists(out, o -> o.name == name)) a.error('$ns::$name is declared twice', d.pos);
-			out.push({
-				name: name,
-				type: d.type,
-				params: [
-					for (p in d.params)
-						{name: p.name, type: json(p.type, '$ns::$name\'s argument ${p.name}', p.pos, a)}
-				]
-			});
+			out.push(new ActionInfo(name, d.type, [for (p in d.params) new ParamInfo(p.name, json(p.type, '$ns::$name\'s argument ${p.name}', p.pos, a))]));
 		}
 		return {namespace: ns, actions: out};
 	}
@@ -89,7 +82,7 @@ class ActionsDefinition implements Definition<ActionsAdapter, ActionsOutput> {
 				for (f in fs) {
 					var r = reason(f.type, at + "." + f.name, seen);
 					if (r.why != null) return r;
-					out.push({name: f.name, type: r.type, optional: f.optional});
+					out.push(new JsonField(f.name, r.type, f.optional));
 				}
 				seen.pop();
 				{type: JFields(out), why: null};

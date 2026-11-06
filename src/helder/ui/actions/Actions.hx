@@ -101,7 +101,7 @@ class Actions {
 	// the name a keymap gives it: "viewer::ZoomTo"
 	public static function name(a:Action):String {
 		var s = spaceOf(a);
-		if (s == null) throw "helder.ui: an action of no declared actions (actions(namespace, ...)): " + Std.string(a);
+		if (s == null) throw "helder.ui: an action of no declared actions (actions(namespace, ...))";
 		return s.name(s.index(a));
 	}
 
@@ -129,12 +129,7 @@ class Actions {
 		if (a == null || b == null) return false;
 		var s = spaceOf(a);
 		if (s == null) return Reflect.isEnumValue(a) && Reflect.isEnumValue(b) && Type.enumEq(a, b);
-		var i = s.index(a);
-		if (s.index(b) != i) return false;
-		var x = s.args(a), y = s.args(b), ps = s.actions[i].params;
-		for (k in 0...ps.length)
-			if (!JsonTypes.equal(ps[k].type, x[k], y[k])) return false;
-		return true;
+		return s.same(a, b);
 	}
 
 	// a handler of type's actions, for a node's (markup's actions={...}: Node.on's)
@@ -164,19 +159,23 @@ class ActionSpace<T> {
 
 	final indexOf:Dynamic->Int;
 	final argsOf:Dynamic->Array<Dynamic>;
-	final make:(Int, Array<Dynamic>) -> Dynamic;
+	// (action i of a JSON keymap's arguments, read as its types say; two of
+	// its values of action i the same)
+	final readArgs:(Int, Array<Dynamic>) -> Dynamic;
+	final sameArgs:(Int, Dynamic, Dynamic) -> Bool;
 
 	// its values as a TypeScript program's objects (a Haxe space's, Script's)
 	public var script:Null<ActionForm> = null;
 
-	public function new(namespace, origin, actions, enumType, indexOf, argsOf, make) {
+	public function new(namespace, origin, actions, enumType, indexOf, argsOf, readArgs, sameArgs) {
 		this.namespace = namespace;
 		this.origin = origin;
 		this.actions = actions;
 		this.enumType = enumType;
 		this.indexOf = indexOf;
 		this.argsOf = argsOf;
-		this.make = make;
+		this.readArgs = readArgs;
+		this.sameArgs = sameArgs;
 	}
 
 	// which of its actions v is (-1: none of its)
@@ -184,10 +183,6 @@ class ActionSpace<T> {
 		var i = indexOf(v);
 		return i >= 0 || script == null ? i : script.index(v);
 	}
-
-	// v's arguments, in order
-	public function args(v:Dynamic):Array<Dynamic>
-		return indexOf(v) >= 0 ? argsOf(v) : script.args(v);
 
 	// "viewer::ZoomTo"
 	public function name(i:Int):String
@@ -200,29 +195,45 @@ class ActionSpace<T> {
 		return -1;
 	}
 
-	// action i of args (JSON's: checked, numbers made as its types say)
+	// action i of args (JSON's: checked, numbers made as its types say; those not given null)
 	public function read(i:Int, args:Array<Dynamic>):T {
-		var a = actions[i], what = name(i);
-		if (args.length > a.params.length) throw 'helder.ui: $what takes ${a.params.length} argument' + (a.params.length == 1 ? "" : "s") + ', not ${args.length}';
-		return make(i, [for (k in 0...a.params.length) JsonTypes.read(a.params[k].type, args[k], '$what\'s ${a.params[k].name}')]);
+		var n = actions[i].params.length;
+		if (args.length > n) throw 'helder.ui: ${name(i)} takes $n argument' + (n == 1 ? "" : "s") + ', not ${args.length}';
+		return readArgs(i, [for (k in 0...n) args[k]]);
 	}
 
 	// v as its own kind of value (a Haxe enum's: an enum value)
 	public function native(v:Dynamic):T {
 		if (indexOf(v) >= 0) return v;
-		var i = index(v);
-		return read(i, script.args(v));
+		return read(script.index(v), script.args(v));
 	}
 
 	// v as TypeScript's object (a TypeScript space's own)
 	public function toScript(v:Dynamic):Dynamic {
 		if (script == null || script.index(v) >= 0) return v;
-		var i = indexOf(v);
-		return script.make(i, argsOf(v));
+		return script.make(indexOf(v), argsOf(v));
+	}
+
+	// two of its values the same: the same action, its arguments equal
+	public function same(a:Dynamic, b:Dynamic):Bool {
+		var i = index(a);
+		if (i < 0 || index(b) != i) return false;
+		return actions[i].params.length == 0 || sameArgs(i, native(a), native(b));
 	}
 }
 
-typedef ActionForm = {index:Dynamic->Int, args:Dynamic->Array<Dynamic>, make:(Int, Array<Dynamic>) -> Dynamic};
+// a space's values of another kind: which action one is, its arguments, one made of them
+class ActionForm {
+	public final index:Dynamic->Int;
+	public final args:Dynamic->Array<Dynamic>;
+	public final make:(Int, Array<Dynamic>) -> Dynamic;
+
+	public function new(index, args, make) {
+		this.index = index;
+		this.args = args;
+		this.make = make;
+	}
+}
 
 // what a menu shows an action as, from the handler that would take it
 enum abstract ActionState(Int) to Int {
