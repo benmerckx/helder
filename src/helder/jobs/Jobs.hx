@@ -15,10 +15,10 @@ import hxmc.unsafe.Ptr;
 // (helder.async: a coroutine never changes thread, only data crosses).
 //
 //   // GC-free, the engine's: an @:hxmc.unsafe callback over off-heap memory
-//   var pixels:IoBuffer = Jobs.run(PngJob.decode, IoBuffer.ofBytes(png));
+//   var pixels:IoBuffer = Jobs.job(PngJob.decode).run(IoBuffer.ofBytes(png));
 //   // a GC job, user code: values that can be sent in and out (Sendable)
-//   var n:Int = Jobs.run(Words.count, text);
-//   var t = task.async(_ -> Jobs.run(Words.count, text));   // a Task
+//   var n:Int = Jobs.job(Words.count).run(text);
+//   var t = task.async(_ -> Jobs.job(Words.count).run(text));   // a Task
 //
 // Two tiers:
 // - a GC-free job is a static `@:hxmc.unsafe @:hxmc.callback function (job:Job):Int`:
@@ -45,9 +45,10 @@ class Jobs {
 	// (also once set later)
 	public static var workers = -1;
 
-	// f's run with input (see above): a GC-free job's output, a GC job's result
-	public static macro function run(f:Expr, rest:Array<Expr>):Expr
-		return Sendable.job(f, rest);
+	// a job of f (a definition: Sendable.definition), run(input) its run with
+	// input (see above): a GC-free job's output, a GC job's result
+	@:definition public static macro function job(f:Expr):Expr
+		return Sendable.definition(f);
 
 	#if !macro
 	// whether this runs in a job on a worker (natively a thread other than
@@ -55,7 +56,7 @@ class Jobs {
 	public static function onWorker():Bool
 		return #if (hxmc.target == "wasm32-wasi") WebJobs.inWorker() #else hxmc.NativeThread.current() != 1 #end;
 
-	// (Jobs.run's: a GC-free job by its address)
+	// (a GC-free job's run: by its address)
 	@:coroutine public static function runFree(fn:Ptr, input:IoBuffer):IoBuffer {
 		var r = Run.await(fn, true, input);
 		var out = r.output;

@@ -28,19 +28,19 @@ import hxmc.unsafe.*;
 static function words(s:String):Int return s.split(" ").length;
 
 Async.run(task -> {
-  var out:IoBuffer = Jobs.run(invert, IoBuffer.ofBytes(bytes));  // the input moved in
+  var out:IoBuffer = Jobs.job(invert).run(IoBuffer.ofBytes(bytes));  // the input moved in
   out.free();                                                     // the output is ours
-  var n = Jobs.run(words, "one two three");                       // 3
-  var t = task.async(_ -> Jobs.run(words, text));                 // a Task
+  var n = Jobs.job(words).run("one two three");                       // 3
+  var t = task.async(_ -> Jobs.job(words).run(text));                 // a Task
   var ch = new Channel<{done:Int, of:Int}>();                     // progress from a job
-  task.async(_ -> Jobs.run(Work.all, {items: items, progress: ch}));
+  task.async(_ -> Jobs.job(Work.all).run({items: items, progress: ch}));
   var p; while ((p = ch.receive()) != null) trace('${p.done}/${p.of}');
 });
 ```
 
 ## Jobs
 
-`Jobs.run(f, ?input)` (a macro) awaits `f`'s run with its input; `f` is a
+`Jobs.job(f).run(?input)` (a macro) awaits `f`'s run with its input; `f` is a
 static function, named (`Class.field`, private too):
 
 - **GC-free** (`@:hxmc.unsafe @:hxmc.callback function (job:Job):Int`):

@@ -161,33 +161,33 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 	#end
 
 	// an image (helder.image.Image): PNG (decoded as a job: ImageJobs), JPEG, GIF, WebP
-	public static macro function image(path:String):Expr
-		return AssetMacro.handle(path, "image");
+	@:definition public static macro function image(path:Expr):Expr
+		return AssetDefinition.forward("image", path);
 
 	// a font (helder.text.FontFile, its first face; added to
 	// helder.text.SystemFonts: ui finds it by its family's name)
-	public static macro function font(path:String):Expr
-		return AssetMacro.handle(path, "font");
+	@:definition public static macro function font(path:Expr):Expr
+		return AssetDefinition.forward("font", path);
 
 	// a glTF model (helder.scene.render.Model, its names typed from the
 	// file as Model.of types them: model.nodes.LeftHand)
-	public static macro function model(path:String):Expr
-		return AssetMacro.model(path);
+	@:definition public static macro function model(path:Expr):Expr
+		return AssetDefinition.forward("model", path);
 
 	// a sound file's bytes (WAV or Ogg Vorbis): helder.os.audio.Sound.decode
 	// decodes them whole (effects), Sfx.music streams Vorbis (music)
-	public static macro function sound(path:String):Expr
-		return AssetMacro.handle(path, "sound");
+	@:definition public static macro function sound(path:Expr):Expr
+		return AssetDefinition.forward("sound", path);
 
 	// a file's bytes (haxe.io.Bytes)
-	public static macro function bytes(path:String):Expr
-		return AssetMacro.handle(path, "bytes");
+	@:definition public static macro function bytes(path:Expr):Expr
+		return AssetDefinition.forward("bytes", path);
 
 	// the file's bytes built into the code itself (no bundle, nothing to
 	// load: PackedModel.read(Asset.embed("level.hxm3d"), device)); for small
 	// files, read when compiling and not reloaded
-	public static macro function embed(path:String):Expr
-		return AssetMacro.embed(path);
+	@:definition public static macro function embed(path:Expr):Expr
+		return AssetDefinition.forward("embed", path);
 }
 
 enum AssetState {

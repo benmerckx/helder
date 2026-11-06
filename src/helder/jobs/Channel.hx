@@ -6,7 +6,7 @@ package helder.jobs;
 // A GC job that is given one sends its progress, or a stream of results.
 //
 //   var ch = new Channel<Int>();
-//   task.async(_ -> Jobs.run(Primes.below, {limit: 100000, out: ch}));
+//   task.async(_ -> Jobs.job(Primes.below).run({limit: 100000, out: ch}));
 //   var p; while ((p = ch.receive()) != null) trace(p);   // until the job's ch.close()
 //
 // send(v) copies v (a JobError once closed), receive() is the next value

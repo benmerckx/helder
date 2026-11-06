@@ -15,7 +15,7 @@ class NotSendable {
 
 	static function main() {
 		helder.async.Async.main(_ -> {
-			Jobs.run(count, {items: [new Item()]});
+			Jobs.job(count).run({items: [new Item()]});
 		});
 	}
 }

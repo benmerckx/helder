@@ -222,11 +222,18 @@ class Sendable {
 		}
 	}
 
-	// ---- Jobs.run
+	// ---- job(f)
 
-	public static function job(f:Expr, rest:Array<Expr>):Expr {
-		var pos = Context.currentPos();
-		if (rest.length > 1) Context.error("Jobs.run: a job takes one input at most", rest[1].pos);
+	// job(f) (Jobs.job, a definition: src/helder/compiler/DESIGN.md 4): f a
+	// static or module-level function named (the argument's kernel tree a
+	// reference to it), checked as its tier wants, and a class of its own
+	// beside it, <Class>_<f>_Job: its worker entry (a GC job's: a callback,
+	// its input read and its result written) and run(input), a coroutine;
+	// the value is its one instance.
+	public static function definition(f:Expr):Expr {
+		var a = new helder.definition.HaxeAdapter("job");
+		// (static: a function named, checked by the kernel's adapter)
+		a.node(f);
 		var typed = Context.typeExpr(f);
 		var c:ClassType, cf:ClassField;
 		switch typed.expr {
@@ -234,42 +241,43 @@ class Sendable {
 				c = cr.get();
 				cf = fr.get();
 			case _:
-				Context.error("Jobs.run: a job is a static function, named (Class.field)", f.pos);
-				return null;
+				return a.error("a job is a static or module-level function, named (Class.field, field)", f.pos);
 		}
 		var fpath = field(classExpr(c), cf.name);
-		if (cf.params.length > 0) Context.error('Jobs.run: ${cf.name} has type parameters (its values\' types must be known)', f.pos);
-		var input = rest.length > 0 ? rest[0] : null;
-		// GC-free: an @:hxmc.unsafe callback (job:Job):Int
-		if (cf.meta.has(":hxmc.unsafe")) {
-			if (!cf.meta.has(":hxmc.callback") || !Context.unify(cf.type, Context.resolveType(macro:helder.jobs.Job->Int, f.pos)))
-				Context.error('Jobs.run: a GC-free job is an @:hxmc.unsafe @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
-			var i = input ?? macro cast hxmc.unsafe.Ptr.nil();
-			return macro @:pos(pos) helder.jobs.Jobs.runFree(hxmc.unsafe.Callback.addr($fpath), ($i : hxmc.unsafe.IoBuffer));
-		}
-		// a GC job: (input) -> result, both sendable
+		if (cf.params.length > 0) a.error('${cf.name} has type parameters (its values\' types must be known)', f.pos);
+		var free = cf.meta.has(":hxmc.unsafe");
+		if (free && (!cf.meta.has(":hxmc.callback") || !Context.unify(cf.type, Context.resolveType(macro:helder.jobs.Job->Int, f.pos))))
+			a.error('a GC-free job is an @:hxmc.unsafe @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
 		var args, ret;
 		switch Context.follow(cf.type) {
-			case TFun(a, r):
-				args = a;
+			case TFun(x, r):
+				args = x;
 				ret = r;
 			case _:
-				Context.error("Jobs.run: a job is a static function", f.pos);
-				return null;
+				return a.error("a job is a function", f.pos);
 		}
-		if (args.length > 1) Context.error('Jobs.run: ${cf.name} takes ${args.length} arguments (a job takes one at most: an anonymous structure for more)', f.pos);
-		if (args.length == 1 && input == null) Context.error('Jobs.run: ${cf.name} takes an input', pos);
-		if (args.length == 0 && input != null) Context.error('Jobs.run: ${cf.name} takes no input', input.pos);
-		if (args.length == 1) check(args[0].t, '${cf.name}\'s input', input.pos);
-		var void = switch Context.follow(ret) {
-			case TAbstract(_.get() => {name: "Void", pack: []}, _): true;
-			case _: false;
-		}
-		if (!void) check(ret, '${cf.name}\'s result', f.pos);
-		// (its wrapper: a callback, its input read and its result written)
-		var name = "Job_" + c.module.split(".").join("_") + (c.module.split(".").pop() != c.name ? "_" + c.name : "") + "_" + cf.name;
-		if (!defined(name)) {
-			// (the call site could name it: private too)
+		var module = c.module, pack = module.split(".");
+		pack.pop();
+		var name = (StringTools.endsWith(c.name, "_Fields_") ? module.split(".").pop() : c.name) + "_" + cf.name + "_Job";
+		var path = pack.concat([name]).join(".");
+		var tp:TypePath = {pack: pack, name: name};
+		var exists = try Context.getType(path) != null catch (_:Dynamic) false;
+		if (exists) return macro $p{pack.concat([name, "instance"])};
+		var fields:Array<Field>;
+		if (free) {
+			fields = (macro class {
+				// (no input: none)
+				@:coroutine public function run(?input:hxmc.unsafe.IoBuffer):hxmc.unsafe.IoBuffer
+					return helder.jobs.Jobs.runFree(hxmc.unsafe.Callback.addr($fpath), input ?? cast hxmc.unsafe.Ptr.nil());
+			}).fields;
+		} else {
+			if (args.length > 1) a.error('${cf.name} takes ${args.length} arguments (a job takes one at most: an anonymous structure for more)', f.pos);
+			if (args.length == 1) check(args[0].t, '${cf.name}\'s input', f.pos);
+			var void = switch Context.follow(ret) {
+				case TAbstract(_.get() => {name: "Void", pack: []}, _): true;
+				case _: false;
+			}
+			if (!void) check(ret, '${cf.name}\'s result', f.pos);
 			var call = args.length == 1 ? macro @:privateAccess $fpath(${read(args[0].t, macro r)}) : macro @:privateAccess $fpath();
 			var body = if (void) macro {
 				$call;
@@ -282,44 +290,61 @@ class Sendable {
 				0;
 			}
 			var head = args.length == 1 ? macro var r = new helder.jobs.Wire.Reader(job.input) : macro {};
-			var td = macro class $name {
-				@:hxmc.callback public static function run(p:hxmc.unsafe.Ptr):Int {
+			var entry = macro $p{pack.concat([name, "entry"])};
+			var i = args.length == 1 ? macro {
+				var w = new helder.jobs.Wire.Writer();
+				${write(args[0].t, macro w, macro input)};
+				w.done();
+			} : macro cast hxmc.unsafe.Ptr.nil();
+			var it = args.length == 1 ? TypeTools.toComplexType(args[0].t) : null;
+			var rt = TypeTools.toComplexType(ret);
+			var run:Expr = void ? macro helder.jobs.Jobs.runGcVoid(hxmc.unsafe.Callback.addr($entry), $i) : macro {
+				var out = helder.jobs.Jobs.runGc(hxmc.unsafe.Callback.addr($entry), $i);
+				var r = new helder.jobs.Wire.Reader(out);
+				var v:$rt = ${read(ret, macro r)};
+				helder.jobs.Jobs.free(out);
+				return v;
+			};
+			var runField:Field = {
+				name: "run",
+				access: [APublic],
+				meta: [{name: ":coroutine", pos: f.pos}],
+				kind: FFun({args: it == null ? [] : [{name: "input", type: it}], ret: rt, expr: run}),
+				pos: f.pos
+			};
+			fields = (macro class {
+				@:hxmc.callback public static function entry(p:hxmc.unsafe.Ptr):Int {
 					var job:helder.jobs.Job = cast p;
 					return try {
 						$head;
 						$body;
 					} catch (e:Dynamic) helder.jobs.Jobs.failed(job, e);
 				}
-			};
-			td.pack = ["helder", "jobs", "gen"];
-			td.pos = f.pos;
-			Context.defineType(td);
+			}).fields.concat([runField]);
 		}
-		var gen = macro $p{["helder", "jobs", "gen", name, "run"]};
-		var i = if (args.length == 1) {
-			var ct = TypeTools.toComplexType(args[0].t);
-			macro {
-				var w = new helder.jobs.Wire.Writer();
-				var v:$ct = $input;
-				${write(args[0].t, macro w, macro v)};
-				w.done();
-			};
-		} else macro cast hxmc.unsafe.Ptr.nil();
-		if (void) return macro @:pos(pos) helder.jobs.Jobs.runGcVoid(hxmc.unsafe.Callback.addr($gen), $i);
-		var rt = TypeTools.toComplexType(ret);
-		return macro @:pos(pos) {
-			var out = helder.jobs.Jobs.runGc(hxmc.unsafe.Callback.addr($gen), $i);
-			var r = new helder.jobs.Wire.Reader(out);
-			var v:$rt = ${read(ret, macro r)};
-			helder.jobs.Jobs.free(out);
-			v;
+		var td = macro class $name {
+			public static final instance = new $tp();
+
+			function new() {}
 		};
+		td.fields = td.fields.concat(fields);
+		td.pack = pack;
+		td.pos = f.pos;
+		// (helder.jobs' internals, and the job's function: private too)
+		var owner = c.pack.concat([c.name]).join(".");
+		td.meta = [
+			{name: ":noCompletion", pos: f.pos},
+			{name: ":access", params: [macro helder.jobs], pos: f.pos},
+			{name: ":access", params: [Context.parse(owner, f.pos)], pos: f.pos}
+		];
+		Context.defineType(td, module);
+		return macro $p{pack.concat([name, "instance"])};
 	}
+
+	// ---- Channel<T>: a class per value type (helder.jobs.gen.Channel_<hash>)
 
 	static function defined(name:String):Bool
 		return try Context.getType("helder.jobs.gen." + name) != null catch (_:Dynamic) false;
-
-	// ---- Channel<T>
 
 	public static function channel():ComplexType {
 		var pos = Context.currentPos();

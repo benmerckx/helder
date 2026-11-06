@@ -30,7 +30,7 @@ class AppLoopTest {
 			var a = haxe.Timer.stamp();
 			Async.delay(0.1);
 			timerLate = haxe.Timer.stamp() - a - 0.1;
-			var ended = Jobs.run(nap, 100);
+			var ended = Jobs.job(nap).run(100);
 			replyLate = haxe.Timer.stamp() - ended;
 			App.quit();
 		});

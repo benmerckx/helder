@@ -135,7 +135,7 @@ class Decode {
 	@:coroutine public static function job(path:String, side = 0):Decoded {
 		// (a PDF's page: the GC job, its document kept there)
 		if (path.indexOf("\n") >= 0 || PdfPages.isOpen(path))
-			return try helder.jobs.Jobs.run(file, {path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), 0, "PDF");
+			return try helder.jobs.Jobs.job(file).run({path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), 0, "PDF");
 		var bytes = try sys.io.File.getBytes(path) catch (e:Dynamic) null;
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
 		var size = Image.size(bytes);
@@ -157,7 +157,7 @@ class Decode {
 				errorKind: ""
 			};
 		}
-		return try helder.jobs.Jobs.run(file, {path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
+		return try helder.jobs.Jobs.job(file).run({path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
 	}
 
 	public static function decode(bytes:Bytes, side = 0):Decoded {

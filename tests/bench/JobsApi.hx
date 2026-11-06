@@ -68,7 +68,7 @@ class JobsApi {
 			if (k == 2) Jobs.workers = 0;
 			for (i in 0...2100) {
 				if (i == 100) us.push(haxe.Timer.stamp());
-				if (k == 1) Jobs.run(emptyGc, i) else Jobs.run(empty).free();
+				if (k == 1) Jobs.job(emptyGc).run(i) else Jobs.job(empty).run().free();
 			}
 			us[k] = (haxe.Timer.stamp() - us[k]) / 2000 * 1e6;
 		}
@@ -89,7 +89,7 @@ class JobsApi {
 					task.async(_ -> {
 						var d0 = haxe.Timer.stamp();
 						if (variant == "gc") {
-							var px = Jobs.run(gcDecode, png);
+							var px = Jobs.job(gcDecode).run(png);
 							decode = (haxe.Timer.stamp() - d0) * 1000;
 							JobsFrame.check += sample(i -> px.get(i), px.length);
 						} else {

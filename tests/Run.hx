@@ -644,12 +644,13 @@ class Run {
 
 	static function assetLane() {
 		var h = helderCli();
-		// (what Asset's macros reject, at the call)
+		// (what Asset's definitions reject, at the call)
 		for (r in [
 			{main: "Missing", error: 'Asset.bytes("files/nothere.txt"): no such file under the class paths or the project'},
 			{main: "Case", error: 'Asset.bytes("files/Kept.txt"): "Kept.txt" is "kept.txt" on disk (paths are case-sensitive on Android and the web)'},
 			{main: "Absolute", error: 'Asset.bytes("/etc/hostname"): an absolute path'},
-			{main: "Parent", error: 'Asset.image("files/../files/pixels.png"): a part ".."'}
+			{main: "Parent", error: 'Asset.image("files/../files/pixels.png"): a part ".."'},
+			{main: "NotLiteral", error: 'Asset.bytes: name is not static'}
 		]) {
 			var b = build(cps(["src", "tests/asset", "tests/asset/reject"]).concat(["-main", r.main, "--custom-target", 'hxmc=bin/asset/${r.main}']), 'bin/asset/${r.main}.log');
 			if (b.code == 0 || !b.log.contains(r.error)) throw new Failed('${r.main}: expected the error "${r.error}":\n' + b.log);

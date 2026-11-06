@@ -65,7 +65,7 @@ class ImageJobs {
 			file.free();
 			throw PngCore.error(e, info);
 		}
-		var rgba = try Jobs.run(ImageJobs.png, file) catch (j:JobError) {
+		var rgba = try Jobs.job(ImageJobs.png).run(file) catch (j:JobError) {
 			throw new JobError(j.code, PngCore.message(j.code, Bytes.alloc(PngCore.INFO)));
 		}
 		return {width: w, height: h, rgba: rgba};

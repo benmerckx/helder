@@ -53,20 +53,20 @@ class JobsWeb {
 		Async.launch(_ -> {
 			var b = IoBuffer.alloc(3);
 			b.set(1, 5);
-			var out = Jobs.run(invert, b);
+			var out = Jobs.job(invert).run(b);
 			check("a GC-free job", out.length == 3 && out.get(0) == 255 && out.get(1) == 250);
 			out.free();
-			var w = Jobs.run(where, 100000);
+			var w = Jobs.job(where).run(100000);
 			check("a GC job on a worker", w.worker && w.sum == 100000);
 			var ch = new Channel<Int>(), got = [];
 			Async.scope(task -> {
-				task.async(_ -> Jobs.run(count, ch));
+				task.async(_ -> Jobs.job(count).run(ch));
 				var v;
 				while ((v = ch.receive()) != null) got.push(v);
 			});
 			check("a channel from a worker", got.join(",") == "0,1,2", got.join(","));
 			var e = try {
-				Jobs.run(boom, 1);
+				Jobs.job(boom).run(1);
 				"";
 			} catch (e:JobError) e.message;
 			check("a job's error", e == "boom", e);
@@ -75,17 +75,17 @@ class JobsWeb {
 			check("frames and a timer", frames - fa >= 2 && haxe.Timer.stamp() - a < 0.5, '${frames - fa} frames in ${haxe.Timer.stamp() - a} s');
 			var t0 = haxe.Timer.stamp();
 			var timedOut = try {
-				Async.timeout(0.1, _ -> Jobs.run(forever, 0));
+				Async.timeout(0.1, _ -> Jobs.job(forever).run(0));
 				"no";
 			} catch (e:TimeoutException) "yes" catch (e:Dynamic) Std.string(e);
 			check("a running job cancelled", timedOut == "yes" && haxe.Timer.stamp() - t0 < 0.5, timedOut);
-			check("the next job, on a new worker", Jobs.run(where, 10).worker);
+			check("the next job, on a new worker", Jobs.job(where).run(10).worker);
 			// (the canvas hidden: frames stop; the loop goes on)
 			Sys.println("JobsWeb: hide");
 			Async.delay(0.3);
 			var f0 = frames;
 			Async.delay(0.2);
-			var r = Jobs.run(where, 10);
+			var r = Jobs.job(where).run(10);
 			Async.delay(0.2);
 			check("without frames: timers and jobs", r.worker && frames == f0, '${frames - f0} frames while hidden');
 			Sys.println('JobsWeb: done ${failed}');

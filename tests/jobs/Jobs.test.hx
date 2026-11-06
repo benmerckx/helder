@@ -16,35 +16,35 @@ function tests() {
 			var b = IoBuffer.alloc(5);
 			for (i in 0...5)
 				b.set(i, i * 10);
-			var out = Jobs.run(JobsWork.invert, b);
+			var out = Jobs.job(JobsWork.invert).run(b);
 			equals([for (i in 0...out.length) out.get(i)], [255, 245, 235, 225, 215]);
 			out.free();
 		}));
 		test("a GC job: values copied in and out", async(() -> {
-			equals(Jobs.run(JobsWork.words, "one two three"), 3);
-			var r = Jobs.run(JobsWork.summary, {name: "n", values: [1.5, 2.5], flag: true, count: null});
+			equals(Jobs.job(JobsWork.words).run("one two three"), 3);
+			var r = Jobs.job(JobsWork.summary).run({name: "n", values: [1.5, 2.5], flag: true, count: null});
 			equals(r, {total: 4.0, label: "n:2", nothing: null});
-			equals(Jobs.run(JobsWork.answer), 42);
-			Jobs.run(JobsWork.nothing, 1);
+			equals(Jobs.job(JobsWork.answer).run(), 42);
+			Jobs.job(JobsWork.nothing).run(1);
 		}));
 		test("Bytes are copied, an IoBuffer moved", async(() -> {
 			var b = Bytes.ofString("abc");
-			var back = Jobs.run(JobsWork.upper, b);
+			var back = Jobs.job(JobsWork.upper).run(b);
 			equals(back.toString(), "ABC");
 			equals(b.toString(), "abc");
 			var io = IoBuffer.ofBytes(Bytes.ofString("xyz"));
-			var moved = Jobs.run(JobsWork.reverse, {buffer: io, tag: 7});
+			var moved = Jobs.job(JobsWork.reverse).run({buffer: io, tag: 7});
 			equals(moved.getBytes(0, moved.length).toString(), "zyx7");
 			moved.free();
 		}));
 		test("a struct crosses as its bytes", async(() -> {
-			approx(Jobs.run(JobsWork.length, new JobsVec(3, 4)), 5);
-			var v = Jobs.run(JobsWork.half, new JobsVec(3, 4));
+			approx(Jobs.job(JobsWork.length).run(new JobsVec(3, 4)), 5);
+			var v = Jobs.job(JobsWork.half).run(new JobsVec(3, 4));
 			approx(v.x, 1.5);
 			approx(v.y, 2);
 		}));
 		test("on workers, several at once", async(() -> {
-			var rs = Async.scope(task -> Async.all([for (i in 0...8) task.async(_ -> Jobs.run(JobsWork.where, i))]));
+			var rs = Async.scope(task -> Async.all([for (i in 0...8) task.async(_ -> Jobs.job(JobsWork.where).run(i))]));
 			equals([for (r in rs) r.i], [for (i in 0...8) i]);
 			for (r in rs)
 				assert(r.worker, 'job ${r.i} ran on a worker');
@@ -52,7 +52,7 @@ function tests() {
 		test("the loop runs while a job does", async(() -> {
 			var log = [];
 			Async.scope(task -> {
-				var j = task.async(_ -> try Jobs.run(JobsWork.spin) catch (e:CancellationException) {
+				var j = task.async(_ -> try Jobs.job(JobsWork.spin).run() catch (e:CancellationException) {
 					log.push("job cancelled");
 					throw e;
 				});
@@ -65,7 +65,7 @@ function tests() {
 		test("cancelled: the task resumes at once, the job sees it (natively) or its worker ends (wasm)", async(() -> {
 			JobsWork.sawCancel = 0;
 			var t0 = haxe.Timer.stamp();
-			var e = throwsAsync(() -> Async.timeout(0.05, _ -> Jobs.run(JobsWork.spin)));
+			var e = throwsAsync(() -> Async.timeout(0.05, _ -> Jobs.job(JobsWork.spin).run()));
 			assert(e is Async.TimeoutException, "a TimeoutException");
 			assert(haxe.Timer.stamp() - t0 < 1, "resumed at the timeout");
 			#if (hxmc.target != "wasm32-wasi")
@@ -75,19 +75,19 @@ function tests() {
 			equals(JobsWork.sawCancel, 1);
 			#end
 			// (and the next job runs: natively the thread is free, in a browser a new worker)
-			equals(Jobs.run(JobsWork.words, "a b"), 2);
+			equals(Jobs.job(JobsWork.words).run("a b"), 2);
 		}));
 		test("errors: a GC-free job's code, a GC job's exception", async(() -> {
-			var e:JobError = throwsAsync(() -> Jobs.run(JobsWork.refuse, IoBuffer.alloc(1)));
+			var e:JobError = throwsAsync(() -> Jobs.job(JobsWork.refuse).run(IoBuffer.alloc(1)));
 			equals(e.code, -5);
-			var g:JobError = throwsAsync(() -> Jobs.run(JobsWork.boom, 3));
+			var g:JobError = throwsAsync(() -> Jobs.job(JobsWork.boom).run(3));
 			equals(g.code, -1);
 			equals(g.message, "boom 3");
 		}));
 		test("a channel: a job's values in order, then its close", async(() -> {
 			var ch = new Channel<{i:Int, s:String}>();
 			var got = Async.scope(task -> {
-				task.async(_ -> Jobs.run(JobsWork.count, {n: 5, out: ch}));
+				task.async(_ -> Jobs.job(JobsWork.count).run({n: 5, out: ch}));
 				var got = [], v;
 				while ((v = ch.receive()) != null)
 					got.push(v.s + v.i);
@@ -110,9 +110,9 @@ function tests() {
 		test("without workers: on the loop, the same results", async(() -> {
 			var was = Jobs.workers;
 			Jobs.workers = 0;
-			var r = Jobs.run(JobsWork.where, 3);
+			var r = Jobs.job(JobsWork.where).run(3);
 			var b = IoBuffer.alloc(1);
-			var out = Jobs.run(JobsWork.invert, b);
+			var out = Jobs.job(JobsWork.invert).run(b);
 			Jobs.workers = was;
 			equals(r.i, 3);
 			assert(!r.worker, "on the loop");

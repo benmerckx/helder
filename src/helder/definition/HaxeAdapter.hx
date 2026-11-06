@@ -65,14 +65,14 @@ class HaxeAdapter implements Adapter {
 		}, pos);
 	}
 
-	// a module-level constant or definition (a final static): its path
+	// a module-level constant, definition or function (a final static, a static function): its path
 	function reference(e:Expr):String {
 		var t = try Context.typeExpr(e) catch (_:Dynamic) notStatic(e);
 		return switch t.expr {
 			case TField(_, FStatic(c, cf)):
 				var cf = cf.get();
 				switch cf.kind {
-					case FVar(_, AccNever | AccCtor | AccInline):
+					case FVar(_, AccNever | AccCtor | AccInline) | FMethod(_):
 						var c = c.get();
 						c.pack.concat([c.name, cf.name]).join(".");
 					case _: error('${cf.name} is not a constant (a definition reads module-level finals and other definitions)', e.pos);
