@@ -184,13 +184,15 @@ class JsArray extends JsObject {
 	public var length:Float = 0;
 	override public function tag():String return "Array";
 
-	function get_items():Array<Dynamic> {
-		if (nums != null) {
-			var n = nums;
-			nums = null;
-			items = [for (x in n) (x : Dynamic)];
-		}
+	inline function get_items():Array<Dynamic> {
+		if (nums != null) generic();
 		return items;
+	}
+
+	function generic():Void {
+		var n = nums;
+		nums = null;
+		items = [for (x in n) (x : Dynamic)];
 	}
 
 	function set_items(v:Array<Dynamic>):Array<Dynamic> {

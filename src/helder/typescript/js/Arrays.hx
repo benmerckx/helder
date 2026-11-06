@@ -35,7 +35,7 @@ class Arrays {
 			if (a.nums != null) {
 				if (i < a.nums.length) return true;
 			}
-			else if (i < a.items.length) return a.items[Std.int(i)] != hole;
+			else if (i < a.items.length) return !same(a.items[Std.int(i)], hole);
 		}
 		return has(o, Seed.numberText(i));
 	}
@@ -66,9 +66,9 @@ class Arrays {
 		method(c, "from", 1, (_, a, _) -> {
 			var source = arg(a, 0);
 			var f = arg(a, 1);
-			var mapped = f != undef();
+			var mapped = !same(f, undef());
 			if (mapped) callback(f);
-			if (source == null || source == undef()) error("TypeError", Seed.text(source) + " is not iterable");
+			if (source == null || same(source, undef())) error("TypeError", Seed.text(source) + " is not iterable");
 			var values = getKey(source, Symbols.iterator, source) != undef() ? toList(source) : arrayLikeList(toObject(source));
 			if (mapped) for (i in 0...values.length) values[i] = call(f, arg(a, 2), [values[i], i]);
 			return array(values);
@@ -125,7 +125,7 @@ class Arrays {
 				if (arr.items.length == n && arr.extensible) {
 					var v = arr.items.shift();
 					arr.length--;
-					return v == hole ? undef() : v;
+					return same(v, hole) ? undef() : v;
 				}
 			}
 			var v = get(o, 0);
@@ -150,7 +150,7 @@ class Arrays {
 			for (j in 0...count) setAt(o, j, a[j]);
 			put(o, "length", n + count);
 			return n + count;});
-		method(p, "join", 1, (t, a, _) -> join(toObject(t), arg(a, 0) == undef() ? "," : Seed.text(arg(a, 0))));
+		method(p, "join", 1, (t, a, _) -> join(toObject(t), same(arg(a, 0), undef()) ? "," : Seed.text(arg(a, 0))));
 		method(p, "toString", 0, (t, _, _) -> {
 			var o = toObject(t);
 			var j = get(o, "join");
@@ -160,7 +160,7 @@ class Arrays {
 			var o = toObject(t);
 			var n = lengthOf(o);
 			var start = relative(arg(a, 0), n);
-			var end = arg(a, 1) == undef() ? n : relative(arg(a, 1), n);
+			var end = same(arg(a, 1), undef()) ? n : relative(arg(a, 1), n);
 			var out = new JsArray(ArrayProto);
 			var i = start;
 			var k:Float = 0;
@@ -180,7 +180,7 @@ class Arrays {
 		method(p, "indexOf", 1, (t, a, _) -> {
 			var o = toObject(t);
 			var n = lengthOf(o);
-			var i = arg(a, 1) == undef() ? 0 : toIntegerOrInfinity(arg(a, 1));
+			var i = same(arg(a, 1), undef()) ? 0 : toIntegerOrInfinity(arg(a, 1));
 			if (i < 0) i = Math.max(i + n, 0);
 			var x = arg(a, 0);
 			while (i < n) {
@@ -202,7 +202,7 @@ class Arrays {
 		method(p, "includes", 1, (t, a, _) -> {
 			var o = toObject(t);
 			var n = lengthOf(o);
-			var i = arg(a, 1) == undef() ? 0 : toIntegerOrInfinity(arg(a, 1));
+			var i = same(arg(a, 1), undef()) ? 0 : toIntegerOrInfinity(arg(a, 1));
 			if (i < 0) i = Math.max(i + n, 0);
 			var x = arg(a, 0);
 			while (i < n) {
@@ -285,14 +285,14 @@ class Arrays {
 			var o = toObject(t);
 			var n = lengthOf(o);
 			var i = relative(arg(a, 1), n);
-			var end = arg(a, 2) == undef() ? n : relative(arg(a, 2), n);
+			var end = same(arg(a, 2), undef()) ? n : relative(arg(a, 2), n);
 			while (i < end) setAt(o, i++, arg(a, 0));
 			return o;});
 		method(p, "concat", 1, (t, a, _) -> {
 			var out = new JsArray(ArrayProto);
 			for (item in ([toObject(t)] : Array<Dynamic>).concat(a)) {
 				var spreadable = getKey(item, "\x00@@isConcatSpreadable", item);
-				if (spreadable == undef() ? Std.isOfType(item, JsArray) : Seed.truth(spreadable)) {
+				if (same(spreadable, undef()) ? Std.isOfType(item, JsArray) : Seed.truth(spreadable)) {
 					var n = lengthOf(item);
 					var i:Float = 0;
 					var start = out.length;
@@ -361,7 +361,7 @@ class Arrays {
 		});
 		for (name in ["sort", "toSorted"]) method(p, name, 1, (t, a, _) -> {
 			var cmp = arg(a, 0);
-			if (cmp != undef()) callback(cmp);
+			if (!same(cmp, undef())) callback(cmp);
 			var o = toObject(t);
 			var n = lengthOf(o);
 			var present = [];
@@ -370,11 +370,11 @@ class Arrays {
 			while (i < n) {
 				if (name == "toSorted" || hasAt(o, i)) {
 					var v = get(o, i);
-					if (v == undef()) undefineds++; else present.push(v);
+					if (same(v, undef())) undefineds++; else present.push(v);
 				}
 				i++;
 			}
-			present = mergeSort(present, (x, y) -> cmp == undef() ? compareStrings(Seed.text(x), Seed.text(y)) : {var r = Seed.numeric(call(cmp, undef(), [x, y])); r > 0 ? 1 : r < 0 ? -1 : 0;});
+			present = mergeSort(present, (x, y) -> same(cmp, undef()) ? compareStrings(Seed.text(x), Seed.text(y)) : {var r = Seed.numeric(call(cmp, undef(), [x, y])); r > 0 ? 1 : r < 0 ? -1 : 0;});
 			var target:Dynamic = name == "sort" ? o : new JsArray(ArrayProto);
 			var k:Float = 0;
 			for (v in present) setAt(target, k++, v);
@@ -385,7 +385,7 @@ class Arrays {
 		method(p, "copyWithin", 2, (t, a, _) -> {
 			var o = toObject(t);
 			var n = lengthOf(o);
-			var target = relative(arg(a, 0), n), start = relative(arg(a, 1), n), end = arg(a, 2) == undef() ? n : relative(arg(a, 2), n);
+			var target = relative(arg(a, 0), n), start = relative(arg(a, 1), n), end = same(arg(a, 2), undef()) ? n : relative(arg(a, 2), n);
 			var count = Math.min(end - start, n - target);
 			var direction:Float = 1;
 			if (start < target && target < start + count) {
@@ -403,7 +403,7 @@ class Arrays {
 		method(p, "flat", 0, (t, a, _) -> {
 			var o = toObject(t);
 			var out = new JsArray(ArrayProto);
-			var depth = arg(a, 0) == undef() ? 1 : Math.max(toIntegerOrInfinity(arg(a, 0)), 0);
+			var depth = same(arg(a, 0), undef()) ? 1 : Math.max(toIntegerOrInfinity(arg(a, 0)), 0);
 			flatten(out, o, depth + 1);
 			return out;});
 		method(p, "flatMap", 1, (t, a, _) -> {
@@ -436,7 +436,7 @@ class Arrays {
 			while (i < n) {
 				if (i > 0) b.add(sep);
 				var v = get(o, i++);
-				if (v != null && v != undef()) b.add(Seed.text(v));
+				if (v != null && !same(v, undef())) b.add(Seed.text(v));
 			}
 		}
 		catch (e:Dynamic) {

@@ -45,7 +45,7 @@ class Seed {
 	}
 
 	public static function text(v:Dynamic):String {
-		if (v == undefinedValue) return "undefined";
+		if (Lib.same(v, undefinedValue)) return "undefined";
 		if (v == null) return "null";
 		if (Std.isOfType(v, Bool)) return v ? "true" : "false";
 		if (Std.isOfType(v, Float) || Std.isOfType(v, Int)) return numberText(v);
@@ -56,7 +56,7 @@ class Seed {
 	}
 
 	public static function truth(v:Dynamic):Bool {
-		if (v == null || v == undefinedValue) return false;
+		if (v == null || Lib.same(v, undefinedValue)) return false;
 		if (Std.isOfType(v, Bool)) return v;
 		if (Std.isOfType(v, Float) || Std.isOfType(v, Int)) {
 			var n:Float = v;
@@ -70,7 +70,7 @@ class Seed {
 	}
 
 	public static function typeOf(v:Dynamic):String {
-		if (v == undefinedValue) return "undefined";
+		if (Lib.same(v, undefinedValue)) return "undefined";
 		if (v == null) return "object";
 		if (Std.isOfType(v, Bool)) return "boolean";
 		if (Std.isOfType(v, Float) || Std.isOfType(v, Int)) return "number";
@@ -91,7 +91,7 @@ class Seed {
 	}
 
 	public static function looseEq(a:Dynamic, b:Dynamic):Bool {
-		var nullishA = a == null || a == undefinedValue, nullishB = b == null || b == undefinedValue;
+		var nullishA = a == null || Lib.same(a, undefinedValue), nullishB = b == null || Lib.same(b, undefinedValue);
 		if (nullishA || nullishB) return nullishA && nullishB;
 		var ta = typeOf(a), tb = typeOf(b);
 		if (ta == tb || ta == "function" && tb == "object" || ta == "object" && tb == "function") return strictEq(a, b);
@@ -104,7 +104,7 @@ class Seed {
 	}
 
 	public static function numeric(v:Dynamic):Float {
-		if (v == undefinedValue) return Math.NaN;
+		if (Lib.same(v, undefinedValue)) return Math.NaN;
 		if (v == null) return 0;
 		if (Std.isOfType(v, Bool)) return v ? 1 : 0;
 		if (Std.isOfType(v, String)) return numberFromString(v);
@@ -290,6 +290,9 @@ class Seed {
 		return i < 0 || i >= s.length ? Math.NaN : StringTools.fastCodeAt(s, Std.int(i));
 	}
 
+	// (at an index below 2^31: a loop counter's)
+	public static function stringCharCodeAtInt(s:String, i:Int):Float return i < 0 || i >= s.length ? Math.NaN : StringTools.fastCodeAt(s, i);
+
 	// Math's functions called directly (the frontend: Math.f(...) where the program replaces neither)
 	public static function mathSqrt(a:Float):Float return Math.sqrt(a);
 
@@ -414,6 +417,15 @@ class Seed {
 
 	public static function libInt(v:Dynamic):Int return Lib.toInt32(v);
 
+	// (ToInt32 of a number: an Int already where it is one)
+	public static function numberInt32(v:Float):Int {
+		if (v >= -2147483648.0 && v <= 2147483647.0) {
+			var i = Std.int(v);
+			if (i == v) return i;
+		}
+		return Lib.toInt32(v);
+	}
+
 	public static function libUnsigned(v:Int):Float return v < 0 ? v + 4294967296.0 : v;
 
 	public static function libHole():Dynamic return Lib.hole;
@@ -502,6 +514,7 @@ class Seed {
 		expectBoolean(true, "");
 		expectString("", "");
 		stringCharCodeAt("", 0);
+		stringCharCodeAtInt("", 0);
 		libBufferAdd(libBuffer(""), libBuffered(libBuffer("")));
 		libLock(libAllocate(libLayoutOf(f)));
 		diverge("", null, "");
@@ -554,6 +567,7 @@ class Seed {
 		libForInKeys(o);
 		libRelation(0, 1, "<");
 		libInt(0);
+		numberInt32(0);
 		libUnsigned(0);
 		libHole();
 		print(consoleLine([]));

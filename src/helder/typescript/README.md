@@ -148,6 +148,29 @@ of it in the loop) is built in a buffer while the loop runs, so the loop is
 linear; `s.charCodeAt(i)` on a string is String.prototype's own (made
 read-only, as Math is frozen).
 
+An array literal of numbers (number[], a branded number's, T extends
+number's; an empty one by the type it is given) is a number array: the
+JsArray's `nums`, its elements unboxed while each is a number and the
+array dense. Reading `items` makes it an ordinary array first (a value
+that is no number, a hole, a length past the end, freezing all do), so
+the runtime's code over items holds for both, and number[] widened to
+unknown[] or any is JavaScript's array; Lib's get and put, push, pop,
+shift and the iteration read and write nums in place. Compiled code reads
+an element unboxed where a number is wanted (arithmetic, a relation, a
+typed slot, for-of's binding), writes or appends one in place, copies
+`a[i] = b[j]`, and pushes a number while Array.prototype's push is the
+built-in (its writes are watched). A for loop's counter (`for (let i = 0;
+i < n; i++)`: an integer start, stepped by one, written nowhere else,
+captured by no closure) is an Int64, its values the double's (from below
+2^31 by one it would reach 2^53 only after 2^52 steps), read as a number
+and used as the integer for an index, a remainder and `charCodeAt`. A
+direct generic function called with number for each of its type
+parameters (explicitly, or as an argument's type for a parameter of type
+T or T[]) runs a copy lowered with them taken as number
+(`Types.numberParams`): one copy a function, at most 64, of functions of
+at most 4000 nodes. Its T slots are typed, so a T that is undefined there
+(`last([])`) diverges, as a number's slot does.
+
 TypeScript's types can be wrong about values (`any`, `as`, a missing
 argument, `JSON.parse`). A value enters a typed slot only through a check:
 where it is not what the type says, the program stops with a TypeError

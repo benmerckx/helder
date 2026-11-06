@@ -37,3 +37,13 @@ outer: for (let i = 0; i < 4; i++) {
 		console.log(i, j, `${i}:${j}`, [i, j], i + "" + j);
 	}
 }
+// charCodeAt at a counter (before, past and at the string's end), bitwise
+// operators on numbers (fractions, past 2^32, below -2^31, NaN, Infinity, -0)
+const word = "héllo, wörld";
+let codes = 0;
+for (let i = -2; i <= word.length + 1; i++) codes += isNaN(word.charCodeAt(i)) ? 1000 : word.charCodeAt(i);
+console.log(codes);
+const bits: number[] = [1.5, -1.5, 2 ** 32 + 3, -(2 ** 31) - 1, NaN, Infinity, -0, 2 ** 31];
+const shifted: number[] = [];
+for (let i = 0; i < bits.length; i++) shifted.push(bits[i] | 0, bits[i] >>> 1, bits[i] << 2, bits[i] & 6, bits[i] ^ i, i >> 1);
+console.log(shifted);

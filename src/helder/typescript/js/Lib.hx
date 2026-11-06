@@ -14,6 +14,10 @@ class Lib {
 	public static var finished:Dynamic = new Hole();
 	public static inline function undef():Dynamic return Seed.undefinedValue;
 
+	// (by reference: undefined, the hole, absent and finished are objects of
+	// their own, so this is what == with one of them means, without Dynamic's comparison)
+	public static inline function same(a:Dynamic, b:Dynamic):Bool return (cast a : Hole) == (cast b : Hole);
+
 	public static function error(name:String, message:String):Dynamic throw Builtins.makeError(name, message);
 
 	public static function isObject(v:Dynamic):Bool return Std.isOfType(v, JsObject);
@@ -53,7 +57,7 @@ class Lib {
 	}
 
 	public static function describe(v:Dynamic):String {
-		if (v == undef()) return "undefined";
+		if (same(v, undef())) return "undefined";
 		if (v == null) return "null";
 		if (Std.isOfType(v, String)) return '"' + v + '"';
 		if (Std.isOfType(v, JsFunction)) return (v : JsFunction).name == "" ? "function" : (v : JsFunction).name;
@@ -83,7 +87,7 @@ class Lib {
 
 	// Properties.
 	public static function get(o:Dynamic, k:Dynamic):Dynamic {
-		if (o == null || o == undef()) return error("TypeError", "Cannot read properties of " + Seed.text(o) + " (reading '" + key(k) + "')");
+		if (o == null || same(o, undef())) return error("TypeError", "Cannot read properties of " + Seed.text(o) + " (reading '" + key(k) + "')");
 		if (Std.isOfType(o, JsArray) && isNumber(k)) {
 			var a:JsArray = cast o;
 			var i = numericIndex(k);
@@ -92,7 +96,7 @@ class Lib {
 			}
 			else if (i >= 0 && i < a.items.length) {
 				var v = a.items[Std.int(i)];
-				if (v != hole) return v;
+				if (!same(v, hole)) return v;
 			}
 		}
 		else if (Std.isOfType(o, TypedArrays.JsTypedArray) && isNumber(k)) return TypedArrays.elementGet(cast o, numericIndex(k));
@@ -113,7 +117,7 @@ class Lib {
 		}
 		while (obj != null) {
 			var v = ownGet(obj, name, receiver);
-			if (v != absent) return v;
+			if (!same(v, absent)) return v;
 			obj = obj.proto;
 		}
 		return undef();
@@ -129,7 +133,7 @@ class Lib {
 			}
 			else if (i >= 0 && i < a.items.length) {
 				var v = a.items[Std.int(i)];
-				return v == hole ? absent : v;
+				return same(v, hole) ? absent : v;
 			}
 		}
 		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
@@ -181,7 +185,7 @@ class Lib {
 			if (a.nums != null) {
 				if (i >= 0 && i < a.nums.length) return true;
 			}
-			else if (i >= 0 && i < a.items.length) return a.items[Std.int(i)] != hole;
+			else if (i >= 0 && i < a.items.length) return !same(a.items[Std.int(i)], hole);
 		}
 		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
 			var i = index(name);
@@ -205,7 +209,7 @@ class Lib {
 	}
 
 	public static function put(o:Dynamic, k:Dynamic, v:Dynamic):Dynamic {
-		if (o == null || o == undef()) return error("TypeError", "Cannot set properties of " + Seed.text(o) + " (setting '" + key(k) + "')");
+		if (o == null || same(o, undef())) return error("TypeError", "Cannot set properties of " + Seed.text(o) + " (setting '" + key(k) + "')");
 		if (Std.isOfType(o, JsArray) && isNumber(k)) {
 			var a:JsArray = cast o;
 			var i = numericIndex(k);
@@ -215,7 +219,7 @@ class Lib {
 					return v;
 				}
 			}
-			else if (i >= 0 && i < a.items.length && a.items[Std.int(i)] != hole) {
+			else if (i >= 0 && i < a.items.length && !same(a.items[Std.int(i)], hole)) {
 				a.items[Std.int(i)] = v;
 				return v;
 			}
@@ -368,7 +372,7 @@ class Lib {
 	}
 
 	public static function remove(o:Dynamic, k:Dynamic):Bool {
-		if (o == null || o == undef()) return error("TypeError", "Cannot convert undefined or null to object");
+		if (o == null || same(o, undef())) return error("TypeError", "Cannot convert undefined or null to object");
 		if (!isObject(o)) return true;
 		var obj:JsObject = o;
 		var name = key(k);
@@ -398,7 +402,7 @@ class Lib {
 
 	// Own string keys: integer indices ascending, then others in insertion order.
 	public static function ownKeys(o:Dynamic, enumerableOnly:Bool):Array<String> {
-		if (o == null || o == undef()) return error("TypeError", "Cannot convert undefined or null to object");
+		if (o == null || same(o, undef())) return error("TypeError", "Cannot convert undefined or null to object");
 		if (Std.isOfType(o, String)) {
 			var s:String = o;
 			return [for (i in 0...s.length) Std.string(i)];
@@ -409,7 +413,7 @@ class Lib {
 		if (Std.isOfType(obj, JsArray)) {
 			var a:JsArray = cast obj;
 			if (a.nums != null) for (i in 0...a.nums.length) out.push(Std.string(i));
-			else for (i in 0...a.items.length) if (a.items[i] != hole) out.push(Std.string(i));
+			else for (i in 0...a.items.length) if (!same(a.items[i], hole)) out.push(Std.string(i));
 		}
 		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) for (i in 0...(cast obj : TypedArrays.JsTypedArray).length()) out.push(Std.string(i));
 		var own = obj.ownNames();
@@ -530,7 +534,7 @@ class Lib {
 
 	// A class: its constructor function and prototype object. parent is hole without extends.
 	public static function makeClass(name:String, parent:Dynamic, impl:Dynamic, arity:Int, rest:Bool, fields:Dynamic):Dynamic {
-		var derived = parent != hole;
+		var derived = !same(parent, hole);
 		var protoParent = Builtins.ObjectProto;
 		var ctorProto = Builtins.FunctionProto;
 		if (derived) {
@@ -658,7 +662,7 @@ class Lib {
 	public static function instanceOf(v:Dynamic, c:Dynamic):Bool {
 		if (!isObject(c)) return error("TypeError", "Right-hand side of 'instanceof' is not " + (isObject(c) ? "callable" : "an object"));
 		var custom = getKey(c, Symbols.hasInstance, c);
-		if (custom != undef() && custom != null) return Seed.truth(call(custom, c, [v]));
+		if (!same(custom, undef()) && custom != null) return Seed.truth(call(custom, c, [v]));
 		if (!Std.isOfType(c, JsFunction)) return error("TypeError", "Right-hand side of 'instanceof' is not callable");
 		var f:JsFunction = c;
 		if (f.native != null && f.hasOwn(Builtins.boundTarget)) return instanceOf(v, f.getOwn(Builtins.boundTarget));
@@ -677,7 +681,7 @@ class Lib {
 	public static function toPrimitive(o:Dynamic, hint:String):Dynamic {
 		if (!isObject(o)) return o;
 		var exotic = getKey(o, Symbols.toPrimitive, o);
-		if (exotic != undef() && exotic != null) {
+		if (!same(exotic, undef()) && exotic != null) {
 			var r = call(exotic, o, [hint]);
 			if (!isObject(r)) return r;
 			return error("TypeError", "Cannot convert object to primitive value");
@@ -694,7 +698,7 @@ class Lib {
 	}
 
 	public static function toObject(v:Dynamic):JsObject {
-		if (v == null || v == undef()) return error("TypeError", "Cannot convert undefined or null to object");
+		if (v == null || same(v, undef())) return error("TypeError", "Cannot convert undefined or null to object");
 		return isObject(v) ? v : Objects.wrap(v);
 	}
 
@@ -713,7 +717,7 @@ class Lib {
 	}
 
 	public static function iterator(o:Dynamic):Dynamic {
-		var method = o == null || o == undef() ? undef() : getKey(o, Symbols.iterator, o);
+		var method = o == null || same(o, undef()) ? undef() : getKey(o, Symbols.iterator, o);
 		if (!isCallable(method)) return error("TypeError", (isObject(o) ? "object" : Seed.text(o)) + " is not iterable");
 		var it = call(method, o, []);
 		if (!isObject(it)) return error("TypeError", "Result of the Symbol.iterator method is not an object");
@@ -733,7 +737,7 @@ class Lib {
 			var i:JsIterator = it;
 			if (i.finished) return finished;
 			var v = Builtins.iteratorStep(i);
-			if (v == finished) i.finished = true;
+			if (same(v, finished)) i.finished = true;
 			return v;
 		}
 		var r = next(it);
@@ -743,14 +747,14 @@ class Lib {
 	// Destructuring: the next value (undefined once done), and the rest as an array.
 	public static function step(it:Dynamic):Dynamic {
 		var v = iterate(it);
-		return v == finished ? undef() : v;
+		return same(v, finished) ? undef() : v;
 	}
 
 	public static function restArray(it:Dynamic):Dynamic {
 		var values = [];
 		while (true) {
 			var v = iterate(it);
-			if (v == finished) break;
+			if (same(v, finished)) break;
 			values.push(v);
 		}
 		return array(values);
@@ -759,7 +763,7 @@ class Lib {
 	public static function toList(o:Dynamic):Array<Dynamic> {
 		if (Std.isOfType(o, JsArray) && (o : JsArray).proto == Builtins.ArrayProto && !Builtins.arrayIterationChanged) {
 			var a:JsArray = cast o;
-			var out = [for (v in a.elements()) v == hole ? undef() : v];
+			var out = [for (v in a.elements()) same(v, hole) ? undef() : v];
 			while (out.length < a.length) out.push(get(a, out.length));
 			return out;
 		}
@@ -767,7 +771,7 @@ class Lib {
 		var values = [];
 		while (true) {
 			var v = iterate(it);
-			if (v == finished) break;
+			if (same(v, finished)) break;
 			values.push(v);
 		}
 		return values;
@@ -775,7 +779,7 @@ class Lib {
 
 	// for-in: enumerable string keys of the object and its prototypes, each once.
 	public static function forInKeys(o:Dynamic):Dynamic {
-		if (o == null || o == undef()) return array([]);
+		if (o == null || same(o, undef())) return array([]);
 		var obj = toObject(o);
 		var seen:Map<String, Bool> = [];
 		var out:Array<Dynamic> = [];
@@ -790,7 +794,7 @@ class Lib {
 		return array(out);
 	}
 
-	public static function requireObject(o:Dynamic):Void if (o == null || o == undef()) error("TypeError", "Cannot destructure '" + Seed.text(o) + "' as it is " + Seed.text(o) + ".");
+	public static function requireObject(o:Dynamic):Void if (o == null || same(o, undef())) error("TypeError", "Cannot destructure '" + Seed.text(o) + "' as it is " + Seed.text(o) + ".");
 
 	public static function objectRest(o:Dynamic, used:Array<Dynamic>):Dynamic {
 		var excluded = [for (k in used) key(k)];
@@ -801,7 +805,7 @@ class Lib {
 
 	// (object spread: own enumerable properties; null and undefined add nothing)
 	public static function assignSpread(target:Dynamic, source:Dynamic):Void {
-		if (source == null || source == undef()) return;
+		if (source == null || same(source, undef())) return;
 		for (k in keys(source)) defineOwn(target, k, get(source, k));
 	}
 

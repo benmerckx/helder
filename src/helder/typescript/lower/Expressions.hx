@@ -398,7 +398,9 @@ abstract class Expressions extends Statements {
 			return b.runtime("libRelation", [any(a), any(z), EStr(op == KindLessThanToken ? "<" : op == KindLessThanEqualsToken ? "<=" : op == KindGreaterThanToken ? ">" : ">=")]);
 		}
 		if (op == KindAmpersandToken || op == KindBarToken || op == KindCaretToken || op == KindLessThanLessThanToken || op == KindGreaterThanGreaterThanToken || op == KindGreaterThanGreaterThanGreaterThanToken) {
-			var left = b.runtime("libInt", [any(a)]), right = b.runtime("libInt", [any(z)]);
+			// (a number's ToInt32 without boxing it)
+			function int32(x:Ex) return Ir.typeOf(x) == TF64 ? b.runtime("numberInt32", [x]) : b.runtime("libInt", [any(x)]);
+			var left = int32(a), right = int32(z);
 			var value = EBin(op == KindAmpersandToken ? And : op == KindBarToken ? Or : op == KindCaretToken ? Xor : op == KindLessThanLessThanToken ? Shl : op == KindGreaterThanGreaterThanToken ? Shr : UShr, left, right);
 			return op == KindGreaterThanGreaterThanGreaterThanToken ? b.runtime("libUnsigned", [b.temp(value)]) : EConv(I2F, value);
 		}
@@ -606,10 +608,12 @@ abstract class Expressions extends Statements {
 		return reps.arrayGetNumber(b, obj, k, g -> slot ? store(g, TF64) : number(g));
 	}
 
-	// (an operator that makes its operands numbers: arithmetic, and a
-	// relation or + between numbers)
+	// (an operator that makes its operands numbers: arithmetic, the bitwise
+	// ones, and a relation or + between numbers)
 	function numericOperator(op:Kind, n:Node):Bool {
 		if (op == KindMinusToken || op == KindAsteriskToken || op == KindSlashToken || op == KindPercentToken || op == KindAsteriskAsteriskToken) return true;
+		if (op == KindAmpersandToken || op == KindBarToken || op == KindCaretToken || op == KindLessThanLessThanToken || op == KindGreaterThanGreaterThanToken
+			|| op == KindGreaterThanGreaterThanGreaterThanToken) return true;
 		var relation = op == KindLessThanToken || op == KindLessThanEqualsToken || op == KindGreaterThanToken || op == KindGreaterThanEqualsToken;
 		return (relation || op == KindPlusToken) && n.kind == KindBinaryExpression && types.isNumber(n.left().tsType) && types.isNumber(n.right().tsType);
 	}
@@ -874,6 +878,15 @@ abstract class Expressions extends Statements {
 		if (callee.kind == KindPropertyAccessExpression && plainAccess(callee) && callee.name().text == "charCodeAt" && actual.length <= 1 && !hasSpread(actual)
 			&& types.isString(callee.expression().tsType)) {
 			var s = b.temp(expr(callee.expression()));
+			var counter = actual.length == 0 ? null : intOf(actual[0]);
+			if (counter != null && Ir.typeOf(s).match(TRef(RStr))) {
+				// (a loop counter: at or past 2^31 past any string's end)
+				typedOperations++;
+				var c = b.local("code", TF64);
+				b.out.push(SSet(c, EF64(Math.NaN)));
+				b.out.push(SIf(EBin(LLt, counter, EBin(LShl, EConv(I2L, EInt(1)), EInt(31))), b.block(() -> b.out.push(SSet(c, b.runtime("stringCharCodeAtInt", [s, EConv(L2I, counter)])))), new Vector(0)));
+				return ELocal(c);
+			}
 			var i = actual.length == 0 ? EF64(0) : b.temp(number(expr(actual[0])));
 			if (Ir.typeOf(s).match(TRef(RStr))) {
 				typedOperations++;
