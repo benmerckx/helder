@@ -131,9 +131,9 @@ class AtspiProbe {
 		var title = Sys.args()[0] ?? "fixture", wanted = Sys.args().slice(1);
 		Atspi.atspi_init();
 		err.value = Ptr.nil();
-		// the application (it may take a moment to embed itself)
+		// the application (it may take a moment to embed itself: a first frame, under a loaded runner, the viewer's decode)
 		var app = Ptr.nil(), start = haxe.Timer.stamp();
-		while (app.isNull() && haxe.Timer.stamp() - start < 15) {
+		while (app.isNull() && haxe.Timer.stamp() - start < 40) {
 			var desktop = Atspi.atspi_get_desktop(0);
 			// (its children asked again: libatspi keeps what it got)
 			Atspi.atspi_accessible_clear_cache(desktop);
