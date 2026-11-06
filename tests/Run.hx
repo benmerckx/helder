@@ -66,7 +66,7 @@ class Run {
 		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder's compiler (helder.compiler, with this frontend) natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
 		{name: "typescript-native", about: "helder/native's definitions where their systems are (tests/typescript/native.mjs; the typescript lane runs it too): native.c (libc and libm on Linux, natively, static and glibc; Core Foundation on a Mac), native.objc (Foundation's NSProcessInfo and NSString on a Mac), native.com (WIC's factory, a bitmap's size read back, on Windows; on Linux under Wine with Windows' runtime objects), each refused where its system is not; native.jni's on Android is the android job's (tests/typescript/native/android.sh)", run: () -> run(NODE, ["tests/typescript/native.mjs"])},
 		{name: "examples", about: "every example (Haxe, TypeScript) built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too; then the golf example's recorded rounds replayed natively and as wasm32-wasi (examples/golf/GolfReplay.hx)", run: examples},
-		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
+		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa), helder/scene's from TypeScript (tests/3d/ts/frames.ts)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
 		{name: "sprite", about: "helder.sprite's SpriteBatch on a GPU, headless (tests/sprite/SpriteFrame.hx; Linux: Mesa): sprites placed, scaled, turned, faded and added, two textures; its CPU half and the atlas are the test lane's", run: sprite},
@@ -912,6 +912,7 @@ class Run {
 		native('bin/3d/$t/SurfaceTest', cps(["src", "tests/gfx", "tests/3d-ui"]).concat(["-main", "SurfaceTest"]), t);
 		shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
+		sceneTs(t);
 		// (Model.of's files in the executable's data, helder.asset's Bundle: it
 		// alone in a directory, run from it, nothing beside it)
 		var exe = Path.withoutDirectory(exePath("bin/3d/alone/RenderTest", t));
@@ -924,6 +925,21 @@ class Run {
 		var r = build(cp.concat(cps(["tests/3d/reject"])).concat(["-main", "ModelTypo", "--custom-target", "hxmc=bin/3d/ModelTypo"]), "bin/3d/ModelTypo.log");
 		if (r.code == 0 || !r.log.contains("has no field bal"))
 			throw new Failed("ModelTypo: expected the error \"has no field bal\":\n" + r.log);
+	}
+
+	// helder/scene from TypeScript (tests/3d/ts/frames.ts, examples/ts-scene's
+	// scenes): its module's declarations as FramesTypeScript makes them, then
+	// its frames headless as RenderTest's, glow against Haxe's glow.png,
+	// tsscene against tsscene.png (which check.sh's Haxe twin matches too)
+	static function sceneTs(t:String) {
+		var compiler = StringTools.trim(output(NODE, ["src/helder/compiler/build.mjs", "--quiet"]));
+		var cp = [for (d in ["tests/3d/ts", "tests/gfx"].concat(GFX_EXAMPLES)) for (a in ["--cp", d]) a];
+		run(NODE, ["src/helder/typescript/api/declarations.mjs", "--check"].concat(cp).concat(["helder.scene.TypeScript", "FramesTypeScript"]));
+		var exe = exePath('bin/3d/$t/ts-frames', t);
+		mkdirs(Path.directory(exe));
+		run(compiler, ["tests/3d/ts/frames.ts", "-o", exe].concat(cp).concat(targetArgs(t)));
+		for (s in ["glow", "tsscene"])
+			shell('LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY $exe $s tests/3d/$s.png bin/3d/$t/ts-$s.png');
 	}
 
 	static function sceneWeb() {

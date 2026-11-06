@@ -57,7 +57,7 @@ import helder.scene.render.*;
 //          scaled and coloured from flat arrays: one instanced draw,
 //          casting shadows on a floor; another set out of view, culled
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -152,6 +152,12 @@ class Scenes {
 				glow.at(TIME);
 				renderer = glow.renderer;
 				enc -> glow.draw(enc);
+			case "tsscene":
+				// examples/ts-scene's Showcase in Haxe (TsScene): its frame is the TypeScript one's (tests/3d/ts/frames.ts)
+				var scene = new TsScene(device);
+				scene.at(TIME);
+				renderer = scene.renderer;
+				enc -> scene.draw(enc);
 			case "physics":
 				var falling = new Falling(device);
 				for (_ in 0...STEPS)

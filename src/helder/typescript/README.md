@@ -549,7 +549,9 @@ static renderer, an island), `ui.tsx` (helder.ui headless, `env()`), `async.ts`
 an await), `bytes.ts` (Bytes as typed arrays: ImageData, a PNG), `math.ts`
 (helder's math types as helder/gfx's classes, by value), `scene.ts`
 (helder/scene without a GPU: nodes, a camera, a light, a material and its
-constructor's defaults, a fixed step).
+constructor's defaults, a fixed step). The 3d lane draws helder/scene's
+frames from TypeScript (tests/3d/ts/frames.ts: examples/ts-scene's scenes,
+against Haxe's goldens).
 
 The lane needs node 24 or later.
 
