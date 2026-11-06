@@ -246,13 +246,38 @@ class UiWindow {
 			h = Math.round(a.height * k);
 		}
 		var now = a == null ? "" : '$x,$y,$w,$h';
-		if (now == typing) return;
+		if (now == typing) {
+			sendTextContext();
+			return;
+		}
 		if (a == null) {
 			window.stopTextInput();
 			// (which takes the keyboard's focus back from a native editor that just took it)
 			if (ui.focus != null) @:privateAccess ui.focus.refocusNative();
 		} else window.startTextInput(x, y, w, h);
 		typing = now;
+		contextText = null;
+		sendTextContext();
+	}
+
+	// the text context last given to the window (null: none since text input began)
+	var contextText:Null<String> = null;
+	var contextStart = 0;
+	var contextEnd = 0;
+	var contextKind = 0;
+
+	// the focus's text and selection to the window's input method, when they changed
+	function sendTextContext() {
+		if (typing == "") return;
+		var c = ui.textContext();
+		if (c == null) return;
+		var kind = (c.multiline ? 1 : 0) | (c.secret ? 2 : 0);
+		if (c.text == contextText && c.start == contextStart && c.end == contextEnd && kind == contextKind) return;
+		contextText = c.text;
+		contextStart = c.start;
+		contextEnd = c.end;
+		contextKind = kind;
+		window.textContext(c.text, c.start, c.end, c.multiline, c.secret);
 	}
 
 	// the tree's changes to the browser's mirror or to macOS (the guards inside: an
@@ -333,6 +358,8 @@ class UiWindow {
 				ui.textInput(e.text);
 			case TextEditing:
 				ui.composition(e.text, e.x);
+			case TextReplace:
+				ui.replaceText(e.x, e.y, e.text);
 			case Resize | Redraw:
 				redraw = true;
 			case Drop:

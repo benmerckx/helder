@@ -1118,6 +1118,16 @@ class Node implements Part {
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return null;
 
+	// the text around its caret, for an input method (Window.textContext:
+	// its text, the selection in UTF-16 indices, its kind); null: none to give
+	public function textContext():Null<{text:String, start:Int, end:Int, multiline:Bool, secret:Bool}>
+		return null;
+
+	// an input method's edit of that text: start...end replaced by s, the
+	// caret after it (a node with no text context: s typed)
+	public function replaceText(start:Int, end:Int, s:String)
+		if (ui != null && s != "") @:privateAccess ui.textInputNow(s);
+
 	// its background gradient drawn at its size in the window's pixels, at
 	// most GRADIENT_PIXELS of them (a large box's at a lower resolution,
 	// stretched over it: a gradient is smooth, and a full-screen one at a

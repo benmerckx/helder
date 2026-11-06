@@ -158,6 +158,17 @@ class EditableText extends TextNode implements PlatformEditorListener {
 	override public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return focused && !editorShown && !Math.isNaN(caretX) ? {x: caretX, y: caretY, width: 1.0, height: caretHeight} : null;
 
+	override public function textContext():Null<{text:String, start:Int, end:Int, multiline:Bool, secret:Bool}>
+		return focused && !editorShown ? {text: text, start: selectionStart, end: selectionEnd, multiline: hostKind() == "text-area", secret: secret} : null;
+
+	// (an input method's edit: as typed, over that range)
+	override public function replaceText(start:Int, end:Int, s:String) {
+		if (readOnly) return;
+		anchor = clampIndex(start);
+		caret = clampIndex(end);
+		edit(s, true);
+	}
+
 	// the composition now (empty: none), the caret in it: shown, not typed
 	public function compose(s:String, at:Int) {
 		if (s == composition && at == compositionCaret || readOnly && s != "") return;

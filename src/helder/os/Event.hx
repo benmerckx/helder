@@ -20,8 +20,8 @@ enum abstract EventKind(Int) {
 	var Redraw;
 	// an input method's composition (the text not committed yet, shown where
 	// it is typed): text, the caret in it (x, UTF-16); empty: it ended
-	// (committed: TextInput follows; or cancelled). In the browser and on
-	// macOS, while Window.startTextInput is on
+	// (committed: TextInput follows; or cancelled). In the browser, on
+	// macOS, Windows (TSF) and Android, while Window.startTextInput is on
 	var TextEditing;
 	// the wheel or a trackpad: deltaX, deltaY in pixels (as a browser's wheel
 	// event: positive scrolls toward the right and the bottom), at the
@@ -53,6 +53,11 @@ enum abstract EventKind(Int) {
 	// macOS's dragging destination (file URLs), X11's XDND (text/uri-list);
 	// not in the browser, on Android or iOS yet
 	var Drop;
+	// an input method's edit of the text around where text is typed
+	// (Window.textContext's): x...y of it (UTF-16 indices) replaced by
+	// text, the caret after it (Windows' TSF, Wayland's
+	// delete_surrounding_text); an insertion at the caret comes as TextInput
+	var TextReplace;
 }
 
 // Event.mods bits

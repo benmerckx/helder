@@ -125,8 +125,11 @@ class Window {
 	// pixels from the top left), until stopTextInput: an input method shows
 	// its composition and candidates there. In the browser keys then reach an
 	// input element of the page, on macOS through a text view (NSTextInputClient)
-	// at the caret: their compositions as TextEditing events; Windows places
-	// the IME's windows (imm32); X11's input method keeps its own place;
+	// at the caret: their compositions as TextEditing events; on Windows
+	// through TSF (helder.os.win32.Tsf: its document the field's,
+	// textContext), the composition as TextEditing, the candidates below the
+	// caret (where TSF is not there, the IME's own windows placed: imm32);
+	// X11's input method keeps its own place;
 	// Android shows the soft keyboard, its input method through a hidden
 	// EditText (helder.os.android.TextInput, once enabled), compositions as
 	// TextEditing
@@ -138,10 +141,22 @@ class Window {
 				width, height) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(true, x, y, width, height);
 	}
 
+	// the text around where text is typed (a text field's text and its
+	// selection, UTF-16 indices), what an input method reads and edits:
+	// Windows' TSF document, Wayland's surrounding text (text-input-v3);
+	// multiline (a text area) and secret (a password: no text given, input
+	// methods told) its kind. Given after startTextInput, again whenever it
+	// changes; the input method's edits of it come as TextReplace (and
+	// TextInput, TextEditing). Nothing elsewhere
+	public function textContext(text:String, start:Int, end:Int, multiline = false, secret = false) {
+		if (closed || !typing) return;
+		if (Mem.os() == 2) (cast native : Win32Window).textContext(secret ? "" : text, secret ? 0 : start, secret ? 0 : end);
+	}
+
 	public function stopTextInput() {
 		typing = false;
 		if (closed) return;
-		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.platform() >= 1) {} else if (Mem.os() == 1)
+		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.os() == 2) (cast native : Win32Window).stopTextInput() else if (Mem.platform() >= 1) {} else if (Mem.os() == 1)
 			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(false, 0, 0, 0, 0);
 	}
 

@@ -32,6 +32,18 @@ class Com {
 			p[8 + i] = d4[i];
 		return p;
 	}
+
+	// a GUID in native memory as the registry writes it, lower case without braces
+	public static function iid(p:Ptr):String {
+		inline function hex(v:Int, n:Int)
+			return StringTools.hex(v, n).toLowerCase();
+		var b:Ptr<UInt8> = p;
+		var d1 = b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
+		var s = hex(d1, 8) + "-" + hex(b[4] | (b[5] << 8), 4) + "-" + hex(b[6] | (b[7] << 8), 4) + "-" + hex(b[8], 2) + hex(b[9], 2) + "-";
+		for (i in 10...16)
+			s += hex(b[i], 2);
+		return s;
+	}
 }
 
 @:build(helder.os.win32.Com.build())

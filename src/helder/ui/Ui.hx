@@ -1329,6 +1329,18 @@ class Ui {
 		bubble(e);
 	}
 
+	// an input method's edit of the text around the caret (the focus's
+	// textContext): start...end replaced by text
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
+	public function replaceText(start:Int, end:Int, text:String) {
+		if (focus != null) focus.replaceText(start, end, text) else textInputNow(text);
+		helder.view.graph.Graph.flush();
+	}
+
+	// the focus's text around its caret, for the input method (null: none)
+	public function textContext():Null<{text:String, start:Int, end:Int, multiline:Bool, secret:Bool}>
+		return focus == null ? null : focus.textContext();
+
 	// where text is typed now (the focused node's caret, window pixels): the
 	// input method's place; null: the focus takes no text
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>

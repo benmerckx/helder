@@ -157,6 +157,10 @@ class Win32Window {
 
 	function destroy() {
 		open.remove(this);
+		if (Mem.os() == 2 && tsf != null) {
+			(cast tsf : Tsf).dispose();
+			tsf = null;
+		}
 		#if hxmc.dev_host
 		// (handing over: the window left to the next build)
 		if (helder.dev.Hosted.handingOver && helder.dev.Hosted.get(helder.dev.Hosted.UI_WINDOW) == hwnd) return;
@@ -255,9 +259,39 @@ class Win32Window {
 		User32.SetCursor(cursor);
 	}
 
-	// the IME's composition at the caret, its candidates below it (CFS_POINT;
-	// CFS_EXCLUDE: not over the caret's area)
+	// text input through TSF (null: not made yet, or TSF not there)
+	// (a Tsf; Any, and each use under Mem.os() == 2: the other targets never
+	// reach its type, nor link its libraries)
+	var tsf:Any = null;
+
+	function textInputTsf(x:Int, y:Int, width:Int, height:Int):Bool {
+		if (Mem.os() == 2) {
+			if (tsf == null && Tsf.available()) tsf = new Tsf(hwnd, tsfEvent);
+			if (tsf != null) {
+				(cast tsf : Tsf).area(x, y, width, height);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// (TSF's edits as the window's events)
+	function tsfEvent(kind:EventKind, text:String, x:Int, y:Int) {
+		var e = event;
+		e.kind = kind;
+		e.window = owner;
+		e.text = text;
+		e.x = x;
+		e.y = y;
+		e.mods = 0;
+		dispatch(e);
+	}
+
+	// text input on at the caret: TSF's document manager the window's focus,
+	// else (no TSF) the IME's composition at the caret, its candidates below
+	// it (CFS_POINT; CFS_EXCLUDE: not over the caret's area)
 	function textInputArea(x:Int, y:Int, width:Int, height:Int) {
+		if (textInputTsf(x, y, width, height)) return;
 		var imc = Imm32.ImmGetContext(hwnd);
 		if (imc.isNull()) return;
 		Arena.scoped(a -> {
@@ -282,6 +316,12 @@ class Win32Window {
 		});
 		Imm32.ImmReleaseContext(hwnd, imc);
 	}
+
+	function stopTextInput()
+		if (Mem.os() == 2 && tsf != null) (cast tsf : Tsf).focus(false);
+
+	function textContext(text:String, start:Int, end:Int)
+		if (Mem.os() == 2 && tsf != null) (cast tsf : Tsf).textContext(text, start, end);
 
 	// the clipboard's text: UTF-16 in movable global memory (CF_UNICODETEXT),
 	// which the clipboard owns once set
