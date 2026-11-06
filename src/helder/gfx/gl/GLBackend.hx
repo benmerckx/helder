@@ -264,8 +264,10 @@ class GLBackend {
 	}
 
 	function querySize() {
-		if (Mem.os() == 3) {
-			// (a canvas: its size now, which App's Resize events follow)
+		// (a canvas: its size now, which App's Resize events follow; a wl_egl_window: the size it was
+		// last resized to, which the next frame's buffer has: EGL reports the resize only once a buffer
+		// of the new size was drawn, so a frame drawn after a scale change would be sized a frame late)
+		if (Mem.os() == 3 || surface.kind == Wayland) {
 			width = surface.width;
 			height = surface.height;
 			return;
