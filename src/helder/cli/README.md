@@ -597,6 +597,9 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   `Clock.reducedMotion` (Style's transitions of transform and shadow, and
   Motion's transition and spring, jump; fades and colours still ease).
   `FileDialog.open` takes the script's next `file-dialog` answer.
+  helder.os's `Store` starts empty and stays in memory (what an earlier
+  run or the user's own copy of the app kept changes nothing; the run
+  keeps nothing).
 - **The clock**: `App.run` never waits: each turn is frame n at n / fps
   seconds (`--fps`, 60) of a virtual clock (`helder.headless.Time`), which
   `App.frame`, helder.ui's `Clock` and events (`Ui.now`), Pointers'
@@ -679,7 +682,10 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   windows composited (the first window's frame and nodes are the
   outputs); the time `Sys.time()` and `Date.now()` read stays the system's
   (a program animating from them is not frame exact: `App.frame.time` is
-  the clock), as do haxe.Timer's delays.
+  the clock), as do haxe.Timer's delays; helder.jobs' work runs on its
+  threads in real time, so a result the script waits for needs a margin
+  (the viewer's decode in tests/headless/viewer.json has most of a
+  second).
 
 ## Output
 
