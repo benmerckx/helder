@@ -113,7 +113,7 @@ class Document {
 	function xrefAt(o:Int):PdfDict {
 		var p = new Parser(data, o, null, limits.maxNesting);
 		p.skip();
-		if (data.getString(p.pos, 4) == "xref") {
+		if (p.pos + 4 <= data.length && data.getString(p.pos, 4) == "xref") {
 			p.pos += 4;
 			while (true) {
 				p.skip();
