@@ -10,7 +10,7 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
-import type {Asset} from "helder/asset";
+import type {Map} from "./frame-check";
 import type {Mat4, Quat, Vec2, Vec3, Vec4} from "helder/gfx";
 import type {Node} from "helder/scene";
 
@@ -305,7 +305,7 @@ export declare class Material {
 	// replaced), null: the standard one; the blocks of its own, by their
 	// parameters' names (its slots' parameters the standard ones are not)
 	shader: MaterialShader | null;
-	uniforms: unknown | null;
+	uniforms: Map<string, Uint8Array> | null;
 	// a clear coat over the surface (KHR_materials_clearcoat): how much (0
 	// to 1) and its roughness; a polished dielectric layer (f0 0.04) whose
 	// reflection, from the sun and the environment, is added over the base
@@ -376,7 +376,7 @@ export declare class Model<N, M, A, C> {
 	// a model whose path is known only at run time: loaded in the background
 	// (in the browser fetched, relative to the page; natively read at once),
 	// its names unknown when compiling (find nodes by name: model.doc)
-	static load(path: string): Asset<Model<{}, {}, {}, {}>>;
+	static load(path: string): unknown;
 	// the model's scene as nodes of world (under parent, by default the root)
 	instantiate(world: World, device: Device, parent?: Node, made?: Node[]): Node;
 	// the model's GPU meshes released
@@ -402,6 +402,10 @@ export declare class Model<N, M, A, C> {
 // (params: the plain variant's writers, typed; the class is the material's
 // own, made beside its module).
 export declare class MaterialShader {
+	// a TypeScript program's material (helder/scene's material(pbr.with({...})),
+	// a definition: helder.typescript.lower's Definitions compiles the same
+	// variants and passes them here, JSON)
+	static script(json: string): MaterialShader;
 	readonly plain: AnyShader;
 	readonly normalMapped: AnyShader;
 	readonly skinned: AnyShader;
@@ -667,4 +671,6 @@ export declare class Script {
 	static find(n: Node, name: string): Node;
 	static shown(n: Node): boolean;
 	static dispose(n: Node): void;
+	// a material's block of its own (a shader of its own's: MaterialShader.blocks) by its parameter's name
+	static materialBlock(m: Material, name: string, bytes: Uint8Array): void;
 }

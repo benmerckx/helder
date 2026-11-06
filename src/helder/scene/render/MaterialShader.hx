@@ -46,6 +46,43 @@ class MaterialShader {
 		this.blocks = blocks;
 	}
 
+	// a TypeScript program's material (helder/scene's material(pbr.with({...})),
+	// a definition: helder.typescript.lower's Definitions compiles the same
+	// variants and passes them here, JSON)
+	@:typescript public static function script(json:String):MaterialShader {
+		var d:Dynamic = haxe.Json.parse(json);
+		var vs:Array<Dynamic> = d.variants;
+		var s = [for (v in vs) shaderOf(v)];
+		var bs:Array<Dynamic> = d.blocks;
+		return new MaterialShader(s[0], s[1], s[2], s[3], s[4], [for (b in bs) {name: (b.name : String), bindings: [for (x in (b.bindings : Array<Dynamic>)) (x : Int)]}]);
+	}
+
+	static function shaderOf(v:Dynamic):AnyShader {
+		function code(c:Dynamic):helder.gfx.ShaderCode {
+			var bs:Array<Dynamic> = c.bindings;
+			return {
+				glsl: c.glsl,
+				msl: c.msl,
+				hlsl: c.hlsl,
+				wgsl: c.wgsl,
+				bindings: [
+					for (b in bs)
+						{name: (b.name : String), slot: (b.slot : Int), kind: (cast(b.kind : Int) : helder.gfx.ShaderBinding.BindingKind), size: (b.size : Null<Int>)}
+				]
+			};
+		}
+		var ls:Array<Dynamic> = v.layout, us:Array<Dynamic> = v.uniforms, ts:Array<Dynamic> = v.textures;
+		var layout:Array<helder.gfx.VertexBufferLayout> = [
+			for (l in ls) {
+				var as:Array<Dynamic> = l.attributes;
+				{stride: (l.stride : Int), attributes: [for (a in as) {location: (a.location : Int), format: (cast(a.format : Int) : helder.gfx.VertexFormat), offset: (a.offset : Int)}]};
+			}
+		];
+		return new helder.gfx.shader.Shader<Dynamic, Dynamic>(code(v.vertexCode), code(v.fragmentCode), layout,
+			[for (u in us) {name: (u.name : String), binding: (u.binding : Int), size: (u.size : Int)}], [for (t in ts) {name: (t.name : String), binding: (t.binding : Int)}],
+			_ -> throw "MaterialShader: a TypeScript material's vertices are the renderer's", null);
+	}
+
 	// the material's variants of a slot object made from pbr (pbr.with({...}))
 	public static macro function material(def:Expr):Expr {
 		var pos = Context.currentPos();

@@ -32,7 +32,7 @@ class Definitions {
 	];
 
 	// the definitions by module and name
-	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS, "helder/ui/actions" => ["actions"], "helder/test" => [for (k in located.keys()) k]];
+	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS, "helder/ui/actions" => ["actions"], "helder/scene" => ["material"], "helder/test" => [for (k in located.keys()) k]];
 
 	final src:Project;
 	final defined:String->Null<String>;
@@ -132,6 +132,10 @@ class Definitions {
 			namespaces.set(out.namespace, n);
 			return Generated(ActionsDefinition.toJson(out));
 		}
+		if (from.name == "material") {
+			if (args.length != 1) a.error("material takes one argument, a slot object made from helder/scene's pbr (pbr.with({...}))", n);
+			return Generated(material(args[0], n));
+		}
 		if (args.length != 1) a.error('${from.name} takes one argument, an object literal', n);
 		var arg = a.node(args[0]);
 		return switch from.name {
@@ -143,6 +147,46 @@ class Definitions {
 				defined("helder.release") != null ? Dropped : Checked;
 			case _: null;
 		}
+	}
+
+	// helder/scene's material(pbr.with({...})), as Haxe's MaterialShader.material
+	// (src/helder/scene/render/MaterialShader.hx): the slot object's variants
+	// the renderer draws with (plain, normal mapped, skinned, instanced,
+	// instanced and normal mapped), each compiled by an adapter of its own,
+	// and the blocks of the material's own (a slot's parameters that are not
+	// the stages': their slot in each variant), JSON for
+	// MaterialShader.script
+	function material(e:Node, n:Node):String {
+		var kinds = [[], ["normalMap"], ["skinned"], ["instanced"], ["instanced", "normalMap"]];
+		var standard = ["PbrFrame", "PbrObject", "PbrMaterial", "PbrSkinInfo"];
+		var textures = [
+			"baseColorTexture", "metallicRoughnessTexture", "emissiveTexture", "occlusionTexture", "shadowMap", "shadowMapFar", "environmentMap", "normalTexture",
+			"jointMatrices"
+		];
+		var variants = [], blocks = new Map<String, Array<Int>>(), order = [];
+		for (k in 0...kinds.length) {
+			var a = new TsAdapter(src, defined, "material");
+			var source = a.slotsSource(e);
+			if (source == null) a.error("material takes a slot object made from helder/scene's pbr (pbr, pbr.with({...})), a module-level one or written there", e);
+			var def = SlotsDef.read(source, a);
+			var given = new KNode(KObject([for (o in kinds[k]) {name: o, node: new KNode(KBool(true), n)}]), n);
+			var out = new ShaderDefinition().variant(def, given, a, n);
+			if (out.uniforms != null) a.error("material: uniform(...) is not read by a material's slots (a block of the material's own instead: a slot's parameter)", e);
+			for (p in out.params)
+				switch p.resource {
+					case RUniform(u) if (!standard.contains(u.struct.name)):
+						if (!blocks.exists(p.name)) {
+							blocks.set(p.name, [for (_ in 0...kinds.length) -1]);
+							order.push(p.name);
+						}
+						blocks.get(p.name)[k] = u.binding;
+					case RTexture(t) if (!textures.contains(p.name)):
+						a.error('material: the texture ${p.name} is not one the renderer binds (a slot\'s textures are the material\'s: ' + textures.join(", ") + ")", e);
+					case _:
+				}
+			variants.push(shaderJson(out));
+		}
+		return '{"variants":[' + variants.join(",") + '],"blocks":' + haxe.Json.stringify([for (name in order) {name: name, bindings: blocks.get(name)}]) + "}";
 	}
 
 	static function shaderJson(out:ShaderOutput):String {
@@ -632,11 +676,26 @@ class TsAdapter implements ShaderAdapter {
 	}
 
 	// (a name another module of the program exports: its declaration there)
-	function declaration(specifier:Node, name:String, kind:Kind):Null<Node> {
+	function declaration(specifier:Node, name:String, kind:Kind, depth = 0):Null<Node> {
 		var path = src.resolve(specifier);
-		if (path == null) return null;
+		if (path == null || depth > 8) return null;
 		for (f in src.files)
-			if (f.path == path) return Scope.declared(f, name, kind);
+			if (f.path == path) {
+				var d = Scope.declared(f, name, kind);
+				if (d != null) return d;
+				// (re-exported: `export {name} from`, `export * from`: helder/scene's pbr)
+				for (n in f.root.statements())
+					if (n.kind == KindExportDeclaration && !n.isTypeOnly() && n.moduleSpecifier() != null) {
+						var clause = n.exportClause();
+						if (clause == null) {
+							var r = declaration(n.moduleSpecifier(), name, kind, depth + 1);
+							if (r != null) return r;
+						} else if (clause.kind != KindNamespaceExport)
+							for (e in clause.elements())
+								if (e.name().text == name) return declaration(n.moduleSpecifier(), (e.propertyName() ?? e.name()).text, kind, depth + 1);
+					}
+				return null;
+			}
 		return null;
 	}
 
@@ -991,6 +1050,14 @@ class TsAdapter implements ShaderAdapter {
 					case [TVec(k), TVec(m)] if (k == m): a.t;
 					case [TVec(_), TFloat | TInt]: a.t;
 					case _: error('${Names.typeName(a.t)}.$name(${Names.typeName(b.t)}) is not supported in a shader', n);
+				}
+				// (a number's vector minus or over a vector, vec3(1).sub(v): the
+				// number's, 1 - v, as Haxe's 1 - v prints: TypeScript has no
+				// number.sub(vector))
+				switch [a.e, op, b.t] {
+					case [ENew([x]), Sub | Div, TVec(_)] if (x.t == TFloat && a.t.match(TVec(_))):
+						return {e: EBinop(op, x, b), t: t};
+					case _:
 				}
 				return {e: EBinop(op, a, b.t == TInt ? coerce(b, TFloat, actual[0]) : b), t: t};
 			}

@@ -19,11 +19,74 @@
 // camera.node, model.instantiate(...)) and read where helder takes one, so
 // two Nodes of the same node are equal by equals(), not by ===. NONE's is
 // a Node of id 0 (isNone: the root's parent, find's nothing).
-import { Script } from "helder/scene/runtime";
-import type { Mat4, Quat, Vec3 } from "helder/gfx";
+//
+// material(pbr.with({...})) is a material's own shader, Haxe's
+// MaterialShader.material (src/helder/scene/render/MaterialShader.hx): pbr,
+// the standard material's slot object (./pbr.ts, PbrShader.hx's), with some
+// of its slots replaced, a definition compiled with the program into the
+// variants the renderer draws with; a slot's parameters that are not the
+// stages' are blocks of the material's own (params: their writers):
+//
+//   type GlowParams = {color: Vec4, time: Vec4};
+//   const Glow = material(pbr.with({
+//     emissive: (s: PbrSurface, p: {glow: GlowParams}) => p.glow.color.xyz.mul(sin(p.glow.time.x).mul(0.4).add(0.6)),
+//   }));
+//   const bytes = new Uint8Array(32);
+//   Glow.apply(orb, {glow: bytes});          // orb.shader, its block
+//   Glow.params.glow.write({color: vec4(1, 0.5, 0.2, 1), time: vec4(t, 0, 0, 0)}, bytes);
+import { Script, MaterialShader, type Material } from "helder/scene/runtime";
+import {
+	UniformWriter, TextureSlot, type Mat4, type Quat, type Vec3, type Params, type Slots, type SlotsDef, type ShaderCode, type VertexBufferLayout,
+	type UniformBlock, type TextureBinding,
+} from "helder/gfx";
 import type { World } from "helder/scene/runtime";
 
 export * from "helder/scene/runtime";
+export {
+	pbr, pbrColor, pbrAlpha, pbrNormal, pbrRoughness, pbrMetalness, pbrEmissive, pbrPosition, type Pbr, type PbrVertex, type PbrVaryings,
+	type PbrFrame, type PbrObject, type PbrMaterial, type PbrSkinInfo, type PbrVertexParams, type PbrFragmentParams, type PbrOptions,
+	type PbrSurface, type PbrPoint,
+} from "./pbr";
+
+// a material's own shader (material(...)): the renderer's MaterialShader, the
+// writers of its own blocks (and its textures' slots), and apply(m, blocks),
+// which sets it on a material with its blocks' bytes by their names
+export type MaterialOf<P> = {
+	readonly shader: MaterialShader,
+	readonly params: Params<P>,
+	// (each variant's code and layout, as MaterialShader's: plain, normal mapped, skinned, instanced, instanced and normal mapped)
+	readonly variants: readonly MaterialVariant[],
+	// its blocks: their parameters' names, their slots in each variant
+	readonly blocks: readonly {name: string, bindings: number[]}[],
+	apply(m: Material, blocks: {readonly [K in keyof P]?: Uint8Array}): void,
+};
+
+export type MaterialVariant = {
+	readonly vertexCode: ShaderCode, readonly fragmentCode: ShaderCode, readonly layout: VertexBufferLayout[], readonly uniforms: UniformBlock[],
+	readonly textures: TextureBinding[],
+};
+
+/** @definition material */
+export function material<D extends SlotsDef, X>(def: Slots<D, X>, generated?: string): MaterialOf<X> {
+	if (generated === undefined) throw new Error("material: a definition, compiled by helder's compiler (its slot object static)");
+	const g = JSON.parse(generated);
+	const params: {[parameter: string]: UniformWriter<any> | TextureSlot} = {};
+	for (const b of g.variants[0].params) params[b.param] = b.texture !== undefined ? new TextureSlot(b.texture.name, b.texture.binding) : new UniformWriter<any>(b.block, b.fields);
+	const shader = MaterialShader.script(generated);
+	return {
+		shader,
+		params: params as any,
+		variants: g.variants.map((v: any) => ({vertexCode: v.vertexCode, fragmentCode: v.fragmentCode, layout: v.layout, uniforms: v.uniforms, textures: v.textures})),
+		blocks: g.blocks,
+		apply(m: Material, blocks: {[name: string]: Uint8Array | undefined}) {
+			m.shader = shader;
+			for (const name of Object.keys(blocks)) {
+				const bytes = blocks[name];
+				if (bytes !== undefined) Script.materialBlock(m, name, bytes);
+			}
+		},
+	};
+}
 
 // helder.os's EventKind (an Event's kind) by name
 export const EventKind = {

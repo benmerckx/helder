@@ -236,6 +236,16 @@ Bindings, FixedStep, and what a scene is drawn with: helder.os's Window,
 App, Event and Surface (a headless one too), helder.gfx's Device, each of
 these by the members marked `@:typescript`.
 
+helder/scene's `material(pbr.with({...}))` is a definition too, Haxe's
+`MaterialShader.material`: `pbr` (src/helder/scene/pbr.ts) is the standard
+material's slot object in TypeScript, the same text as PbrShader.hx's in
+each variant (tests/typescript/definitions/pbr.ts), and the call is
+compiled into its five variants and the blocks of its own as Haxe's are
+(`Definitions.material`; material.ts and Material.hx print the same), the
+JSON given to `MaterialShader.script`. In a shader, `vec3(s).sub(v)` and
+`.div(v)` of a number's vector are the number's, `s - v`, as Haxe's prints
+(TypeScript has no number method).
+
 `helder/native` (src/helder/native/index.ts) calls C, Objective-C, COM and
 Java: `native.c`, `native.objc`, `native.com` and `native.jni` are
 definitions whose functions' annotations are their signatures

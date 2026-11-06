@@ -228,9 +228,14 @@ export const Glow = lit.with({
   shaders with the slots inlined (every variant the renderer draws with)
   and the material type helder.scene renders with (`material.shader`, its
   own blocks in `material.uniforms`). examples/glow replaces two slots.
-  helder.scene has no TypeScript declarations yet, so `pbr` and `material`
-  are Haxe's; TypeScript's slot objects are its own (the parity case:
-  tests/typescript/definitions/glow.ts).
+  In TypeScript `pbr` and `material` are helder/scene's: pbr the same slot
+  object written in TypeScript (src/helder/scene/pbr.ts, its variants the
+  same text as PbrShader.hx's: tests/typescript/definitions/pbr.ts), and
+  `material(pbr.with({...}))` a definition recognised by its import, the
+  same variants and blocks as Haxe's (lower/Definitions.hx's `material`,
+  material.ts and Material.hx), passed to `MaterialShader.script`; its
+  value's `apply(m, {glow: bytes})` sets it on a material. A program's own
+  slot objects work the same way (tests/typescript/definitions/glow.ts).
 
 ### Variants
 

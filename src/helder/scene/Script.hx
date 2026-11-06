@@ -85,4 +85,10 @@ class Script {
 
 	public static function dispose(n:Node):Void
 		n.dispose();
+
+	// a material's block of its own (a shader of its own's: MaterialShader.blocks) by its parameter's name
+	public static function materialBlock(m:helder.scene.render.Material, name:String, bytes:haxe.io.Bytes):Void {
+		if (m.uniforms == null) m.uniforms = [];
+		m.uniforms.set(name, bytes);
+	}
 }
