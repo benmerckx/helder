@@ -24,7 +24,20 @@ import helder.ui.*;
 // (Ui.platform) over its content box, its text and focus kept in step,
 // the keys it leaves to the program (Tab, Escape, Enter on one line, Up
 // and Down) given to the window; drawn again while covered by a popup or
-// clipped by a scroller.
+// clipped by a scroller. With spellcheck (a text area's by default; markup's
+// spellcheck="true") the platform's spellchecker (helder.text.Spell) checks
+// its words a moment after the text last changed (a Clock step, each
+// word's answer kept), the misspelled ones underlined with a red wave; a
+// right click on one offers its corrections and Add to Dictionary in a
+// context menu (helder.ui.menu, SpellAction). Off where there is no
+// checker, and in the deterministic modes (helder's own text engine).
+enum SpellAction {
+	// start...end of the text replaced by a correction
+	Correct(start:Int, end:Int, word:String);
+	// a word added to the user's dictionary
+	AddToDictionary(word:String);
+}
+
 class EditableText extends TextNode implements PlatformEditorListener {
 	public var placeholder:String = "";
 	// a password: shown as dots (one a UTF-16 unit, the indices kept), not
@@ -64,6 +77,130 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		if (ui != null) ui.requestFrame();
 	}
 	public var onChange:Null<String->Void>;
+	// its words checked by the platform's spellchecker, the misspelled underlined
+	public var spellcheck(default, set) = false;
+	// the misspelled words, start and end pairs in text (UTF-16), as last checked
+	public var misspelled(default, null):Array<Int> = [];
+	public var spellColor:Color = Color.rgb(0xE5484D);
+	// (the text last checked, a check pending, the words' answers)
+	var spellOf:Null<String> = null;
+	var spellPending = false;
+	var spellCache:Map<String, Bool> = [];
+	// the seconds after a change the words are checked
+	public static var spellDelay = 0.3;
+
+	function set_spellcheck(v:Bool):Bool {
+		if (v == spellcheck) return v;
+		spellcheck = v;
+		spellOf = null;
+		misspelled = [];
+		if (ui != null) ui.requestFrame();
+		return v;
+	}
+
+	// (the checker: the platform's; null: none, off)
+	static inline function spellChecker():Null<helder.text.SpellChecker>
+		return helder.text.Spell.checker();
+
+	// the words checked again a moment after the text changed (paints call it)
+	function spellcheckSoon() {
+		if (!spellcheck || spellPending || spellOf == text) return;
+		var c = spellChecker();
+		if (c == null) return;
+		// (the first check at once: a field shown with its text)
+		if (spellOf == null) {
+			checkSpelling();
+			return;
+		}
+		spellPending = true;
+		var start = -1.0;
+		Clock.add(t -> {
+			if (start < 0) start = t;
+			if (t - start < spellDelay) return true;
+			spellPending = false;
+			checkSpelling();
+			return false;
+		});
+	}
+
+	// the words checked now
+	public function checkSpelling() {
+		var c = spellChecker();
+		spellOf = text;
+		misspelled = c == null || !spellcheck || secret ? [] : helder.text.Spell.misspelled(c, text, spellCache);
+		if (ui != null) ui.requestFrame();
+	}
+
+	// the misspelled word around i (start and end; null: none)
+	public function misspelledAt(i:Int):Null<{start:Int, end:Int}> {
+		var k = 0;
+		while (k < misspelled.length) {
+			if (i >= misspelled[k] && i <= misspelled[k + 1]) return {start: misspelled[k], end: misspelled[k + 1]};
+			k += 2;
+		}
+		return null;
+	}
+
+	// the context menu of a misspelled word (at x, y: window pixels): its corrections, Add to Dictionary
+	function spellMenu(w:{start:Int, end:Int}, x:Float, y:Float) {
+		var c = spellChecker();
+		if (c == null || ui == null) return;
+		var word = text.substring(w.start, w.end);
+		var items:Array<helder.ui.menu.Menu.MenuItem> = [for (s in c.suggest(word).slice(0, 6)) Item(s, Correct(w.start, w.end, s))];
+		items.push(Separator);
+		items.push(Item("Add to Dictionary", AddToDictionary(word)));
+		helder.ui.menu.Menus.popup(ui, items, x, y, this);
+	}
+
+	function spellAction(a:SpellAction):Bool {
+		switch a {
+			case Correct(s, e, w):
+				if (readOnly || s < 0 || e > text.length || s > e) return false;
+				anchor = s;
+				caret = e;
+				replace(w);
+			case AddToDictionary(w):
+				var c = spellChecker();
+				if (c == null) return false;
+				c.add(w);
+				spellCache.set(w, true);
+				checkSpelling();
+		}
+		return true;
+	}
+
+	// the misspelled words' red waves under their runs in p (drawn at x, y;
+	// each line's offset from shift); none while composing
+	var spellWaves:Array<{key:String, path:Path}> = [];
+
+	function paintSpelling(canvas:Canvas, p:Paragraph, x:Float, y:Float, shift:Float->Float) {
+		spellcheckSoon();
+		if (!spellcheck || misspelled.length == 0 || composition != "" || spellOf != text) return;
+		var lh = font().size * font().lineHeight, k = 0, n = 0;
+		while (k < misspelled.length) {
+			for (r in p.selection(misspelled[k], misspelled[k + 1])) {
+				var sx = x + shift(r.y) + r.x, sy = y + r.y + lh - 2.5;
+				var key = sx + "," + sy + "," + r.width;
+				if (n >= spellWaves.length) spellWaves.push({key: "", path: new Path()});
+				var wv = spellWaves[n++];
+				if (wv.key != key) {
+					// (a wave: 4 pixels long, 2 high)
+					var path = new Path().moveTo(sx, sy), i = 0, px = sx;
+					while (px < sx + r.width) {
+						px = Math.min(sx + r.width, px + 2);
+						path.lineTo(px, i % 2 == 0 ? sy + 2 : sy);
+						i++;
+					}
+					wv.key = key;
+					wv.path = path;
+				}
+				canvas.path(wv.path, null, {width: 1, paint: spellColor});
+			}
+			k += 2;
+		}
+		if (spellWaves.length > n) spellWaves.resize(n);
+	}
+
 	// read only: selected and copied, not edited (as an input's readonly)
 	public var readOnly = false;
 	// the most UTF-16 units it takes by typing or pasting (-1: any; as an input's maxlength)
@@ -107,9 +244,12 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		onComposition = e -> compose(e.text, e.caret);
 		onPointerDown = e -> {
 			var i = indexAt(e.x, e.y), t = now();
-			// (a right click: the selection kept when it is inside it, else the caret there; no drag)
+			// (a right click: the selection kept when it is inside it, else the caret there; no drag;
+			// on a misspelled word its corrections)
 			if (e.button == 3) {
 				if (i < selectionStart || i > selectionEnd || selectionStart == selectionEnd) select(i, i);
+				var w = spellcheck && spellOf == this.text ? misspelledAt(i) : null;
+				if (w != null) spellMenu(w, e.x, e.y);
 				return;
 			}
 			clicks = t - clickAt < 0.45 && Math.abs(e.x - clickX) < 5 && Math.abs(e.y - clickY) < 5 ? clicks + 1 : 1;
@@ -142,6 +282,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 			changed();
 		};
 		semantics = {role: helder.ui.access.Role.TextInput};
+		on(SpellAction, spellAction);
 	}
 
 	override public function accessSetValue(value:String):Bool {

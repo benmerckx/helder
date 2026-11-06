@@ -164,3 +164,24 @@ font), `Bidi.test.hx`, and the system-text lane
 (`tests/text/SystemTextTest.hx`, natively on each OS: each script's
 fallback, a family found, the reordered and split vowels, rasters; every
 script drawn with both engines, `bin/text/system-<os>.png`).
+
+## Spellchecking
+
+`Spell.checker()` is the platform's spellchecker for the user's language
+(LANG's tag, `Spell.language()`), a `SpellChecker`: `check(word)`,
+`suggest(word)`, `add(word)` (the user's dictionary); `Spell.words(text)`
+and `Spell.misspelled(checker, text, ?cache)` give the words and the
+misspelled ones as start and end pairs (UTF-16). macOS:
+NSSpellChecker's shared checker (`mac/MacSpell`); Windows 8 and later:
+ISpellChecker over COM (`windows/WinSpell`: ISpellCheckerFactory's
+checker for the language); Linux: Enchant (`linux/LinuxSpell`,
+libenchant-2 loaded at run time with helder.os.Dl: its providers and
+personal dictionary), else Hunspell itself (libhunspell and a dictionary
+of /usr/share/hunspell; words added kept for the run). None installed, in
+a browser or on a phone: null, and spellcheck is off. Off as well with
+helder's own text engine (`Shaping.HELDER`: tests, stories,
+screenshots) or `HELDER_NO_SPELLCHECK=1`; `Spell.given` sets a checker of
+the program's own (tests). helder.ui's text fields use it
+(`EditableText.spellcheck`). Tests: `Spell.test.hx`, and
+`tests/text/SpellTest.hx` in the window lane (each desktop's checker: a
+right and a wrong word, suggestions, a word added).

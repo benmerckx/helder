@@ -6,6 +6,7 @@ import helder.ui.actions.Keystroke;
 import helder.ui.widgets.TextField;
 import helder.ui.widgets.TextArea;
 import helder.ui.widgets.EditableText;
+import helder.ui.widgets.EditableText.SpellAction;
 import helder.image.Image;
 import helder.image.PngDecoder;
 
@@ -162,7 +163,7 @@ class UiTest {
 		check("natives: removed from the tree, its editor gone", last.disposed);
 	}
 
-	static function check(what:String, ok:Bool, ?detail:String) {
+	public static function check(what:String, ok:Bool, ?detail:String) {
 		checks++;
 		if (!ok) {
 			failed++;
@@ -1622,6 +1623,7 @@ class UiTest {
 		ui.composition("x", 1);
 		ui.setFocus(null);
 		check("composition: dropped on blur", g.composition == "" && g.text == "a日本" && ui.textInputArea() == null);
+		spelling();
 		// a text area: 100 wide, 20 characters a line (MonoText at 10: 5 each, lines of 12.5)
 		var ui = new Ui(new MonoText(), 300, 200);
 		ui.root.style.fontSize = 10;
@@ -2619,6 +2621,90 @@ static function transitions() {
 }
 
 // a Canvas that records its calls (UiTest's paint)
+// spellcheck (EditableText.spellcheck): a text area's by default, a field's
+// asked; the misspelled words found and waved under, checked again a moment
+// after a change (a Clock step), a correction and Add to Dictionary through
+// SpellAction, a right click's menu; no checker: nothing
+function spelling() {
+	var check = UiTest.check;
+	var list = new WordList();
+	helder.text.Spell.given = list;
+	check("spellcheck: a text area's by default, not a field's", new TextArea("").spellcheck && !new TextField("").spellcheck);
+	var ui = new Ui(new MonoText(), 300, 100);
+	ui.root.style.fontSize = 10;
+	ui.root.style.alignItems = Start;
+	var g = new TextField("the quikc brwon fox");
+	g.style.width = 200;
+	g.spellcheck = true;
+	ui.root.append(g);
+	ui.update();
+	var rec = new Recording();
+	ui.paint(rec);
+	check("spellcheck: the misspelled words", g.misspelled.join(",") == "4,9,10,15", g.misspelled.join(","));
+	check("spellcheck: waved under", rec.calls.filter(s -> StringTools.startsWith(s, "path") && StringTools.endsWith(s, "stroke 1")).length == 2, rec.calls.join("|"));
+	// (typed: checked again a moment later, the words known not asked again)
+	ui.setFocus(g);
+	g.select(g.text.length, g.text.length);
+	ui.textInput(" jmups");
+	ui.update();
+	ui.paint(new Recording());
+	check("spellcheck: not at once after a change", g.misspelled.join(",") == "4,9,10,15");
+	var asked = list.asked;
+	Clock.finish();
+	ui.update();
+	ui.paint(new Recording());
+	check("spellcheck: a moment later", g.misspelled.join(",") == "4,9,10,15,20,25" && list.asked == asked + 1, g.misspelled.join(",") + " " + (list.asked - asked));
+	// a right click on one: its menu (drawn here), its corrections
+	var before = ui.overlay.children.length;
+	ui.pointerDown(g.absX + 6 * 5 + 1, g.absY + 5, 3);
+	ui.pointerUp(g.absX + 6 * 5 + 1, g.absY + 5, 3);
+	ui.update();
+	var menu = helder.ui.menu.DrawnMenu.current;
+	check("spellcheck: its menu's items: the corrections, Add to Dictionary", menu != null && [for (i in @:privateAccess menu.items) i.label].join(",") == "quick,quirk,,Add to Dictionary",
+		menu == null ? "none" : [for (i in @:privateAccess menu.items) i.label].join(","));
+	check("spellcheck: a right click on a misspelled word: a menu", ui.overlay.children.length == before + 1, '${ui.overlay.children.length}');
+	var n = 0;
+	while (ui.overlay.children.length > before && n++ < 5) {
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+	}
+	ui.dispatchAction(Correct(4, 9, "quick"), g);
+	check("spellcheck: a correction", g.text == "the quick brwon fox jmups", g.text);
+	ui.dispatchAction(AddToDictionary("brwon"), g);
+	check("spellcheck: added to the dictionary", list.words.indexOf("brwon") >= 0 && g.misspelled.join(",") == "20,25", g.misspelled.join(","));
+	g.spellcheck = false;
+	ui.update();
+	rec = new Recording();
+	ui.paint(rec);
+	check("spellcheck off: nothing waved", g.misspelled.length == 0 && rec.calls.filter(s -> StringTools.startsWith(s, "path")).length == 0);
+	helder.text.Spell.given = null;
+	var t = new TextArea("teh");
+	ui.root.append(t);
+	ui.update();
+	ui.paint(new Recording());
+	check("spellcheck: no checker (helder's text engine), nothing", t.misspelled.length == 0);
+}
+
+// a spellchecker of the tests' (helder.text.Spell.given): its words, those added
+class WordList implements helder.text.SpellChecker {
+	public var language(default, null) = "en_US";
+	public final words = ["the", "quick", "brown", "fox", "a", "an"];
+	public var asked = 0;
+
+	public function new() {}
+
+	public function check(w:String):Bool {
+		asked++;
+		return words.indexOf(w.toLowerCase()) >= 0;
+	}
+
+	public function suggest(w:String):Array<String>
+		return w == "quikc" ? ["quick", "quirk"] : [];
+
+	public function add(w:String)
+		words.push(w.toLowerCase());
+}
+
 class Recording implements Canvas {
 	public final calls:Array<String> = [];
 

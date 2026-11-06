@@ -9,7 +9,8 @@ import helder.ui.*;
 // and Down move a line keeping the column; Home and End go to the line's
 // start and end (with Control: the text's). A composition shows at the
 // caret, underlined. Its lines are aligned as the style says (else the
-// start side: right to left, on the right).
+// start side: right to left, on the right). Spellchecked by default
+// (EditableText.spellcheck).
 class TextArea extends EditableText {
 	// the height in lines when the style gives none
 	public var rows = 3;
@@ -21,6 +22,8 @@ class TextArea extends EditableText {
 	public function new(text = "") {
 		super(text, "textarea");
 		semantics.role = MultilineTextInput;
+		// (as a textarea's: checked unless told otherwise)
+		spellcheck = true;
 		onWheel = e -> {
 			var p = laidAt();
 			if (p == null) return;
@@ -146,6 +149,7 @@ class TextArea extends EditableText {
 			paintTextShadows(canvas, p, x, top, aw, align, textColor());
 			canvas.text(p, x, top, aw, align, textColor());
 		}
+		if (text.length > 0) paintSpelling(canvas, p, x, top, ly -> lineShift(p, ly));
 		paintComposition(canvas, p, x + cs, top);
 		caretX = x + cs + c.x;
 		caretY = top + c.y;

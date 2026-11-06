@@ -411,7 +411,10 @@ right to left, `data-mirrored` in a page); `<field/>` and
 `<field:textarea/>` are a text field (`TextField`, `TextArea`: native
 where `Ui.policy` says; a page's `<input>`, `<textarea>`): `value`,
 `placeholder`, `type` (`password`: dots), `rows`, `readonly`,
-`maxlength`, `inputmode` and `autocomplete` (a page's), `onInput` (its
+`maxlength`, `spellcheck` (the platform's checker on its words: a text
+area's by default, a field's asked; misspelled words underlined with a red
+wave, their corrections and Add to Dictionary in a right click's menu;
+`helder.text.Spell`, off in the deterministic modes), `inputmode` and `autocomplete` (a page's), `onInput` (its
 text changed by its user: `e.text`), its own editing after the markup's
 `onKeyDown`... unless that prevented the default; a ref of theirs gets an `helder.ui.Part` (Node is one: `focus`,
 `rect`, `scrollIntoView`, `contains`, `attr`, `rtl`, `capture`: a press's

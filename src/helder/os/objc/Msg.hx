@@ -28,6 +28,9 @@ class Msg {
 	static function idRect(self:Ptr, sel:Ptr, r:CGRect):Ptr;
 	static function idPoint(self:Ptr, sel:Ptr, p:CGPoint):Ptr;
 	static function idPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64):Ptr;
+	// (NSSpellChecker's: an NSRange by value as two NSUIntegers)
+	static function idPtrIntIntIntPtrIntPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64, d:Int64, e:Ptr, f:Int64, g:Ptr, h:Ptr):Ptr;
+	static function idIntIntPtrPtrInt(self:Ptr, sel:Ptr, a:Int64, b:Int64, c:Ptr, d:Ptr, e:Int64):Ptr;
 	static function rectRect(self:Ptr, sel:Ptr, r:CGRect):CGRect;
 	static function rectRectPtr(self:Ptr, sel:Ptr, r:CGRect, a:Ptr):CGRect;
 	static function idIntPointIntFloatIntPtrPtrPtrBoolU16(self:Ptr, sel:Ptr, a:Int64, p:CGPoint, b:Int64, c:Float, d:Int64, e:Ptr, f:Ptr, g:Ptr, h:Bool,

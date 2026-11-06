@@ -18,7 +18,7 @@ import helder.image.AnimatedImage;
 // "contain", "cover" or "none"; mirrored, flipped right to left), icon (an
 // image, its Svg), field and field:textarea (a text field, one line or
 // several: helder.ui.widgets' TextField and TextArea; value, placeholder,
-// type, rows, readonly, maxlength; onInput, its text changed by its
+// type, rows, readonly, maxlength, spellcheck; onInput, its text changed by its
 // user); view:button,
 // view:label... and text:p, text:h2... (a view, a text: the element of that
 // name where a page's renderer realises them, helder.web's); elements registers more. Their
@@ -415,6 +415,10 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 
 	@:attribute static function maxlength(n:Node, name:String, v:Dynamic)
 		field(n, name).maxLength = v == null ? -1 : Std.int(number(v));
+
+	// (spellcheck: the platform's checker on the field's words, a text area's by default)
+	@:attribute static function spellcheck(n:Node, name:String, v:Dynamic)
+		field(n, name).spellcheck = v == true || v == "true" || v == "";
 
 	@:attribute static function inputmode(n:Node, name:String, v:Dynamic)
 		field(n, name);

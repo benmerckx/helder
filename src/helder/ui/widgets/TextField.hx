@@ -75,6 +75,7 @@ class TextField extends EditableText {
 			paintTextShadows(canvas, p, ox, y, p.width, Left, textColor());
 			canvas.text(p, ox, y, p.width, Left, textColor());
 		}
+		if (text.length > 0) paintSpelling(canvas, p, ox, y, _ -> 0.0);
 		paintComposition(canvas, p, ox, y);
 		caretX = ox + cx;
 		caretY = y;

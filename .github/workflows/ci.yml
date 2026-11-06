@@ -79,7 +79,7 @@ jobs:
       - name: System packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji fonts-freefont-ttf libharfbuzz0b libfreetype6 fontconfig libtiff6 libheif1 libheif-plugin-aomdec libraw23t64 osslsigncode desktop-file-utils appstream
+          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji fonts-freefont-ttf libharfbuzz0b libfreetype6 fontconfig libtiff6 libheif1 libheif-plugin-aomdec libraw23t64 osslsigncode desktop-file-utils appstream libenchant-2-2 hunspell-en-us
       # (a headless weston for the wayland lane, the protocols' XML; without them the lane only builds)
       - name: Wayland's packages
         timeout-minutes: 6
