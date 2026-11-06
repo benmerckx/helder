@@ -96,13 +96,14 @@ class Window {
 		return on;
 	}
 
-	// whether a Scroll at x, y (pixels) by dx, dy (as Scroll's deltas: a
-	// drag's start and its direction) moves something of the program's:
-	// asked once per touch drag, at its start, where the system would
-	// otherwise take the drag. In the browser, a canvas whose touchAction
-	// pans (the page scrolls along pan-y): true, the drag is the program's
-	// (its Scrolls, the page held still); false, or null (not asked), the
-	// page pans. Elsewhere every drag is the program's
+	// whether a scroll at x, y (pixels) by dx, dy (as Scroll's deltas: a
+	// drag's start and its direction, the content following the finger)
+	// moves something of the program's: asked once per touch drag, at its
+	// start, where the system would otherwise take the drag. In the
+	// browser, a canvas whose touchAction pans (the page scrolls along
+	// pan-y): true, the drag is the program's (its pointer's moves, the page
+	// held still); false, or null (not asked), the page pans (the pointer
+	// cancelled: PointerCancel). Elsewhere every drag is the program's
 	public var scrollsAt:Null<(x:Int, y:Int, dx:Float, dy:Float) -> Bool> = null;
 
 	// the pointer's shape over the window (Auto: Default)

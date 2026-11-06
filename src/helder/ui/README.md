@@ -202,8 +202,8 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     `Ui.scrollBy` eases the same way). A node's key handler calls
     `preventDefault` (or `stop`) on the keys it takes.
   - Fingers and pens are pointers of their own, as the DOM's Pointer
-    Events (`UiWindow` feeds helder.os's `Pointers`, its compatibility
-    events off: `Ui.pointerDown(x, y, 1, id, type)` with the slot as the
+    Events (`UiWindow` feeds helder.os's `Pointers`:
+    `Ui.pointerDown(x, y, 1, id, type)` with the slot as the
     id, 0 the mouse): `e.pointerId`, `e.pointerType`, `e.pressure`,
     `e.isPrimary` on their events; each captured by the node it went down
     on (`capture()` in a handler moves it there, `releaseCapture()` lets
@@ -211,8 +211,8 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     it, when its node leaves the tree, or when a scroll takes the press;
     a press released within 8 points on its node clicks. The first
     finger's drag scrolls what is under where it started (Wheel events at
-    that point, as the wheel's, then a glide when let go moving: what
-    helder.os's TouchDrag did), unless a recogniser inside wins it first
+    that point, as the wheel's, then a glide when let go moving:
+    `helder.os.Glide`), unless a recogniser inside wins it first
     (below). `pointerDown` answers whether the press is the ui's (not the
     root's, the body's, nor a world drawn under the ui: `Node.ownsPointer`,
     a `<Scene>`'s box says no); `UiWindow` marks the pointer `owner = Ui`

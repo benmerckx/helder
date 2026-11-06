@@ -111,8 +111,6 @@ class UiWindow {
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
 		ui.dark = dark.peek();
-		// (touches and pens as pointers of their own: ui taps and scrolls them itself)
-		helder.os.Pointers.emulate = false;
 		// (a touch drag the program's where it scrolls something: the page's otherwise)
 		window.scrollsAt = (x, y, dx, dy) -> ui.scrollsAt(x / renderer.scale, y / renderer.scale, dx / renderer.scale, dy / renderer.scale);
 		// (the browser's own views: native text editors over the canvas)

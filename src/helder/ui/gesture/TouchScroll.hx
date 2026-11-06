@@ -2,14 +2,14 @@ package helder.ui.gesture;
 
 // A touch's drag scrolling what is under where it started (Ui's own, the
 // last in the first finger's arena: the gestures of the nodes inside win
-// first), as helder.os.TouchDrag did for the window: once past the slop it
+// first): once past the slop it
 // sends the drag's motion as Ui.wheel at where it started (the content
 // follows the finger, a Wheel event first, the nearest scroller that can
 // move that way), and the press is cancelled (PointerCancel: no click); let
 // go moving (its last move within 100 ms) it glides on at its speed,
 // slowing 5% a frame (60 a second), until under half a point a frame. A
-// new touch stops a glide. Times in ms here (TouchDrag's); the glide's
-// physics TouchDrag's own (helder.os.Glide).
+// new touch stops a glide. Times in ms here; the glide's physics
+// helder.os.Glide's.
 @:allow(helder.ui.Ui)
 class TouchScroll extends Gesture {
 	final ui:Ui;

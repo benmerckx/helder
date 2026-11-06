@@ -24,12 +24,10 @@ import helder.os.Event;
 // samples), iOS's UITouches (every finger, coalesced touches as samples),
 // the browser's Pointer Events (coalesced events as samples); the mouse on
 // X11, Windows and macOS (no touch screens there yet: WM_POINTER and
-// XInput2 come later). The mouse keeps its Mouse* events too (sent first),
-// and a touch its compatibility events while emulate is on: the first
-// finger's tap a click and its drag Scrolls (helder.os.TouchDrag, as before
-// there were pointers; with Mods.TOUCH, so that the mouse's pointer is not
-// made of them). A program that follows the pointers itself turns emulate
-// off (helder.ui's windows do).
+// XInput2 come later). The mouse keeps its Mouse* events too (sent first);
+// a finger or a pen has its pointer's events alone (no mouse events or
+// scrolls are made of it: a program taps, drags and pinches from them, as
+// helder.ui does).
 class Pointers {
 	public static inline var MAX = 16;
 
@@ -45,13 +43,6 @@ class Pointers {
 
 	// how many are down now
 	public static var count(default, null) = 0;
-
-	// whether a touch also sends what it did before pointers (a tap's
-	// MouseMove, MouseDown and MouseUp, a drag's Scrolls: TouchDrag), for
-	// the first finger: off by default (a touch is its pointer's events
-	// alone), going away
-	// (the browser's side decides a tap's click itself: CanvasWindow tells it before each frame's events)
-	public static var emulate = false;
 
 	// the pointer of slot id (0 the mouse)
 	public static inline function get(id:Int):Pointer
@@ -147,7 +138,7 @@ class Pointers {
 	@:allow(helder.os) static function relay(onEvent:Event->Void):Event->Void
 		return e -> {
 			onEvent(e);
-			if ((e.kind == MouseMove || e.kind == MouseDown || e.kind == MouseUp) && e.mods & Mods.TOUCH == 0 && mouse(e))
+			if ((e.kind == MouseMove || e.kind == MouseDown || e.kind == MouseUp) && mouse(e))
 				onEvent(event);
 		};
 

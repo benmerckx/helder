@@ -72,8 +72,7 @@ class Run {
 		{name: "gfx-web", about: "helder.gfx on WebGPU and WebGL2 (wasm32-wasi) in headless Chromium", run: gfxWeb},
 		{name: "audio", about: "helder.os's audio through each back end without speakers (tests/os/audio.sh)", run: audio},
 		{name: "audio-web", about: "helder.os's audio on WebAudio in headless Chromium", run: audioWeb},
-		{name: "touch", about: "helder.os's touch gesture (TouchDrag), natively", run: touch},
-		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, Pointers.emulate, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
+		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, a tap and a drag without mouse events or scrolls, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
 		{name: "ui-web", about: "the todo example and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
@@ -818,11 +817,6 @@ class Run {
 	static function audioWeb() {
 		wasm("bin/audio/AudioTest.wasm", osCp().concat(["-main", "AudioTest"]));
 		run(NODE, ["tests/os/web.mjs", "bin/audio/AudioTest.wasm"]);
-	}
-
-	static function touch() {
-		native("bin/os/TouchDragTest", osCp().concat(["-main", "TouchDragTest"]), HOST);
-		run(exePath("bin/os/TouchDragTest", HOST), []);
 	}
 
 	static function touchWeb() {

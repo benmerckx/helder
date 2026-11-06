@@ -67,11 +67,6 @@ class Mods {
 	public static inline var CONTROL = 2;
 	public static inline var ALT = 4;
 	public static inline var META = 8;
-	// Scroll, in the browser, on Android and iOS: a touch drag's, the finger
-	// down (the drag ends with a Scroll of nothing without it, then its
-	// glide's; at where it started: helder.os.TouchDrag); a tap's MouseMove,
-	// MouseDown and MouseUp (Pointers.emulate): made of a touch, not the mouse's
-	public static inline var TOUCH = 16;
 }
 
 // One event, preallocated and refilled for each dispatch (App.run): copy

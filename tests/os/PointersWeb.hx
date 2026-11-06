@@ -3,10 +3,10 @@ import helder.os.Event;
 
 // helder.os's pointers in a browser (`bun run test touch-web`:
 // pointers-web.mjs, wasm32-wasi in headless Chromium): every event a line
-// for the harness ("down 1 touch 40,30 primary", "mouse-down 1 touch"...),
+// for the harness ("down 1 touch 40,30 primary", "mouse-down 1"...),
 // and each frame with a change what Pointers says (the pointers down, in
-// order, and their motion this frame). The key "e" turns Pointers.emulate
-// off (a touch's tap no longer clicks), "o" on again.
+// order, and their motion this frame); the mouse's events and the scrolls
+// too, which a touch never makes.
 class PointersWeb {
 	static function main() {
 		var w = new Window("PointersWeb", 300, 200);
@@ -37,13 +37,9 @@ class PointersWeb {
 					if (e.kind == PointerMove && p.type == Mouse && !p.down) return;
 					Sys.println('$name ${p.id} $type ${Math.round(p.x)},${Math.round(p.y)}' + (p.primary ? " primary" : "") + ' samples ${p.samples} buttons ${p.buttons}');
 				case MouseDown | MouseUp:
-					Sys.println((e.kind == MouseDown ? "mouse-down" : "mouse-up") + ' ${e.button}' + (e.mods & Mods.TOUCH != 0 ? " touch" : ""));
+					Sys.println((e.kind == MouseDown ? "mouse-down" : "mouse-up") + ' ${e.button}');
 				case Scroll:
-					if (e.mods & Mods.TOUCH != 0) Sys.println('scroll ${Math.round(e.deltaY)}');
-				case KeyDown:
-					if (e.key == "e".code) Pointers.emulate = false;
-					if (e.key == "o".code) Pointers.emulate = true;
-					Sys.println('emulate ${Pointers.emulate}');
+					Sys.println('scroll ${Math.round(e.deltaY)}');
 				case _:
 			}
 		});

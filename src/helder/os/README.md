@@ -204,28 +204,25 @@ the window's size, scale and safe area, the display's frames (vsyncs at a
 display's pace, nothing allocated over 120), the bars hidden, a rotation
 (Android), the background and back.
 
-In the browser a touch drag on the canvas is `Scroll` (the content following
-the finger, gliding when let go) and a tap a click. `browser.mjs`'s option
-`touchAction` is the canvas's CSS `touch-action`: `'none'` by default (every
-drag the program's); with `'pan-y'` a drag that starts vertical asks the
-program first, once, at its first move: `Window.scrollsAt(x, y, dx, dy)`,
-whether something where it started scrolls that way (helder.ui answers from
-its scrollers, innermost first; the cube takes only sideways drags). Yes:
-the drag is the program's, the page held still (its touchmoves cancelled);
-no, or no answer: the page scrolls instead, as at a scroller's end (a
-canvas as wide as a phone's screen that the page must scroll past). The
-other drags reach the program. While the finger drags, its
-`Scroll`s have `Mods.TOUCH`; when it is let go (or the browser takes the
-gesture over) a `Scroll` of nothing without it comes, then the glide's: a
-program that holds still what the finger holds (the cube) knows when it is
-released, even after the finger rested. A mouse's press is captured by the
-canvas: a drag that leaves it still moves, and its release still comes.
-On Android and iOS the window sees the touches itself and they mean the
-same (`helder.os.TouchDrag`, the gesture both share: no page to pan, every
-drag the program's): a tap clicks where it came down once it lifts, a drag
-past 8 points scrolls what is under where it started, `Mods.TOUCH` while
-the finger is down, then a `Scroll` of nothing without it and the glide's
-(the loop wakes each frame while it glides).
+A touch is its pointer's events alone, in the browser, on Android and on
+iOS (`Pointers`, below): no mouse events or scrolls are made of it, so one
+touch drives one thing; a program taps, drags, flings and pinches from the
+pointers (helder.ui does: a tap clicks, the first finger's drag scrolls and
+glides; the examples drag with any pointer, the mouse's left button too;
+`helder.os.Glide` is a fling's glide). In the browser `browser.mjs`'s option
+`touchAction` is the canvas's CSS `touch-action`: `'none'` by default
+(every drag the program's); with `'pan-y'` a drag that starts vertical asks
+the program first, once, at its first move: `Window.scrollsAt(x, y, dx,
+dy)`, whether something where it started scrolls that way (helder.ui
+answers from its scrollers, innermost first; the cube takes only sideways
+drags). Yes: the drag is the program's, the page held still (its
+touchmoves cancelled); no, or no answer: the page scrolls instead, as at a
+scroller's end (a canvas as wide as a phone's screen that the page must
+scroll past), and the pointer is cancelled (`PointerCancel`). A tap
+focuses the canvas. A mouse's press is captured by the canvas: a drag that
+leaves it still moves, and its release still comes. On Android and iOS
+the window sees the touches itself: no page to pan, every drag the
+program's.
 
 ## Wayland
 
@@ -305,20 +302,25 @@ mouse events: a pen is no longer the mouse there), the mouse everywhere
 as slot 0 after its own `Mouse*` events (a move without a button too).
 Touch screens on Windows and X11 (`WM_POINTER`, XInput2) come later.
 
-`Pointers.emulate` (on by default) keeps what a touch did before: the
-first finger's tap a click and its drag `Scroll`s (`TouchDrag`, below),
-their `MouseMove`, `MouseDown` and `MouseUp` with `Mods.TOUCH` (so that
-the mouse's pointer is not made of them). A program that follows the
-pointers itself turns it off (helder.ui's windows do: ui's arena taps and
-scrolls itself).
+A finger or a pen has its pointer's events alone: no `MouseMove`,
+`MouseDown`, `MouseUp` or `Scroll` is made of it (the mouse emulation and
+`TouchDrag` before pointers are gone). helder.ui's arena taps, scrolls and
+pinches from the pointers; helder.scene's `InputMap` makes the first finger
+or pen down that no control took the left button while it is down
+(`Mouse(1)`, `Region`).
 
 Tests: `src/helder/os/Pointers.test.hx` (slots, frames, samples, cancels,
 no allocation: natively and as wasm32-wasi, the test lane),
 `bun run test touch-web` (`tests/os/PointersWeb.hx` in headless
 Chromium: two fingers, a pen and the mouse through the DevTools
-protocol, samples, a cancel, `emulate` off). Android's and iOS's back
-ends are written and compile (every back end is typed on each target)
-but are not run yet: packaging is moving into helder.
+protocol, samples, a cancel, a tap and a drag without mouse events or
+scrolls), `src/helder/os/Glide.test.hx` (a fling's glide). Android's and
+iOS's on CI's emulator and simulator: `tests/gfx/android.sh` and `ios.sh`
+(the cube's Spin on a finger's pointer: a tap's PointerDown and PointerUp,
+a drag held turning the cube and holding it still while it rests, a
+fling's flick, never a mouse event or a scroll from a touch) and
+`tests/os/android-touch.sh` (a drawn ui's fling: the box following the
+finger, gliding on).
 
 ## Fast refresh: `helder.dev.Hot`
 

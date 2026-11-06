@@ -19,12 +19,9 @@ import hxmc.unsafe.*;
 // next turn draws; paused while the app sleeps (App.wait), is inactive or
 // in the background.
 // Every finger and pencil is a pointer (Pointers: Pointer* events,
-// coalesced touches as samples, cancels); the first finger's compatibility
-// gesture (Pointers.emulate) is as in the browser and on Android
-// (TouchDrag): a tap clicks (the left button where it came
-// down, once it lifts), a drag scrolls what is under where it started
-// (Scrolls with Mods.TOUCH, ending with one of nothing without it, then a
-// glide's when let go moving); positions in pixels from the top left. The
+// coalesced touches as samples, the touches' times, cancels), and nothing
+// else: no mouse events or scrolls are made of them; positions in pixels
+// from the top left. The
 // view's size and safe area (the status bar, the notch, the home
 // indicator: Window.safeTop, ...) are measured in layoutSubviews and
 // safeAreaInsetsDidChange: a Resize event when either changed, ScaleChange
@@ -69,11 +66,9 @@ class UIKitWindow {
 	var safeLeft = 0;
 	var safeBottom = 0;
 	var safeRight = 0;
-	// the finger followed (a UITouch*), its last position in pixels; its gesture
-	var touch = Ptr.nil();
+	// a touch's position in pixels (locate's)
 	var lastX = 0.0;
 	var lastY = 0.0;
-	static final drag = new TouchDrag();
 	final size:Ptr<CGSize>;
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
@@ -272,8 +267,7 @@ class UIKitWindow {
 	}
 
 	// ---- touches: every finger a pointer (Pointers: a UITouch's slot by its
-	// address, its coalesced touches as samples); the first finger down the
-	// compatibility gesture's (TouchDrag, while Pointers.emulate)
+	// address, its coalesced touches as samples)
 
 	@:hxmc.callback static function touchesBegan(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void {
 		var w = current;
@@ -286,9 +280,6 @@ class UIKitWindow {
 			w.locate(t);
 			var p = Pointers.press(w.owner, key(t), type(t), w.lastX, w.lastY, force(t), time(t));
 			if (p != null) w.send(PointerDown, p, 1);
-			if (!w.touch.isNull() || !Pointers.emulate) continue;
-			w.touch = t;
-			drag.press(w.lastX, w.lastY, time(t), w.scale);
 		}
 	}
 
@@ -315,7 +306,6 @@ class UIKitWindow {
 			w.locate(t);
 			@:privateAccess p.moveTo(w.lastX, w.lastY, force(t), time(t));
 			w.send(PointerMove, p, 0);
-			if (t == w.touch && drag.move(w.lastX, w.lastY, time(t))) w.scroll(Mods.TOUCH);
 		}
 	}
 
@@ -339,14 +329,6 @@ class UIKitWindow {
 				@:privateAccess p.moveTo(w.lastX, w.lastY, p.pressure, time(t));
 				Pointers.lift(p, cancelled, time(t));
 				w.send(cancelled ? PointerCancel : PointerUp, p, cancelled ? 0 : 1);
-			}
-			if (t != w.touch) continue;
-			var end = drag.lift(time(t), cancelled);
-			w.touch = Ptr.nil();
-			if (end == TouchDrag.END) w.scroll(0) else if (end == TouchDrag.TAP) {
-				w.click(MouseMove);
-				w.click(MouseDown);
-				w.click(MouseUp);
 			}
 		}
 	}
@@ -383,19 +365,6 @@ class UIKitWindow {
 		dispatch(e);
 	}
 
-	function scroll(mods:Int) {
-		var e = event;
-		drag.scroll(e, mods);
-		e.window = owner;
-		dispatch(e);
-	}
-
-	function click(kind:EventKind) {
-		var e = event;
-		drag.click(e, kind);
-		e.window = owner;
-		dispatch(e);
-	}
 
 	// ---- the app's lifecycle (UIKitApp's delegate)
 
@@ -411,7 +380,6 @@ class UIKitWindow {
 		if (on) pauseVsync();
 		if (AppAudio.hold != null) AppAudio.hold(on);
 		App.lifecycle(on);
-		drag.stop();
 		var w = current;
 		if (w == null) return;
 		var e = event;
@@ -437,16 +405,11 @@ class UIKitWindow {
 		UIKitWindow.onEvent = onEvent;
 		if (mode.isNull()) return;
 		while (CF.CFRunLoopRunInMode(mode, 0, true) == 4) {}
-		// (a drag let go moving: its glide's scroll since the last)
-		var w = current;
-		if (w != null && drag.gliding && drag.glide(haxe.Timer.stamp() * 1000)) w.scroll(0);
 	}
 
-	// waits for a source of the run loop, or seconds (< 0: no limit; a
-	// frame while a drag glides)
+	// waits for a source of the run loop, or seconds (< 0: no limit)
 	static function wait(seconds:Float) {
 		if (mode.isNull()) return;
-		seconds = drag.wait(seconds);
 		CF.CFRunLoopRunInMode(mode, seconds < 0 ? 1e9 : seconds, true);
 	}
 

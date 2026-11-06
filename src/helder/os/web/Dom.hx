@@ -26,8 +26,6 @@ import hxmc.unsafe.*;
 	// pressure in 1/65536ths, the time in 1/16 ms, tiltX, tiltY; kind 101: a
 	// sample of the pointer's next event); 0: none
 	static function next_event(ev:Ptr<Int32>):Int;
-	// a touch's compatibility events (Pointers.emulate) on (1) or off (0)
-	static function pointer_emulate(on:Int):Void;
 	// the clipboard: write; read (its text comes back as an event of kind 100,
 	// key: a string handle, 0 for none)
 	static function clipboard_write(text:CString):Void;

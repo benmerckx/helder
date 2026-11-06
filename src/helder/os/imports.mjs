@@ -297,29 +297,24 @@ export default function (host) {
 		});
 		on('pointerup', (e) => pointer(e) && point(e, POINTER_UP, e.button + 1));
 		on('pointercancel', (e) => pointer(e) && point(e, POINTER_CANCEL, 0));
-		// the first one's compatibility gesture (Pointers.emulate, on unless
-		// the program turned it off: pointer_emulate): a drag scrolls what is under where it started (the content
-		// follows the finger, then glides when let go moving), a tap clicks
-		// (no mouse events of the browser's own for either). The option
-		// touchAction (the canvas's CSS touch-action, by default 'none')
-		// lets the browser pan the page along its axes: with 'pan-y', a drag
-		// that starts vertical asks the program first (scrolls_at: the query
-		// of Window.scrollsAt, once a gesture, at its first move) whether
-		// something under where it started scrolls that way. Yes: the drag is
-		// the program's, the browser held off it (its touchmoves cancelled,
-		// the listener not passive); no, or no answer: the browser pans the
-		// page (it cancels the pointer when it takes it over), as at a
+		// the first one's gesture, for the page: a tap focuses the canvas
+		// (the textarea while typing), and the option touchAction (the
+		// canvas's CSS touch-action, by default 'none') lets the browser pan
+		// the page along its axes: with 'pan-y', a drag that starts vertical
+		// asks the program first (scrolls_at: the query of Window.scrollsAt,
+		// once a gesture, at its first move) whether something under where
+		// it started scrolls that way. Yes: the drag is the program's, the
+		// browser held off it (its touchmoves cancelled, the listener not
+		// passive); no, or no answer: the browser pans the page (it cancels
+		// the pointer when it takes it over: a PointerCancel), as at a
 		// scroller's end (the page scrolls on, as a browser chains scrolls).
-		// A drag's scrolls have Mods.TOUCH (16: a finger on the canvas), and
-		// it ends with a scroll of nothing without it (its glide's are
-		// without it too): a program that follows the finger knows when it
-		// is let go, even after it rested
+		// The program has the pointers' events alone: no mouse events or
+		// scrolls are made of a touch
 		const action = host.options.touchAction ?? 'none';
 		c.style.touchAction = action;
 		const words = action.split(/\s+/), pans = (...w) => words.some((a) => a === 'auto' || a === 'manipulation' || w.includes(a));
 		const panX = pans('pan-x', 'pan-left', 'pan-right'), panY = pans('pan-y', 'pan-up', 'pan-down');
-		let touch = null, glide = 0;
-		const TOUCH = 16;
+		let touch = null;
 		// (whether the gesture is the program's: decided at its first move
 		// away from where it started; then its touchmoves cancelled)
 		const decide = (t, x, y) => {
@@ -344,61 +339,30 @@ export default function (host) {
 			}
 			if (t.taken) e.preventDefault();
 		}, { passive: false });
-		const scrollBy = (x, y, dx, dy, m = 0) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), m]);
 		on('pointerdown', (e) => {
 			if (!pointer(e) || touch) return;
-			cancelAnimationFrame(glide);
 			const [x, y] = pos(e);
-			touch = { id: e.pointerId, x, y, lx: x, ly: y, t: performance.now(), vx: 0, vy: 0, drag: false, taken: undefined };
+			touch = { id: e.pointerId, x, y, drag: false, taken: undefined };
 		});
 		on('pointermove', (e) => {
-			if (!touch || e.pointerId !== touch.id) return;
-			const [x, y] = pos(e), now = performance.now();
-			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * pixelRatio()) {
-				// (the browser's gesture: neither a drag nor a tap)
-				if (!decide(touch, x, y)) {
-					touch = null;
-					return;
-				}
-				touch.drag = true;
+			if (!touch || e.pointerId !== touch.id || touch.drag) return;
+			const [x, y] = pos(e);
+			if (Math.hypot(x - touch.x, y - touch.y) <= 8 * pixelRatio()) return;
+			// (the browser's gesture: neither a drag nor a tap)
+			if (!decide(touch, x, y)) {
+				touch = null;
+				return;
 			}
-			if (!touch.drag) return;
-			const dx = touch.lx - x, dy = touch.ly - y, dt = Math.max(1, now - touch.t);
-			if (emulate) scrollBy(touch.x, touch.y, dx, dy, TOUCH);
-			// (pixels per millisecond, smoothed)
-			touch.vx = 0.8 * (dx / dt) + 0.2 * touch.vx;
-			touch.vy = 0.8 * (dy / dt) + 0.2 * touch.vy;
-			Object.assign(touch, { lx: x, ly: y, t: now });
+			touch.drag = true;
 		});
 		const lift = (e) => {
 			if (!touch || e.pointerId !== touch.id) return;
 			const t = touch;
 			touch = null;
-			// (the drag's end: the finger let go, or the browser took it over)
-			if (t.drag && emulate) scrollBy(t.x, t.y, 0, 0);
-			// (cancelled: the browser took the pointer over, to pan the page)
-			if (e.type === 'pointercancel') return;
-			if (!t.drag) {
-				if (c.hxmcTyping) ta.focus({ preventScroll: true });
-				else c.focus();
-				if (!emulate) return;
-				push([h, MOUSE_MOVE, 0, t.x, t.y, 0, TOUCH]);
-				push([h, MOUSE_DOWN, 0, t.x, t.y, 1, TOUCH]);
-				push([h, MOUSE_UP, 0, t.x, t.y, 1, TOUCH]);
-				return;
-			}
-			if (!emulate) return;
-			// (let go moving: on at that speed, slowing 5% a frame)
-			if (performance.now() - t.t > 100) return;
-			let vx = t.vx * 16, vy = t.vy * 16;
-			const step = () => {
-				vx *= 0.95;
-				vy *= 0.95;
-				if (Math.hypot(vx, vy) < 0.5) return;
-				scrollBy(t.x, t.y, vx, vy);
-				glide = requestAnimationFrame(step);
-			};
-			glide = requestAnimationFrame(step);
+			// (a tap: the canvas focused; cancelled: the browser took the pointer over, to pan the page)
+			if (t.drag || e.type === 'pointercancel') return;
+			if (c.hxmcTyping) ta.focus({ preventScroll: true });
+			else c.focus();
 		};
 		on('pointerup', lift);
 		on('pointercancel', lift);
@@ -438,8 +402,6 @@ export default function (host) {
 	let resumes = false;
 	// Window.scrollsAt's query (a callback; 0: none)
 	let query = 0;
-	// a touch's compatibility events (Pointers.emulate)
-	let emulate = true;
 	// the next frame's requestAnimationFrame
 	let frameId = 0;
 	// App.backDepth's history entry (one of the page's own, state
@@ -690,9 +652,6 @@ export default function (host) {
 			a.fill(0);
 			a.set(ev.slice(0, 12));
 			return 1;
-		},
-		pointer_emulate(on) {
-			emulate = on !== 0;
 		},
 		scrolls_at(f) {
 			query = f;

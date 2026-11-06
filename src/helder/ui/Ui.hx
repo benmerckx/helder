@@ -31,8 +31,8 @@ import helder.ui.gesture.TouchScroll;
 // pointerType, pressure and isPrimary on their events. Each pointer has
 // an arena (helder.ui.gesture.Gesture): the recognisers on the nodes it
 // went down in compete for it, the innermost first, and for the first
-// finger a drag that scrolls what is under where it started (TouchScroll,
-// as helder.os.TouchDrag did: Wheel events, a glide), last; a recogniser
+// finger a drag that scrolls what is under where it started (TouchScroll:
+// Wheel events, a glide), last; a recogniser
 // that wins it other than a Tap takes the click, and the scroll cancels
 // the press (PointerCancel). A press released within the slop of where it
 // went down (or twice that, on the node it went down on) clicks. The mouse's presses feed the arena too, its

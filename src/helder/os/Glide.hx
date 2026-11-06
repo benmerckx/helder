@@ -3,7 +3,7 @@ package helder.os;
 // A drag's glide, as a touch screen's: the drag's speed tracked from its
 // moves (smoothed), and once let go moving (its last move within 100 ms) a
 // glide at that speed, slowing 5% a frame (60 a second) until under half a
-// unit a frame. The units are the caller's (TouchDrag's pixels, ui's
+// unit a frame. The units are the caller's (gltf-viewer's pixels, ui's
 // TouchScroll's points); times in ms (any clock). It imports nothing (so
 // that ui takes it without the windows: helder.os.Event's).
 class Glide {

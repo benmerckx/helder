@@ -23,12 +23,6 @@ function tests() {
 			equals(seen, ["mm", "pm 10,20", "md", "pd 0 1", "md", "pm 12,20", "mu", "pm 12,20", "mu", "pu"]);
 			var m = Pointers.get(0);
 			assert(m.type == Mouse && !m.down && m.phase == Up && m.press == 1);
-			// (a tap's compatibility events are not the mouse's)
-			seen.resize(0);
-			var tap = mouseEvent(MouseDown, 1, 5, 5);
-			tap.mods = Mods.TOUCH;
-			relay(tap);
-			equals(seen, ["md"]);
 		});
 		test("touches: dense slots in down order, the first primary", () -> {
 			var a = Pointers.press(null, 101, Touch, 10, 10, 1, 0), b = Pointers.press(null, 7, Touch, 50, 60, 0.5, 1);

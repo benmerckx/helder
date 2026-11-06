@@ -4,8 +4,7 @@
 // cancelled), a pen and the mouse (Input.dispatchMouseEvent's pointerType),
 // its lines checked: dense slots (the mouse 0, fingers and pens from 1), the
 // first finger primary, buffer pixels, a touch's tap and drag its pointer's
-// events alone (no click, no scrolls; Pointers.emulate off by default, a
-// click once it is turned on), moves between two frames
+// events alone (no click, no scrolls, no glide after a drag), moves between two frames
 // as one with samples, a cancel, Pointers' frames; a pointer event sent from
 // JavaScript (setPointerCapture's NotFoundError caught).
 //   node tests/os/pointers-web.mjs <PointersWeb.wasm>
@@ -85,7 +84,7 @@ try {
 	await touch('touchEnd', []);
 	l = await lines();
 	check('the second lifted: none down', l.some((s) => s.startsWith('up 2 touch')) && l.includes('frame'), l.join(' / '));
-	check('two fingers, no click (the first moved under the slop: still a tap)', !l.some((s) => s.startsWith('mouse-down')) || l.includes('mouse-down 1 touch'), l.join(' / '));
+	check('two fingers: no mouse events', !l.some((s) => s.startsWith('mouse-')), l.join(' / '));
 
 	// a tap: its pointer's events alone (no click, no mouse pointer made of it)
 	await touch('touchStart', [{ x: 50, y: 50, id: 3 }]);
@@ -102,17 +101,6 @@ try {
 	await p.waitForTimeout(500);
 	l = await lines();
 	check('a drag let go moving: no glide of scrolls after it', !l.some((s) => s.startsWith('scroll ')), l.join(' / '));
-
-	// emulation on again (Pointers.emulate, until it goes): a tap clicks, then off
-	await p.click('#c', { position: { x: 290, y: 190 } });
-	await p.keyboard.press('o');
-	await lines();
-	await touch('touchStart', [{ x: 50, y: 50, id: 5 }]);
-	await touch('touchEnd', []);
-	l = await lines();
-	check('emulate on: a tap clicks, marked as a touch', l.includes('mouse-down 1 touch'), l.join(' / '));
-	await p.keyboard.press('e');
-	await lines();
 
 	// moves between two frames: one event, the others its samples
 	await touch('touchStart', [{ x: 10, y: 10, id: 6 }]);

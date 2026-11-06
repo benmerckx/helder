@@ -655,11 +655,11 @@ fix.
   Godot), in four steps:
   1. *Landed*: one pointer stream in `os` (`Pointers`: mouse, touch, pen;
      dense ids, phases, cancellation, coalesced samples; per event and per
-     frame, allocating nothing; `emulate` keeps a touch's old click and
-     scrolls). Tested natively (no allocation) and in Chromium (fingers,
-     a pen, the mouse); Android's and iOS's back ends are written and
-     compile, not run on a phone yet (CI's emulator and simulator jobs
-     come first).
+     frame, allocating nothing; a touch is its pointer's events alone, the
+     old mouse emulation and TouchDrag gone). Tested natively (no
+     allocation), in Chromium (fingers, a pen, the mouse) and on CI's
+     emulator and simulator (the cube's drag, rest and fling; a drawn
+     ui's fling).
   2. *Landed*: ui's pointers (fingers and pens with ids, capture and
      `releaseCapture`, `onPointerCancel`, `onLostPointerCapture`; a tap
      clicks, the first finger's drag scrolls in ui itself; a press on

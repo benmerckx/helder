@@ -11,12 +11,9 @@ import hxmc.unsafe.*;
 // polls the looper: the commands of the activity's callbacks (Activity)
 // and the input queue.
 // Every finger and pen is a pointer (Pointers: Pointer* events, their
-// history as samples, a cancel when the system takes them); the first
-// finger's compatibility gesture (Pointers.emulate) is as in the browser
-// (TouchDrag): a tap clicks (the left button where it came down, once it
-// lifts), a drag scrolls what is under where it started (Scrolls with
-// Mods.TOUCH, ending with one of nothing without it, then a glide's when
-// let go moving); keys come as X11 KeySyms like the
+// history as samples, their times the events', a cancel when the system
+// takes them), and nothing else: no mouse events or scrolls are made of
+// them; keys come as X11 KeySyms like the
 // other systems' (Back is Escape: the system still finishes the activity), with
 // TextInput for the printable ones; with text input on and enabled
 // (TextInput.enable: helder.ui's UiWindow does), the soft keyboard and the
@@ -48,8 +45,7 @@ class AndroidWindow {
 	static var window:Ptr = Ptr.nil();
 	static var paused:Bool = false;
 	static final event = new Event();
-	// the first finger's gesture (TouchDrag), its events' times from this one's (ns)
-	static final drag = new TouchDrag();
+	// the pointers' times from this event's (ns)
 	static var since:Int64 = 0;
 	static var timed:Bool = false;
 	// whether App.onBack took the back key's press (then its release too)
@@ -168,10 +164,8 @@ class AndroidWindow {
 	static function poll(onEvent:Event->Void)
 		pump(0, onEvent);
 
-	// waits until the looper has something, at most seconds (< 0: no limit;
-	// a frame while a drag glides)
+	// waits until the looper has something, at most seconds (< 0: no limit)
 	static function wait(seconds:Float) {
-		seconds = drag.wait(seconds);
 		Looper.ALooper_pollOnce(seconds < 0 ? -1 : Std.int(seconds * 1000), Ptr.nil(), Ptr.nil(), Ptr.nil());
 	}
 
@@ -190,12 +184,6 @@ class AndroidWindow {
 			else if (id < 0 && id != -1) break; // (ALOOPER_POLL_TIMEOUT, _ERROR; -1: woken)
 		}
 		if (textEvents != null) textEvents((kind, text, caret) -> dispatch(onEvent, kind, caret, 0, text));
-		// (a drag let go moving: its glide's scroll since the last)
-		if (drag.gliding && onEvent != null && current != null && drag.glide(haxe.Timer.stamp() * 1000)) {
-			drag.scroll(event, 0);
-			event.window = current.owner;
-			onEvent(event);
-		}
 		// (a new window with a size: Resume; a size the system changed, or its safe area: Resize)
 		var w = current;
 		if (w == null || !ready()) return;
@@ -247,7 +235,6 @@ class AndroidWindow {
 				// the Surface keeps no handle to it)
 				log("window destroyed", window);
 				var suspend = w != null && !w.suspended;
-				drag.stop();
 				// (the window's pointers let go: their cancels)
 				if (w != null) Pointers.cancelAll(w.owner, event, onEvent);
 				if (suspend) {
@@ -338,8 +325,7 @@ class AndroidWindow {
 	}
 
 	// a MotionEvent: every pointer in it (Pointers: their slots, their
-	// events; the history's samples), then the first finger's
-	// compatibility gesture (TouchDrag, while Pointers.emulate)
+	// events; the history's samples)
 	static function motion(ev:Ptr, onEvent:Null<Event->Void>):Int {
 		var raw = Android.AMotionEvent_getAction(ev);
 		var action = raw & 0xff, index:Int64 = (raw >> 8) & 0xff;
@@ -384,40 +370,7 @@ class AndroidWindow {
 				Pointers.cancelAll(w.owner, e, onEvent);
 			case _:
 		}
-		if (Pointers.emulate) emulated(action, index, ev, time, onEvent);
 		return 1;
-	}
-
-	// (the first finger's tap a click, its drag Scrolls: TouchDrag)
-	static function emulated(action:Int, index:Int64, ev:Ptr, time:Float, onEvent:Null<Event->Void>) {
-		var w = current, e = event;
-		var x:Float = Android.AMotionEvent_getX(ev, 0), y:Float = Android.AMotionEvent_getY(ev, 0);
-		switch action {
-			case 0: // AMOTION_EVENT_ACTION_DOWN
-				drag.press(x, y, time, w.scale);
-			case 2: // AMOTION_EVENT_ACTION_MOVE
-				if (drag.move(x, y, time) && onEvent != null) {
-					drag.scroll(e, Mods.TOUCH);
-					e.window = w.owner;
-					onEvent(e);
-				}
-			case 1 | 3: // AMOTION_EVENT_ACTION_UP, _CANCEL
-				var end = drag.lift(time, action == 3);
-				if (onEvent == null) return;
-				e.window = w.owner;
-				if (end == TouchDrag.END) {
-					drag.scroll(e, 0);
-					onEvent(e);
-				} else if (end == TouchDrag.TAP) {
-					drag.click(e, MouseMove);
-					onEvent(e);
-					drag.click(e, MouseDown);
-					onEvent(e);
-					drag.click(e, MouseUp);
-					onEvent(e);
-				}
-			case _:
-		}
 	}
 
 	// a pointer's event (Pointers)
@@ -439,7 +392,7 @@ class AndroidWindow {
 	static inline function pressure(ev:Ptr, i:Int64):Float
 		return Math.min(1, Android.AMotionEvent_getPressure(ev, i));
 
-	// an event's time in ms since the first one's (the drag's speed, even when a frame read several)
+	// an event's time in ms since the first one's (a drag's speed, even when a frame read several)
 	static function ms(ns:Int64):Float {
 		if (!timed) {
 			since = ns;
