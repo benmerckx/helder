@@ -38,8 +38,10 @@ class AndroidTest {
 		var device = Device.create(w.surface);
 		var cube = new Cube(device);
 		var spin = new Spin(Spin.SPEED), last = Sys.time(), frames = 0;
+		var diagAt = -100.0;
 		App.run(() -> {
 			var now = Sys.time();
+			if (now - diagAt < 3) Sys.println('AndroidTest: diag frame gap ${Math.round((now - last) * 1000)} ms');
 			spin.advance(Math.min(now - last, 0.1));
 			last = now;
 			var enc = device.beginFrame();
@@ -77,11 +79,14 @@ class AndroidTest {
 					var kind = e.kind == PointerDown ? "PointerDown" : e.kind == PointerMove ? "PointerMove" : e.kind == PointerUp ? "PointerUp" : "PointerCancel";
 					var type = p.type == Mouse ? "mouse" : p.type == Touch ? "touch" : "pen";
 					Sys.println('AndroidTest: event $kind ${p.id} $type ${Math.round(p.x)},${Math.round(p.y)}' + (p.primary ? " primary" : ""));
+					diagAt = Sys.time();
+					Sys.println('AndroidTest: diag $kind t ${Math.round(p.time)} samples ${p.samples}' + [for (i in 0...p.samples) ' ${Math.round(p.sampleX(i))}'].join(""));
 				case Scroll:
 					Sys.println('AndroidTest: event Scroll ${e.x},${e.y} by ${e.deltaX},${e.deltaY} mods ${e.mods}');
 				case _:
 			}
 			spin.input(e, w);
+			if (e.kind == PointerUp) Sys.println('AndroidTest: diag released speed ${Math.round(spin.speed * 1000)}');
 			// (let go: the speed the release gave it, before its frames ease it back)
 			if (e.kind == PointerUp && e.pointer.type == Touch) Sys.println('AndroidTest: let go, spin speed ${Math.round(spin.speed * 1000)}');
 			// (Back is Escape: closed as the examples do; Android 12+ keeps a launcher's activity on Back)

@@ -42,8 +42,13 @@ class AndroidTouchTest {
 		// moved after, its last change; what else came: scrolls, mouse events)
 		var downs = 0, ups = 0, moves = 0, downY = 0.0, upY = 0.0, start = 0.0, released = -1.0, glides = 0, changed = 0.0, last = 0.0;
 		var others = 0, ready = false, done = false;
+		var diagAt = -100.0, diagLast = 0.0;
 		App.run(() -> {
-			if (w.needsFrame()) w.frame() else App.wait(0.05);
+			var t0 = haxe.Timer.stamp();
+			var drew = w.needsFrame();
+			if (drew) w.frame() else App.wait(0.05);
+			if (t0 - diagAt < 3) Sys.println('AndroidTouchTest: diag turn ${drew ? "frame" : "wait"} ${Math.round((haxe.Timer.stamp() - t0) * 1000)} ms, gap ${Math.round((t0 - diagLast) * 1000)}, scroll ${Math.round(list.scrollY)}');
+			diagLast = t0;
 			var now = haxe.Timer.stamp();
 			if (!ready && w.device.width > 0 && list.height > 0) {
 				ready = true;
@@ -66,6 +71,11 @@ class AndroidTouchTest {
 				Sys.println('AndroidTouchTest: ' + (failed == 0 ? "ok" : '$failed FAILED'));
 			}
 		}, e -> {
+			if (e.kind == PointerDown || e.kind == PointerMove || e.kind == PointerUp) {
+				diagAt = haxe.Timer.stamp();
+				var p = e.pointer;
+				Sys.println('AndroidTouchTest: diag ${e.kind} y ${Math.round(p.y)} t ${Math.round(p.time)} samples ${p.samples}' + [for (i in 0...p.samples) ' ${Math.round(p.sampleY(i))}'].join(""));
+			}
 			switch e.kind {
 				case PointerDown if (e.pointer.type == Touch):
 					downs++;
