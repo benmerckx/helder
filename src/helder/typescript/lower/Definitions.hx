@@ -5,6 +5,7 @@ import helder.asset.AssetCheck;
 import helder.dev.KeepDefinition;
 import helder.jobs.JobDefinition;
 import helder.story.StoryDefinition;
+import helder.ui.actions.ActionsDefinition;
 import helder.gfx.shader.Ir;
 import helder.gfx.shader.Names;
 import helder.gfx.shader.Fold;
@@ -31,10 +32,12 @@ class Definitions {
 	];
 
 	// the definitions by module and name
-	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS, "helder/test" => [for (k in located.keys()) k]];
+	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS, "helder/ui/actions" => ["actions"], "helder/test" => [for (k in located.keys()) k]];
 
 	final src:Project;
 	final defined:String->Null<String>;
+	// (the program's actions(...) namespaces: where each is declared)
+	final namespaces = new Map<String, Node>();
 
 	public function new(src:Project, defined:String->Null<String>) {
 		this.src = src;
@@ -119,6 +122,15 @@ class Definitions {
 			if (args.length != 1) j.error("takes one argument, a module-level function", n);
 			var s = new JobDefinition().generate(j.node(args[0]), j);
 			return Job(s.source, [for (c in s.captures) c.name]);
+		}
+		if (from.name == "actions") {
+			var t = new TsActionsAdapter(src, defined);
+			if (args.length != 2) t.error('takes a namespace and an object literal of methods: actions("viewer", {next() {}})', n);
+			var out = new ActionsDefinition().generate(new KNode(KArray([t.node(args[0]), t.node(args[1])]), n), t);
+			var first = namespaces.get(out.namespace);
+			if (first != null && first != n) t.error(ActionsDefinition.twice(out.namespace), args[0]);
+			namespaces.set(out.namespace, n);
+			return Generated(ActionsDefinition.toJson(out));
 		}
 		if (args.length != 1) a.error('${from.name} takes one argument, an object literal', n);
 		var arg = a.node(args[0]);

@@ -298,7 +298,7 @@ value itself.
 |---|---|---|
 | `job(fn)` | `(input: In) => Out`, or a module-level function | Checks the function's captures and its input and output types are Sendable (the rules of today's `helder.jobs.Sendable`). Generates the message types and the worker entry, and returns a `Job<In, Out>`. `await Decode.run(req)` in TS is `Decode.run(req)` in a Haxe coroutine. Replaces `Jobs.run(f, x)`'s macro and the `helder.jobs.gen.*` types. |
 | `image(path)`, `font`, `model`, `sound`, `bytes(path)` | a path literal relative to the file | Resolves and bundles the asset as `Asset.*` does today, and returns the typed handle. TS may also write `import icon from "./icon.png" with {type: "image"}`, which is the same definition. |
-| `actions(namespace, {...})` | an object whose keys are action names and whose arrow functions give the arguments: `{next: () => {}, zoomTo: (percent: number) => {}}` | Generates the action type: an enum in Haxe, a tagged union in TS. Also generates the keymap names (`viewer::ZoomTo`) and the JSON argument readers. Replaces the enum plus `Actions.declare` pair. The bodies are ignored; the parameters are what count. |
+| `actions(namespace, Enum)` (Haxe), `actions(namespace, {...})` (TS) | a namespace literal and the actions: Haxe's enum (its constructors and their arguments); TS's object of methods, `{next() {}, zoomTo(percent: number) { return {percent}; }}` | Checks the namespace (an identifier, declared once in the program) and that each argument can be read from a JSON keymap. Generates the keymap names (`viewer::ZoomTo`) and the arguments' JSON readers and comparisons; TS's values are `{type: "zoomTo", percent: 100}`, typed `ActionOf<typeof Viewer>`. Replaces the enum plus `Actions.declare` pair. |
 | `story({name, render, seed, store, caption, ...})` | the story's fields | Registers the story for `helder publish --dry-run` and the extension, and drops it from release builds. |
 | `keep(key, () => initial)` | a key literal and an initialiser | Generates a dev-reload slot, replacing `Hot.keep` and `Hot.save`. |
 
@@ -384,7 +384,22 @@ removed in the same step that replaces them.
    before it, each stage's parameters as one object, `(i, p: {...})`.)
 6. **`uniform` sugar.** (Done.) `compute` waits on compute pipelines in
    helder.gfx. TS keeps the math's methods (no operators, by decision).
-7. **`actions`**, which waits on its design.
+7. **`actions`** (done, option A): Haxe keeps the enum, the registration
+   is the definition, `actions("viewer", ViewerAction)` (helder.ui.actions'
+   `ActionsMacro`: its names, readers and comparisons generated as
+   switches over the enum, nothing by reflection, `-dce full` too).
+   TypeScript's is `actions("viewer", {next() {}, zoomTo(percent: number)
+   { return {percent}; }})` from `helder/ui/actions`: a method with
+   arguments returns them as an object, which is how TypeScript's checker
+   types the value (a function type keeps no parameter names), the bodies
+   otherwise ignored (`TsActionsAdapter` checks them); `ActionOf<typeof
+   Viewer>` the tagged union, a handler a narrowed `switch (a.type)`. One
+   handler, `ActionsDefinition`, checks both (the namespace, the arguments,
+   a namespace declared twice: tests/typescript/definitions/reject), and
+   helder.ui's dispatch, keymaps, menus and states take either value
+   (`ActionSpace`: a TypeScript program's objects made and recognised by
+   index.ts, StandardAction's mirrored as the program's objects for its
+   handlers). The parity case is shortcuts.tsx / Shortcuts.hx.
 
 Tests:
 - the gfx-shader lane, comparing shader text before and after;

@@ -11,7 +11,7 @@ import process from 'node:process';
 import {fileURLToPath} from 'node:url';
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-export const MODULES = ['helder.view.TypeScript', 'helder.ui.TypeScript', 'helder.web.TypeScript', 'helder.canvas.TypeScript', 'helder.async.TypeScript', 'helder.dev.TypeScript', 'helder.story.TypeScript', 'helder.jobs.TypeScript', 'helder.asset.TypeScript', 'helder.test.TypeScript', 'helder.native.TypeScript'];
+export const MODULES = ['helder.view.TypeScript', 'helder.ui.TypeScript', 'helder.web.TypeScript', 'helder.canvas.TypeScript', 'helder.async.TypeScript', 'helder.dev.TypeScript', 'helder.story.TypeScript', 'helder.jobs.TypeScript', 'helder.asset.TypeScript', 'helder.test.TypeScript', 'helder.native.TypeScript', 'helder.ui.actions.TypeScript'];
 
 const args = process.argv.slice(2), cps = [], modules = [];
 let check = false;

@@ -9,6 +9,19 @@ import type {Read, RootView, View} from "helder/view";
 
 declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", __module: "helder.ui.TypeScript"};
 
+// a menu of the menu bar; role Window: the window menu (macOS's: its own
+// items after Minimize, Zoom and Close)
+export type Menu = { label: string; items: unknown[]; role?: "about" | "quit" | "hide" | "undo" | "redo" | "cut" | "copy" | "paste" | "select-all" | "minimize" | "zoom" | "fullscreen" | "close" | "window" };
+
+// An item of a native menu (PlatformViews.menu): its label, its shortcut
+// as shown ("Ctrl+C", "⌘C") and as keys (a menu that takes its keys
+// itself: macOS's key equivalents), whether it is disabled or checked; a
+// separator; a submenu's items. id: what the menu reports when it is chosen.
+// role: a standard item's (helder.ui.menu.MenuRole: "about", "quit",
+// "copy", "window" for a menu bar's window menu...), which a platform puts
+// in its own place or gives its own behaviour (macOS).
+export type PlatformMenuItem = { id: number; label: string; shortcut?: string; keys?: unknown; disabled?: boolean; checked?: boolean; separator?: boolean; items?: PlatformMenuItem[]; role?: string };
+
 // <Surface>'s props (UiWindow.Surface)
 export type SurfaceProps = { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; onDrop?: (files: string[], x: number, y: number) => void; ref?: (arg0: UiWindow) => void; antialias?: boolean; children?: UiView };
 

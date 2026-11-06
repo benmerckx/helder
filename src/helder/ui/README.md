@@ -287,9 +287,18 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
 ## Actions and keymaps
 
 `helder.ui.actions`, modelled on Zed's GPUI. An action is a value of an
-enum an app or a library declares (`enum ViewerAction { Next; ZoomTo(percent:Float); }`,
-`Actions.declare("viewer", ViewerAction)`: `viewer::ZoomTo` in a
-keymap). `Ui.dispatchAction(a)` sends it from the focused node up its
+enum an app or a library declares (`enum ViewerAction { Next; ZoomTo(percent:Float); }`),
+its namespace given by a definition (src/helder/compiler/DESIGN.md 4):
+`actions("viewer", ViewerAction)`, `viewer::ZoomTo` in a keymap. Its
+handler (`ActionsDefinition`, TypeScript's the same) checks it when the
+program is built: the namespace an identifier, a string literal, declared
+once in the program; every argument one a JSON keymap can give (numbers,
+strings, booleans, and arrays and structures of these). It generates the
+actions' names and their arguments' readers and comparisons (an
+`ActionSpace`, registered where the call is evaluated), so nothing is
+looked up by reflection at run time (`-dce full` keeps it working).
+`StandardAction` is declared as `standard` (`standard::Quit`).
+`Ui.dispatchAction(a)` sends it from the focused node up its
 ancestors (a popup's: on to the node it is anchored to, else where the
 focus was when it opened) to the root, then to the window's handlers
 (`Ui.on`), then the app's (`Actions.on`): each handler (`Node.on(ViewerAction,
@@ -298,6 +307,39 @@ a -> ..., ?state)`) takes it (true) or lets it bubble (false); its state
 menu shows. `StandardAction` is every app's (Quit, CloseWindow,
 ToggleFullscreen: the window's; Copy: the selection's; About, Undo, Cut,
 Paste...: the menus' roles).
+
+In TypeScript (`helder/ui/actions`, src/helder/ui/actions/index.ts) the
+definition takes an object of methods, their parameters the arguments; a
+method with arguments returns them as an object, which is what TypeScript
+types the action as (a type has no parameter names), and the bodies never
+run. It is plain TypeScript, checked by tsgo as it is written:
+
+```tsx
+import { actions, type ActionOf, handle, Keymap } from "helder/ui/actions";
+
+export const Viewer = actions("viewer", {
+	next() {},
+	zoomTo(percent: number) { return { percent }; },
+});
+export type ViewerAction = ActionOf<typeof Viewer>;   // {type: "next"} | {type: "zoomTo", percent: number}
+
+Keymap.global.bind("1", Viewer.zoomTo(100), "Viewer");
+<view key-context="Viewer" actions={handle(Viewer, a => {
+	switch (a.type) {
+		case "next": next(); return true;
+		case "zoomTo": zoom(a.percent); return true;
+	}
+}, a => a.type === "next" && last() ? Disabled : Enabled)}>...</view>
+```
+
+`Viewer.zoomTo(100)` makes a value, `{type: "zoomTo", percent: 100}`; a
+handler is a `switch (a.type)`, narrowed by the checker. The same
+machinery dispatches it (`on(node, ...)`, `onWindow`, `onApp`, a JSON
+keymap's `["viewer::ZoomTo", 100]`, menus' `item(label, action)`,
+`resolve`, `popup`, `MenuBar`); `Standard` is StandardAction's
+(`Standard.quit()`), its values given to a TypeScript handler as the
+program's objects. tests/typescript/definitions/shortcuts.tsx and
+Shortcuts.hx print the same; examples/ts-todo binds its filters.
 
 A node's key context (`Node.keyContext`, `KeyContext.parse("Editor mode=full read_only")`)
 joins the context stack of the focus (root first). A binding

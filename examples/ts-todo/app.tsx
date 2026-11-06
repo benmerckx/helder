@@ -3,16 +3,27 @@
 // checkboxes and the filters update what is shown. Its buttons and
 // checkboxes are components of its own (TypeScript functions), styled
 // inline; a hole or an attribute that reads follows what it reads, as in
-// Haxe (a filter's outline: a Read prop). main.tsx shows it in a window,
-// app.test.tsx mounts it headless.
+// Haxe (a filter's outline: a Read prop). The filters have shortcuts:
+// Todo's actions (helder/ui/actions, a definition: todo::Show in a JSON
+// keymap), bound to secondary-1, -2 and -3 (Control, Command on a Mac) and
+// handled by the view's root, from anywhere in it, the text field too.
+// main.tsx shows it in a window, app.test.tsx mounts it headless.
 import { signal, memo, For, Show, Read } from "helder/view";
 import { Event, Key } from "helder/ui";
+import { actions, handle, Keymap } from "helder/ui/actions";
 import { Item, added, removed, toggled, shown, left } from "./todos";
 
 export const todos = signal<Item[]>([]);
 const nextId = signal(1);
 export const draft = signal("");
 export const filter = signal("all");
+
+export const Todo = actions("todo", {
+	show(filter: string) {
+		return { filter };
+	},
+});
+Keymap.global.bind("secondary-1", Todo.show("all")).bind("secondary-2", Todo.show("active")).bind("secondary-3", Todo.show("done"));
 
 export function add() {
 	if (draft().trim() === "") return;
@@ -45,7 +56,14 @@ const remaining = memo(() => left(todos()));
 
 export function App() {
 	const visible = () => shown(todos(), filter());
-	return <view grow={1} padding={24} row-gap={14} background="#fafafa" font-family="DejaVu Sans" font-size={14} color="#18181b">
+	return <view grow={1} padding={24} row-gap={14} background="#fafafa" font-family="DejaVu Sans" font-size={14} color="#18181b"
+		actions={handle(Todo, a => {
+			switch (a.type) {
+				case "show":
+					filter(a.filter);
+					return true;
+			}
+		})}>
 		<text font-size={28} font-weight={700} color="#3b82f6">todos</text>
 		<view direction="row" column-gap={8}>
 			<field tag="draft" grow={1} value={draft} placeholder="What needs to be done?" label="What needs to be done?" padding="8 12" radius={6}

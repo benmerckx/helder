@@ -16,6 +16,12 @@
     "./ui": {
       "types": "./src/helder/ui/index.d.ts"
     },
+    "./ui/actions": {
+      "types": "./src/helder/ui/actions/index.ts"
+    },
+    "./ui/actions/runtime": {
+      "types": "./src/helder/ui/actions/runtime.d.ts"
+    },
     "./web": {
       "types": "./src/helder/web/index.d.ts"
     },

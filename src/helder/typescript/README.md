@@ -259,6 +259,15 @@ Objective-C delegate class, a Java interface's proxy: Haxe's
 `@:hxmc.callback` entries are static functions with a fixed symbol, which
 the frontend does not make), structs by value, variadic functions.
 
+`helder/ui/actions` (src/helder/ui/actions/index.ts, TypeScript over
+`helder/ui/actions/runtime`) is helder.ui's actions: `actions("viewer",
+{next() {}, zoomTo(percent: number) { return {percent}; }})` is a
+definition (the handler Haxe's `actions("viewer", ViewerAction)` runs,
+`ActionsDefinition`; the methods read by `TsActionsAdapter`), its values
+`{type: "zoomTo", percent: 100}` objects the module makes and helder.ui's
+keymaps, dispatch and menus recognise (src/helder/ui/README.md, "Actions
+and keymaps").
+
 `helder/test` (src/helder/test/index.ts, TypeScript over
 `helder/test/runner`) is helder.test for `*.test.ts(x)`: its assertions'
 calls are given their file and line as their last argument, as Haxe's
