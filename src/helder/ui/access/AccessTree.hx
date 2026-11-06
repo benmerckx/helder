@@ -23,7 +23,7 @@ class AccessTree {
 	static var nextId = 1;
 
 	function new(ui:Ui) {
-		var top:AccessNode = {id: idOf(ui.root), role: Group};
+		var top:AccessNode = {id: idOf(ui.root), role: Group, width: ui.width, height: ui.height};
 		root = top.id;
 		add(ui.root, top);
 		for (c in ui.root.children)
@@ -95,19 +95,11 @@ class AccessTree {
 
 	// a table's rows (below it, not in another table) and their cells
 	function table(t:AccessNode) {
-		var rows = [];
-		function find(id:Int, want:Role->Bool, out:Array<AccessNode>) {
-			for (k in nodes.get(id).children) {
-				var c = nodes.get(k);
-				if (want(c.role)) out.push(c) else if (c.role != Table && c.role != Row) find(k, want, out);
-			}
-		}
-		find(t.id, r -> r == Row, rows);
+		var rows = tableRows(t.id);
 		var cols = 0;
 		for (i in 0...rows.length) {
 			rows[i].rowIndex = i;
-			var cells = [];
-			find(rows[i].id, r -> r == Cell || r == ColumnHeader, cells);
+			var cells = rowCells(rows[i].id);
 			for (j in 0...cells.length) {
 				cells[j].rowIndex = i;
 				cells[j].colIndex = j;
@@ -116,6 +108,40 @@ class AccessTree {
 		}
 		t.rowCount = rows.length;
 		t.colCount = cols;
+	}
+
+	// (the nodes of a kind below one, not inside another table or row)
+	function find(id:Int, want:Role->Bool, out:Array<AccessNode>):Array<AccessNode> {
+		for (k in nodes.get(id).children) {
+			var c = nodes.get(k);
+			if (want(c.role)) out.push(c) else if (c.role != Table && c.role != Row) find(k, want, out);
+		}
+		return out;
+	}
+
+	// a table's rows, in order
+	public function tableRows(id:Int):Array<AccessNode>
+		return find(id, r -> r == Row, []);
+
+	// a row's cells (its column headers' too), in order
+	public function rowCells(id:Int):Array<AccessNode>
+		return find(id, r -> r == Cell || r == ColumnHeader, []);
+
+	// a table's cell at a row and column (null: none)
+	public function cellAt(table:Int, row:Int, col:Int):Null<AccessNode> {
+		var rows = tableRows(table);
+		if (row < 0 || row >= rows.length) return null;
+		var cells = rowCells(rows[row].id);
+		return col >= 0 && col < cells.length ? cells[col] : null;
+	}
+
+	// a column's header (null: none): the first row's cell there, when a ColumnHeader
+	public function columnHeader(table:Int, col:Int):Null<AccessNode> {
+		for (r in tableRows(table)) {
+			var cells = rowCells(r.id);
+			if (col < cells.length && cells[col].role == ColumnHeader) return cells[col];
+		}
+		return null;
 	}
 
 	// the parent of each node (the root's: 0)

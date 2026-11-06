@@ -12,7 +12,10 @@ import hxmc.unsafe.*;
 // y b n q i u x t d s o g, arrays, structs, dict entries, variants. Values:
 // Int (64-bit ones as Float), Bool, String, Array (an array, a struct, a
 // dict entry: [key, value]), Variant. Blocking, with a timeout: what
-// helder.os's dialogs (FileDialog, xdg-desktop-portal's FileChooser) need.
+// helder.os's dialogs (FileDialog, xdg-desktop-portal's FileChooser) need;
+// or not (poll: what came, without waiting; callLater: a call whose reply is
+// not waited for), as a service answering in a program's loop does
+// (helder.ui's AT-SPI adapter, LinuxAccess).
 class DBus {
 	public static inline var METHOD_CALL = 1;
 	public static inline var METHOD_RETURN = 2;
@@ -190,6 +193,38 @@ class DBus {
 		if (queued.length > 0) return queued.shift();
 		return read(seconds);
 	}
+
+	// what has come (null: nothing yet), without waiting: the socket read
+	// while it has bytes (O_NONBLOCK for the read)
+	public function poll():Null<DBusMessage> {
+		if (queued.length > 0) return queued.shift();
+		var m = parse();
+		if (m != null) return m;
+		var flags = Posix.fcntl(fd, 3, 0); // F_GETFL
+		Posix.fcntl(fd, 4, flags | 0x800); // F_SETFL, O_NONBLOCK
+		var buf = LibC.malloc(65536), q:Ptr<UInt8> = cast buf;
+		while (true) {
+			var n = Posix.read(fd, buf, 65536).toInt();
+			if (n <= 0) break;
+			var all = new BytesBuffer();
+			all.add(pending);
+			for (i in 0...n)
+				all.addByte(q[i]);
+			pending = all.getBytes();
+			if (n < 65536) break;
+		}
+		LibC.free(buf);
+		Posix.fcntl(fd, 4, flags);
+		return parse();
+	}
+
+	// a method call whose reply is not waited for (its serial: the reply's, when one comes)
+	public function callLater(destination:String, path:String, iface:String, member:String, signature:String, args:Array<Dynamic>):Int
+		return write(METHOD_CALL, 0, destination, path, iface, member, signature, args, null);
+
+	// an error for a call (its name, a message)
+	public function error(to:DBusMessage, name:String, text:String)
+		write(ERROR, to.serial, to.sender, null, null, null, "s", [text], name);
 
 	public function addMatch(rule:String)
 		call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "AddMatch", "s", [rule], 5);

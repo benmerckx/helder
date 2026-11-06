@@ -1599,6 +1599,8 @@ class Ui {
 	public function accessAction(id:Int, action:helder.ui.access.AccessAction, ?value:String):Bool {
 		var r = accessActionNow(id, action, value);
 		helder.view.graph.Graph.flush();
+		// (a frame: what it changed drawn, the adapters told)
+		if (r) requestFrame();
 		return r;
 	}
 

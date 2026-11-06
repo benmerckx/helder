@@ -423,7 +423,7 @@ static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 		}
 		true;
 	})]}>
-		<field:textarea value={props.text} onInput={e -> props.text(e.text)}/>
+		<field:textarea label="Text" value={props.text} onInput={e -> props.text(e.text)}/>
 	</view>;
 ```
 
@@ -529,9 +529,9 @@ phones it is the default.
 ```haxe
 static function Compose(props:{subject:Signal<String>, body:Signal<String>}):View
 	return <view row-gap={8}>
-		<field value={props.subject} spellcheck="true" onInput={e -> props.subject(e.text)}/>
-		<field:textarea value={props.body} onInput={e -> props.body(e.text)}/>
-		<field type="password" host="native"/>
+		<field label="Subject" value={props.subject} spellcheck="true" onInput={e -> props.subject(e.text)}/>
+		<field:textarea label="Body" value={props.body} onInput={e -> props.body(e.text)}/>
+		<field type="password" label="Password" host="native"/>
 	</view>;
 ```
 

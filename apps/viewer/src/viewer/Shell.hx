@@ -251,6 +251,9 @@ class Shell implements Markup {
 		image.onContextMenu = (x, y) -> if (image.ui != null) helder.ui.menu.Menus.popup(image.ui, ViewerActions.context, x, y, image);
 		image.style.position = Absolute;
 		image.style.left = image.style.top = image.style.right = image.style.bottom = 0;
+		// (to assistive technology an image, named as the window is: the file, its place, its size)
+		image.semantics = {role: helder.ui.access.Role.Image, label: viewer.title.peek()};
+		renderEffect(() -> viewer.title(), t -> image.semantics.label = t);
 		// (a change drawn; an animation or a glide ticked on the clock while it lasts)
 		var ticking = false, last = -1.0;
 		renderEffect(() -> viewer.version(), _ -> {

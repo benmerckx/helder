@@ -318,6 +318,12 @@ class Run {
 		var said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("viewer: photo 2.jpg · 5 / 6 · 1242×1048 (shown") < 0) throw new Failed('the viewer did not show the photo: $said');
+		// (its main screen's accessibility tree read whole over AT-SPI, as the ui-draw lane reads AccessApp's: Linux's)
+		if (GFX_TARGET.startsWith("linux-") && Sys.systemName() == "Linux") {
+			native('bin/ui/$GFX_TARGET/AtspiProbe', uiCp().concat(["-main", "AtspiProbe"]), GFX_TARGET);
+			shell('xvfb-run -a dbus-run-session -- sh -c \'$exe --new --exit-after 30 "apps/viewer/tests/fixtures/folder/photo 2.jpg" & p=$$!; '
+				+ 'bin/ui/$GFX_TARGET/AtspiProbe "photo 2" "image:photo 2.jpg · 5 / 6 · 1242×1048" "menu item:File" "menu item:View"; s=$$?; kill $$p; exit $$s\'');
+		}
 		// (a PDF's first page, its pages counted)
 		var pdf = '$wine$exe --new --exit-after 3 apps/viewer/tests/fixtures/pdf/pages.pdf';
 		if (Sys.systemName() == "Linux") shell('xvfb-run -a $pdf > $out') else shell('$pdf > $out');
@@ -912,12 +918,12 @@ class Run {
 	}
 
 	static function uiCp()
-		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo"]);
+		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo", "examples/mail"]);
 
 	static function uiPrograms() {
 		var t = GFX_TARGET;
 		var programs = ["UiDrawTest", "TodoTest", "StressTest", "ClipboardTest", "EmojiTest", "BoxTest", "SnapTest", "WindowTest"];
-		if (t.startsWith("linux-")) programs = programs.concat(["TextInputTest", "LinuxAccessTest", "AtspiProbe"]);
+		if (t.startsWith("linux-")) programs = programs.concat(["TextInputTest", "LinuxAccessTest", "AtspiProbe", "AccessApp"]);
 		if (t.startsWith("windows-")) programs.push("WinAccessTest");
 		for (m in programs)
 			native('bin/ui/$t/$m', uiCp().concat(["-main", m]), t);
@@ -939,9 +945,22 @@ class Run {
 		shell('$xvfb $b/ClipboardTest');
 		shell('$xvfb $b/TextInputTest');
 		shell('$xvfb $b/WindowTest');
-		// (AT-SPI: the window's tree read by another process through libatspi, in a D-Bus session)
-		shell('LIBGL_ALWAYS_SOFTWARE=1 $xvfb dbus-run-session -- sh -c \'$b/LinuxAccessTest & p=$$!; $b/AtspiProbe; s=$$?; wait $$p && exit $$s\'');
+		// (AT-SPI: the window's tree read by another process through libatspi,
+		// in a D-Bus session: the fixture's, acted on, then the examples' and
+		// the guide's, read whole)
+		shell('LIBGL_ALWAYS_SOFTWARE=1 $xvfb dbus-run-session -- sh -c \'$b/LinuxAccessTest & p=$$!; $b/AtspiProbe fixture; s=$$?; wait $$p && exit $$s\'');
+		for (screen in ACCESS_SCREENS)
+			shell('LIBGL_ALWAYS_SOFTWARE=1 $xvfb dbus-run-session -- sh -c \'$b/AccessApp ${screen[0]} & p=$$!; $b/AtspiProbe ${screen.join(" ")}; s=$$?; kill $$p; exit $$s\'');
 	}
+
+	// AccessApp's screens, each with what its tree must have ("role:name", as
+	// AT-SPI names roles; the other platforms' probes map them)
+	static final ACCESS_SCREENS = [
+		["todo", '"entry:What needs to be done?"', '"push button:Add"', '"check box:Write the docs"', '"check box:Ship it"', '"label:2 items left"'],
+		["mail", '"list:Folders"', '"list item:Inbox 3"', '"list:Messages"', '"entry:Search messages"', '"push button:Archive"'],
+		["guide", '"push button:+"', '"label:Total: € 60"', '"push button:Delete"', '"push button:Search"', '"entry:Subject"', '"entry:Body"', '"entry:Text"',
+			'"password text:Password"']
+	];
 
 	static function uiWeb() {
 		var b = "bin/ui";

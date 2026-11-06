@@ -568,7 +568,13 @@ attribute, UI Automation's AriaProperties; macOS has no property for it). A live
 Announcement, UI Automation's LiveRegionChanged, macOS's announcement
 request. `Ui.accessTree()` gives it, `AccessTree.changes`
 the incremental update, `Ui.accessAction` does what a screen reader asks
-(click, focus, increment, decrement, set a value). In a browser the window
+(click, focus, increment, decrement, set a value: a text's, or a range's,
+stepped there; expand, collapse, select an item, scroll into view, set a
+text input's selection). The tree counts what assistive technology
+announces as "2 of 3": an item's place in its set (a list's items, tabs,
+radios, menu items, a tree's items of a level), a table's rows and
+columns and each cell's row and column; a text input's node has its
+caret, its selection and whether it is read only. In a browser the window
 mirrors it as ARIA elements inside its canvas (the canvas's fallback
 content: in the page's accessibility tree, not drawn): load
 `src/helder/ui/imports.mjs` with the others. On macOS the window gives it to
@@ -577,8 +583,15 @@ and frame; press, increment and decrement come back as actions), which
 VoiceOver reads; on Windows to UI Automation (`WinAccess`: a COM
 provider per node, made here: navigation, properties, bounds, the
 invoke, toggle, range value and value patterns), which Narrator reads; on
-Linux to AT-SPI over D-Bus (`LinuxAccess`, libdbus loaded at run time:
-Accessible, Component, Action, Value, Text), which Orca reads. On macOS, Windows
+Linux to AT-SPI over D-Bus (`LinuxAccess`, through helder's own D-Bus
+client, `helder.os.linux.DBus`: Accessible, Component, Action, Value,
+Text by characters, words, sentences and lines with the caret and the
+selection, EditableText, Selection, Table and TableCell; the events of
+what changed since the last frame: children added and removed, names,
+values, states, the text's edits and caret, a selection's change), which
+Orca reads (the ui-draw lane reads the fixture, the todo and mail
+examples and the guide's widgets through libatspi, the viewer lane the
+viewer's main screen: `tests/ui/AtspiProbe.hx`). On macOS, Windows
 and Linux the tree is built only once a client first asks for it, so a
 program nobody reads pays nothing for it.
 

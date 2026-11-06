@@ -99,6 +99,10 @@ class WinAccess {
 	// (no tree is built until a client asks for the root: most programs run with none)
 	var active = false;
 
+	// whether a client asked for the tree (its changes then raised)
+	public function listening():Bool
+		return active;
+
 	function activate() {
 		if (active) return;
 		active = true;

@@ -172,7 +172,8 @@ class UiWindow {
 
 	// there is something new to draw
 	public function needsFrame():Bool
-		return redraw || ui.needsFrame || Clock.active || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale;
+		return redraw || ui.needsFrame || Clock.active || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale
+			|| (Ui.accessEpoch != accessSent && accessListening());
 
 	// draws a frame (the loop calls it when needsFrame): the clock ticked
 	// first (now: what the frame's events started, Ui.now's, is not after
@@ -189,6 +190,8 @@ class UiWindow {
 		// an animation off screen, a timer's wait)
 		if (!redraw && !ui.needsFrame && capture == null && device.width == drawnW && device.height == drawnH && s == drawnScale) {
 			updateTextInput();
+			// (what assistive technology reads changed, nothing drawn: a semantics' state)
+			if (Ui.accessEpoch != accessSent && accessListening()) sendAccess();
 			return;
 		}
 		var enc = device.beginFrame();
@@ -278,10 +281,27 @@ class UiWindow {
 		window.textContext(c.text, c.start, c.end, c.multiline, c.secret);
 	}
 
+	// the accessibility tree's epoch last sent (Ui.accessEpoch): a change since is a frame's
+	var accessSent = -1;
+
+	// whether an adapter has a client: what it reads changing is then worth a frame
+	function accessListening():Bool {
+		if (Mem.os() == 3) return access != null;
+		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
+			return macAccess != null && (cast macAccess : MacAccess).listening();
+		} else if (Mem.os() == 2) {
+			return winAccess != null && (cast winAccess : WinAccess).listening();
+		} else if (Mem.os() == 0) {
+			if (Mem.target() < 9) return linuxAccess != null && LinuxAccess.listening();
+		}
+		return false;
+	}
+
 	// the tree's changes to the browser's mirror or to macOS (the guards inside: an
 	// instance method is compiled whether called or not, and the browser's
 	// imports must stay out of the other targets)
 	function sendAccess() {
+		accessSent = Ui.accessEpoch;
 		if (Mem.os() == 3) {
 			var t = ui.accessTree();
 			var json = t.changesJson(access);

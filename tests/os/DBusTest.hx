@@ -21,6 +21,27 @@ class DBusTest {
 		if (a == null) Sys.exit(1);
 		var names = a.call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ListNames", "", [], 5);
 		check("ListNames", names != null && (names.body[0] : Array<String>).indexOf(a.name) >= 0);
+		// (a service's loop: polled without waiting, a call not waited for, an error answered)
+		// (what came is the bus's, NameAcquired, or nothing; not waited for)
+		var t0 = Sys.time(), first = a.poll();
+		check("poll: no wait", Sys.time() - t0 < 0.1 && (first == null || first.sender == "org.freedesktop.DBus"));
+		var b = DBus.session();
+		var serial = b.callLater(a.name, "/org/example/x", "org.example.X", "Hello", "s", ["hi"]);
+		var got:Null<DBusMessage> = null, until = Sys.time() + 5;
+		while (got == null && Sys.time() < until) {
+			got = a.poll();
+			if (got != null && got.member != "Hello") got = null;
+			if (got == null) Sys.sleep(0.01);
+		}
+		check("poll: the call come", got != null && got.path == "/org/example/x" && got.body[0] == "hi");
+		if (got != null) a.error(got, "org.example.Error.No", "not here");
+		// (the bus's NameAcquired first)
+		var answer = b.next(5);
+		while (answer != null && answer.replySerial != serial)
+			answer = b.next(5);
+		check("error: the caller's", answer != null && answer.type == DBus.ERROR && answer.replySerial == serial && answer.errorName == "org.example.Error.No"
+			&& answer.body[0] == "not here", answer == null ? "none" : answer.errorName);
+		b.close();
 		// (a stand-in portal: answers OpenFile with its request's path, then the Response)
 		var seen:Array<Dynamic> = [];
 		sys.thread.Thread.create(() -> {

@@ -66,6 +66,10 @@ class MacAccess {
 		viewClass = v;
 	}
 
+	// whether assistive technology asked for the tree (its changes then posted)
+	public function listening():Bool
+		return active;
+
 	public function dispose() {
 		for (e in elements)
 			Runtime.objc_release(e);

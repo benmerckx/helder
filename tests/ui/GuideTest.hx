@@ -395,7 +395,7 @@ class GuideTest implements Markup {
 			}
 			true;
 		})]}>
-			<field:textarea value={props.text} onInput={e -> props.text(e.text)}/>
+			<field:textarea label="Text" value={props.text} onInput={e -> props.text(e.text)}/>
 		</view>;
 
 	static function shortcuts() {
@@ -416,9 +416,9 @@ class GuideTest implements Markup {
 	// "Text fields": drawn on the desktop, spellcheck asked or a text area's, native asked
 	static function Compose(props:{subject:Signal<String>, body:Signal<String>}):View
 		return <view row-gap={8}>
-			<field value={props.subject} spellcheck="true" onInput={e -> props.subject(e.text)}/>
-			<field:textarea value={props.body} onInput={e -> props.body(e.text)}/>
-			<field type="password" host="native"/>
+			<field label="Subject" value={props.subject} spellcheck="true" onInput={e -> props.subject(e.text)}/>
+			<field:textarea label="Body" value={props.body} onInput={e -> props.body(e.text)}/>
+			<field type="password" label="Password" host="native"/>
 		</view>;
 
 	static function textFields() {
