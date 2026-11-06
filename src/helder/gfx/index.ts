@@ -1741,17 +1741,32 @@ export type Shader<V, VS, FS, P> = {
 	readonly fragment: FS,
 	pipeline(options?: PipelineOptions): {program: {vertex: ShaderCode, fragment: ShaderCode}, layout: VertexBufferLayout[]} & PipelineOptions,
 	vertexBytes(vertices: V[]): Uint8Array,
+	// the block of the uniform(...)s the stages read: its slot (-1: none), its bytes with their values now, bound
+	readonly uniformBinding: number,
+	uniformBytes(): Uint8Array | null,
+	bind(encoder: {setUniforms(slot: number, bytes: Uint8Array): void}): void,
 };
+
+// a value the CPU sets and the shaders that read it get (uniform(value):
+// a module-level const; uniform.value in a stage: Shader.uniformBytes)
+export class Uniform<T> {
+	constructor(public value: T) {}
+}
+
+export function uniform<T>(value: T): Uniform<T> {
+	return new Uniform(value);
+}
 
 // shader({vertex, fragment}): each stage takes its input and, optionally,
 // one object of parameters, its fields uniform blocks and textures
 // (fragment: (i, p: {sky: SkyParams, image: Texture2D}) => ...)
 /** @definition shader */
 export function shader<V, I, VR extends [] | [object], FR extends [] | [object]>(def: {vertex: (v: V, ...p: VR) => I, fragment: (i: I, ...p: FR) => Vec4},
-		generated?: string): Shader<V, (v: V, ...p: VR) => I, (i: I, ...p: FR) => Vec4, ParamsOf<VR> & ParamsOf<FR>> {
+		generated?: string, uniforms?: Uniform<any>[]): Shader<V, (v: V, ...p: VR) => I, (i: I, ...p: FR) => Vec4, ParamsOf<VR> & ParamsOf<FR>> {
 	if (generated === undefined) throw new Error("shader: a definition, compiled by helder's compiler (its argument static)");
 	const g = JSON.parse(generated);
 	const params: {[parameter: string]: UniformWriter<any> | TextureSlot} = {};
+	const uniformValues = new Uint8Array(g.uniformBlock ? g.uniformBlock.size : 0);
 	for (const b of g.params) params[b.param] = b.texture !== undefined ? new TextureSlot(b.texture.name, b.texture.binding) : new UniformWriter<any>(b.block, b.fields);
 	return {
 		vertexCode: g.vertexCode,
@@ -1764,6 +1779,18 @@ export function shader<V, I, VR extends [] | [object], FR extends [] | [object]>
 		fragment: def.fragment,
 		pipeline(options?: PipelineOptions) {
 			return {program: {vertex: g.vertexCode, fragment: g.fragmentCode}, layout: g.layout, ...(options ?? {})};
+		},
+		uniformBinding: g.uniformBlock ? g.uniformBlock.binding : -1,
+		uniformBytes(): Uint8Array | null {
+			if (!g.uniformBlock || uniforms === undefined) return null;
+			const values: {[field: string]: any} = {};
+			for (let i = 0; i < uniforms.length; i++) values[g.uniformBlock.fields[i]] = uniforms[i].value;
+			(params.uniforms as UniformWriter<any>).write(values, uniformValues);
+			return uniformValues;
+		},
+		bind(encoder: {setUniforms(slot: number, bytes: Uint8Array): void}) {
+			const b = this.uniformBytes();
+			if (b !== null) encoder.setUniforms(g.uniformBlock.binding, b);
 		},
 		vertexBytes(vertices: V[]): Uint8Array {
 			const bytes = new Uint8Array(g.stride * vertices.length);
@@ -1797,15 +1824,16 @@ export type Slots<D extends SlotsDef, X = {}> = D & {
 export function slots<D extends SlotsDef>(def: D): Slots<D> {
 	return {
 		...def,
-		variant(options?: any, generated?: string): any {
-			// (the handler's output: the call's last argument)
+		variant(options?: any, generated?: any, uniforms?: any): any {
+			// (the handler's output: after the options, when they are given; the uniforms' objects after it)
 			if (typeof options === "string") {
+				uniforms = generated;
 				generated = options;
 				options = undefined;
 			}
 			if (generated === undefined) throw new Error("slots: a variant is a definition, compiled by helder's compiler (the object and its options static)");
 			const m = {...def, options: {...def.options, ...(options ?? {})}};
-			return shader({vertex: (v: any, p: any) => def.vertex(v, p, m), fragment: (i: any, p: any) => def.fragment(i, p, m)}, generated);
+			return shader({vertex: (v: any, p: any) => def.vertex(v, p, m), fragment: (i: any, p: any) => def.fragment(i, p, m)}, generated, uniforms);
 		},
 		with(over: any): any {
 			return slots({...def, ...over});

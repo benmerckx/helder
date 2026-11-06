@@ -15,6 +15,8 @@ interface ShaderAdapter extends Adapter {
 	// m.options.<name> its options' values, m.<slot>(s, p) its slots'
 	// functions; tests of constants folded, loops over them unrolled)
 	function useSlots(use:SlotsUse):Void;
+	// (the block of the uniform(...)s the stages read, made while lowering them: null, none)
+	function uniforms():Null<SStruct>;
 }
 
 // shader({vertex, fragment}) (DESIGN.md 3), the handler both languages run:
@@ -93,13 +95,15 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 				if (other == null) params.push({name: name, resource: r}) else if (!same(other.resource, r))
 					a.error('the parameter $name is two resources (each stage\'s $name the same uniform block or texture)', s.k.pos);
 			}
+		var block = a.uniforms();
 		return {
 			program: p,
 			vertex: stage(p.vertex),
 			fragment: stage(p.fragment),
 			attributes: attributes,
 			stride: off,
-			params: params
+			params: params,
+			uniforms: block == null ? null : Lambda.find(p.uniforms, u -> u.struct == block)
 		};
 	}
 
@@ -303,7 +307,9 @@ typedef ShaderOutput = {
 	fragment:StageCode,
 	attributes:Array<{field:String, components:Int, offset:Int}>,
 	stride:Int,
-	params:Array<ShaderParam>
+	params:Array<ShaderParam>,
+	// (the uniform(...)s' block, its fields the constants' names: params.uniforms)
+	uniforms:Null<SUniform>
 }
 
 typedef ShaderParam = {

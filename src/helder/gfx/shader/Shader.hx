@@ -50,6 +50,9 @@ import helder.gfx.VertexBufferLayout;
 //                              .write(u, bytes, offset), std140) or a
 //                              texture's slot (TextureSlot: .binding)
 //   vertex, fragment           the stages as CPU code
+//   uniformBytes(), uniformBinding, bind(encoder)
+//                              the block of the uniform(...)s the stages
+//                              read (ShaderMath.uniform), their values now
 //
 // (Each shader is a class of its own extending Shader, made by the
 // definition beside its module: <Module>_<name>, its stages' fields of
@@ -98,6 +101,14 @@ class Shader<V, P> {
 	// the vertex buffer's contents
 	public function vertexBytes(vertices:Array<V>):Bytes
 		return writeVertices(vertices);
+
+	// the slot of the block of the uniform(...)s the stages read (-1: none)
+	public var uniformBinding(default, null) = -1;
+
+	// that block with the uniforms' values now (null: none; a shader that
+	// reads them binds it with bind(encoder) on a GPU's target)
+	public function uniformBytes():Null<Bytes>
+		return null;
 }
 
 typedef PipelineOptions = {

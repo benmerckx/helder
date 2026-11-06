@@ -209,6 +209,12 @@ inlined and what it never reads of the optional fields (`@:optional`:
 vertex attributes, varyings, parameters) dropped; `with({<slot>: ...})`
 replaces slots. helder.scene's standard material is one (`pbr`).
 
+`uniform(value)` (a module-level final) is a value the CPU sets
+(`time.value = t`) and any stage reads as `time.value`: a shader that
+reads uniforms gets a block of them, `Uniforms` (a field each, in the
+order first read; `params.uniforms`), `uniformBytes()` the block with
+their values now, `bind(encoder)` binding it at `uniformBinding`.
+
 In TypeScript, `import {shader, position, vec4, ...} from "helder/gfx"`: the
 same definition with the operators as methods (`a.mul(b)`) and type
 aliases as the structs, compiled to the same text (helder.typescript's

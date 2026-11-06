@@ -53,6 +53,13 @@ class Lower implements ShaderAdapter {
 	// variables of unrolled loops (constants)
 	var slots:Null<SlotsUse>;
 	var slotsSelf = -1;
+	// what is being lowered (a uniform's value is read in a stage)
+	var kind = Plain;
+	// the uniforms the stages read (uniform(...)'s values, ShaderMath.uniform):
+	// one block of them, Uniforms, a field each in the order first read; the
+	// constants' typed references (the CPU's writer reads them)
+	public var uniformBlock(default, null):Null<SStruct>;
+	public final uniformRefs:Array<{field:String, expr:Expr, type:ComplexType}> = [];
 	final slotFunctions = new Map<String, SFunction>();
 	final constants = new Map<Int, SExpr>();
 	// the module scopes a slot object's functions are typed in (its own module's imports: Scopes)
@@ -72,8 +79,17 @@ class Lower implements ShaderAdapter {
 	public function defined(name:String):Null<String>
 		return Context.definedValue(name);
 
-	public function finish()
+	public function finish() {
 		names.unhide(vars);
+		if (uniformBlock != null)
+			haxeTypes.set(uniformBlock, haxe.macro.ComplexTypeTools.toType(TAnonymous([
+				for (r in uniformRefs)
+					{name: r.field, kind: FVar(r.type), pos: Context.currentPos()}
+			])));
+	}
+
+	public function uniforms():Null<SStruct>
+		return uniformBlock;
 
 	public function useSlots(use:SlotsUse)
 		slots = use;
@@ -137,7 +153,8 @@ class Lower implements ShaderAdapter {
 
 	function lower(key:String, name:String, tf:TFunc, pos:Position, kind = Plain):SFunction {
 		active.push(key);
-		var saved = {fn: fn, locals: locals, names: localNames, object: paramsObject, self: slotsSelf};
+		var saved = {fn: fn, locals: locals, names: localNames, object: paramsObject, self: slotsSelf, kind: this.kind};
+		this.kind = kind;
 		locals = new Map();
 		localNames = new Map();
 		paramsObject = null;
@@ -185,6 +202,7 @@ class Lower implements ShaderAdapter {
 		localNames = saved.names;
 		paramsObject = saved.object;
 		slotsSelf = saved.self;
+		this.kind = saved.kind;
 		active.pop();
 		functions.set(key, f);
 		return f;
@@ -616,6 +634,10 @@ class Lower implements ShaderAdapter {
 				if (args.length != s.fields.length)
 					error('new ${s.path}: a shader struct is built by its @:structInit constructor, all fields given', e.pos);
 				build(s, args, out);
+			// (Uniform<T>, @:generic: Uniform_<T's path>)
+			case TField(x, FInstance(c, _, cf)) if (cf.get().name == "value" && c.get().pack.join(".") == SHADER_PACK
+				&& (c.get().name == "Uniform" || StringTools.startsWith(c.get().name, "Uniform_"))):
+				uniformRead(x, e);
 			case TField(x, FInstance(c, _, cf)): field(x, c.get(), cf.get(), e, out);
 			case TField(x, FAnon(cf)):
 				switch strip(x).expr {
@@ -814,6 +836,37 @@ class Lower implements ShaderAdapter {
 		var g = func(c, cf, e.pos);
 		var xs = [for (i in 0...args.length) coerce(expr(args[i], out), g.params[i].type, args[i].pos)];
 		return {e: ECall(g, xs), t: g.ret};
+	}
+
+	// --- uniform(...)'s values ---
+
+	// <uniform>.value: its field of the stage's Uniforms block
+	function uniformRead(x:TypedExpr, e:TypedExpr):SExpr {
+		var ref = strip(x);
+		var name = switch ref.expr {
+			case TField(_, FStatic(c, cf)) if (cf.get().kind.match(FVar(_, AccNever | AccCtor))): cf.get().name;
+			case _: error("a uniform is a module-level final made by uniform(value): its value is read as <final>.value", e.pos);
+		}
+		if (kind != Stage) error('$name.value: a uniform is read in a stage (its value passed on to the functions it calls)', e.pos);
+		var t = type(e.t, e.pos);
+		switch t {
+			case TFloat | TInt | TVec(_) | TMat4:
+			case _: error('$name: a uniform is a Float, an Int, a vector or a Mat4, not a ${Names.typeName(t)}', e.pos);
+		}
+		var key = haxe.macro.TypedExprTools.toString(ref);
+		if (uniformBlock == null) uniformBlock = new SStruct(names.global("Uniforms"), "Uniforms", []);
+		var f = Lambda.find(uniformBlock.fields, f -> f.field == name);
+		if (f == null) {
+			f = {
+				name: Names.unique(Names.sanitize(name), n -> !Lambda.exists(uniformBlock.fields, g -> g.name == n)),
+				field: name,
+				type: t,
+				position: false
+			};
+			uniformBlock.fields.push(f);
+			uniformRefs.push({field: name, expr: Context.storeTypedExpr(ref), type: Context.toComplexType(e.t)});
+		}
+		return {e: EField(local(stageParam("uniforms", TStruct(uniformBlock), e.pos)), f.name), t: t};
 	}
 
 	// --- slot objects' variants ---

@@ -614,6 +614,8 @@ abstract class Expressions extends Statements {
 		switch definitions.call(n) {
 			case null:
 			case Generated(json): return apply(any(expr(callee)), pack(actuals(actual).concat([EStr(json)])));
+			case GeneratedWith(json, uniforms):
+				return apply(any(expr(callee)), pack(actuals(actual).concat([EStr(json), b.runtime("libArray", [pack([for (u in uniforms) expr(u)])])])));
 			case Keep(key, type, source, init):
 				var f = any(expr(init));
 				if (dev && bridge != null) return bridge.call(bridge.interop("hotKeep"), [f, EStr(key), EStr(type), EStr(source)]);

@@ -148,6 +148,29 @@ class ShaderMacro {
 				this.fragment = fragment;
 			}
 		};
+		// (the uniform(...)s' block: written from their values now, bound at its slot)
+		if (out.uniforms != null) {
+			var u = out.uniforms;
+			var values:Expr = {expr: EObjectDecl([for (r in lower.uniformRefs) {field: r.field, expr: macro ${r.expr}.value}]), pos: pos};
+			cls.fields = cls.fields.concat((macro class {
+				final uniformValues = haxe.io.Bytes.alloc($v{u.size});
+
+				override public function uniformBytes():Null<haxe.io.Bytes> {
+					params.uniforms.write($values, uniformValues);
+					return uniformValues;
+				}
+			}).fields);
+			for (f in cls.fields)
+				if (f.name == "new") switch f.kind {
+					case FFun(fn): fn.expr = macro {${fn.expr}; uniformBinding = $v{u.binding};};
+					case _:
+				}
+			// (bind: a GPU's target's, helder.gfx's Encoder)
+			if (Context.definedValue("target.name") == "hxmc") cls.fields = cls.fields.concat((macro class {
+				public function bind(encoder:helder.gfx.Encoder)
+					encoder.setUniforms(uniformBinding, uniformBytes());
+			}).fields);
+		}
 		var name = base + "_" + haxe.crypto.Md5.encode(new haxe.macro.Printer().printTypeDefinition(cls)).substr(0, 8);
 		cls.name = name;
 		cls.pack = pack;

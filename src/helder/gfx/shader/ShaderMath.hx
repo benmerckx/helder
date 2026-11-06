@@ -33,6 +33,10 @@ class ShaderMath {
 		return helder.gfx.shader.SlotsMacro.slots(def);
 
 	#if !macro
+	// a value the CPU sets, read by shaders as uniform.value (a module-level final: Shader.uniformBytes)
+	@:generic public static function uniform<T>(value:T):Uniform<T>
+		return new Uniform(value);
+
 	// the clip-space position among a vertex stage's varyings (its value as it is)
 	public static inline function position(v:Vec4):Vec4
 		return v;

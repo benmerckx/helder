@@ -70,7 +70,8 @@ class Definitions {
 			var def = SlotsDef.read(a.slotsSource(self), a);
 			var args = n.arguments() ?? [];
 			if (args.length > 1) a.error("variant takes one argument, an object literal of options", n);
-			return Generated(shaderJson(new ShaderDefinition().variant(def, args.length == 0 ? null : a.node(args[0]), a, n)));
+			var out = new ShaderDefinition().variant(def, args.length == 0 ? null : a.node(args[0]), a, n);
+			return out.uniforms == null ? Generated(shaderJson(out)) : GeneratedWith(shaderJson(out), a.uniformRefs);
 		}
 		var args = n.arguments() ?? [];
 		var a = new TsAdapter(src, defined, from.name);
@@ -100,7 +101,9 @@ class Definitions {
 		if (args.length != 1) a.error('${from.name} takes one argument, an object literal', n);
 		var arg = a.node(args[0]);
 		return switch from.name {
-			case "shader": Generated(shaderJson(new ShaderDefinition().generate(arg, a)));
+			case "shader":
+				var out = new ShaderDefinition().generate(arg, a);
+				out.uniforms == null ? Generated(shaderJson(out)) : GeneratedWith(shaderJson(out), a.uniformRefs);
 			case "story":
 				new StoryDefinition().generate(arg, a);
 				defined("helder.release") != null ? Dropped : Checked;
@@ -140,6 +143,8 @@ class Definitions {
 				}
 			],
 			uniforms: [for (u in p.uniforms) {name: u.struct.name, binding: u.binding, size: u.size}],
+			// (the uniform(...)s' block: its slot and size, its fields in the order of the objects passed)
+			uniformBlock: out.uniforms == null ? null : {binding: out.uniforms.binding, size: out.uniforms.size, fields: [for (f in out.uniforms.struct.fields) f.field]},
 			textures: [for (t in p.textures) {name: t.name, binding: t.slot}],
 			attributes: out.attributes,
 			stride: out.stride,
@@ -167,6 +172,8 @@ class Definitions {
 // nothing (a story in a release build).
 enum DefinitionCall {
 	Generated(json:String);
+	// (and the uniform(...)s the shader reads, their objects: an array after it)
+	GeneratedWith(json:String, uniforms:Array<Node>);
 	Keep(key:String, type:String, source:String, init:Node);
 	// (its argument checked: the call lowered as helder's API's, story's Stories.define)
 	Checked;
@@ -242,6 +249,16 @@ class TsAdapter implements ShaderAdapter {
 	// variables of unrolled loops (constants)
 	var slots:Null<SlotsUse>;
 	var slotsSelf:Null<String>;
+	// what is being lowered (a uniform's value is read in a stage)
+	var kind = Plain;
+	// the uniforms the stages read (helder/gfx's uniform(...)s' values): one
+	// block of them, Uniforms, a field each in the order first read; the
+	// identifiers that read them first (the program passes their objects)
+	var uniformBlock:Null<SStruct>;
+	public final uniformRefs:Array<Node> = [];
+
+	public function uniforms():Null<SStruct>
+		return uniformBlock;
 	final slotFunctions = new Map<String, SFunction>();
 	final constants = new Map<String, SExpr>();
 
@@ -377,7 +394,8 @@ class TsAdapter implements ShaderAdapter {
 		if (g != null) return g;
 		if (active.contains(key)) error("recursion: " + active.slice(active.indexOf(key)).concat([key]).map(display).join(" -> ") + " (shader functions cannot recurse)", f);
 		active.push(key);
-		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals, object: paramsObject, self: slotsSelf};
+		var saved = {fn: fn, scopes: scopes, names: localNames, positions: positionLocals, object: paramsObject, self: slotsSelf, kind: this.kind};
+		this.kind = kind;
 		scopes = [new Map()];
 		localNames = new Map();
 		positionLocals = new Map();
@@ -439,6 +457,7 @@ class TsAdapter implements ShaderAdapter {
 		positionLocals = saved.positions;
 		paramsObject = saved.object;
 		slotsSelf = saved.self;
+		this.kind = saved.kind;
 		active.pop();
 		functions.set(key, g);
 		return g;
@@ -872,6 +891,10 @@ class TsAdapter implements ShaderAdapter {
 			return option(name, n);
 		if (slotsSelf != null && recv.kind == KindIdentifier && recv.text == slotsSelf && find(slotsSelf) == null)
 			error('${recv.text}.$name: the slot object is read as ${recv.text}.options.<name> and called as ${recv.text}.<slot>(s, p)', n);
+		if (name == "value" && recv.kind == KindIdentifier && find(recv.text) == null) {
+			var u = uniformOf(recv);
+			if (u != null) return uniformRead(recv, u, n);
+		}
 		if (recv.kind == KindIdentifier && paramsObject != null && recv.text == paramsObject.name && find(recv.text) == null) {
 			var s = paramsObject.fields.get(name);
 			if (s == null) error('${recv.text} has no parameter $name', n);
@@ -1011,6 +1034,61 @@ class TsAdapter implements ShaderAdapter {
 		var from = Scope.imported(x.file, strip(x.expression()).text);
 		if (from == null || from.module != "helder/gfx" || from.name != "position" || (x.arguments() ?? []).length != 1) return null;
 		return x.arguments()[0];
+	}
+
+	// --- uniform(...)'s values
+
+	// the uniform(...) call a module-level const is made by (here or imported), null: not one
+	function uniformOf(id:Node):Null<Node> {
+		var d = Scope.declared(id.file, id.text, KindVariableDeclaration);
+		var from = d == null ? Scope.imported(id.file, id.text) : null;
+		if (from != null) d = declaration(from.specifier, from.name, KindVariableDeclaration);
+		if (d == null || d.initializer() == null) return null;
+		var init = strip(d.initializer());
+		if (init.kind != KindCallExpression || strip(init.expression()).kind != KindIdentifier) return null;
+		var callee = strip(init.expression());
+		var f = Scope.imported(callee.file, callee.text);
+		return f != null && f.module == "helder/gfx" && f.name == "uniform" ? init : null;
+	}
+
+	// <uniform>.value: its field of the stage's Uniforms block
+	function uniformRead(id:Node, call:Node, n:Node):SExpr {
+		var name = id.text;
+		if (kind != Stage) error('$name.value: a uniform is read in a stage (its value passed on to the functions it calls)', n);
+		// (its type: the written type argument, else its initial value's: a number, vec2, vec3, vec4, mat4)
+		var targs = call.typeArguments() ?? [];
+		var args = call.arguments() ?? [];
+		var t:SType = if (targs.length == 1) typeOf(targs[0]) else if (args.length == 1) {
+			var v = strip(args[0]);
+			if (v.kind == KindPrefixUnaryExpression && v.unaryOperator() == KindMinusToken) v = strip(v.operand());
+			if (v.kind == KindNumericLiteral) TFloat else if (v.kind == KindCallExpression && strip(v.expression()).kind == KindIdentifier) {
+				var f = Scope.imported(v.file, strip(v.expression()).text);
+				switch f == null || f.module != "helder/gfx" ? "" : f.name {
+					case "vec2": TVec(2);
+					case "vec3": TVec(3);
+					case "vec4": TVec(4);
+					case "mat4": TMat4;
+					case _: error('$name: its type is written, uniform<Vec3>(...)', call);
+				}
+			} else error('$name: its type is written, uniform<Vec3>(...)', call);
+		} else error('$name: a uniform is made by uniform(value)', call);
+		switch t {
+			case TFloat | TInt | TVec(_) | TMat4:
+			case _: error('$name: a uniform is a number, a vector or a Mat4, not a ${Names.typeName(t)}', n);
+		}
+		if (uniformBlock == null) uniformBlock = new SStruct(names.global("Uniforms"), "Uniforms", []);
+		var f = Lambda.find(uniformBlock.fields, f -> f.field == name);
+		if (f == null) {
+			f = {
+				name: Names.unique(Names.sanitize(name), x -> !Lambda.exists(uniformBlock.fields, g -> g.name == x)),
+				field: name,
+				type: t,
+				position: false
+			};
+			uniformBlock.fields.push(f);
+			uniformRefs.push(id);
+		}
+		return {e: EField(local(stageParam("uniforms", TStruct(uniformBlock), n)), f.name), t: t};
 	}
 
 	// --- slot objects' variants
