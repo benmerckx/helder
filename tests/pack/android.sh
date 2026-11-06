@@ -159,6 +159,9 @@ while [ $i -lt 60 ] && ! seen "access: ready"; do
 	i=$((i + 1))
 done
 sleep 2
+# (the first question publishes the tree: a dump, then the one read)
+adb shell uiautomator dump /sdcard/access.xml > /dev/null 2>&1
+sleep 2
 adb shell uiautomator dump /sdcard/access.xml > /dev/null 2>&1
 adb pull /sdcard/access.xml "$out/access.xml" > /dev/null 2>&1
 check "uiautomator dump" $?

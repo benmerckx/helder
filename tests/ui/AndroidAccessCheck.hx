@@ -5,8 +5,9 @@ import helder.view.*;
 // helder.ui's accessibility on Android (AndroidAccess; CI's emulator job,
 // tests/pack/android.sh): AccessFixture's controls in the window, read by
 // `uiautomator dump` (the AccessibilityNodeInfos of the content view's
-// virtual views, as TalkBack reads them). Its line once drawn: "access:
-// ready"; then "access: asked" once a service asked for the tree.
+// virtual views, as TalkBack reads them; the first question makes the
+// program publish its tree, so android.sh dumps twice). Its line once drawn:
+// "access: ready"; then "access: asked" once a service asked for the tree.
 class AndroidAccessCheck {
 	static function main() {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
@@ -21,6 +22,8 @@ class AndroidAccessCheck {
 		w.onFrame = () -> {
 			if (++frames == 1) Sys.println("access: a first frame");
 			if (frames == 3) Sys.println("access: ready");
+			// (a few frames: the layout settled; then frames as the tree asks them, a service's first question one)
+			if (frames < 3) w.ui.requestFrame();
 			#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 			var a:Null<helder.ui.draw.AndroidAccess> = cast @:privateAccess w.androidAccess;
 			if (!told && a != null && a.listening()) {

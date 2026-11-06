@@ -44,7 +44,11 @@ class IosAccessCheck {
 		}
 		w.onFrame = () -> {
 			if (++frames == 1) Sys.println("access: a first frame");
-			if (frames < 3) return;
+			// (a few frames first: the layout settled; each asks for the next)
+			if (frames < 3) {
+				w.ui.requestFrame();
+				return;
+			}
 			var view = w.window.surface.handle;
 			switch step {
 				case 0:
