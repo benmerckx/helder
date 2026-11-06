@@ -69,6 +69,8 @@ class Frontend extends ApiCalls {
 			}
 			order.push(m);
 		}
+		// (helder/gfx first where it is in the program: helder's API gives and takes its math types, Haxe.mathToJs)
+		for (f in src.files) if (StringTools.endsWith(StringTools.replace(f.path, "\\", "/"), "helder/gfx/index.ts")) visit(moduleOf.get(f.path));
 		visit(moduleOf.get(src.file.path));
 		return order;
 	}

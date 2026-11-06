@@ -71,6 +71,9 @@ class Verifier {
 			case ECallHost(sym, args, _) if (hxmc.ir.CInterop.SIGS.exists(sym) && (hxmc.ir.CInterop.USER.exists(sym) || StringTools.startsWith(sym, hxmc.ir.CInterop.INDIRECT))):
 				if (hxmc.ir.CInterop.SIGS.get(sym).args.length != args.length) error('C function $sym: arity');
 				for (a in args) expression(a);
+			// (a struct value's memory: a slot of the frame, its F64 words; Haxe.mathToHaxe, mathToJs)
+			case ECallHost("hxmc_unsafe_Mem_structSlot" | "hxmc_unsafe_Mem_getF64" | "hxmc_unsafe_Mem_setF64", args, _):
+				for (a in args) expression(a);
 			case ECallHost(_, _, _): error("frontend cannot introduce unverified runtime symbols");
 			case ENewArr(t, vs):
 				for (v in vs) {
@@ -93,7 +96,7 @@ class Verifier {
 			case ENot(v):
 				expression(v);
 				expect(v, TBool);
-			case EConv(_, v) | ECast(_, v) | EBox(_, v) | EUnbox(_, v) | EBoxGet(_, v) | ENewBox(_, v) | EArrLen(v) | EInstOf(_, v) | EField(_, _, v) | EAnonGet(_, _, v, _): expression(v);
+			case EConv(_, v) | ECast(_, v) | EBox(_, v) | EUnbox(_, v) | EBoxGet(_, v) | ENewBox(_, v) | EArrLen(v) | EInstOf(_, v) | EField(_, _, v) | EFieldAddr(_, _, v) | EAnonGet(_, _, v, _): expression(v);
 			case EArrGet(_, a, i):
 				expression(a);
 				expression(i);

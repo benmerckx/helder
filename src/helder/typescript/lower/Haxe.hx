@@ -72,6 +72,7 @@ class Haxe {
 	// a call, its result a temp (undefined: Void)
 	public function call(fi:FuncInfo, args:Array<Ex>):Ex {
 		var xs = [for (i in 0...fi.args.length) i < args.length ? b.coerce(args[i], fi.args[i].ty) : zero(fi.args[i].ty)];
+		if (fi.sret) xs[xs.length - 1] = resultSlot(fi);
 		if (fi.ret == TVoid) {
 			b.out.push(SExpr(ECall(fi, Vector.fromArrayCopy(xs))));
 			return ENull(TRef(RAny));
@@ -131,6 +132,8 @@ class Haxe {
 					b.out.push(SSet(l, b.coerce(b.temp(EBox(Ir.typeOf(s), s)), to)));
 				})));
 				ELocal(l);
+			case HAbstract(path, _, _, _) if (MATH.exists(path) && to.match(TStruct(_))):
+				ECast(to, mathToHaxe(e, MATH.get(path), where));
 			case HNull(x) | HAbstract(_, _, x, _):
 				toHaxe(e, x, to, where);
 			case HRead(_):
@@ -240,12 +243,99 @@ class Haxe {
 		var from = Ir.typeOf(e);
 		return switch [from, HTypes.bare(t)] {
 			case [TVoid, _]: b.runtime("getUndefined", []);
+			case [TStruct(_), _] if (mathOf(t) != null): mathToJs(e, mathOf(t));
 			case [TI32, _]: EConv(I2F, e);
 			case [TF64 | TBool, _]: e;
 			case [TRef(RStr), _]: e;
 			case [_, HBytes(kind)]: call(interop("bytesToJs"), [any(e), EStr(kind)]);
 			case _: call(interop("toJs"), [any(e)]);
 		}
+	}
+
+	// ---- the math types: Haxe's struct values, helder/gfx's classes
+
+	// helder.gfx.shader's vectors and matrix and helder.scene's quaternion
+	// (abstracts over @:hxmc.struct classes: immutable values) as helder/gfx's
+	// classes (src/helder/gfx/index.ts, the program's: immutable too), by
+	// value both ways: the components copied, so neither side sees the
+	// other's (Declarations names them so)
+	public static final MATH = [
+		"helder.gfx.shader.Vec2" => "Vec2",
+		"helder.gfx.shader.Vec3" => "Vec3",
+		"helder.gfx.shader.Vec4" => "Vec4",
+		"helder.gfx.shader.Mat4" => "Mat4",
+		"helder.scene.math.Quat" => "Quat"
+	];
+
+	static final COMPONENTS = ["Vec2" => ["x", "y"], "Vec3" => ["x", "y", "z"], "Vec4" => ["x", "y", "z", "w"], "Quat" => ["x", "y", "z", "w"]];
+
+	// (helder/gfx's class of that name, the program's)
+	function mathClass(name:String):Null<helder.typescript.lower.Classes.ClassLayout> {
+		for (c in f.classes.all)
+			if (c.name == name && StringTools.endsWith(StringTools.replace(c.node.file.path, "\\", "/"), "helder/gfx/index.ts")) return c;
+		return null;
+	}
+
+	// (a math type's name, its HNull's too)
+	static function mathOf(t:HType):Null<String>
+		return switch t {
+			case HNull(x): mathOf(x);
+			case HAbstract(path, _, _, _): MATH.get(path);
+			case _: null;
+		}
+
+	// (the memory a struct result is written to: a slot of the caller's frame)
+	function resultSlot(fi:FuncInfo):Ex {
+		var size = switch fi.ret {
+			case TStruct(_, n): n;
+			case _: 8;
+		}
+		return b.temp(ECallHost("hxmc_unsafe_Mem_structSlot", Vector.fromArrayCopy([EInt((size + 7) & ~7), EInt(8)]), TI64));
+	}
+
+	function components(name:String):Array<String>
+		return name == "Mat4" ? [for (c in ["c0", "c1", "c2", "c3"]) for (k in ["x", "y", "z", "w"]) c + "." + k] : COMPONENTS.get(name);
+
+	// a value of helder/gfx's class as Haxe's struct (its components copied into a slot of this frame)
+	function mathToHaxe(e:Ex, name:String, where:String):Ex {
+		var c = mathClass(name);
+		if (c == null) throw where + ": TSHX001: a " + name + " of helder/gfx is needed here: import helder/gfx";
+		var o = b.temp(f.reps.store(b, e, TRef(RObj(c.info)), where));
+		var values:Array<Ex> = [];
+		if (name == "Mat4") {
+			var v4 = mathClass("Vec4");
+			for (col in ["c0", "c1", "c2", "c3"]) {
+				var v = b.temp(f.reps.store(b, f.reps.fieldGet(b, c, o, col, where), TRef(RObj(v4.info)), where));
+				for (k in ["x", "y", "z", "w"]) values.push(b.temp(f.reps.fieldGet(b, v4, v, k, where)));
+			}
+		} else
+			for (k in COMPONENTS.get(name)) values.push(b.temp(f.reps.fieldGet(b, c, o, k, where)));
+		var slot = b.temp(ECallHost("hxmc_unsafe_Mem_structSlot", Vector.fromArrayCopy([EInt(8 * values.length), EInt(8)]), TI64));
+		for (k in 0...values.length)
+			b.out.push(SExpr(ECallHost("hxmc_unsafe_Mem_setF64", Vector.fromArrayCopy([slot, EInt(8 * k), values[k]]), TVoid)));
+		return slot;
+	}
+
+	// a Haxe struct value (its address) as a new instance of helder/gfx's class
+	function mathToJs(e:Ex, name:String):Ex {
+		var c = mathClass(name);
+		if (c == null) throw "TSHX004: helder/gfx's " + name + " is not in the program (import helder/gfx)";
+		var at = b.temp(ECast(TI64, e));
+		// (the components read first: the instances' allocations may move nothing, but a field's address is raw)
+		var n = name == "Mat4" ? 16 : COMPONENTS.get(name).length;
+		var values = [for (k in 0...n) b.temp(ECallHost("hxmc_unsafe_Mem_getF64", Vector.fromArrayCopy([at, EInt(8 * k)]), TF64))];
+		function make(c:helder.typescript.lower.Classes.ClassLayout, fields:Array<Ex>):Ex {
+			var o = b.temp(f.reps.allocate(b, c, EGlobal(c.prototype, TRef(RAny))));
+			var base = f.reps.objectBase;
+			b.out.push(SSetField(base, base.fieldIndex("layout"), ECast(TRef(RObj(base)), o), ECast(f.reps.layoutType, EGlobal(c.layout, TRef(RAny)))));
+			var names = c.fields();
+			for (k in 0...names.length)
+				b.out.push(SSetField(c.info, f.reps.slot(c, names[k]), o, b.coerce(fields[k], c.info.fields[f.reps.slot(c, names[k])].ty)));
+			return o;
+		}
+		if (name != "Mat4") return make(c, values);
+		var v4 = mathClass("Vec4");
+		return make(c, [for (col in 0...4) make(v4, values.slice(4 * col, 4 * col + 4))]);
 	}
 
 	// ---- calls
@@ -281,6 +371,7 @@ class Haxe {
 			var h = k < params.length ? params[k].t : HDynamic;
 			xs.push(a == null ? zero(to) : b.coerce(converted ? a : toHaxe(a, h, to, where), to));
 		}
+		if (fi.sret) xs[xs.length - 1] = resultSlot(fi);
 		var call:Ex = self != null && fi.selfClass != null && dispatched(fi) ? ECallDispatch(fi.dispatchSel, p.selectors[fi.dispatchSel].sig, Vector.fromArrayCopy(xs)) : ECall(fi,
 			Vector.fromArrayCopy(xs));
 		if (fi.ret == TVoid) {
@@ -352,7 +443,10 @@ class Haxe {
 		}
 		var ci = classInfo(c.path);
 		var o = b.temp(instance(c, obj, where));
-		return toJs(b.temp(EField(ci, ci.fieldIndex(m.name), o)), m.type);
+		var i = ci.fieldIndex(m.name);
+		// (a struct stored in the object: read where it is, before anything allocates)
+		if (ci.fields[i].ty.match(TStruct(_))) return toJs(b.temp(EFieldAddr(ci, i, o)), m.type);
+		return toJs(b.temp(EField(ci, i, o)), m.type);
 	}
 
 	// a member written
@@ -360,7 +454,7 @@ class Haxe {
 		if (m.kind != "var" || m.readonly) fail(where, c.path + "." + m.name + " is read only");
 		if (m.set != null) {
 			var s = fn(c.ident + "_" + m.set);
-			var to = s.args[s.args.length - 1].ty;
+			var to = s.args[s.args.length - (s.sret ? 2 : 1)].ty;
 			call(s, obj == null ? [toHaxe(v, m.type, to, where)] : [instance(c, obj, where), toHaxe(v, m.type, to, where)]);
 			return;
 		}
@@ -373,6 +467,16 @@ class Haxe {
 		var ci = classInfo(c.path);
 		var o = b.temp(instance(c, obj, where));
 		var i = ci.fieldIndex(m.name);
+		switch ci.fields[i].ty {
+			case TStruct(_, size):
+				// (a struct stored in the object: the value made, then copied in, word by word)
+				var from = b.temp(toHaxe(v, m.type, ci.fields[i].ty, where));
+				var to = b.temp(EFieldAddr(ci, i, o));
+				for (k in 0...(size >> 3))
+					b.out.push(SExpr(ECallHost("hxmc_unsafe_Mem_setF64", Vector.fromArrayCopy([to, EInt(8 * k), ECallHost("hxmc_unsafe_Mem_getF64", Vector.fromArrayCopy([ECast(TI64, from), EInt(8 * k)]), TF64)]), TVoid)));
+				return;
+			case _:
+		}
 		b.out.push(SSetField(ci, i, o, b.coerce(toHaxe(v, m.type, ci.fields[i].ty, where), ci.fields[i].ty)));
 	}
 

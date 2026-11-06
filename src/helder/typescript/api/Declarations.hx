@@ -23,6 +23,15 @@ import helder.typescript.api.dts.TypeEmitter;
 // events where ui's module says so (jsx(neutral): MarkupMacro.NEUTRAL_EVENTS'
 // handlers typed). What it names from another module is imported.
 class Declarations {
+	// (the math types TypeScript has as helder/gfx's classes: lower/Haxe.hx's MATH)
+	static final MATH = [
+		"helder.gfx.shader.Vec2" => "Vec2",
+		"helder.gfx.shader.Vec3" => "Vec3",
+		"helder.gfx.shader.Vec4" => "Vec4",
+		"helder.gfx.shader.Mat4" => "Mat4",
+		"helder.scene.math.Quat" => "Quat"
+	];
+
 	public static function write(decls:Array<String>, check = false)
 		Context.onAfterInitMacros(() -> run(decls, check));
 
@@ -127,6 +136,15 @@ class Declarations {
 		var where = index(api);
 		var imports = new Map<String, Array<String>>();
 		function declared(b:BaseType):Null<String> {
+			// (helder.gfx.shader's math types and helder.scene's Quat: helder/gfx's
+			// classes, the TypeScript program's, by value: lower/Haxe.hx's MATH)
+			var math = MATH.get(b.pack.concat([b.name]).join("."));
+			if (math != null) {
+				var names = imports.get("helder/gfx");
+				if (names == null) imports.set("helder/gfx", names = []);
+				if (names.indexOf(math) < 0) names.push(math);
+				return math;
+			}
 			var d = where.get(key(b));
 			if (d == null) {
 				var path = StringTools.endsWith(b.module, "." + b.name) || b.module == b.name ? b.module : b.module + "." + b.name;

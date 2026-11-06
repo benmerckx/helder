@@ -68,6 +68,31 @@ w(`export class Mat4 {
 	}
 }
 
+// a rotation as a unit quaternion (helder.scene.math.Quat: x, y, z the
+// vector part, w the scalar one), an immutable value; a.mul(b) rotates by
+// b first, then by a; angles in radians, right-handed (as Mat4's)
+export class Quat {
+	constructor(readonly x: number, readonly y: number, readonly z: number, readonly w: number) {}
+	static identity(): Quat {
+		return new Quat(0, 0, 0, 1);
+	}
+	// a turn by angle about axis (of any length but zero)
+	static axisAngle(axis: Vec3, angle: number): Quat {
+		const l = Math.sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+		const s = Math.sin(angle / 2) / l;
+		return new Quat(axis.x * s, axis.y * s, axis.z * s, Math.cos(angle / 2));
+	}
+	// the turns about x, then y, then z
+	static fromEuler(x: number, y: number, z: number): Quat {
+		return Quat.axisAngle(new Vec3(0, 0, 1), z).mul(Quat.axisAngle(new Vec3(0, 1, 0), y)).mul(Quat.axisAngle(new Vec3(1, 0, 0), x));
+	}
+	mul(b: Quat): Quat {
+		const a = this;
+		return new Quat(a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y, a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+			a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z);
+	}
+}
+
 // a texture and its sampler, a shader's parameter (sample(t, uv)); on the
 // CPU, RGBA8 texels, rows top to bottom, read at the nearest, repeating
 export class Texture2D {

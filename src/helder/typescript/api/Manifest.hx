@@ -139,7 +139,7 @@ class Manifest {
 			if (m == null) continue;
 			Reflect.setField(statics, f.name, m);
 			var n = f.name;
-			if (m.kind != "const" && m.mount != true) keep.push(macro keep.push(@:privateAccess $p{tpath}.$n));
+			if (m.kind != "const" && m.mount != true) keep.push(named(macro @:privateAccess $p{tpath}.$n, f));
 		}
 		var self:ComplexType = TPath({
 			pack: cls.pack,
@@ -154,12 +154,12 @@ class Manifest {
 			Reflect.setField(members, f.name, m);
 			var n = f.name;
 			if (m.kind == "method" || m.get != null) {
-				keep.push(macro keep.push(@:privateAccess o.$n));
+				keep.push(m.kind == "method" ? named(macro @:privateAccess o.$n, f) : macro keep.push(@:privateAccess o.$n));
 				any = true;
 			}
 			if (m.set != null) {
 				// (any type: the setter given what the getter gives, never run)
-				keep.push(macro @:privateAccess o.$n = cast null);
+				keep.push(macro @:privateAccess o.$n = cast(null : Dynamic));
 				any = true;
 			}
 		}
@@ -167,7 +167,11 @@ class Manifest {
 		var ctor:Dynamic = null;
 		if (c.ctor != null) {
 			ctor = t.of(c.ctor.type);
-			keep.push(macro keep.push(@:privateAccess $p{tpath}.new));
+			keep.push(structs(c.ctor.type) ? {
+				var tp:TypePath = {pack: cls.pack, name: cls.module.split(".").pop(), sub: cls.module.split(".").pop() == cls.name ? null : cls.name};
+				var args = [for (_ in 0...arity(c.ctor.type)) macro cast(null : Dynamic)];
+				macro @:privateAccess new $tp($a{args});
+			} : macro keep.push(@:privateAccess $p{tpath}.new));
 		}
 		var rendered = helder.view.HostMacro.rendered(TInst(c.ref, []));
 		if (rendered != null) t.views.push(rendered);
@@ -191,6 +195,43 @@ class Manifest {
 			members: members,
 			ctor: ctor
 		};
+	}
+
+	// (a keep's naming of a function: as a value; one taking or returning a
+	// struct value (helder's math types), which cannot be one, called, its
+	// arguments nulls of Dynamic: never run)
+	static function named(e:Expr, f:ClassField):Expr {
+		if (!structs(f.type)) return macro keep.push($e);
+		var args = [for (_ in 0...arity(f.type)) macro cast(null : Dynamic)];
+		return macro $e($a{args});
+	}
+
+	static function arity(t:Type):Int
+		return switch Context.follow(t) {
+			case TFun(args, _): args.length;
+			case _: 0;
+		}
+
+	// (a function type with a struct value among its arguments or its result)
+	static function structs(t:Type):Bool
+		return switch Context.follow(t) {
+			case TFun(args, ret): Lambda.exists(args, a -> struct(a.t)) || struct(ret);
+			case _: false;
+		}
+
+	static function struct(t:Type):Bool {
+		for (_ in 0...8)
+			switch t {
+				case TAbstract(_.get() => a, ps) if (!a.meta.has(":coreType")):
+					t = a.type.applyTypeParameters(a.params, ps);
+				case TType(_, _) | TLazy(_) | TMono(_):
+					t = Context.follow(t, true);
+				case TInst(_.get() => c, _):
+					return c.meta.has(":hxmc.struct");
+				case _:
+					return false;
+			}
+		return false;
 	}
 
 	// a field as the manifest lists it (null: one a program cannot reach, a macro)
