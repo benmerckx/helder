@@ -32,6 +32,8 @@ class Interop {
 		}
 		if (Std.isOfType(v, Float)) return v;
 		if (Std.isOfType(v, Array)) return Lib.array([for (x in (v : Array<Dynamic>)) toJs(x)]);
+		// (helder's async work, a task, an asset's load: a promise of its answer)
+		if (Std.isOfType(v, helder.view.graph.Awaitable)) return Promises.ofAwaitable(v);
 		// (helder's bytes: a Uint8Array sharing them)
 		if (Std.isOfType(v, haxe.io.Bytes)) return TypedArrays.ofBytes(v);
 		if (Reflect.isFunction(v))
@@ -202,4 +204,63 @@ class Interop {
 
 	// (what a renderer cannot do: an agnostic literal's code for it, a component it has no version of)
 	public static function fail(message:String):Dynamic throw message;
+
+	// (a program of helder's API with promises or timers: its event loop
+	// on helder.async's, which helder.os's App turns between its frames, and
+	// which commits helder.view's writes at the end of each of its turns)
+	public static function hostLoop():Void
+		if (Promises.eventHost == null) Promises.eventHost = new LoopHost();
+}
+
+// The JavaScript event loop's work on helder.async's loop (Promises.EventHost).
+private class LoopHost implements Promises.EventHost {
+	final loop = helder.async.Loop.current();
+	final turn:Checkpoint;
+
+	public function new()
+		turn = new Checkpoint();
+
+	public function checkpoint()
+		if (!turn.queued) {
+			turn.queued = true;
+			loop.dispatch(turn);
+		}
+
+	public function timer(ms:Float, f:Void->Void):Void->Void {
+		var t = loop.at(haxe.Timer.stamp() + ms / 1000, new TimerCall(loop.context(), f));
+		return () -> t.close();
+	}
+
+	// (under helder dev, the dev server heard each turn: its reload ends it)
+	public function run()
+		while (Promises.devTurn() && loop.turn(#if hxmc.dev 0.05 #else -1 #end)) {}
+}
+
+private class Checkpoint implements haxe.coro.dispatchers.IDispatchObject {
+	public var queued = false;
+
+	public function new() {}
+
+	public function onDispatch() {
+		queued = false;
+		Promises.drain();
+	}
+}
+
+private class TimerCall implements haxe.coro.IContinuation<Any> {
+	public var context(get, never):haxe.coro.context.Context;
+
+	final ctx:haxe.coro.context.Context;
+	final f:Void->Void;
+
+	public function new(ctx, f) {
+		this.ctx = ctx;
+		this.f = f;
+	}
+
+	inline function get_context()
+		return ctx;
+
+	public function resume(_:Any, _:haxe.Exception)
+		f();
 }

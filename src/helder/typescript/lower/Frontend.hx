@@ -88,6 +88,8 @@ class Frontend extends ApiCalls {
 		if (api != null && api.manifest != null) {
 			bridge = new Haxe(this, p, api.manifest);
 			tsx = new Tsx(this, bridge, api, dev);
+			// (its timers and promises on helder.async's loop: Interop.hostLoop)
+			if (eventLoop) bridge.call(bridge.interop("hostLoop"), []);
 		}
 		for (c in classes.all) declareLayout(c);
 		mathFixed = !features.contains("All") && !assignsMath();

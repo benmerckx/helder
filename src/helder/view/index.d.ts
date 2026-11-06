@@ -121,14 +121,14 @@ export declare class Render {
 export declare class Graph {
 	// (a value's signal, as TypeScript's signal(v) calls it: index.d.ts)
 	static signalValue<T>(value: T extends Function ? never : T): Signal<T>;
-	static memo<T>(fn: (prev: T | null) => T, options?: NodeOptions<T>): Memo<T>;
+	static memo<T>(fn: (prev: T | null) => T | PromiseLike<T>, options?: NodeOptions<T>): Memo<T>;
 	// compute runs now and again when what it read changes; apply after the
 	// commit, given its value and the previous one (the first: at the next
 	// flush); error, when given, takes compute's errors (else the nearest
 	// error boundary, else flush throws them)
-	static effect<T>(compute: (prev: T | null) => T, apply: (value: T, prev: T | null) => void | (() => void), error?: (arg0: any) => void): void;
+	static effect<T>(compute: (prev: T | null) => T | PromiseLike<T>, apply: (value: T, prev: T | null) => void | (() => void), error?: (arg0: any) => void): void;
 	// as effect, its apply in the render phase: before every effect's
-	static renderEffect<T>(compute: (prev: T | null) => T, apply: (value: T, prev: T | null) => void | (() => void), error?: (arg0: any) => void): void;
+	static renderEffect<T>(compute: (prev: T | null) => T | PromiseLike<T>, apply: (value: T, prev: T | null) => void | (() => void), error?: (arg0: any) => void): void;
 	// fn run once the current commit has landed (its applies done), not
 	// tracked: after the nodes being rendered are in the tree (Solid 2's
 	// onSettled, onMount's successor); disposed with the current owner

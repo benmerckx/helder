@@ -4,12 +4,36 @@ import helder.typescript.js.Values;
 import helder.typescript.js.Lib.*;
 import helder.typescript.js.Async.JsGenerator;
 
-class JsPromise extends JsObject {
+// A promise is how helder's graph sees async work (an Awaitable): a
+// computation returning one is async, its answer the promise's value; an
+// async function's promise, cancelled when the run that asked is
+// superseded, stops the function at its pending await (Promises.async).
+class JsPromise extends JsObject implements helder.view.graph.Awaitable<Dynamic> {
 	public var state = 0; // 0 pending, 1 fulfilled, 2 rejected
 	public var value:Dynamic = null;
 	public var reactions:Array<Reaction> = [];
 	public var handled = false;
+	// (an async function's: stops it)
+	public var canceller:Null<Void->Void> = null;
 	override public function tag():String return "Promise";
+
+	public function onAnswer(ok:Dynamic->Void, fail:Dynamic->Void):Void Promises.observe(this, ok, fail);
+
+	public function cancel():Void {
+		var c = canceller;
+		canceller = null;
+		if (c != null) c();
+	}
+}
+
+// Where the event loop's work goes when a host loop runs the program
+// (helder.async's, under helder's API: Interop.hostLoop): a microtask
+// checkpoint asked for, a timer, the loop run to its end.
+interface EventHost {
+	function checkpoint():Void;
+	// f after ms; the function returned cancels it
+	function timer(ms:Float, f:Void->Void):Void->Void;
+	function run():Void;
 }
 
 // A then() registration (host callbacks are wrapped as native functions: see host).
@@ -54,10 +78,19 @@ class Promises {
 	// An embedding host can request a microtask checkpoint on its own loop.
 	// The standalone JS runner leaves this unset and keeps its existing loop.
 	public static var requestCheckpoint:(() -> Void) = null;
+	// (the host loop the jobs and timers run on, when one does: EventHost)
+	public static var eventHost:Null<EventHost> = null;
+	static var hostTimers:Map<Int, Void->Void> = [];
+	static var draining = false;
 	public static function enqueue(job:() -> Void):Void {
 		jobs.push(job);
 		if (requestCheckpoint != null) requestCheckpoint();
+		if (eventHost != null && !draining) eventHost.checkpoint();
 	}
+
+	// ok or fail p's outcome (helder's graph waiting for it: Awaitable)
+	public static function observe(p:JsPromise, ok:Dynamic->Void, fail:Dynamic->Void):Void
+		then(p, host(v -> ok(v)), host(e -> fail(e)), null);
 
 	public static function setup():Void {
 		start = Sys.time();
@@ -131,7 +164,8 @@ class Promises {
 				if (!(delay >= 1 && delay <= 2147483647)) delay = 1;
 				t.interval = repeat ? delay : -1;
 				t.due = now() + delay;
-				if (immediate) immediates.push(t); else timers.push(t);
+				if (eventHost != null) hostTimer(t);
+				else if (immediate) immediates.push(t); else timers.push(t);
 				return t.id;
 			});
 			Builtins.globals.set(name, f);
@@ -143,6 +177,11 @@ class Promises {
 		for (name in ["clearTimeout", "clearInterval", "clearImmediate"]) {
 			var f = Builtins.nativeFunction(name, 1, (_, a, _) -> {
 				var id = Seed.numeric(arg(a, 0));
+				var cancel = hostTimers.get(Std.int(id));
+				if (cancel != null && id == Std.int(id)) {
+					hostTimers.remove(Std.int(id));
+					cancel();
+				}
 				timers = timers.filter(t -> t.id != id);
 				immediates = immediates.filter(t -> t.id != id);
 				return undef();
@@ -150,6 +189,18 @@ class Promises {
 			Builtins.globals.set(name, f);
 			global.setOwn(name, f, Attr.HIDDEN);
 		}
+	}
+
+	// (a timer on the host's loop: its callback, then the microtasks; an
+	// interval set again first)
+	static function hostTimer(t:Timer):Void {
+		var delay = t.interval >= 0 ? t.interval : t.due - now();
+		hostTimers.set(t.id, eventHost.timer(Math.max(0, delay), () -> {
+			if (!hostTimers.exists(t.id)) return;
+			if (t.interval >= 0) hostTimer(t) else hostTimers.remove(t.id);
+			call(t.callback, undef(), t.args);
+			drain();
+		}));
 	}
 
 	static function capability(ctor:Dynamic):{promise:Dynamic, resolve:Dynamic, reject:Dynamic} {
@@ -265,6 +316,7 @@ class Promises {
 		settle(p, 2, e);
 		if (!p.handled) unhandled.push(p);
 		if (requestCheckpoint != null) requestCheckpoint();
+		if (eventHost != null && !draining) eventHost.checkpoint();
 	}
 
 	static function settle(p:JsPromise, state:Int, v:Dynamic):Void {
@@ -424,11 +476,21 @@ class Promises {
 	}
 
 	// An async function call: runs its body to the first await synchronously.
+	// Its promise cancelled (helder's graph superseding the run that asked:
+	// Awaitable's cancel) resumes it at its pending await with an
+	// AbortError, so that its finally blocks run, the answer it awaited
+	// dropped and the async call it awaited cancelled with it; its
+	// rejection then is nobody's to handle.
 	public static function async(step:Dynamic):Dynamic {
 		var p = create(PromiseProto);
 		var g:JsGenerator = cast Async.generator(step);
+		// (the resumption current: an answer for an earlier one is dropped)
+		var turn = 0;
+		var awaited:Null<JsPromise> = null;
+		var cancelled = false;
 		function run(sent:Dynamic, mode:Int):Void {
 			var r:Dynamic;
+			awaited = null;
 			try r = Async.resume(g, sent, mode) catch (e:Dynamic) {
 				reject(p, e);
 				return;
@@ -438,23 +500,58 @@ class Promises {
 				resolve(p, v);
 				return;
 			}
-			then(resolved(v), host(x -> run(x, 0)), host(e -> run(e, 1)), null);
+			var q = resolved(v), t = ++turn;
+			awaited = q;
+			then(q, host(x -> if (t == turn) run(x, 0)), host(e -> if (t == turn) run(e, 1)), null);
 		}
+		p.canceller = () -> {
+			if (cancelled || g.finished) return;
+			cancelled = true;
+			p.handled = true;
+			turn++;
+			var q = awaited;
+			if (q != null) q.cancel();
+			enqueue(() -> if (!g.finished) run(abortError(), 1));
+		};
 		run(undef(), 0);
 		return p;
 	}
 
+	// a promise of an Awaitable's answer (how the program sees helder's async work)
+	public static function ofAwaitable(a:helder.view.graph.Awaitable<Dynamic>):Dynamic {
+		Builtins.installPromise();
+		var p = create(PromiseProto);
+		a.onAnswer(v -> resolve(p, Interop.toJs(v)), e -> reject(p, e));
+		p.canceller = () -> a.cancel();
+		return p;
+	}
+
+	// (what a cancelled async function's pending await throws, as node's AbortController's)
+	public static function abortError():Dynamic {
+		var e = Builtins.makeError("Error", "This operation was aborted");
+		Lib.put(e, "name", "AbortError");
+		return e;
+	}
+
 	public static function drain():Void {
+		if (draining) return;
+		draining = true;
 		var i = 0;
 		while (i < jobs.length) {
 			var job = jobs[i++];
-			job();
+			try job() catch (e:Dynamic) {
+				// (what is left stays queued; drain again from there)
+				jobs = jobs.slice(i);
+				draining = false;
+				throw e;
+			}
 			if (i > 4096) {
 				jobs = jobs.slice(i);
 				i = 0;
 			}
 		}
 		jobs = [];
+		draining = false;
 		if (unhandled.length > 0) {
 			var e = unhandled[0].value;
 			var text = Std.isOfType(e, JsError) ? Builtins.errorText(e) : "[UnhandledPromiseRejection: This error originated either by throwing inside of an async function without a catch block, or by rejecting a promise which was not handled with .catch(). The promise rejected with the reason \"" + Inspect.inspect(e) + "\".] {\n  code: 'ERR_UNHANDLED_REJECTION'\n}";
@@ -465,6 +562,11 @@ class Promises {
 
 	public static function runEventLoop():Void {
 		drain();
+		if (eventHost != null) {
+			eventHost.run();
+			drain();
+			return;
+		}
 		// (the first turn starts at least a millisecond after startup, as node's does)
 		var first = true;
 		while (timers.length > 0 || immediates.length > 0) {
@@ -510,7 +612,7 @@ class Promises {
 
 	// A turn's word with helder dev (helder.dev.Hot, as helder.os.App's loop
 	// has it): false once a reload asked this build to end.
-	static inline function devTurn():Bool {
+	public static inline function devTurn():Bool {
 		#if (hxmc.dev && target.name == "hxmc") return helder.dev.Hot.poll(); #else return true; #end
 	}
 }

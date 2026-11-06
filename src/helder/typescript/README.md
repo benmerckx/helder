@@ -314,9 +314,29 @@ function Checkbox(props: {checked: Signal<boolean>, label: string}) {
 }
 ```
 
-Not yet: the async of 7.4 (a TypeScript `async` function given to `memo`
-is not a coroutine of helder.async's), the helder.dev reload keeping a
-program's state.
+**Async** (DESIGN.md 7.4): a program of helder's API with promises or
+timers runs its event loop on helder.async's (`Interop.hostLoop`: its
+microtasks a checkpoint on the loop, its timers the loop's), which
+helder.os's App turns between its frames and which commits helder.view's
+writes at the end of each turn, so a write after an `await` commits
+without a `flush()`. A promise is an Awaitable to the graph: a
+computation returning one (`memo(async () => ...)`) is async, its value
+the answer, what it reads before its first `await` tracked. A run
+superseded cancels the async function's promise: the function resumes at
+its pending `await` with an `AbortError` (its `finally` blocks run), the
+async call it awaits is cancelled with it, and its rejection is nobody's
+to handle. helder's own Awaitables (a task, an asset's load) come to the
+program as promises.
+
+```ts
+const user = memo(async () => {
+	const n = id();                      // tracked
+	const r = await load(n);             // cancelled when id changes meanwhile
+	return r.name;
+});
+```
+
+Not yet: the helder.dev reload keeping a program's state.
 
 ## Tests
 
@@ -332,7 +352,9 @@ helder's and tests/view's TestTypeScript's `helder/test-renderer.d.ts`).
 TestRenderer), their output checked against `<name>.out`: `view.tsx`
 (signals, a component, control flow, events), `holes.tsx` (holes and
 attributes that read bound, a Read prop, a getter), `static.tsx` (helder.web's
-static renderer, an island).
+static renderer, an island), `ui.tsx` (helder.ui headless, `env()`), `async.ts`
+(async functions on the graph: an async memo, a run cancelled, writes after
+an await), `bytes.ts` (Bytes as typed arrays: ImageData, a PNG).
 
 The lane needs node 24 or later.
 

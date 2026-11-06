@@ -1,0 +1,11 @@
+run 1
+count 0
+count 2
+run 2
+load 1 AbortError
+finally 1
+finally 2
+answer USER 2
+run 3
+finally 3
+answer USER 3

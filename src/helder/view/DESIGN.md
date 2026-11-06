@@ -775,7 +775,19 @@ any tag (helder/view's), the neutral elements' attributes with ui's events
 
 ### 7.4 Async
 
-Not built yet. A TypeScript `async` function given to `memo` must be a coroutine of
+As built: the second way, with cancellation. A program of helder's API
+with promises or timers runs its event loop on helder.async's
+(helder.typescript.js.Interop.hostLoop), so `Seed`'s jobs and timers run
+on helder's loop and writes after an await commit at the end of its turn.
+A JavaScript promise is an Awaitable: `memo(async () => ...)` is an async
+computation, its reads up to the first await tracked; a superseded run
+cancels the async function's promise, which resumes the function at its
+pending await with an AbortError (its finally blocks run) and cancels the
+async call it awaits. The state machines are not haxe.coro's
+continuations: a Haxe coroutine and a TypeScript async function meet as
+an Awaitable and a promise (Interop.toJs makes one of the other).
+
+The design: a TypeScript `async` function given to `memo` must be a coroutine of
 helder.async's for cancellation and the commit's timing to hold. To
 check first: the TypeScript frontend's state machines implementing `haxe.coro`'s
 continuation interface, a Promise being how JavaScript sees a Task.

@@ -20,7 +20,8 @@ catch (e) {
 }
 const wasi = new WASI({ version: 'preview1', args: [path.resolve(file), ...args], env: { ...process.env, PWD: process.cwd() }, preopens: { '/': '/' }, returnOnExit: true });
 const imports = wasi.getImportObject();
-// Helder's headless runner drives Loop.runUntil synchronously. Its wake import
-// needs no host timer; browser builds use Helder's real async host instead.
-imports.helder_async = { async_start() {}, async_wake() {} };
+// Other modules' imports (helder_async's start and wake: headless, the
+// program turns helder.async's loop itself) are functions doing nothing.
+for (const i of WebAssembly.Module.imports(wasm))
+	if (i.kind === 'function' && !(i.module in imports && i.name in imports[i.module])) (imports[i.module] ??= {})[i.name] = () => 0;
 process.exitCode = wasi.start(new WebAssembly.Instance(wasm, imports)) ?? 0;
