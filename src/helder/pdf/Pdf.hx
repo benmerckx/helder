@@ -13,12 +13,21 @@ import helder.canvas.Painter;
 // PDF reading and rendering on helder.canvas (src/helder/pdf/README.md):
 //
 //   var pdf = Pdf.open(bytes);                 // Document: PdfError when it is not one
+//   Pdf.openPlain(bytes);                      // no decryption linked (an encrypted one: PdfError)
 //   var bitmap = Pdf.render(pdf, 0, 2.0);      // page 1 at 2 pixels a point, on the CPU
 //   Pdf.draw(pdf.pages[0], painter, scale);    // onto any Painter (the GPU's, a recording)
 //   Pdf.text(pdf.pages[0]);                    // its text
 class Pdf {
-	public static function open(bytes:Bytes, password = "", ?limits:PdfLimits):Document
-		return new Document(bytes, password, limits);
+	public static function open(bytes:Bytes, password = "", ?limits:PdfLimits):Document {
+		PdfImage.jpx = (d, r, m) -> Jpx.decode(d, r, m);
+		PdfImage.jpxInfo = d -> Jpx.info(d);
+		return new Document(bytes, password, limits, Crypto.open);
+	}
+
+	// the same without decryption or JPEG 2000 linked (an encrypted file a PdfError, Encrypted; a JPX
+	// image Unsupported, unless Pdf.open ran): the smaller build
+	public static function openPlain(bytes:Bytes, ?limits:PdfLimits):Document
+		return new Document(bytes, "", limits);
 
 	// the page's transform from its user space to pixels at scale (its box at the origin, its rotation)
 	public static function pageMatrix(page:Page, scale:Float):Matrix {
@@ -45,7 +54,7 @@ class Pdf {
 	// the page's text: its characters in content order (ToUnicode, else the glyph names), a space at a
 	// gap, a newline at a new line; nothing painted
 	public static function text(page:Page):String {
-		var it = new Interpreter(page.doc, new helder.canvas.Canvas(1, 1), new Matrix());
+		var it = new Interpreter(page.doc, new NoPainter(), new Matrix());
 		it.textOnly = true;
 		it.text = new StringBuf();
 		it.run(page.contents(), page.resources);
@@ -53,13 +62,73 @@ class Pdf {
 	}
 
 	// the page's pixels at scale (pixels a point), on the CPU
-	public static function render(doc:Document, index:Int, scale = 1.0):Bitmap {
+	// (into: a canvas of the page's size drawn into again, its pixels the result: a viewer's pages
+	// without a bitmap each; wasm memory does not shrink)
+	public static function render(doc:Document, index:Int, scale = 1.0, ?into:helder.canvas.Canvas):Bitmap {
 		if (index < 0 || index >= doc.pages.length) throw PdfError.corrupt("no page " + (index + 1));
 		var page = doc.pages[index];
 		var w = Std.int(Math.ceil(page.width * scale)), h = Std.int(Math.ceil(page.height * scale));
 		if (w * 1.0 * h > doc.limits.maxImagePixels) throw PdfError.tooLarge('a page of ${w}x$h pixels');
-		var c = new helder.canvas.Canvas(w, h);
+		var c = into != null && into.width == w && into.height == h ? into : new helder.canvas.Canvas(w, h);
+		c.resetTransform();
+		c.restoreToCount(0);
 		draw(page, c, scale);
 		return c.bitmap;
 	}
+}
+
+// (Pdf.text's painter: nothing drawn, no rasterizer brought in)
+private class NoPainter implements Painter {
+	public var width(default, null) = 1;
+	public var height(default, null) = 1;
+	public var matrix(get, never):Matrix;
+
+	final m = new Matrix();
+
+	public function new() {}
+
+	function get_matrix()
+		return m;
+
+	public function save() {}
+
+	public function saveLayer(alpha = 1.0, ?blend:helder.canvas.Blend.Blender, ?mask:helder.canvas.Mask, ?filter:helder.canvas.Filter) {}
+
+	public function restore() {}
+
+	public function restoreToCount(count:Int) {}
+
+	public function translate(x:Float, y:Float) {}
+
+	public function scale(x:Float, y:Float) {}
+
+	public function rotate(angle:Float) {}
+
+	public function transform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {}
+
+	public function setTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {}
+
+	public function resetTransform() {}
+
+	public function clip(path:helder.canvas.Path, evenOdd = false) {}
+
+	public function fill(path:helder.canvas.Path, paint:helder.canvas.Paint, evenOdd = false) {}
+
+	public function stroke(path:helder.canvas.Path, style:helder.canvas.Stroke, paint:helder.canvas.Paint) {}
+
+	public function clearRect(x:Float, y:Float, w:Float, h:Float) {}
+
+	public function clear(color = 0) {}
+
+	public function drawImage(img:Bitmap, sx:Float, sy:Float, sw:Float, sh:Float, dx:Float, dy:Float, dw:Float, dh:Float, paint:helder.canvas.Paint, smooth = true) {}
+
+	public function readPixels(out:Bytes, x:Int, y:Int, w:Int, h:Int) {}
+
+	public function writePixels(rgba:Bytes, x:Int, y:Int, w:Int, h:Int, srcStride = -1) {}
+
+	public function snapshot():Bitmap
+		return new Bitmap(1, 1);
+
+	public function offscreen(width:Int, height:Int):Painter
+		return this;
 }

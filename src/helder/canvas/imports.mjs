@@ -27,6 +27,8 @@ export default function (host) {
 	// (a page's canvas element where there is a document: Chromium's OffscreenCanvas clips without antialiasing; a worker's OffscreenCanvas)
 	const make = (w, h) => typeof document !== "undefined" ? Object.assign(document.createElement("canvas"), { width: w, height: h }) : new OffscreenCanvas(w, h);
 	const images = new Map();
+	// (GlyphCache: glyph outlines as Path2D by their key, for every canvas)
+	const glyphPaths = new Map();
 	let nextImage = 1;
 	const canvases = new Map();
 
@@ -72,8 +74,8 @@ export default function (host) {
 			const o = host.handles.get(handle);
 			const f = new Float64Array(host.memory().buffer.slice(p, p + n));
 			// (the decoding state kept between runs: a flush may come between a paint and its fill)
-			const st = o.run ??= { path: null, paint: null, line: null, dash: [], dashOffset: 0, m: [1, 0, 0, 1, 0, 0] };
-			let i = 0, { path, paint, line, dash, dashOffset } = st;
+			const st = o.run ??= { path: null, paint: null, line: null, dash: [], dashOffset: 0, m: [1, 0, 0, 1, 0, 0], def: -1 };
+			let i = 0, { path, paint, line, dash, dashOffset, def } = st;
 			const m = st.m;
 			const ctx = () => (o.stack.length > 0 && o.stack[o.stack.length - 1].layer) ? o.stack[o.stack.length - 1].layer.ctx : o.ctx;
 			const top = () => {
@@ -215,6 +217,21 @@ export default function (host) {
 							else if (k === 3) { path.bezierCurveTo(f[i], f[i + 1], f[i + 2], f[i + 3], f[i + 4], f[i + 5]); i += 6; }
 							else path.closePath();
 						}
+						if (def >= 0) { glyphPaths.set(def, path); def = -1; }
+						break;
+					}
+					// (a glyph's outline kept by its key: the next path; a glyph drawn by its key and transform)
+					case 16: def = f[i++]; break;
+					case 17: {
+						const g = glyphPaths.get(f[i]);
+						if (g && paint.blend !== -2) {
+							c.save();
+							c.setTransform(f[i + 1], f[i + 2], f[i + 3], f[i + 4], f[i + 5], f[i + 6]);
+							c.fillStyle = style(c);
+							c.fill(g);
+							c.restore();
+						}
+						i += 7;
 						break;
 					}
 					case 12: {
@@ -234,7 +251,7 @@ export default function (host) {
 					default: throw new Error("hxmc_canvas: an unknown command " + code);
 				}
 			}
-			Object.assign(st, { path, paint, line, dash, dashOffset });
+			Object.assign(st, { path, paint, line, dash, dashOffset, def });
 		},
 	};
 	return { hxmc_canvas };

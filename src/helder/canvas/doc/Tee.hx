@@ -112,4 +112,7 @@ class Tee implements Painter {
 
 	public function snapshot():Bitmap
 		return a.snapshot();
+
+	public function offscreen(width:Int, height:Int):Painter
+		return a.offscreen(width, height);
 }

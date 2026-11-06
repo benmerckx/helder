@@ -18,6 +18,9 @@ import helder.text.FontFile;
 // font not embedded, a system face by its name (Times: serif, Courier:
 // monospace, others sans-serif), at the widths the file gives.
 class PdfFont {
+	static var nextId = 1;
+	// (its glyphs' keys in a GlyphCache: id << 16 | code)
+	public final id = nextId++ & 0x7FFF;
 	public var type3(default, null) = false;
 	public var composite(default, null) = false;
 	public var vertical(default, null) = false;
@@ -277,6 +280,19 @@ class PdfFont {
 		g = face.glyph(code);
 		if (g > 0) return g;
 		return substitute ? 0 : code;
+	}
+
+	// the code's outline in text space (an em a unit), read once: each glyph shown is it transformed
+	final glyphPaths = new Map<Int, Path>();
+	var glyphCount = 0;
+
+	public function glyphPath(code:Int):Path {
+		var p = glyphPaths.get(code);
+		if (p != null) return p;
+		p = new Path();
+		outline(code, p, new Matrix());
+		if (glyphCount++ < 4096) glyphPaths.set(code, p);
+		return p;
 	}
 
 	// the code's glyph outline into path through m (glyph units: a thousand an em in; m from text space by matrix)

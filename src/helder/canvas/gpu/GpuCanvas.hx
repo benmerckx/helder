@@ -773,6 +773,9 @@ class GpuCanvas implements Painter {
 	// ---- pixels
 
 	// the canvas's pixels read back (premultiplied): drawn into the frame, read, the frame ended
+	public function offscreen(width:Int, height:Int):Painter
+		return new GpuCanvas(width, height, device);
+
 	public function snapshot():Bitmap
 		return readTexture(target);
 

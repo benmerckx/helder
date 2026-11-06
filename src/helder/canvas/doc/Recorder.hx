@@ -129,6 +129,9 @@ class Recorder implements Painter {
 		o.rect = [x, y];
 	}
 
+	public function offscreen(width:Int, height:Int):Painter
+		return new Recorder(width, height);
+
 	// the page drawn on the CPU
 	public function snapshot():Bitmap {
 		var c = new Canvas(width, height);

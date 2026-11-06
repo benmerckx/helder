@@ -7,10 +7,10 @@ import helder.pdf.Document;
 
 // A stream's filters undone, in order: FlateDecode (haxe.zip's inflate,
 // PNG and TIFF predictors after), LZWDecode (its EarlyChange, predictors),
-// ASCIIHexDecode, ASCII85Decode, RunLengthDecode; DCTDecode left to the
-// image reader (helder.image's JPEG decoder), as are the image filters
-// helder does not decode (JPXDecode, CCITTFaxDecode, JBIG2Decode: an
-// Unsupported error). Each output is bounded by budget (PdfLimits'
+// ASCIIHexDecode, ASCII85Decode, RunLengthDecode, CCITTFaxDecode (Ccitt);
+// DCTDecode left to the image reader (helder.image's JPEG decoder), as
+// are the image filters helder does not decode (JPXDecode, JBIG2Decode:
+// an Unsupported error). Each output is bounded by budget (PdfLimits'
 // maxStream, and what the document has left of maxDecoded): a zip bomb
 // stops at it.
 class Filters {
@@ -27,6 +27,7 @@ class Filters {
 				case "ASCIIHexDecode" | "AHx": asciiHex(data);
 				case "ASCII85Decode" | "A85": ascii85(data);
 				case "RunLengthDecode" | "RL": runLength(data, budget);
+				case "CCITTFaxDecode" | "CCF": Ccitt.decode(data, p, budget) ?? throw PdfError.corrupt("CCITT fax data");
 				case "Crypt": data;
 				case _: throw PdfError.unsupported("the " + f + " filter");
 			}

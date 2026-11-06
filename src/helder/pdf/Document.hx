@@ -27,12 +27,13 @@ class Document {
 	final cache = new Map<Int, PdfValue>();
 	final loading = new Map<Int, Bool>();
 	var cached = 0;
-	var crypto:Null<Crypto> = null;
+	var crypto:Null<Decryptor> = null;
 	var encryptRef = -1;
 	// (what the document's streams have decoded so far: maxDecoded's budget)
 	public var decoded = 0;
 
-	public function new(data:Bytes, password = "", ?limits:PdfLimits) {
+	// (decryption: Crypto.open, or null where none is linked: Pdf.openPlain)
+	public function new(data:Bytes, password = "", ?limits:PdfLimits, ?decryption:(enc:PdfDict, id:Bytes, password:String) -> Null<Decryptor>) {
 		this.data = data;
 		this.limits = limits ?? PdfLimits.DEFAULT;
 		if (data.length < 8) throw PdfError.corrupt("not a PDF: too short");
@@ -54,7 +55,8 @@ class Document {
 			if (d != null) {
 				var ids = Values.arr(resolve(trailer.get("ID")));
 				var id = ids != null && ids.length > 0 ? Values.str(resolve(ids[0])) : null;
-				crypto = Crypto.open(d, id ?? Bytes.alloc(0), password);
+				if (decryption == null) throw new PdfError(Encrypted, "encrypted, and no decryption linked (Pdf.openPlain): Pdf.open decrypts");
+				crypto = decryption(d, id ?? Bytes.alloc(0), password);
 				if (crypto == null) throw new PdfError(Encrypted, "the password does not open it");
 				// (what was read before the key was known: read again)
 				for (k in cache.keys())
@@ -492,4 +494,9 @@ class Page {
 		}
 		return b.getBytes();
 	}
+}
+
+// A security handler's decryption of a string or stream (Crypto: the standard handler's)
+interface Decryptor {
+	function decrypt(data:Bytes, num:Int, gen:Int, stream:Bool):Bytes;
 }

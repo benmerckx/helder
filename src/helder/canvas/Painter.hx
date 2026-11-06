@@ -33,4 +33,7 @@ interface Painter {
 	function writePixels(rgba:Bytes, x:Int, y:Int, w:Int, h:Int, srcStride:Int = -1):Void;
 	// the pixels now, premultiplied (the CPU canvas's own bitmap; a copy read back elsewhere)
 	function snapshot():Bitmap;
+	// a painter of the same kind, of its own pixels (a PDF tiling pattern's cell, read by snapshot):
+	// no back end brings in another's
+	function offscreen(width:Int, height:Int):Painter;
 }

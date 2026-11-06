@@ -14,7 +14,7 @@ import helder.canvas.Gradient;
 // OffscreenCanvas of the page's (a handle); layers are canvases of their
 // own composited at restore; gradients and patterns are made by the page
 // from the commands (a bitmap uploaded once, a handle).
-class WebCanvas implements Painter {
+class WebCanvas implements Painter implements GlyphCache {
 	public var width(default, null):Int;
 	public var height(default, null):Int;
 	public var matrix(get, never):Matrix;
@@ -78,6 +78,35 @@ class WebCanvas implements Painter {
 	static inline var STOP = 13;
 	static inline var LINE = 14;
 	static inline var DASH = 15;
+	static inline var GLYPH_DEF = 16;
+	static inline var GLYPH = 17;
+
+	// ---- glyphs kept in the page (GlyphCache): a Path2D each, by key, for every canvas
+
+	static final defined = new Map<Int, Bool>();
+
+	public function glyphs(paint:Paint) {
+		sendPaint(paint);
+	}
+
+	public function glyph(key:Int, outline:() -> Path, m:Matrix) {
+		if (!defined.exists(key)) {
+			defined.set(key, true);
+			var p = outline();
+			room(4 + p.verbCount * 7);
+			op(GLYPH_DEF, 1);
+			num(key);
+			sendPath(p);
+		}
+		op(GLYPH, 7);
+		num(key);
+		num(m.a);
+		num(m.b);
+		num(m.c);
+		num(m.d);
+		num(m.e);
+		num(m.f);
+	}
 
 	// ---- the state
 
@@ -305,6 +334,9 @@ class WebCanvas implements Painter {
 		}
 		WebCanvasImports.canvas_write(handle, x, y, w, h, hxmc.unsafe.BytesPtr.of(rows, 0, w * h * 4));
 	}
+
+	public function offscreen(width:Int, height:Int):Painter
+		return new WebCanvas(width, height);
 
 	public function snapshot():Bitmap {
 		var b = Bytes.alloc(width * height * 4);

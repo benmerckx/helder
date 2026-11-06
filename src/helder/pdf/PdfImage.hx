@@ -14,7 +14,13 @@ import helder.pdf.PdfFont;
 // an image mask (/ImageMask) as the fill colour where it paints. Its
 // pixels within PdfLimits.maxImagePixels.
 class PdfImage {
-	public static function decode(doc:Document, dict:PdfDict, raw:PdfValue, resources:Null<PdfDict>, fill:Int, ?inlineData:Bytes):Bitmap {
+	// JPEG 2000's decoder (Jpx), linked by Pdf.open; Pdf.openPlain leaves it out (a JPX image: Unsupported)
+	public static var jpx:Null<(data:Bytes, reduce:Int, maxPixels:Int) -> Null<Jpx.JpxImage>> = null;
+	public static var jpxInfo:Null<(data:Bytes) -> Null<{width:Int, height:Int, levels:Int}>> = null;
+
+	// (shownW x shownH: the pixels it covers on the device, when known: a JPEG decoded reduced to no
+	// fewer, by its DCT's scaling, as libjpeg's scale_denom)
+	public static function decode(doc:Document, dict:PdfDict, raw:PdfValue, resources:Null<PdfDict>, fill:Int, ?inlineData:Bytes, shownW = 0, shownH = 0):Bitmap {
 		var w = Values.int(doc.resolve(dict.has("Width") ? dict.get("Width") : dict.get("W")));
 		var h = Values.int(doc.resolve(dict.has("Height") ? dict.get("Height") : dict.get("H")));
 		if (w <= 0 || h <= 0) throw PdfError.corrupt("an image of no size");
@@ -23,6 +29,7 @@ class PdfImage {
 		var bpc = mask ? 1 : Values.int(doc.resolve(dict.has("BitsPerComponent") ? dict.get("BitsPerComponent") : dict.get("BPC")), 8);
 		var decodeArr = Values.nums(doc.resolve(dict.has("Decode") ? dict.get("Decode") : dict.get("D")));
 		var data:Bytes, jpeg = false;
+		var jpxSpace:Null<String> = null, jpxAlpha:Null<Bytes> = null;
 		if (inlineData != null) {
 			var d = new PdfDict();
 			for (k => v in dict.map)
@@ -31,12 +38,54 @@ class PdfImage {
 			data = r.data;
 			jpeg = r.rest != null;
 		} else {
-			var r = doc.streamWith(raw, ["DCTDecode", "DCT", "JPXDecode", "CCITTFaxDecode", "JBIG2Decode"]);
-			if (r.rest == "JPXDecode" || r.rest == "CCITTFaxDecode" || r.rest == "JBIG2Decode") throw PdfError.unsupported("the " + r.rest + " filter");
+			var r = doc.streamWith(raw, ["DCTDecode", "DCT", "JPXDecode", "JBIG2Decode"]);
+			if (r.rest == "JBIG2Decode") throw PdfError.unsupported("the " + r.rest + " filter");
 			data = r.data;
-			jpeg = r.rest != null;
+			jpeg = r.rest == "DCTDecode" || r.rest == "DCT";
+			if (r.rest == "JPXDecode") {
+				// (JPEG 2000: reduced by whole resolution levels to no smaller than shown; 8-bit samples,
+				// its own colour space unless the dictionary says one, its alpha when /SMaskInData)
+				if (jpx == null) throw PdfError.unsupported("the JPXDecode filter (not linked: Pdf.open links it)");
+				var info = jpxInfo(data), reduce = 0;
+				if (info != null && shownW > 0 && shownH > 0)
+					while (reduce + 1 < info.levels && Math.ceil(info.width / Math.pow(2, reduce + 1)) >= shownW && Math.ceil(info.height / Math.pow(2, reduce + 1)) >= shownH)
+						reduce++;
+				var img = jpx(data, reduce, doc.limits.maxImagePixels);
+				if (img == null) throw PdfError.corrupt("a JPEG 2000 image");
+				w = img.width;
+				h = img.height;
+				bpc = 8;
+				decodeArr = null;
+				jpxSpace = img.colorSpace;
+				var nc = img.components - (img.alpha >= 0 ? 1 : 0);
+				if (img.alpha < 0) data = img.data else {
+					data = Bytes.alloc(w * h * nc);
+					var smaskIn = Values.int(doc.resolve(dict.get("SMaskInData"))) != 0;
+					if (smaskIn) jpxAlpha = Bytes.alloc(w * h);
+					for (i in 0...w * h) {
+						var o = 0;
+						for (c in 0...img.components) {
+							var v = img.data.get(i * img.components + c);
+							if (c == img.alpha) {
+								if (jpxAlpha != null) jpxAlpha.set(i, v);
+							} else
+								data.set(i * nc + o++, v);
+						}
+					}
+				}
+				if (jpxSpace == null) jpxSpace = nc == 1 ? "gray" : nc == 4 ? "cmyk" : "rgb";
+			}
 		}
-		var out = new Bitmap(w, h);
+		var jpg:Null<{width:Int, height:Int, rgba:Bytes}> = null;
+		if (jpeg && !mask) {
+			var scale = shownW > 0 && shownH > 0 ? helder.image.JpegDecoder.scaleFor(w, h, shownW, shownH) : 1;
+			jpg = try helder.image.JpegDecoder.decode(data, null, scale) catch (e:Dynamic) throw PdfError.corrupt("a JPEG image: " + Std.string(e));
+			// (the image at the decoder's size: the masks below resampled to it)
+			w = jpg.width;
+			h = jpg.height;
+			data = null;
+		}
+		var out = jpg != null ? new Bitmap(w, h, jpg.rgba) : new Bitmap(w, h);
 		var px = out.pixels;
 		if (mask) {
 			// (1 paints, unless Decode says [1 0])
@@ -58,20 +107,11 @@ class PdfImage {
 			return out;
 		}
 		var csv = dict.has("ColorSpace") ? dict.get("ColorSpace") : dict.get("CS");
-		var cs = csv == PNull ? ColorSpace.RGB : ColorSpace.load(doc, csv, resources);
+		var cs = csv == PNull ? (jpxSpace == "gray" ? ColorSpace.GRAY : jpxSpace == "cmyk" ? ColorSpace.CMYK : ColorSpace.RGB) : ColorSpace.load(doc, csv,
+			resources);
 		if (jpeg) {
-			var img = try helder.image.JpegDecoder.decode(data) catch (e:Dynamic) throw PdfError.corrupt("a JPEG image: " + Std.string(e));
-			if (img.width != w || img.height != h) w = Std.int(Math.min(w, img.width));
-			var rgba = img.rgba;
-			// (an Adobe CMYK JPEG in a DeviceCMYK image: the decoder's RGB as it is)
-			for (y in 0...Std.int(Math.min(h, img.height)))
-				for (x in 0...Std.int(Math.min(w, img.width))) {
-					var s = (y * img.width + x) * 4, o = (y * out.width + x) * 4;
-					px.set(o, rgba.get(s));
-					px.set(o + 1, rgba.get(s + 1));
-					px.set(o + 2, rgba.get(s + 2));
-					px.set(o + 3, 255);
-				}
+			// (the decoder's RGBA is the bitmap's, opaque: premultiplied as it is; an Adobe CMYK JPEG in a
+			// DeviceCMYK image: the decoder's RGB as it is)
 		} else {
 			var n = cs.components == 0 ? 1 : cs.components;
 			var dec = decodeArr ?? cs.defaultDecode(bpc);
@@ -115,7 +155,7 @@ class PdfImage {
 		}
 		// the alpha: a soft mask, a stencil mask, a colour key
 		var smask = doc.resolve(dict.get("SMask"));
-		var alpha:Null<Bytes> = null;
+		var alpha:Null<Bytes> = jpxAlpha;
 		switch smask {
 			case PStream(sd, _):
 				var m = decodeGray(doc, sd, smask, w, h);
@@ -156,6 +196,34 @@ class PdfImage {
 				px.set(o + 1, Std.int(px.get(o + 1) * a / 255 + 0.5));
 				px.set(o + 2, Std.int(px.get(o + 2) * a / 255 + 0.5));
 				px.set(o + 3, a);
+			}
+		return shrink(out, shownW, shownH);
+	}
+
+	// an image of at least twice the pixels it is shown at, a side, averaged down by a whole factor to
+	// no fewer (premultiplied: a box filter), so what is kept and drawn is near the size shown
+	static function shrink(b:Bitmap, shownW:Int, shownH:Int):Bitmap {
+		if (shownW <= 0 || shownH <= 0) return b;
+		var k = Std.int(Math.min(b.width / shownW, b.height / shownH));
+		if (k < 2) return b;
+		var w = Std.int(b.width / k), h = Std.int(b.height / k), src = b.pixels, out = new Bitmap(w, h), px = out.pixels, n = k * k;
+		var sum = [0, 0, 0, 0];
+		for (y in 0...h)
+			for (x in 0...w) {
+				sum[0] = sum[1] = sum[2] = sum[3] = 0;
+				for (j in 0...k) {
+					var o = ((y * k + j) * b.width + x * k) * 4;
+					for (_ in 0...k) {
+						sum[0] += src.get(o);
+						sum[1] += src.get(o + 1);
+						sum[2] += src.get(o + 2);
+						sum[3] += src.get(o + 3);
+						o += 4;
+					}
+				}
+				var o = (y * w + x) * 4;
+				for (c in 0...4)
+					px.set(o + c, Std.int((sum[c] + (n >> 1)) / n));
 			}
 		return out;
 	}

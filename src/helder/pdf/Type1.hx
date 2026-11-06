@@ -25,17 +25,17 @@ class Type1 {
 		if (data.length > 6 && data.get(0) == 0x80) data = pfb(data);
 		var clearEnd = findEexec(data, length1);
 		var clear = latin1(data, 0, clearEnd);
-		var re = ~/dup\s+(\d+)\s*\/([^\s\/\[\]{}()<>]+)\s+put/g;
-		var pos = 0;
-		while (re.matchSub(clear, pos)) {
-			encoding.set(Std.parseInt(re.matched(1)), re.matched(2));
-			var p = re.matchedPos();
-			pos = p.pos + p.len;
-		}
-		var fm = ~/\/FontMatrix\s*\[([^\]]*)\]/;
-		if (fm.match(clear)) {
-			var n = [for (x in ~/\s+/g.split(StringTools.trim(fm.matched(1)))) Std.parseFloat(x)];
-			if (n.length == 6 && !Lambda.exists(n, x -> Math.isNaN(x))) fontMatrix = n;
+		// (the encoding's "dup <code> /<name> put"s, scanned by hand: no regular expressions linked)
+		var toks = tokens(clear);
+		for (i in 0...toks.length - 3)
+			if (toks[i] == "dup" && toks[i + 3] == "put" && StringTools.startsWith(toks[i + 2], "/")) {
+				var code = Std.parseInt(toks[i + 1]);
+				if (code != null) encoding.set(code, toks[i + 2].substr(1));
+			}
+		var fm = toks.indexOf("/FontMatrix");
+		if (fm >= 0 && fm + 7 < toks.length && toks[fm + 1] == "[" && toks[fm + 8] == "]") {
+			var n = [for (k in 0...6) Std.parseFloat(toks[fm + 2 + k])];
+			if (!Lambda.exists(n, x -> Math.isNaN(x))) fontMatrix = n;
 		}
 		var enc = data.sub(clearEnd, data.length - clearEnd);
 		// (eexec in hex, or binary)
@@ -128,12 +128,39 @@ class Type1 {
 		return out;
 	}
 
+	// PostScript's tokens, roughly: names with their slash, [ ] { } apart, the rest split at white space
+	static function tokens(s:String):Array<String> {
+		var out = [], i = 0, n = s.length;
+		while (i < n) {
+			var c = StringTools.fastCodeAt(s, i);
+			if (Parser.isWhite(c)) {
+				i++;
+				continue;
+			}
+			if (c == "[".code || c == "]".code || c == "{".code || c == "}".code) {
+				out.push(String.fromCharCode(c));
+				i++;
+				continue;
+			}
+			var st = i;
+			i++;
+			while (i < n) {
+				var d = StringTools.fastCodeAt(s, i);
+				if (Parser.isWhite(d) || d == "[".code || d == "]".code || d == "{".code || d == "}".code || d == "/".code || d == "(".code || d == "<".code) break;
+				i++;
+			}
+			out.push(s.substring(st, i));
+		}
+		return out;
+	}
+
 	// /lenIV, /Subrs (dup i n RD <n bytes> NP), /CharStrings (/name n RD <n bytes> ND)
 	function parsePrivate(p:Bytes) {
 		var lvAt = find(p, "/lenIV", 0);
 		if (lvAt >= 0) {
-			var lv = ~/\/lenIV\s+(-?\d+)/;
-			if (lv.match(latin1(p, lvAt, Std.int(Math.min(24, p.length - lvAt))))) lenIV = Std.parseInt(lv.matched(1));
+			var t = tokens(latin1(p, lvAt, Std.int(Math.min(24, p.length - lvAt))));
+			var v = t.length > 1 ? Std.parseInt(t[1]) : null;
+			if (v != null) lenIV = v;
 		}
 		var i = 0, n = p.length;
 		inline function readInt():Int {

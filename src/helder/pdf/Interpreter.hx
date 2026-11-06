@@ -384,6 +384,11 @@ class Interpreter {
 		var glyphs = new Path();
 		var i = 0;
 		var mode = gs.render;
+		// (a painter keeping glyphs (the web's): each glyph by its key and transform, a plain fill only)
+		var cache:Null<helder.canvas.GlyphCache> = !textOnly && !f.type3 && mode == 0 && Std.isOfType(painter, helder.canvas.GlyphCache) ? cast painter : null;
+		if (cache != null) {
+			if (!prepare(true) || paint.shader != null) cache = null else cache.glyphs(paint);
+		}
 		while (i < s.length) {
 			f.code(s, i, codeOut);
 			var code = codeOut[0], len = codeOut[1];
@@ -391,7 +396,10 @@ class Interpreter {
 			// (the text rendering matrix: font size, horizontal scale and rise, then Tm)
 			var trm = tm.clone().multiply(new Matrix(fs * th, 0, 0, fs, 0, gs.rise));
 			if (text != null) addText(f, code, trm);
-			if (textOnly) {} else if (f.type3) type3Glyph(f, code, trm) else if (mode != 3 && mode != 7) f.outline(code, glyphs, trm);
+			if (textOnly) {} else if (cache != null) {
+				var c = code;
+				cache.glyph((f.id << 16) | (c & 0xFFFF), () -> f.glyphPath(c), base.clone().multiply(gs.ctm).multiply(trm));
+			} else if (f.type3) type3Glyph(f, code, trm) else if (mode != 3 && mode != 7) glyphs.addPath(f.glyphPath(code), trm);
 			var w0 = f.width(code) / 1000;
 			var space = len == 1 && code == 32 ? gs.wordSpacing : 0;
 			if (f.vertical) tm.translate(0, -(w0 * fs + gs.charSpacing + space)) else tm.translate((w0 * fs + gs.charSpacing + space) * th, 0);
@@ -507,13 +515,13 @@ class Interpreter {
 			g.matrix.copyFrom(place);
 			return g;
 		}
-		// a tiling pattern: its cell drawn on the CPU at the device's scale, repeated
+		// a tiling pattern: its cell drawn at the device's scale (by the painter's own kind), repeated
 		var bbox = Values.nums(doc.resolve(pd.get("BBox"))) ?? [0.0, 0, 1, 1];
 		var xs = Math.abs(Values.num(doc.resolve(pd.get("XStep")), bbox[2] - bbox[0])), ys = Math.abs(Values.num(doc.resolve(pd.get("YStep")), bbox[3] - bbox[1]));
 		if (xs <= 0 || ys <= 0) return null;
 		var scale = base.clone().multiply(gs.baseCtm).multiply(m).maxScale();
 		var cw = Std.int(Math.max(1, Math.min(2048, Math.ceil(xs * scale)))), ch = Std.int(Math.max(1, Math.min(2048, Math.ceil(ys * scale))));
-		var cell = new helder.canvas.Canvas(cw, ch);
+		var cell = painter.offscreen(cw, ch);
 		var sub = new Interpreter(doc, cell, new Matrix(cw / xs, 0, 0, -ch / ys, -bbox[0] * cw / xs, ch + bbox[1] * ch / ys));
 		sub.depth = depth + 1;
 		if (Values.int(pd.get("PaintType"), 1) == 2) {
@@ -523,7 +531,7 @@ class Interpreter {
 		try sub.run(doc.stream(pv), Values.dict(doc.resolve(pd.get("Resources")))) catch (e:PdfError) {
 			if (e.kind == TooLarge) throw e;
 		}
-		var pat = new helder.canvas.Pattern(cell.bitmap, true, true, true);
+		var pat = new helder.canvas.Pattern(cell.snapshot(), true, true, true);
 		// (the cell's pixels to pattern space, flipped as the cell was drawn)
 		pat.matrix.copyFrom(place.multiply(new Matrix(xs / cw, 0, 0, -ys / ch, bbox[0], bbox[1] + ys)));
 		return pat;
@@ -540,7 +548,8 @@ class Interpreter {
 			case "Image":
 				if (textOnly) return;
 				var fill = gs.fillSpace.kind == "Pattern" ? 0xFF000000 : gs.fillSpace.rgb(gs.fillComps);
-				var b = PdfImage.decode(doc, d, v, res, withAlpha(fill, 1));
+				var s = shownSize();
+				var b = PdfImage.decode(doc, d, v, res, withAlpha(fill, 1), null, s[0], s[1]);
 				drawImage(b, Values.bool(doc.resolve(d.get("Interpolate"))));
 			case "Form": form(d, v, res);
 			case _:
@@ -625,13 +634,20 @@ class Interpreter {
 		return (Std.int(((c >>> 24) & 255) * a) << 24) | (c & 0xFFFFFF);
 
 	// an image into the unit square of the CTM (its first row at the top)
+	// the pixels an image (the unit square through the CTM) covers on the device, a side each
+	function shownSize():Array<Int> {
+		var m = base.clone().multiply(gs.ctm);
+		return [Std.int(Math.ceil(Math.sqrt(m.a * m.a + m.b * m.b))), Std.int(Math.ceil(Math.sqrt(m.c * m.c + m.d * m.d)))];
+	}
+
 	function drawImage(b:Bitmap, interpolate = false) {
 		var m = gs.ctm.clone().multiply(new Matrix(1, 0, 0, -1, 0, 1));
 		device(m);
-		// (smoothed when asked, or when it shrinks; an image enlarged shows its samples, as pdf.js and Acrobat do)
+		// (smoothed when asked, or up to 4/3 of a pixel a sample, as pdf.js does (96 / 72); an image
+		// enlarged more shows its samples, as pdf.js and Acrobat do)
 		var px = base.clone().multiply(m);
-		var shown = Math.sqrt(Math.abs(px.determinant()));
-		var smooth = interpolate || shown < Math.sqrt(b.width * 1.0 * b.height);
+		var sx = Math.sqrt(px.a * px.a + px.b * px.b) / b.width, sy = Math.sqrt(px.c * px.c + px.d * px.d) / b.height;
+		var smooth = interpolate || (sx <= 4 / 3 && sy <= 4 / 3);
 		paint.shader = null;
 		paint.alpha = gs.fillAlpha;
 		paint.blend = gs.blend;
@@ -677,7 +693,8 @@ class Interpreter {
 		p.pos = e + 3;
 		if (!textOnly) try {
 			var fill = gs.fillSpace.kind == "Pattern" ? 0xFF000000 : gs.fillSpace.rgb(gs.fillComps);
-			drawImage(PdfImage.decode(doc, d, PNull, res, fill, data), Values.bool(d.get("Interpolate")));
+			var s = shownSize();
+			drawImage(PdfImage.decode(doc, d, PNull, res, fill, data, s[0], s[1]), Values.bool(d.get("Interpolate")));
 		} catch (e:PdfError) {
 			if (e.kind == TooLarge) throw e;
 		}

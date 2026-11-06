@@ -479,6 +479,9 @@ final class Canvas implements Painter {
 	public function snapshot():Bitmap
 		return bitmap;
 
+	public function offscreen(width:Int, height:Int):Painter
+		return new Canvas(width, height);
+
 	// PNG (helder.image's encoder)
 	public function toPng():Bytes
 		return helder.image.PngEncoder.encode(bitmap.straight(), width, height);

@@ -13,7 +13,7 @@ import haxe.io.BytesBuffer;
 // (MD5 of it with the object's number and generation) where R < 5. The
 // password tried first is the user's given one (empty by default), then
 // the same as the owner's.
-class Crypto {
+class Crypto implements helder.pdf.Document.Decryptor {
 	public final key:Bytes;
 	public final aes:Bool;
 	final r:Int;
