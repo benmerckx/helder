@@ -50,7 +50,7 @@ abstract class Statements extends Functions {
 			case KindVariableDeclarationList: variableList(n, top);
 			case KindExpressionStatement if (top && jsonModule(n.file)): set(moduleOf.get(n.file.path).exports.get("default"), expr(n.expression()));
 			case KindExpressionStatement: expr(n.expression());
-			case KindReturnStatement: emitReturn(n.expression() == null ? null : expr(n.expression()));
+			case KindReturnStatement: emitReturn(n.expression() == null ? null : valueFor(n.expression(), b.f.ret));
 			case KindIfStatement if (platform.constant(n.expression()) != null):
 				// (a condition of helder/platform's constants: only the branch taken is
 				// lowered, so what only the other is calls is not reached)
@@ -129,18 +129,21 @@ abstract class Statements extends Functions {
 				}
 				else for (s in open) b.out.push(s);
 				var init = loopNode.initializer();
+				// (`const x of xs` over numbers: x a number, read unboxed from a number array)
+				var numbers = indexed && init.kind == KindVariableDeclarationList && init.flags & NodeFlags.BlockScoped != 0 && init.declarations()[0].name().kind == KindIdentifier
+					&& types.isNumber(loopNode.expression().tsType.element) && reps.rep(init.declarations()[0].name().tsType) == TF64;
 				loop(labels, loopNode.statement(), () -> {
 					var value:Ex;
 					if (indexed) {
-						var l = b.local("element", TRef(RAny));
+						var l = b.local("element", numbers ? TF64 : TRef(RAny));
 						b.out.push(SIf(ELocal(fast), b.block(() -> {
 							b.out.push(SIf(EBin(FGe, ELocal(index), reps.arrayLength(b, input)), Vector.fromArrayCopy([SBreak]), new Vector(0)));
-							b.out.push(SSet(l, reps.arrayGet(b, input, ELocal(index))));
+							b.out.push(SSet(l, numbers ? reps.arrayGetNumber(b, input, ELocal(index), g -> store(g, TF64)) : reps.arrayGet(b, input, ELocal(index))));
 							b.out.push(SSet(index, EBin(FAdd, ELocal(index), EF64(1))));
 						}), b.block(() -> {
 							var v = b.runtime("libIterate", [ELocal(iterator)]);
 							b.out.push(SIf(b.runtime("libFinished", [v]), Vector.fromArrayCopy([SBreak]), new Vector(0)));
-							b.out.push(SSet(l, v));
+							b.out.push(SSet(l, numbers ? store(v, TF64) : v));
 						})));
 						value = ELocal(l);
 					}
@@ -161,6 +164,7 @@ abstract class Statements extends Functions {
 							var binding = functionVars.get(id.text);
 							set(binding, v);
 							env.set(id.text, binding);});
+						else if (numbers) env.set(declaration.name().text, bind(declaration.name(), TF64, value));
 						else bindPattern(declaration.name(), value, declareLocal);
 					}
 				}, null, null);
@@ -444,7 +448,9 @@ abstract class Statements extends Functions {
 	// (predeclared: block-scoped bindings were created at block entry; see hoistFunctions)
 	function variableList(n:Node, top:Bool, predeclared = false) {
 		for (d in n.declarations()) {
-			var e = d.initializer() == null ? b.runtime("getUndefined", []) : named(d.initializer(), d.name().kind == KindIdentifier ? d.name().text : null);
+			// (a typed number binding's: a number array's element read unboxed)
+			var slot = d.name().kind != KindIdentifier ? null : n.flags & NodeFlags.BlockScoped == 0 ? functionVars.get(d.name().text)?.ty : top || predeclared ? env.get(d.name().text)?.ty : bindingType(d);
+			var e = d.initializer() == null ? b.runtime("getUndefined", []) : slot == TF64 ? numeric(d.initializer(), true) : named(d.initializer(), d.name().kind == KindIdentifier ? d.name().text : null);
 			if (d.name().kind != KindIdentifier) {
 				var scoped = n.flags & NodeFlags.BlockScoped != 0;
 				bindPattern(d.name(), e, !scoped ? (id, v) -> set(functionVars.get(id.text), v) : top || predeclared ? (id, v) -> set(get(id.text, id), v) : declareLocal);

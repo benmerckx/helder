@@ -63,7 +63,7 @@ class Interop {
 	public static function toHaxe(v:Dynamic):Dynamic {
 		if (v == null || v == Seed.undefinedValue) return null;
 		if (Std.isOfType(v, JsFunction) && (v : JsFunction).haxe != null) return (v : JsFunction).haxe;
-		if (Std.isOfType(v, JsArray)) return [for (x in (v : JsArray).items) x == Lib.hole ? null : toHaxe(x)];
+		if (Std.isOfType(v, JsArray)) return [for (x in (v : JsArray).elements()) x == Lib.hole ? null : toHaxe(x)];
 		// (a typed array, a DataView, an ArrayBuffer: its bytes, shared when it views all its buffer's)
 		if (Std.isOfType(v, TypedArrays.JsTypedArray) || Std.isOfType(v, JsBuffer) || Std.isOfType(v, JsDataView)) return TypedArrays.bytesOf(v);
 		if (Std.isOfType(v, JsFunction)) {
@@ -202,7 +202,7 @@ class Interop {
 	// a JavaScript array's elements (undefined where it has holes)
 	public static function items(v:Dynamic, where:String):Array<Dynamic> {
 		if (!Std.isOfType(v, JsArray)) Seed.diverge("an array", v, where);
-		return [for (x in (v : JsArray).items) x == Lib.hole ? Seed.undefinedValue : x];
+		return [for (x in (v : JsArray).elements()) x == Lib.hole ? Seed.undefinedValue : x];
 	}
 
 	// a property of an object (undefined on null and undefined)
@@ -272,7 +272,7 @@ class Interop {
 	static function toTree(v:Dynamic):Dynamic {
 		if (v == Seed.undefinedValue) return {u: true};
 		if (v == null || Std.isOfType(v, Float) || Std.isOfType(v, String) || Std.isOfType(v, Bool)) return v;
-		if (Std.isOfType(v, JsArray)) return {a: [for (x in (v : JsArray).items) x == Lib.hole ? {u: true} : toTree(x)]};
+		if (Std.isOfType(v, JsArray)) return {a: [for (x in (v : JsArray).elements()) x == Lib.hole ? {u: true} : toTree(x)]};
 		if (Std.isOfType(v, JsObject) && (v : JsObject).proto == Builtins.ObjectProto && !Std.isOfType(v, JsFunction)) {
 			var o:JsObject = v, kv:Array<Dynamic> = [];
 			for (k in Lib.keys(o)) {

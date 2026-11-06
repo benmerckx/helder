@@ -87,7 +87,10 @@ class Lib {
 		if (Std.isOfType(o, JsArray) && isNumber(k)) {
 			var a:JsArray = cast o;
 			var i = numericIndex(k);
-			if (i >= 0 && i < a.items.length) {
+			if (a.nums != null) {
+				if (i >= 0 && i < a.nums.length) return a.nums[Std.int(i)];
+			}
+			else if (i >= 0 && i < a.items.length) {
 				var v = a.items[Std.int(i)];
 				if (v != hole) return v;
 			}
@@ -121,7 +124,10 @@ class Lib {
 			var a:JsArray = cast obj;
 			if (name == "length") return a.length;
 			var i = index(name);
-			if (i >= 0 && i < a.items.length) {
+			if (a.nums != null) {
+				if (i >= 0 && i < a.nums.length) return a.nums[Std.int(i)];
+			}
+			else if (i >= 0 && i < a.items.length) {
 				var v = a.items[Std.int(i)];
 				return v == hole ? absent : v;
 			}
@@ -172,7 +178,10 @@ class Lib {
 			var a:JsArray = cast obj;
 			if (name == "length") return true;
 			var i = index(name);
-			if (i >= 0 && i < a.items.length) return a.items[Std.int(i)] != hole;
+			if (a.nums != null) {
+				if (i >= 0 && i < a.nums.length) return true;
+			}
+			else if (i >= 0 && i < a.items.length) return a.items[Std.int(i)] != hole;
 		}
 		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
 			var i = index(name);
@@ -200,7 +209,13 @@ class Lib {
 		if (Std.isOfType(o, JsArray) && isNumber(k)) {
 			var a:JsArray = cast o;
 			var i = numericIndex(k);
-			if (i >= 0 && i < a.items.length && a.items[Std.int(i)] != hole) {
+			if (a.nums != null && isNumber(v)) {
+				if (i >= 0 && i < a.nums.length) {
+					a.nums[Std.int(i)] = v;
+					return v;
+				}
+			}
+			else if (i >= 0 && i < a.items.length && a.items[Std.int(i)] != hole) {
 				a.items[Std.int(i)] = v;
 				return v;
 			}
@@ -233,6 +248,10 @@ class Lib {
 			}
 			var i = index(name);
 			if (i >= 0 && !obj.hasOwn(name) && inherited(obj.proto, name) == null) {
+				if (!obj.extensible && !hasOwnKey(obj, name)) {
+					error("TypeError", "Cannot add property " + name + ", object is not extensible");
+					return;
+				}
 				setIndex(a, i, v);
 				return;
 			}
@@ -311,6 +330,14 @@ class Lib {
 	}
 
 	public static function setIndex(a:JsArray, i:Float, v:Dynamic):Void {
+		if (a.nums != null && isNumber(v) && i <= a.nums.length) {
+			if (i == a.nums.length) {
+				a.nums.push(v);
+				a.length = a.nums.length;
+			}
+			else a.nums[Std.int(i)] = v;
+			return;
+		}
 		var n = a.items.length;
 		if (i < n) {
 			a.items[Std.int(i)] = v;
@@ -334,7 +361,8 @@ class Lib {
 			error("RangeError", "Invalid array length");
 			return;
 		}
-		if (len < a.items.length) a.items.resize(Std.int(len));
+		if (a.nums != null && len <= a.nums.length) a.nums.resize(Std.int(len));
+		else if (len < a.items.length) a.items.resize(Std.int(len));
 		if (a.names != null) for (n in a.names.copy()) if (index(n) >= len) a.removeOwn(n);
 		a.length = len;
 	}
@@ -380,7 +408,8 @@ class Lib {
 		var out:Array<String> = [];
 		if (Std.isOfType(obj, JsArray)) {
 			var a:JsArray = cast obj;
-			for (i in 0...a.items.length) if (a.items[i] != hole) out.push(Std.string(i));
+			if (a.nums != null) for (i in 0...a.nums.length) out.push(Std.string(i));
+			else for (i in 0...a.items.length) if (a.items[i] != hole) out.push(Std.string(i));
 		}
 		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) for (i in 0...(cast obj : TypedArrays.JsTypedArray).length()) out.push(Std.string(i));
 		var own = obj.ownNames();
@@ -730,7 +759,7 @@ class Lib {
 	public static function toList(o:Dynamic):Array<Dynamic> {
 		if (Std.isOfType(o, JsArray) && (o : JsArray).proto == Builtins.ArrayProto && !Builtins.arrayIterationChanged) {
 			var a:JsArray = cast o;
-			var out = [for (v in a.items) v == hole ? undef() : v];
+			var out = [for (v in a.elements()) v == hole ? undef() : v];
 			while (out.length < a.length) out.push(get(a, out.length));
 			return out;
 		}

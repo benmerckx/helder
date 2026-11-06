@@ -369,6 +369,29 @@ class Seed {
 
 	public static function libArray(values:Array<Dynamic>):Dynamic return Lib.array(values);
 
+	// a number array (JsArray's nums) of these numbers
+	public static function libNumberArray(nums:Array<Float>):JsArray {
+		var a = new JsArray(Builtins.ArrayProto);
+		a.nums = nums;
+		a.length = nums.length;
+		return a;
+	}
+
+	// an array of a literal typed number[] whose elements are not all
+	// numbers statically: a number array when they are, else an ordinary one
+	public static function libArrayNumbers(values:Array<Dynamic>):Dynamic {
+		for (v in values) if (!Lib.isNumber(v)) return Lib.array(values);
+		return libNumberArray([for (v in values) (v : Float)]);
+	}
+
+	// `a.push(v)` on a number array with Array.prototype's push: its new
+	// length; -1 where it is not (the call then made as any other)
+	public static function libPushNumber(o:JsArray, v:Float):Float {
+		if (o.nums == null || o.props != null || o.proto != Builtins.ArrayProto || Builtins.arrayMethodsChanged || !o.extensible) return -1;
+		o.nums.push(v);
+		return o.length = o.nums.length;
+	}
+
 	public static function libObject(keys:Array<Dynamic>, values:Array<Dynamic>):Dynamic return Lib.object(keys, values);
 
 	public static function libGet(o:Dynamic, k:Dynamic):Dynamic return Lib.get(o, k);
@@ -467,6 +490,8 @@ class Seed {
 		libTypeofNamespace(libObject([], []), "x");
 		var o = libObject([], []);
 		var a = libArray([]);
+		libPushNumber(libNumberArray([0]), 0);
+		libArrayNumbers([]);
 		var f = libGlobal("Object");
 		libFunction(() -> null, 0, false, 0, "");
 		libClass("", libHole(), () -> null, 0, false, null);

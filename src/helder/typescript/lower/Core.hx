@@ -344,4 +344,6 @@ abstract class Core {
 	abstract function mathCall(n:Node, callee:Node, actual:Array<Node>):Null<Ex>;
 	abstract function parameterProperties():Void;
 	abstract function call(n:Node):Ex;
+	abstract function valueFor(n:Node, t:Ty):Ex;
+	abstract function numeric(n:Node, slot:Bool):Ex;
 }

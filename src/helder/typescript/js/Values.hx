@@ -170,10 +170,48 @@ class Layout {
 
 // Arrays keep elements densely (holes are Lib.hole); indices too far past the
 // end live in slots like other properties.
+// A number array (helder.typescript.lower's, made where the checker types
+// the elements numbers: number[], a branded number's, T extends number's)
+// keeps them unboxed in `nums` while each is a number, dense and the array
+// extensible or not: then `items` is empty and `length` is nums.length.
+// Reading `items` makes it an ordinary array first (a hole, another value,
+// a length beyond the elements: whatever the code reading it does next), so
+// the runtime's code over items holds for both; its common paths (Lib's
+// get and put, push, pop, the iteration) read and write nums in place.
 class JsArray extends JsObject {
-	public var items:Array<Dynamic> = [];
+	public var nums:Array<Float> = null;
+	@:isVar public var items(get, set):Array<Dynamic> = [];
 	public var length:Float = 0;
 	override public function tag():String return "Array";
+
+	function get_items():Array<Dynamic> {
+		if (nums != null) {
+			var n = nums;
+			nums = null;
+			items = [for (x in n) (x : Dynamic)];
+		}
+		return items;
+	}
+
+	function set_items(v:Array<Dynamic>):Array<Dynamic> {
+		nums = null;
+		return items = v;
+	}
+
+	// (the elements to read, holes as Lib.hole, without changing the array)
+	public function elements():Array<Dynamic> return nums != null ? [for (x in nums) (x : Dynamic)] : items;
+
+	// (Array.prototype's own properties changed: compiled code's push and pop
+	// on number arrays, and for-of's stepping, are its built-ins' only while not)
+	override public function writeOwn(k:String, v:Dynamic):Void {
+		if (this == Builtins.ArrayProto) Builtins.arrayProtoChanged(k);
+		super.writeOwn(k, v);
+	}
+
+	override public function removeOwn(k:String):Void {
+		if (this == Builtins.ArrayProto) Builtins.arrayProtoChanged(k);
+		super.removeOwn(k);
+	}
 }
 
 class JsFunction extends JsObject {

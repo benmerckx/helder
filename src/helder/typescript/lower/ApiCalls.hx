@@ -243,7 +243,7 @@ abstract class ApiCalls extends ClassValues {
 		var binary = ["min" => "mathMin", "max" => "mathMax"];
 		var arity = unary.exists(name) || others.contains(name) ? 1 : binary.exists(name) || name == "atan2" || name == "pow" ? 2 : 0;
 		if (arity == 0 || actual.length != arity) return null;
-		var args = [for (a in actual) b.temp(number(expr(a)))];
+		var args = [for (a in actual) b.temp(number(numeric(a, false)))];
 		typedOperations++;
 		return if (unary.exists(name)) b.runtime(unary.get(name), args);
 		else if (binary.exists(name)) b.runtime(binary.get(name), args);

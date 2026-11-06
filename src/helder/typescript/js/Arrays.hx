@@ -32,7 +32,10 @@ class Arrays {
 	static function hasAt(o:Dynamic, i:Float):Bool {
 		if (Std.isOfType(o, JsArray)) {
 			var a:JsArray = cast o;
-			if (i < a.items.length) return a.items[Std.int(i)] != hole;
+			if (a.nums != null) {
+				if (i < a.nums.length) return true;
+			}
+			else if (i < a.items.length) return a.items[Std.int(i)] != hole;
 		}
 		return has(o, Seed.numberText(i));
 	}
@@ -73,6 +76,11 @@ class Arrays {
 		method(p, "push", 1, (t, a, _) -> {
 			if (Std.isOfType(t, JsArray)) {
 				var arr:JsArray = cast t;
+				if (arr.nums != null && arr.extensible && Lambda.foreach(a, isNumber)) {
+					for (v in a) arr.nums.push(v);
+					arr.length = arr.nums.length;
+					return arr.length;
+				}
 				if (arr.items.length == arr.length && arr.extensible) {
 					for (v in a) arr.items.push(v);
 					arr.length = arr.items.length;
@@ -86,6 +94,11 @@ class Arrays {
 			return n;
 		});
 		method(p, "pop", 0, (t, _, _) -> {
+			if (Std.isOfType(t, JsArray) && (t : JsArray).nums != null && (t : JsArray).nums.length > 0) {
+				var arr:JsArray = cast t;
+				arr.length--;
+				return arr.nums.pop();
+			}
 			var o = toObject(t);
 			var n = lengthOf(o);
 			if (n == 0) {
@@ -105,6 +118,10 @@ class Arrays {
 			}
 			if (Std.isOfType(o, JsArray)) {
 				var arr:JsArray = cast o;
+				if (arr.nums != null && arr.extensible) {
+					arr.length--;
+					return arr.nums.shift();
+				}
 				if (arr.items.length == n && arr.extensible) {
 					var v = arr.items.shift();
 					arr.length--;

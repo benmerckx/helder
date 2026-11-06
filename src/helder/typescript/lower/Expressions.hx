@@ -53,11 +53,11 @@ abstract class Expressions extends Statements {
 				var u = n;
 				var x:Ex;
 				if (u.unaryOperator() == KindPlusPlusToken || u.unaryOperator() == KindMinusMinusToken) {
-					var target = lvalue(u.operand());
+					var target = numberElement(strip(u.operand())) ? numberTarget(strip(u.operand())) : lvalue(u.operand());
 					x = b.temp(EBin(u.unaryOperator() == KindPlusPlusToken ? FAdd : FSub, b.coerce(target.read(), TF64), EF64(1)));
 					target.write(x);
 				}
-				else x = expr(u.operand());
+				else x = u.unaryOperator() == KindMinusToken || u.unaryOperator() == KindPlusToken ? numeric(u.operand(), false) : expr(u.operand());
 				switch (u.unaryOperator()) {
 					case KindMinusToken: EConv(FNeg, b.coerce(x, TF64));
 					case KindPlusToken: b.coerce(x, TF64);
@@ -68,7 +68,7 @@ abstract class Expressions extends Statements {
 				}
 			case KindPostfixUnaryExpression:
 				var u = n;
-				var target = lvalue(u.operand());
+				var target = numberElement(strip(u.operand())) ? numberTarget(strip(u.operand())) : lvalue(u.operand());
 				var previous = b.temp(b.coerce(target.read(), TF64));
 				target.write(EBin(u.unaryOperator() == KindPlusPlusToken ? FAdd : FSub, previous, EF64(1)));
 				previous;
@@ -130,6 +130,10 @@ abstract class Expressions extends Statements {
 				}
 				else b.runtime("typeOf", [any(expr(value))]);
 			case KindCallExpression: call(n);
+			case KindArrayLiteralExpression if (numberLiteral(n)):
+				typedOperations++;
+				var xs = [for (e in elements(n)) expr(e)];
+				xs.filter(x -> Ir.typeOf(x) != TF64).length == 0 ? reps.numberArray(b, xs) : ECast(TRef(RObj(reps.arrayClass)), b.runtime("libArrayNumbers", [pack(xs)]));
 			case KindArrayLiteralExpression:
 				if (hasSpread(elements(n))) b.runtime("libArray", [spreadList(elements(n))]);
 				else b.runtime("libArray", [pack([for (e in elements(n)) e.kind == KindOmittedExpression ? b.runtime("libHole", []) : expr(e)])]);
@@ -183,8 +187,8 @@ abstract class Expressions extends Statements {
 				var c = n;
 				var cond = truth(expr(c.condition()));
 				var l = b.local("conditional", reps.rep(n.tsType));
-				var yes = b.block(() -> b.out.push(SSet(l, store(expr(c.whenTrue()), l.ty))));
-				var no = b.block(() -> b.out.push(SSet(l, store(expr(c.whenFalse()), l.ty))));
+				var yes = b.block(() -> b.out.push(SSet(l, store(valueFor(c.whenTrue(), l.ty), l.ty))));
+				var no = b.block(() -> b.out.push(SSet(l, store(valueFor(c.whenFalse(), l.ty), l.ty))));
 				b.out.push(SIf(cond, yes, no));
 				ELocal(l);
 			case _: fail(n, "unsupported expression " + n.kind.toString());
@@ -227,9 +231,10 @@ abstract class Expressions extends Statements {
 		if (arrayElement(n)) {
 			var obj = b.temp(expr(n.expression()));
 			var key = b.temp(number(expr(n.argumentExpression())));
+			var numbers = numberElement(n);
 			return {
 				read: () -> reps.arrayGet(b, obj, key),
-				write: (e) -> reps.arraySet(b, obj, key, e)
+				write: (e) -> numbers && Ir.typeOf(e) == TF64 ? reps.arraySetNumber(b, obj, key, e) : reps.arraySet(b, obj, key, e)
 			};
 		}
 		var field = layoutField(n);
@@ -297,7 +302,7 @@ abstract class Expressions extends Statements {
 		}
 		if (op >= KindFirstAssignment && op <= KindLastAssignment) return assign(n);
 		if (op == KindInKeyword && x.left().kind == KindPrivateIdentifier) return b.runtime("libPrivateHas", [any(expr(x.right())), EStr(brand(x.left()))]);
-		var a = expr(x.left());
+		var a = numericOperator(op, n) ? numeric(x.left(), false) : expr(x.left());
 		if (op == KindAmpersandAmpersandToken || op == KindBarBarToken || op == KindQuestionQuestionToken) {
 			// (the result, the left or the right value, in a slot of the expression's type)
 			var l = b.local("shortCircuit", reps.rep(n.tsType));
@@ -308,7 +313,7 @@ abstract class Expressions extends Statements {
 			return ELocal(l);
 		}
 		if (op == KindInstanceOfKeyword) return b.runtime("libInstanceOf", [any(a), any(expr(x.right()))]);
-		return operate(op, a, expr(x.right()), n);
+		return operate(op, a, numericOperator(op, n) ? numeric(x.right(), false) : expr(x.right()), n);
 	}
 	function assign(n:Node):Ex {
 		var x = n;
@@ -324,9 +329,10 @@ abstract class Expressions extends Statements {
 			assignPattern(left, e);
 			return e;
 		}
-		var target = lvalue(x.left());
+		var arithmetic = op != KindEqualsToken && compound.exists(op) && numericOperator(compound.get(op), n);
+		var target = arithmetic && numberElement(left) ? numberTarget(left) : lvalue(x.left());
 		if (op == KindEqualsToken) {
-			var e = named(x.right(), left.kind == KindIdentifier ? left.text : null);
+			var e = numberSlot(left) ? numeric(x.right(), true) : named(x.right(), left.kind == KindIdentifier ? left.text : null);
 			target.write(e);
 			return e;
 		}
@@ -343,7 +349,7 @@ abstract class Expressions extends Statements {
 			return ELocal(l);
 		}
 		var previous = target.read();
-		var e = operate(compound.get(op), previous, expr(x.right()), n);
+		var e = operate(compound.get(op), previous, arithmetic ? numeric(x.right(), false) : expr(x.right()), n);
 		target.write(e);
 		return e;
 	}
@@ -494,6 +500,67 @@ abstract class Expressions extends Statements {
 	// `a[k]` with a an array and k a number
 	function arrayElement(n:Node):Bool
 		return n.kind == KindElementAccessExpression && plainAccess(n) && types.isArray(n.expression().tsType) && types.isNumber(n.argumentExpression().tsType);
+
+	// ---- number arrays (Reps: JsArray's nums)
+	// `a[k]` of an array of numbers (number[], a branded number's, T extends number's)
+	function numberElement(n:Node):Bool return arrayElement(n) && types.isNumber(n.expression().tsType.element);
+
+	// an array literal of numbers, without holes or spreads (an empty one by
+	// the type it is given: `const xs: number[] = []`)
+	function numberLiteral(n:Node):Bool {
+		var list = elements(n);
+		for (e in list) if (e.kind == KindOmittedExpression || e.kind == KindSpreadElement) return false;
+		function numbers(t:Null<TsType>) return types.isArray(t) && types.isNumber(t.element);
+		if (numbers(n.tsType)) return true;
+		if (list.length > 0 || n.parent == null) return false;
+		var p = n.parent;
+		return switch p.kind {
+			case KindVariableDeclaration | KindPropertyDeclaration if (p.initializer() == n && p.name().kind == KindIdentifier): numbers(p.name().tsType);
+			case KindBinaryExpression if (p.right() == n && p.operatorToken().kind == KindEqualsToken): numbers(p.left().tsType);
+			case _: false;
+		}
+	}
+
+	// n's value for a slot of type t: a number array's element read unboxed for a number's
+	function valueFor(n:Node, t:Ty):Ex return t == TF64 ? numeric(n, true) : expr(n);
+
+	// n's value where a number is wanted (slot: a typed slot's, its check
+	// where it is none; else as ToNumber makes one): a number array's element
+	// read unboxed, else the runtime's element made a number
+	function numeric(n:Node, slot:Bool):Ex {
+		var inner = strip(n);
+		while (inner.kind == KindNonNullExpression) inner = strip(inner.expression());
+		if (!numberElement(inner)) return expr(n);
+		expressions++;
+		typed++;
+		typedOperations++;
+		var obj = b.temp(expr(inner.expression()));
+		var k = b.temp(number(expr(inner.argumentExpression())));
+		return reps.arrayGetNumber(b, obj, k, g -> slot ? store(g, TF64) : number(g));
+	}
+
+	// (an operator that makes its operands numbers: arithmetic, and a
+	// relation or + between numbers)
+	function numericOperator(op:Kind, n:Node):Bool {
+		if (op == KindMinusToken || op == KindAsteriskToken || op == KindSlashToken || op == KindPercentToken || op == KindAsteriskAsteriskToken) return true;
+		var relation = op == KindLessThanToken || op == KindLessThanEqualsToken || op == KindGreaterThanToken || op == KindGreaterThanEqualsToken;
+		return (relation || op == KindPlusToken) && n.kind == KindBinaryExpression && types.isNumber(n.left().tsType) && types.isNumber(n.right().tsType);
+	}
+
+	// a number array's element as a target whose value is read as a number (x[k] += 1, x[k]++)
+	function numberTarget(n:Node):{read:() -> Ex, write:Ex->Void} {
+		var obj = b.temp(expr(n.expression()));
+		var key = b.temp(number(expr(n.argumentExpression())));
+		return {
+			read: () -> reps.arrayGetNumber(b, obj, key, g -> number(g)),
+			write: (e) -> Ir.typeOf(e) == TF64 ? reps.arraySetNumber(b, obj, key, e) : reps.arraySet(b, obj, key, e)
+		};
+	}
+
+	// (an assignment target that is a typed number slot: a binding or a typed class's field)
+	function numberSlot(left:Node):Bool {
+		return left.kind == KindIdentifier && env.exists(left.text) && env.get(left.text).ty == TF64 && env.get(left.text).buffer == null;
+	}
 
 	function construct(n:Node):Ex {
 		var direct = layoutConstruct(n);
@@ -824,7 +891,8 @@ abstract class Expressions extends Statements {
 			var f = functions.get(callee.text);
 			if (hasSpread(actual)) return apply(read(functionValues.get(callee.text)), spreadList(actual));
 			typedOperations++;
-			var args = positional(f, actuals(actual), 0);
+			var fixed = f.args.length - (restFunctions.exists(f) ? 1 : 0);
+			var args = positional(f, [for (i in 0...actual.length) valueFor(actual[i], i < fixed ? f.args[i].ty : TRef(RAny))], 0);
 			if (f.ret == TVoid) {
 				b.out.push(SExpr(ECall(f, Vector.fromArrayCopy(args))));
 				return b.runtime("getUndefined", []);
@@ -843,6 +911,25 @@ abstract class Expressions extends Statements {
 				return b.runtime("stringCharCodeAt", [s, i]);
 			}
 			return b.runtime("libCallMethod", [any(s), EStr("charCodeAt"), pack([i])]);
+		}
+		// (a.push(v) of a number on a number array: appended unboxed, while Array.prototype's push is the built-in)
+		if (callee.kind == KindPropertyAccessExpression && plainAccess(callee) && callee.name().text == "push" && actual.length == 1 && !hasSpread(actual)
+			&& n.questionDotToken() == null && types.isArray(callee.expression().tsType) && types.isNumber(callee.expression().tsType.element)) {
+			var o = b.temp(expr(callee.expression()));
+			var v = b.temp(expr(actual[0]));
+			if (Ir.typeOf(v) == TF64) {
+				typedOperations++;
+				var length = b.local("pushed", TF64), r = b.local("push", TRef(RAny));
+				b.out.push(SSet(length, EF64(-1)));
+				var fast = () -> b.out.push(SSet(length, b.runtime("libPushNumber", [ECast(TRef(RObj(reps.arrayClass)), o), v])));
+				if (reps.exact(o, reps.arrayClass)) fast(); else b.out.push(SIf(EInstOf(reps.arrayClass, any(o)), b.block(fast), new Vector(0)));
+				var used = n.parent == null || n.parent.kind != KindExpressionStatement;
+				b.out.push(SIf(EBin(FLt, ELocal(length), EF64(0)), b.block(() -> b.out.push(SSet(r, b.runtime("libCallMethod", [any(o), EStr("push"), pack([v])])))),
+					b.block(() -> if (used) b.out.push(SSet(r, any(ELocal(length)))))));
+				if (!used) return b.runtime("getUndefined", []);
+				return ELocal(r);
+			}
+			return b.runtime("libCallMethod", [any(o), EStr("push"), pack([v])]);
 		}
 		var inner = callee;
 		while (inner.kind == KindParenthesizedExpression) inner = inner.expression();

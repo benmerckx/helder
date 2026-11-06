@@ -33,6 +33,15 @@ class Builtins {
 	public static var SetProto:JsObject;
 	public static var globals:Map<String, Dynamic> = null;
 	public static var arrayIterationChanged = false;
+	// (Array.prototype's push or pop replaced or deleted: Seed.libPushNumber's guard)
+	public static var arrayMethodsChanged = false;
+	static var watching = false;
+
+	public static function arrayProtoChanged(k:String):Void {
+		if (!watching) return;
+		if (k == "push" || k == "pop") arrayMethodsChanged = true;
+		if (k == Symbols.iterator) arrayIterationChanged = true;
+	}
 	public static var boundTarget = "\x00@target";
 	static var errors:Map<String, JsFunction> = [];
 	static var ready = false;
@@ -104,6 +113,7 @@ class Builtins {
 		setupGlobals();
 		Numbers.setup();
 		Async.setup();
+		watching = true;
 	}
 
 	// The built-ins a program installs when it uses them (the frontend calls

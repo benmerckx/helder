@@ -226,6 +226,72 @@ class Reps {
 
 	static function when(b:Builder, cond:Ex, then:() -> Void) b.out.push(SIf(cond, b.block(then), new Vector(0)));
 
+	// ---- number arrays (JsArray's nums: the elements unboxed while each is a number)
+
+	public function numberArray(b:Builder, elements:Array<Ex>):Ex
+		return ECast(TRef(RObj(arrayClass)), b.runtime("libNumberArray", [ENewArr(TF64, Vector.fromArrayCopy([for (e in elements) b.coerce(e, TF64)]))]));
+
+	// (o's nums when o is a number array: hit with them and a flag it sets
+	// where it did what it does; else, or where it did not, miss)
+	function numbers(b:Builder, o:Ex, hit:(Ex, Local) -> Void, miss:() -> Void) {
+		var done = b.local("unboxed", TBool);
+		b.out.push(SSet(done, ECast(TBool, EInt(0))));
+		function inside() {
+			var nums = b.temp(EField(arrayClass, arrayClass.fieldIndex("nums"), ECast(TRef(RObj(arrayClass)), o)));
+			when(b, EBin(RefNe, nums, ENull(Ir.typeOf(nums))), () -> hit(nums, done));
+		}
+		if (exact(o, arrayClass)) inside(); else when(b, EInstOf(arrayClass, o), inside);
+		when(b, ENot(ELocal(done)), miss);
+	}
+
+	// (k an index of nums: then with it as an Int)
+	static function inRange(b:Builder, nums:Ex, k:Ex, then:Ex->Void) {
+		if (Ir.typeOf(k) == TI32) when(b, EBin(Ge, k, EInt(0)), () -> when(b, EBin(Lt, k, EArrLen(nums)), () -> then(k)));
+		else when(b, EBin(FGe, k, EF64(0)), () -> when(b, EBin(FLt, k, EConv(I2F, EArrLen(nums))), () -> {
+			var i = b.temp(EConv(F2I, k));
+			when(b, EBin(FEq, EConv(I2F, i), k), () -> then(i));
+		}));
+	}
+
+	static function yes(b:Builder, flag:Local) b.out.push(SSet(flag, ECast(TBool, EInt(1))));
+
+	// `a[k]` of a number array as a number: the element where a is a number
+	// array and k one of its indices, else miss(the element as the runtime reads it)
+	public function arrayGetNumber(b:Builder, o:Ex, k:Ex, miss:Ex->Ex):Ex {
+		var l = b.local("number", TF64);
+		numbers(b, o, (nums, done) -> inRange(b, nums, k, i -> {
+			b.out.push(SSet(l, EArrGet(TF64, nums, i)));
+			yes(b, done);
+		}), () -> b.out.push(SSet(l, miss(arrayGet(b, o, index(b, k))))));
+		return ELocal(l);
+	}
+
+	static function index(b:Builder, k:Ex):Ex return Ir.typeOf(k) == TI32 ? EConv(I2F, k) : k;
+
+	// `a[k] = v` with v a number: in place where a is a number array and k one
+	// of its indices or its length (a is extensible), else as any write
+	public function arraySetNumber(b:Builder, o:Ex, k:Ex, v:Ex) {
+		var value = b.temp(b.coerce(v, TF64));
+		numbers(b, o, (nums, done) -> {
+			var local = switch nums {
+				case ELocal(l): l;
+				case _: throw "TSHX004: nums not in a local";
+			};
+			inRange(b, nums, k, i -> {
+				b.out.push(SArrSet(TF64, local, i, value));
+				yes(b, done);
+			});
+			// (one past the end, and the array extensible: appended)
+			var bits = objectBase.fieldIndex("bits");
+			var extensible = EBin(Eq, EBin(And, EField(objectBase, bits, ECast(TRef(RObj(objectBase)), o)), EInt(1)), EInt(0));
+			when(b, ENot(ELocal(done)), () -> when(b, EBin(FEq, index(b, k), EConv(I2F, EArrLen(nums))), () -> when(b, extensible, () -> {
+				b.out.push(SArrPush(TF64, local, value));
+				b.out.push(SSetField(arrayClass, arrayClass.fieldIndex("length"), ECast(TRef(RObj(arrayClass)), o), EConv(I2F, EArrLen(nums))));
+				yes(b, done);
+			})));
+		}, () -> arraySet(b, o, index(b, k), value));
+	}
+
 	public function arrayGet(b:Builder, o:Ex, k:Ex):Ex {
 		var l = b.local("element", TRef(RAny));
 		denseElement(b, o, k, (items, i) -> b.out.push(SSet(l, EArrGet(TRef(RAny), ELocal(items), i))),
