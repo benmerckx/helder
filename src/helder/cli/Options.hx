@@ -33,6 +33,31 @@ class Options {
 
 	public static final ENTRY = "a .hx file, a directory or a project (default: .)";
 
+	// helder run --headless's own (helder.headless, HeadlessCommand)
+	public static final HEADLESS:Array<Opt> = [
+		{key: "headless", names: ["--headless"], about: "no window: offscreen, on a virtual clock (the options below need it)"},
+		{key: "snap", names: ["--snap"], value: "<png>", about: "a frame as a PNG, at --at (several: each --at after its --snap)"},
+		{key: "tree", names: ["--tree"], value: "<json>", about: "every node: tag, path, role, label, text, rect, opacity, colours, hover, press, focus, moving"},
+		{key: "at", names: ["--at"], value: "<t>", about: "when the --snap or --tree before it is taken (default: end)"},
+		{key: "script", names: ["--script"], value: "<json>", about: "timestamped steps: move, down, up, tap, double-click, drag, wheel, key, type, resize, menu-pick, file-dialog, mark"},
+		{key: "frames", names: ["--frames"], value: "<n>", number: true, about: "n frames as PNGs into -o/--out (frame_0000.png...) from --start"},
+		{key: "every", names: ["--every"], value: "<k>", number: true, about: "--frames: every k-th frame written (1)"},
+		{key: "start", names: ["--start"], value: "<t>", about: "where --frames and --video begin (0)"},
+		{key: "video", names: ["--video"], value: "<file>", about: "a video (.mp4: H.264; .webm, .mov) of --duration, encoded by ffmpeg"},
+		{key: "fps", names: ["--fps"], value: "<n>", number: true, about: "frames a second of the virtual clock (60)"},
+		{key: "duration", names: ["--duration"], value: "<s|auto>", about: "--video's length (and -o/--out's without --frames): seconds, or auto (to the end)"},
+		{key: "trace", names: ["--trace"], value: "<jsonl>", about: "motion: each tagged node's rect and opacity, a JSON line a frame"},
+		{key: "keys", names: ["--keys"], about: "keycaps of the script's keys drawn over the frames"},
+		{key: "keys-at", names: ["--keys-at"], value: "<corner>", about: "where: bottom-left (default), bottom, bottom-right, top-left, top, top-right"},
+		{key: "keys-theme", names: ["--keys-theme"], value: "<t>", about: "the keycaps' colours: light, dark (default: --theme)"},
+		{key: "pointer", names: ["--pointer"], about: "a ripple drawn at each press"},
+		{key: "size", names: ["--size"], value: "<WxH>", about: "the window's size in points (the program's)"},
+		{key: "scale", names: ["--scale"], value: "<n>", number: true, about: "pixels a point (1)"},
+		{key: "theme", names: ["--theme"], value: "<t>", about: "the system's appearance: light (default) or dark"},
+		{key: "reduced-motion", names: ["--reduced-motion"], about: "the system asks for reduced motion: transitions jump"},
+		{key: "seed", names: ["--seed"], value: "<n>", number: true, about: "Math.random's seed (1)"},
+	];
+
 	static final COMMON:Array<Opt> = [
 		{
 			key: "target",
@@ -61,10 +86,16 @@ class Options {
 		{
 			name: "run",
 			usage: "[entry] [options] [-- <args>]",
-			about: "a release build for this machine, run",
+			about: "a release build for this machine, run (--headless: offscreen on a virtual clock, scripted, its frames and tree written)",
 			entry: true,
 			common: ["target", "device", "out", "args"],
-			own: [],
+			own: HEADLESS,
+			notes: [
+				"--headless: the real renderer offscreen (Linux: Mesa's llvmpipe), a frame every 1/fps s of a",
+				"virtual clock, Math.random seeded: the same script gives the same bytes; -o/--out is then",
+				"--frames' directory (the build: bin/headless/<name>). Times (--at, --start): seconds, end",
+				"(the script's end mark, else a second after its last step), mark:<name>, mark:<name>+0.5",
+			],
 		},
 		{
 			name: "build",
@@ -279,6 +310,7 @@ class Options {
 			}
 			return;
 		}
+		if (command == "run") checkHeadless();
 		if (target != null) {
 			if (target.contains(",")) throw usage('one target, not a list: $target (helder test\'s --target takes several)');
 			if (!isTarget(target)) throw usage('no target $target (${PLATFORMS.join(", ")}, or an hxmc target: ${HXMC_TARGETS.join(", ")})');
@@ -289,6 +321,38 @@ class Options {
 		if (target == "ios-arm64" && command != "build")
 			throw usage('--target ios-arm64: an iPhone needs a signing identity (not yet); --target ios runs on the simulator');
 	}
+
+	// (run's headless options: only with --headless; their values' forms)
+	function checkHeadless() {
+		var on = has("headless");
+		for (o in own)
+			if (o.key != "headless" && !on) throw usage('--${o.key}: with --headless', true);
+		if (!on) return;
+		if (target != null && target != "host") throw usage('--headless: this machine only, not --target $target');
+		var size = value("size");
+		if (size != null && !~/^[0-9]+x[0-9]+$/.match(size)) throw usage('--size $size: WIDTHxHEIGHT in points (480x560)');
+		for (k in ["theme", "keys-theme"]) {
+			var t = value(k);
+			if (t != null && t != "light" && t != "dark") throw usage('--$k $t: light or dark');
+		}
+		var c = value("keys-at");
+		if (c != null && !["bottom-left", "bottom", "bottom-right", "top-left", "top", "top-right"].contains(c))
+			throw usage('--keys-at $c: bottom-left, bottom, bottom-right, top-left, top or top-right');
+		for (t in values("at").concat(values("start")))
+			if (!isTime(t)) throw usage('$t: a time is seconds, end, mark:<name> or mark:<name>+<seconds>');
+		var d = value("duration");
+		if (d != null && d != "auto" && !~/^[0-9]+(\.[0-9]+)?$/.match(d)) throw usage('--duration $d: seconds or auto');
+		if (has("frames") && out == null) throw usage('--frames: the directory they go to, -o/--out <dir>');
+		var v = value("video");
+		if (v != null && !(v.endsWith(".mp4") || v.endsWith(".webm") || v.endsWith(".mov"))) throw usage('--video $v: .mp4, .webm or .mov');
+		if (has("every") && out == null) throw usage('--every: with --frames and -o/--out');
+		if (!has("snap") && !has("tree") && !has("video") && !has("trace") && out == null)
+			throw usage('--headless: what to write: --snap, --tree, --frames with -o, --video or --trace');
+	}
+
+	// a headless run's time: seconds, end, mark:<name>[+-<seconds>]
+	public static function isTime(t:String):Bool
+		return t == "end" || ~/^[0-9]+(\.[0-9]+)?$/.match(t) || ~/^mark:.+$/.match(t);
 
 	// a usage error's line: `helder <command>: <message>`, the help named for an option's
 	function usage(message:String, ?pointHelp:Bool):Usage

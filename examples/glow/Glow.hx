@@ -72,9 +72,11 @@ class Glow {
 		var window = new Window("Glow", 640, 480);
 		var device = Device.create(window.surface);
 		var glow = new Glow(device);
-		var start = Sys.time();
+		// (the frames' clock: the display's, or a headless run's virtual one, so `helder run --headless --snap` shows the glow at a time)
+		var start = -1.0;
 		App.run(() -> {
-			glow.at(Sys.time() - start);
+			if (start < 0) start = App.frame.time;
+			glow.at(App.frame.time - start);
 			var enc = device.beginFrame();
 			if (enc == null) return;
 			glow.draw(enc);

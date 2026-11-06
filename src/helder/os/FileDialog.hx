@@ -10,9 +10,10 @@ import hxmc.unsafe.Mem;
 // picker then: available says beforehand where it is known).
 class FileDialog {
 	public static function open(window:Window, title:String, filters:Array<{name:String, extensions:Array<String>}>):Null<String>
-		return if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) null else if (Mem.os() == 2)
+		// (a headless run: the script's answer, helder.headless)
+		return #if helder.headless helder.headless.Headless.run.fileDialog(title) #else if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) null else if (Mem.os() == 2)
 			helder.os.win32.FileOpenDialog.open(window.surface.handle, title, filters) else if (Mem.os() == 1) helder.os.cocoa.OpenPanel.open(title, filters) else
-			portal(window, title, filters);
+			portal(window, title, filters) #end;
 
 	// (POSIX's calls behind a constant condition: Mem.os(), the other branches not linked)
 	static function portal(window:Window, title:String, filters:Array<{name:String, extensions:Array<String>}>):Null<String> {
@@ -26,7 +27,7 @@ class FileDialog {
 
 	// whether a dialog can be shown (Linux: a portal on the session bus)
 	public static function available():Bool
-		return if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) false else if (Mem.os() == 1 || Mem.os() == 2) true else portalUp();
+		return #if helder.headless true #else if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) false else if (Mem.os() == 1 || Mem.os() == 2) true else portalUp() #end;
 
 	static function portalUp():Bool {
 		var bus = helder.os.linux.DBus.session();

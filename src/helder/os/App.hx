@@ -186,6 +186,22 @@ class App {
 		// (hxmc dev: the dev server's messages; a build that handed over ends here)
 		if (!helder.dev.Hot.poll()) running = false;
 		#end
+		#if helder.headless
+		// (a headless run: the script's events, then a frame at the run's virtual time, its outputs taken)
+		if (!running || windows.length == 0) {
+			running = false;
+			return false;
+		}
+		Pointers.step();
+		helder.headless.Headless.run.events(onEvent);
+		loopTurn();
+		if (running && windows.length > 0) {
+			frame.tick(helder.headless.Time.now, false);
+			onFrame();
+			if (!helder.headless.Headless.run.framed()) running = false;
+		}
+		return true;
+		#end
 		if (!running || windows.length == 0) {
 			running = false;
 			// (Android: the vsync asked for comes first, its callback this build's code)
@@ -270,6 +286,10 @@ class App {
 	// loop has something to run (the browser: returns at once,
 	// requestAnimationFrame paces the loop)
 	public static function wait(seconds:Float) {
+		#if helder.headless
+		// (a headless run never sleeps: its clock is the frames')
+		return;
+		#end
 		#if hxmc.dev
 		// (hxmc dev: awake for the dev server's messages, which turn reads)
 		if (seconds < 0 || seconds > 0.01) seconds = 0.01;
@@ -290,6 +310,9 @@ class App {
 	// :dark, gtk-application-prefer-dark-theme or a dark theme's name in
 	// settings.ini); cheap enough to ask now and then
 	public static function prefersDark():Bool {
+		#if helder.headless
+		return helder.headless.Headless.run.dark;
+		#end
 		if (Mem.os() == 3) return helder.os.web.Dom.prefers_dark() == 1;
 		if (Mem.platform() >= 1) return UIKitWindow.dark();
 		if (Mem.os() == 1) {

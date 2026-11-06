@@ -107,10 +107,10 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 
 	// in ms; the continuation resumed through its own dispatcher
 	public function schedule<T>(ms:Int64, cont:IContinuation<T>):ISchedulerHandle
-		return at(haxe.Timer.stamp() + Int64.toInt(ms) / 1000, cast cont);
+		return at(helder.headless.Time.stamp() + Int64.toInt(ms) / 1000, cast cont);
 
 	public function now():Int64
-		return Int64.fromFloat(haxe.Timer.stamp() * 1000);
+		return Int64.fromFloat(helder.headless.Time.stamp() * 1000);
 
 	// a timer due at `time` (seconds of haxe.Timer.stamp), resuming cont
 	public function at(time:Float, cont:IContinuation<Any>):Timer {
@@ -119,7 +119,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		up(timers.length - 1);
 		live++;
 		#if (hxmc.target == "wasm32-wasi")
-		if (!paged) Web.wake(Math.max(0, time - haxe.Timer.stamp()));
+		if (!paged) Web.wake(Math.max(0, time - helder.headless.Time.stamp()));
 		#end
 		return t;
 	}
@@ -205,7 +205,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 
 	function turnOnce(seconds:Float):Bool {
 		drain();
-		var now = haxe.Timer.stamp();
+		var now = helder.headless.Time.stamp();
 		fire(now);
 		var wait = count > 0 ? 0.0 : seconds;
 		if (live > 0 && wait != 0) {
@@ -230,7 +230,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		while (i < checks.length) {
 			if (checks[i]()) checks.splice(i, 1) else i++;
 		}
-		fire(haxe.Timer.stamp());
+		fire(helder.headless.Time.stamp());
 		drain();
 		return alive();
 	}
@@ -238,7 +238,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	// (Driven) a wait for I/O, posts or fd, at most seconds and the next
 	// timer; nothing runs
 	public function wait(seconds:Float, fd:Int) {
-		var now = haxe.Timer.stamp();
+		var now = helder.headless.Time.stamp();
 		if (count > 0 || (live > 0 && timers[0].time <= now)) return;
 		#if target.threaded
 		if (inbox.length > 0) return;
@@ -264,7 +264,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	public function bound(seconds:Float):Float {
 		if (count > 0) return 0;
 		if (live > 0) {
-			var next = Math.max(0, timers[0].time - haxe.Timer.stamp());
+			var next = Math.max(0, timers[0].time - helder.headless.Time.stamp());
 			if (seconds < 0 || next < seconds) seconds = next;
 		}
 		if ((io.pending() > 0 || held > 0 || checks.length > 0) && (seconds < 0 || seconds > 0.01)) seconds = 0.01;
@@ -285,7 +285,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		Sys.stdout().flush();
 		if (!go) return -1;
 		if (l.count > 0) return 0;
-		return l.live > 0 ? Math.max(0, l.timers[0].time - haxe.Timer.stamp()) : -1;
+		return l.live > 0 ? Math.max(0, l.timers[0].time - helder.headless.Time.stamp()) : -1;
 	}
 	#end
 

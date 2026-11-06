@@ -177,6 +177,38 @@ function tests() {
 		});
 	});
 
+	describe("run --headless", () -> {
+		test("its options, and only with it", () -> {
+			var o = parse("run", ["--headless", "examples/todo", "--script", "s.json", "--snap", "a.png", "--at", "mark:end+0.5", "--size", "480x560", "--scale", "2"]);
+			assert(o.has("headless"));
+			equals(o.value("snap"), "a.png");
+			equals(o.value("at"), "mark:end+0.5");
+			equals(usage(() -> parse("run", ["--snap", "a.png"])), "helder run: --snap: with --headless (helder run --help)");
+			equals(usage(() -> parse("build", ["--headless"])), "helder build: unknown option --headless (helder build --help)");
+		});
+		test("their values' forms", () -> {
+			equals(usage(() -> parse("run", ["--headless", "--snap", "a.png", "--size", "480"])), "helder run: --size 480: WIDTHxHEIGHT in points (480x560)");
+			equals(usage(() -> parse("run", ["--headless", "--snap", "a.png", "--at", "soon"])), "helder run: soon: a time is seconds, end, mark:<name> or mark:<name>+<seconds>");
+			equals(usage(() -> parse("run", ["--headless", "--snap", "a.png", "--theme", "blue"])), "helder run: --theme blue: light or dark");
+			equals(usage(() -> parse("run", ["--headless", "--frames", "10"])), "helder run: --frames: the directory they go to, -o/--out <dir>");
+			equals(usage(() -> parse("run", ["--headless", "--video", "a.gif"])), "helder run: --video a.gif: .mp4, .webm or .mov");
+			equals(usage(() -> parse("run", ["--headless"])), "helder run: --headless: what to write: --snap, --tree, --frames with -o, --video or --trace");
+			equals(usage(() -> parse("run", ["--headless", "--tree", "t.json", "--target", "web"])), "helder run: --headless: this machine only, not --target web");
+		});
+		test("each --at for the --snap and --tree before it", () -> {
+			var o = parse("run", ["--headless", "--at", "0.2", "--snap", "a.png", "--tree", "t.json", "--at", "1", "--snap", "b.png", "--frames", "3", "-o", "f"]);
+			var c:Dynamic = HeadlessCommand.config(o);
+			equals(c.snaps, [{path: "a.png", at: "1"}, {path: "b.png", at: "0.2"}]);
+			equals(c.trees, [{path: "t.json", at: "1"}]);
+			equals(c.sequences, [{dir: "f", start: "0", count: 3}]);
+		});
+		test("in run's help", () -> {
+			var h = Options.helpText("run");
+			for (f in ["--headless", "--snap <png>", "--tree <json>", "--script <json>", "--video <file>", "--trace <jsonl>", "--keys", "--pointer", "--seed <n>"])
+				assert(h.indexOf(f) >= 0, f);
+		});
+	});
+
 	describe("unknown options", () -> {
 		test("one format in every command", () -> {
 			for (c in ["dev", "run", "build", "test", "inspect", "devices"])
