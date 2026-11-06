@@ -464,11 +464,11 @@ class DevCommand {
 		var c = new Child(p);
 		child = c;
 		saved = false;
-		task.async(_ -> output(p.stdout, false));
-		task.async(_ -> output(p.stderr, true));
+		var drained = relay(task, p);
 		task.async(_ -> {
 			c.code = p.wait();
 			c.exited = true;
+			until(drained, 2);
 			p.close();
 			if (child != c) return;
 			child = null;
@@ -491,10 +491,31 @@ class DevCommand {
 	// the program's output, printed, and kept as log entries (Devtools)
 	@:coroutine static function output(s:Stream.Source, err:Bool) {
 		var r = new Reader(s), line;
-		while ((line = r.readLine()) != null) {
-			if (err) Term.err(line) else Term.out(line);
-			Devtools.output(line, err);
+		// (a pipe closed under its read, its process's handles let go of: its end)
+		try {
+			while ((line = r.readLine()) != null) {
+				if (err) Term.err(line) else Term.out(line);
+				Devtools.output(line, err);
+			}
+		} catch (e:haxe.Exception) {
+			if (e.message != "closed") throw e;
 		}
+	}
+
+	// a process's output relayed here (output) to its ends: whether both were read (its handles
+	// closed only then: a process ends before its pipes are read to the end, and a read on a
+	// handle closed under it fails, which ended helder dev when an app on the simulator ended)
+	static function relay(task:Node, p:Process):Void->Bool {
+		var ends = 0;
+		task.async(_ -> {
+			output(p.stdout, false);
+			ends++;
+		});
+		task.async(_ -> {
+			output(p.stderr, true);
+			ends++;
+		});
+		return () -> ends == 2;
 	}
 
 	// the program snapshots and exits; the new build starts with its state
@@ -633,10 +654,10 @@ class DevCommand {
 			phoneLog = p;
 			installed = true;
 			log(Style.status("started", Ok, '$id on ${device.name}'));
-			task.async(_ -> output(p.stdout, false));
-			task.async(_ -> output(p.stderr, true));
+			var drained = relay(task, p);
 			task.async(_ -> {
 				var code = p.wait();
+				until(drained, 2);
 				p.close();
 				switch ExitPolicy.decide(Mobile, code, replacedLaunch == p, stopping) {
 					case WaitForChange:

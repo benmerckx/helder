@@ -16,6 +16,9 @@ launch)
 	env | grep '^SIMCTL_CHILD_' > "${FAKE_ENV:-/dev/null}"
 	echo "org.helder.app: 4242"
 	[ -n "$FAKE_LAUNCH" ] && echo $$ > "$FAKE_LAUNCH"
+	# (a child of the console's holding its output past the app's end, as simctl's may: helder dev
+	# reads it to its end, or lets it go, without failing)
+	( sleep 5 ) &
 	exec sleep 3600
 	;;
 *) ;;
