@@ -336,6 +336,27 @@ abstract class Expressions extends Statements {
 			assignPattern(left, e);
 			return e;
 		}
+		var source = strip(x.right());
+		while (source.kind == KindNonNullExpression) source = strip(source.expression());
+		if (op == KindEqualsToken && numberElement(left) && numberElement(source)) {
+			// (a[i] = b[j] of number arrays: the number copied unboxed, else the element as it is)
+			var target = lvalue(left);
+			var obj = b.temp(expr(source.expression()));
+			var k = intOf(source.argumentExpression()) ?? b.temp(number(expr(source.argumentExpression())));
+			var boxed = b.local("copied", TRef(RAny)), missed = b.local("missed", TBool);
+			b.out.push(SSet(missed, bool(false)));
+			var v = reps.arrayGetNumber(b, obj, k, g -> {
+				b.out.push(SSet(boxed, any(g)));
+				b.out.push(SSet(missed, bool(true)));
+				return EF64(0);
+			});
+			var used = n.parent == null || n.parent.kind != KindExpressionStatement;
+			b.out.push(SIf(ELocal(missed), b.block(() -> target.write(ELocal(boxed))), b.block(() -> {
+				target.write(v);
+				if (used) b.out.push(SSet(boxed, any(v)));
+			})));
+			return used ? ELocal(boxed) : b.runtime("getUndefined", []);
+		}
 		var arithmetic = op != KindEqualsToken && compound.exists(op) && numericOperator(compound.get(op), n);
 		var target = arithmetic && numberElement(left) ? numberTarget(left) : lvalue(x.left());
 		if (op == KindEqualsToken) {
@@ -608,6 +629,67 @@ abstract class Expressions extends Statements {
 		return left.kind == KindIdentifier && env.exists(left.text) && env.get(left.text).ty == TF64 && env.get(left.text).buffer == null;
 	}
 
+	// A direct generic function's copy for numbers, where this call gives
+	// each of its type parameters number (explicitly, or as an argument's type
+	// for a parameter of type T or T[]): its typed slots of T numbers (Types.numberParams),
+	// made once per function, at most COPIES of them, of functions of at most COPY_NODES nodes
+	function specialization(name:String, n:Node, actual:Array<Node>):Null<FuncInfo> {
+		var fn = nodes.get(name);
+		var tps = fn == null ? null : fn.typeParameters();
+		if (tps == null || tps.length == 0) return null;
+		var ids = [];
+		for (tp in tps) {
+			var t = tp.name().tsType;
+			if (t == null) return null;
+			// (T extends number: a number already)
+			if (!types.isNumber(t)) ids.push(t.id);
+		}
+		if (ids.length == 0) return null;
+		var given = new Map<Int, Bool>();
+		var explicit = n.typeArguments();
+		if (explicit != null && explicit.length > 0) {
+			for (i in 0...tps.length) if (i < explicit.length && ids.contains(tps[i].name().tsType.id)) given.set(tps[i].name().tsType.id, explicit[i].kind == KindNumberKeyword);
+		}
+		else {
+			var params = parametersOf(fn);
+			for (i in 0...params.length) {
+				if (i >= actual.length || params[i].dotDotDotToken() != null || params[i].name().kind != KindIdentifier) break;
+				var pt = params[i].name().tsType, at = actual[i].tsType;
+				if (pt == null) continue;
+				for (id in ids) {
+					var number = pt.id == id ? types.isNumber(at) : pt.element != null && pt.element.id == id ? types.isArray(at) && types.isNumber(at.element) : null;
+					if (number != null) given.set(id, (given.get(id) ?? true) && number);
+				}
+			}
+		}
+		for (id in ids) if (given.get(id) != true) return null;
+		var m = moduleOf.get(fn.file.path);
+		var key = fn.file.path + ":" + name;
+		var f = specialized.get(key);
+		if (f != null) return f;
+		if (Lambda.count(specialized) >= COPIES || !copyable(fn)) return null;
+		var saved = types.numberParams;
+		types.numberParams = [for (id in ids) id => true];
+		if (saved != null) for (id in saved.keys()) types.numberParams.set(id, true);
+		f = declareFunction(fn, name + "_numbers", true);
+		pendingCopies.push({m: m, n: fn, f: f, params: types.numberParams});
+		types.numberParams = saved;
+		specialized.set(key, f);
+		return f;
+	}
+
+	// (a function small enough to copy, without a tagged template: its strings
+	// array is one object per call site)
+	static function copyable(fn:Node):Bool {
+		var count = 0;
+		function visit(x:Node):Bool {
+			if (++count > COPY_NODES || x.kind == KindTaggedTemplateExpression) return false;
+			for (c in x.children()) if (!visit(c)) return false;
+			return true;
+		}
+		return visit(fn);
+	}
+
 	function construct(n:Node):Ex {
 		var direct = layoutConstruct(n);
 		if (direct != null) return direct;
@@ -775,7 +857,7 @@ abstract class Expressions extends Statements {
 			return b.runtime("getUndefined", []);
 		}
 		if (callee.kind == KindIdentifier && !env.exists(callee.text) && functions.exists(callee.text) && n.questionDotToken() == null) {
-			var f = functions.get(callee.text);
+			var f = specialization(callee.text, n, actual) ?? functions.get(callee.text);
 			if (hasSpread(actual)) return apply(read(functionValues.get(callee.text)), spreadList(actual));
 			typedOperations++;
 			var fixed = f.args.length - (restFunctions.exists(f) ? 1 : 0);

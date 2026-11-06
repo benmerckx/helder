@@ -153,6 +153,15 @@ class Frontend extends ApiCalls {
 		// (its agnostic literals' code for each renderer, set first)
 		if (tsx != null) body = Vector.fromArrayCopy(tsx.install().concat(body.toArray()));
 		if (jobs.length > 0) jobCalls();
+		// (generic functions' copies for numbers the program called, and those they call)
+		while (pendingCopies.length > 0) {
+			var c = pendingCopies.shift();
+			enter(c.m);
+			var saved = types.numberParams;
+			types.numberParams = c.params;
+			compileFunction(c.n, c.f);
+			types.numberParams = saved;
+		}
 		var caught = b.local("uncaught", TRef(RAny));
 		b.f.hasTry = true;
 		b.out.push(STry(body, Vector.fromArrayCopy([{test: null, l: caught, body: b.block(() -> b.runtime("uncaught", [ELocal(caught)]))}])));

@@ -51,6 +51,9 @@ class Types {
 	final typeParameter:Int;
 	final classFlag:Int;
 	final reference:Int;
+	// type parameters taken as number: a generic function's copy for numbers
+	// (lower.Expressions.specialization), while it is declared and lowered
+	public var numberParams:Null<Map<Int, Bool>> = null;
 
 	// the kinds whose nodes have types lowering asks about
 	static final typed:Array<Kind> = [
@@ -151,6 +154,7 @@ class Types {
 		if (t.members != null) return Lambda.foreach(t.members, isNumber);
 		// (a branded number, number & {__brand}; T extends number)
 		if (t.parts != null) return Lambda.exists(t.parts, isNumber);
+		if (numberParams != null && t.flags & typeParameter != 0 && numberParams.exists(t.id)) return true;
 		if (t.constraint != null) return isNumber(t.constraint);
 		return t.flags & (number | numberLiteral) != 0 && t.flags & union == 0;
 	}

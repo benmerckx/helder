@@ -301,6 +301,13 @@ abstract class Core {
 
 	var buffering:Map<Node, Bool> = [];
 
+	// ---- generic functions' copies for numbers (Expressions.specialization):
+	// by module and name; those made, lowered once the program is (Frontend)
+	var specialized:Map<String, FuncInfo> = [];
+	var pendingCopies:Array<{m:Module, n:Node, f:FuncInfo, params:Map<Int, Bool>}> = [];
+	static inline var COPIES = 64;
+	static inline var COPY_NODES = 4000;
+
 	// ---- helder's API (lower.Api, its manifest): calls into Haxe, members, TSX
 
 	static function strip(n:Node):Node {
