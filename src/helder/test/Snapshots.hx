@@ -5,7 +5,7 @@ import sys.FileSystem;
 import sys.io.File;
 
 // Text snapshots (Test.snapshot), a file per test file beside it
-// (Foo.test.hx's Foo.test.snap): each one a header with its key ("describe
+// (Foo.test.hx's, Foo.test.ts's Foo.test.snap): each one a header with its key ("describe
 // > test: name") and its number of lines, then the lines. Written at the
 // end of the run when one was missing, or changed with -u; the others are
 // kept (an obsolete one stays until removed by hand).
@@ -17,7 +17,11 @@ class Snapshots {
 		var c = Runner.running();
 		var key = (c == null ? "" : c.fullName() + ": ") + name;
 		var path = Runner.file(pos.fileName);
-		path = (StringTools.endsWith(path, ".hx") ? path.substr(0, path.length - 3) : path) + ".snap";
+		for (ext in [".hx", ".ts", ".tsx"]) if (StringTools.endsWith(path, ext)) {
+			path = path.substr(0, path.length - ext.length);
+			break;
+		}
+		path += ".snap";
 		var f = files.get(path);
 		if (f == null) {
 			if (!files.iterator().hasNext()) Runner.atEnd.push(save);

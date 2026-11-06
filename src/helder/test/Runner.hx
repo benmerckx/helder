@@ -62,6 +62,14 @@ class Runner {
 		group = root;
 	}
 
+	// a TypeScript test file (helder.test.Script): the tests registered from
+	// here on are its, until the next file
+	public static function begin(real:String) {
+		var g = new Group(root, real);
+		g.file = real;
+		group = g;
+	}
+
 	public static function run(?args:Array<String>) {
 		args ??= Sys.args();
 		var i = 0;
@@ -259,6 +267,19 @@ class Runner {
 		if (current == null) return;
 		current.stopped = true;
 		if (!(e is Stop)) current.failures.push(error(e));
+	}
+
+	// (a failure while registering: a "(registering)" case of the group)
+	@:allow(helder.test) static function registering(message:String) {
+		var c = new Case(group, "(registering)", Sync(() -> {}));
+		c.failures.push(message);
+	}
+
+	// (the running test stopped: with its error's text, or a failure recorded already)
+	@:allow(helder.test) static function stopped(message:Null<String>) {
+		if (current == null) return;
+		current.stopped = true;
+		if (message != null) current.failures.push(message);
 	}
 
 	@:allow(helder.test) static function timedOut(seconds:Float)

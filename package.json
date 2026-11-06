@@ -40,6 +40,12 @@
     "./story": {
       "types": "./src/helder/story/index.d.ts"
     },
+    "./test": {
+      "types": "./src/helder/test/index.ts"
+    },
+    "./test/runner": {
+      "types": "./src/helder/test/runner.d.ts"
+    },
     "./package.json": "./package.json",
     "./*": "./*"
   },

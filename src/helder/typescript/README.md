@@ -154,7 +154,7 @@ read-only or turned into an accessor (TSHX100 as well).
 
 A program calls helder's Haxe API through declarations: `helder/view`,
 `helder/ui`, `helder/web`, `helder/canvas`, `helder/async` (helder.async's tasks,
-each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story`, `helder/jobs` and `helder/asset` (`index.d.ts` beside the packages, exported
+each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story`, `helder/jobs`, `helder/asset` and `helder/test/runner` (`index.d.ts` beside the packages, exported
 by package.json), generated from the Haxe types (below). Each declares its
 classes, each the Haxe class `__haxe` names, its functions and components
 as `const f: typeof Class.f`, that class's static, and names the module's
@@ -188,6 +188,10 @@ function of the lowering's own calls it there, by its number, through
 `helder.jobs.script.Entry`). `image(path)`, `font`, `model`, `sound` and `bytes` from `helder/asset`,
 and `import icon from "./icon.png" with {type: "image"}`, are Haxe's
 `Asset.*` (the file found and bundled when the build starts: `TsAssets`).
+`helder/test` (src/helder/test/index.ts, TypeScript over
+`helder/test/runner`) is helder.test for `*.test.ts(x)`: its assertions'
+calls are given their file and line as their last argument, as Haxe's
+PosInfos (src/helder/test/README.md, "TypeScript").
 Their handlers are Haxe's (`helder.dev.KeepDefinition`,
 `helder.story.StoryDefinition`, `helder.jobs.JobDefinition`,
 `helder.asset.AssetCheck`).

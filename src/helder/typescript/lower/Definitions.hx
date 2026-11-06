@@ -25,8 +25,13 @@ using StringTools;
 // ShaderDefinition), and its output passed to the function as its last
 // argument, JSON (helder/gfx's shader builds the value of it).
 class Definitions {
+	// helder/test's assertions: the index of their `at` parameter, given the call's file and line
+	static final located = [
+		"assert" => 2, "equals" => 3, "notEquals" => 3, "approx" => 4, "throws" => 2, "rejects" => 2, "require" => 2, "fail" => 1, "snapshot" => 2
+	];
+
 	// the definitions by module and name
-	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS];
+	static final known = ["helder/gfx" => ["shader"], "helder/dev" => ["keep"], "helder/story" => ["story"], "helder/jobs" => ["job"], "helder/asset" => TsAssets.KINDS, "helder/test" => [for (k in located.keys()) k]];
 
 	final src:Project;
 	final defined:String->Null<String>;
@@ -74,6 +79,8 @@ class Definitions {
 			return out.uniforms == null ? Generated(shaderJson(out)) : GeneratedWith(shaderJson(out), a.uniformRefs);
 		}
 		var args = n.arguments() ?? [];
+		if (from.module == "helder/test")
+			return Located(located.get(from.name), Project.relative(n.file.path) + ":" + n.file.line(n.file.skipTrivia(n.pos)));
 		var a = new TsAdapter(src, defined, from.name);
 		// (keep(key, init): its arguments as one array)
 		if (from.name == "keep") {
@@ -183,6 +190,9 @@ enum DefinitionCall {
 	Job(fn:Node, captures:Array<String>);
 	// (image(path)...: the kind, the path, the file where the program reads it from disk)
 	AssetCall(kind:String, path:String, file:Null<String>);
+	// (helder/test's assertions: the call's position, "file:line", its argument at index,
+	// the ones before it not given undefined)
+	Located(index:Int, at:String);
 }
 
 // What a name of a file is bound to at its top level: an import (its

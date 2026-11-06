@@ -146,6 +146,54 @@ cold, 0.21 s cached (0.26 s for wasm), 0.25 to 0.45 s through the
 compilation server; Eval compiles and runs it in 0.42 s (0.06 s with
 no test run).
 
+## TypeScript
+
+`*.test.ts` and `*.test.tsx` files are found where `*.test.hx` are (and
+under a directory named: `helder test examples/ts-todo`), built by helder's
+compiler into a program of their own and run natively and as wasm32-wasi,
+through the same runner: its groups, hooks, `-t`, `.only()`, `.skip()`,
+`.timeout()`, snapshots and report. They import `helder/test`
+(src/helder/test/index.ts, over `helder/test/runner`: helder.test.Script)
+and register at their top level:
+
+```ts
+// examples/ts-todo/todos.test.ts
+import { describe, test, beforeEach, equals } from "helder/test";
+import { added, left } from "./todos";
+
+describe("todos", () => {
+  let list = [];
+  beforeEach(() => { list = added([], 1, "Buy milk"); });
+  test("left", () => equals(left(list), "1 item left"));
+  test("later", async () => {
+    await new Promise(r => setTimeout(r, 1));
+    equals(list.length, 1);
+  }).timeout(1);
+});
+```
+
+The assertions are Haxe's (`assert`, `equals`, `notEquals`, `approx`,
+`throws`, `rejects` for a promise, `require`, `fail`, `snapshot`), each
+failure at its call's file and line: helder's compiler gives each call of
+one its position, as Haxe's PosInfos (their last parameter, `at`,
+`lower/Definitions.hx`). `equals` compares JavaScript's values (`diff`:
+primitives by SameValueZero, arrays, plain objects and instances of one
+prototype by their own properties, Map, Set, Date, typed arrays) and shows
+them as `show` writes them (`{a: [1, 2]}`, `Point {x: 3}`, `Map {"k" =>
+1}`). A body may be async: its promise is awaited within its timeout.
+`Foo.test.ts`'s snapshots are `Foo.test.snap`, as `.test.hx`'s.
+
+TSX mounts headless with helder/story's `tree(story({...}), width,
+height)` (a Ui of that size, helder.text's own shaping: the same tree on
+every OS), which a snapshot keeps (examples/ts-todo/app.test.tsx: its
+view, typed into and filtered).
+
+`helder test`'s main for them is bin/test/ts/main.ts: for each file a
+module telling the runner its name, then the file, imported (ES modules run
+in the order imported). TypeScript does not run on Eval, and the tests do
+not run on node (helder/test is helder.test's runner, Haxe); `--target
+interp` leaves them out.
+
 ## Not yet
 
 A macro (`assert(a == b)` showing both sides, tests collected without

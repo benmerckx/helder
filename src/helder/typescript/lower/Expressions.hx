@@ -627,6 +627,11 @@ abstract class Expressions extends Statements {
 			case Dropped: return b.runtime("getUndefined", []);
 			case Job(fn, captures): return job(n, fn, captures);
 			case AssetCall(kind, path, file): return asset(n, kind, path, file);
+			case Located(index, at):
+				if (hasSpread(actual) || actual.length > index) return apply(expr(callee), argumentList(actual));
+				var xs = actuals(actual);
+				while (xs.length < index) xs.push(b.runtime("getUndefined", []));
+				return apply(any(expr(callee)), pack(xs.concat([EStr(at)])));
 		}
 		if (callee.kind == KindSuperKeyword) {
 			var list = argumentList(actual);

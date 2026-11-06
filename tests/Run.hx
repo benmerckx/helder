@@ -52,7 +52,7 @@ class Run {
 		{name: "system-images", about: "helder.os's system decoders (tests/os/SystemImagesTest.hx: Windows' WIC, macOS's ImageIO): a TIFF of a known gradient, plain and LZW, its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a side; ImageLimits before any pixel; a file that is no image (GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemImages},
 		{name: "dbus", about: "helder.os's D-Bus client against a real dbus-daemon (Linux: dbus-run-session): Hello, ListNames, a service's half, then xdg-desktop-portal's FileChooser OpenFile against a stand-in portal (its arguments, its Response's URI as the path picked; tests/os/DBusTest.hx)", run: dbus},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
-		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
+		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp); every *.test.ts(x) (helder/test) natively and as wasm32-wasi, src/'s and examples/ts-todo's", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
 		{name: "asset", about: "helder.asset: the paths Asset's macros reject (tests/asset/reject), then `helder build tests/asset/Checksum.hx` for this machine (its files in the executable: run alone in an empty directory, their sizes and CRC-32s) and for the web (exactly the referenced files beside the page, the module run under node reading them); Android's and iOS's bundles are the pack lane's", run: assetLane},
 		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots; Assets.car against Apple actool's structure; an .ipa signed for distribution with tests/pack/signing's throwaway identity, RSA and P-256, its CMS verified by openssl); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
@@ -569,6 +569,8 @@ class Run {
 
 	static function helderTest() {
 		run(helderCli(), ["test", "--target", "all,interp"]);
+		// (TypeScript's tests beside an example's sources: helder/test, natively and as wasm32-wasi)
+		run(helderCli(), ["test", "examples/ts-todo", "--target", "all"]);
 	}
 
 	// (the project: tests/cli/project copied, helder in its node_modules as a

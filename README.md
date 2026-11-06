@@ -372,8 +372,10 @@ Still to come:
     `job(fn)`, `actions(...)`, `image(path)`, `story(...)`, the same in TS and
     Haxe, one handler for both; material slots and variants after TSL.
   - **TS on par with Haxe for apps**, after definitions, in this order:
-    - `*.test.ts(x)` in `helder test` (helder.test's API from TS, natively
-      and as wasm; logic tests on node where Eval runs Haxe's);
+    - `*.test.ts(x)` in `helder test` (done: helder/test, helder.test's
+      runner and assertions from TS, natively and as wasm; TSX mounted
+      headless and snapshotted; examples/ts-todo's; not on node:
+      src/helder/test/README.md);
     - `platform.os` / `platform.target` constants folded as `Mem.target()`
       is, so a platform's branch and what only it links drop elsewhere
       (Haxe's `#if`);

@@ -1,0 +1,82 @@
+// helder.test snapshots: `helder test -u` rewrites them
+
+--- empty: empty (18 lines)
+Node#root 0,0 480x560
+  Node#view 0,0 480x560
+    TextNode#text 24,24 432x35 "todos"
+    Node#view 24,73 432x36
+      TextField#draft 24,73 379x36 ""
+      Node#add 411,73 45x36
+        TextNode#text 423,82 21x18 "Add"
+    Node#list 24,123 432x372
+      TextNode#text 33,132 414x29 "Nothing here."
+    Node#view 24,509 432x27
+      TextNode#left 24,514 84x17 "0 items left"
+      Node#view 301,509 155x27
+        Node#filter-all 301,509 37x27
+          TextNode#text 309,514 21x17 "all"
+        Node#filter-active 344,509 60x27
+          TextNode#text 353,514 42x17 "active"
+        Node#filter-done 410,509 46x27
+          TextNode#text 419,514 28x17 "done"
+
+--- two items, one done, the done ones shown: done (25 lines)
+Node#root 0,0 480x560
+  Node#view 0,0 480x560
+    TextNode#text 24,24 432x35 "todos"
+    Node#view 24,73 432x36
+      TextField#draft 24,73 379x36 "  "
+      Node#add 411,73 45x36
+        TextNode#text 423,82 21x18 "Add"
+    Node#list 24,123 432x372
+      Node#view 33,132 414x35
+        Node#view 39,141 334x17
+          Node#view 39,141 334x17
+            Node#button 39,141 16x16
+              ImageNode#icon 41,143 12x12
+            TextNode#text 63,141 28x17 "Walk"
+        Node#button 381,136 60x27
+          TextNode#text 390,141 42x17 "Remove"
+    Node#view 24,509 432x27
+      TextNode#left 24,514 77x17 "1 item left"
+      Node#view 301,509 155x27
+        Node#filter-all 301,509 39x27
+          TextNode#text 310,514 21x17 "all"
+        Node#filter-active 346,509 60x27
+          TextNode#text 355,514 42x17 "active"
+        Node#filter-done 412,509 44x27
+          TextNode#text 420,514 28x17 "done"
+
+--- two items, one done, the done ones shown: two (32 lines)
+Node#root 0,0 480x560
+  Node#view 0,0 480x560
+    TextNode#text 24,24 432x35 "todos"
+    Node#view 24,73 432x36
+      TextField#draft 24,73 379x36 "  "
+      Node#add 411,73 45x36
+        TextNode#text 423,82 21x18 "Add"
+    Node#list 24,123 432x372
+      Node#view 33,132 414x35
+        Node#view 39,141 334x17
+          Node#view 39,141 334x17
+            Node#button 39,141 16x16
+            TextNode#text 63,141 56x17 "Buy milk"
+        Node#button 381,136 60x27
+          TextNode#text 390,141 42x17 "Remove"
+      Node#view 33,173 414x36
+        Node#view 39,182 334x18
+          Node#view 39,182 334x18
+            Node#button 39,183 16x16
+              ImageNode#icon 41,185 12x12
+            TextNode#text 63,182 28x18 "Walk"
+        Node#button 381,177 60x28
+          TextNode#text 390,182 42x18 "Remove"
+    Node#view 24,509 432x27
+      TextNode#left 24,514 77x17 "1 item left"
+      Node#view 301,509 155x27
+        Node#filter-all 301,509 37x27
+          TextNode#text 309,514 21x17 "all"
+        Node#filter-active 344,509 60x27
+          TextNode#text 353,514 42x17 "active"
+        Node#filter-done 410,509 46x27
+          TextNode#text 419,514 28x17 "done"

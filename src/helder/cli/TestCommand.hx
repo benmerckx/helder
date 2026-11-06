@@ -9,8 +9,12 @@ import sys.io.File;
 using StringTools;
 
 // `helder test`: the project's `*.test.hx` files (under src/ and tests/ and
-// its class paths, not bin/ or node_modules/), built into one program with
-// helder.test's runner and run, on the host, wasm32-wasi (node) or Eval.
+// its class paths, or a directory named, not bin/ or node_modules/), built
+// into one program with helder.test's runner and run, on the host,
+// wasm32-wasi (node) or Eval; its `*.test.ts` and `*.test.tsx` files into
+// another, by helder's compiler (helder/test: its main, bin/test/ts/main.ts,
+// imports each file after telling the runner its name), on the host and
+// wasm32-wasi (TypeScript does not run on Eval).
 // Eval (interp) only for the files that opt in: `@:test.interp` on their
 // `tests()` (code that runs at compile time: macros); the rest is shipped
 // natively and as wasm only, and may use what Eval has not (hxmc.unsafe,
@@ -40,7 +44,12 @@ class TestCommand {
 		if (Term.outColor) runner.push("--color");
 		if (Term.outColor && Style.unicode) runner.push("--unicode");
 		Term.out(Style.header("test", [targets.join(", ")]));
-		var p = new Project();
+		var p = new Project(o.positionals);
+		// (TypeScript test files: helder's compiler, built first if needed)
+		if (Lambda.exists(try p.testFiles() catch (_:Dynamic) [], f -> f.ts == true)) try Compiler.typescript(p.helder) catch (err:Dynamic) {
+			Term.err(Style.usage('helder test: $err'));
+			return 1;
+		}
 		if (!watch) return once(p, filters, targets, runner, null);
 		var compiler = Compiler.start();
 		var server = compiler?.port;
@@ -78,19 +87,28 @@ class TestCommand {
 		if (paths.length > 0) files = files.filter(t -> Lambda.exists(paths, f -> t.real.contains(norm(f))));
 		for (n in names) runner = runner.concat(["-n", n]);
 		if (files.length == 0) {
-			Term.err(Style.usage("helder test: no *.test.hx files" + (paths.length > 0 ? " match " + paths.join(" ") : " under " + p.roots.join(", "))));
+			Term.err(Style.usage("helder test: no *.test.hx or *.test.ts(x) files" + (paths.length > 0 ? " match " + paths.join(" ") : " under " + p.roots.join(", "))));
 			return 1;
 		}
 		// (a /regex/ -t: the runner given EReg)
 		var regex = false;
 		for (i in 0...runner.length - 1)
 			if (runner[i] == "-t" && runner[i + 1].length > 2 && runner[i + 1].startsWith("/") && runner[i + 1].endsWith("/")) regex = true;
+		var ts = files.filter(f -> f.ts == true);
+		files = files.filter(f -> f.ts != true);
 		generate(files, regex);
+		writeTypescriptMain(ts);
 		var map = new Mapper(files);
 		var cp = [];
 		for (c in p.classPaths(files).concat([GEN])) cp = cp.concat(["-cp", c]);
 		var results = [], failed = false;
 		for (t in targets) {
+			if (ts.length > 0 && t != "interp") {
+				var r = typescript(t, p, runner, map, server);
+				results.push(Style.status(t + " ts", r.ok ? Ok : Fail, r.summary));
+				if (!r.ok) failed = true;
+			}
+			if (files.length == 0 && t != "interp") continue;
 			// (interp: the files that opt in, else a line, not a failure)
 			if (t == "interp" && !Lambda.exists(files, f -> f.interp)) {
 				var none = "no test file opts in (@:test.interp on its tests())";
@@ -160,6 +178,56 @@ class TestCommand {
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(built)} build, ${secs(haxe.Timer.stamp() - t1)} run)'};
 		}
 	}
+
+	// the TypeScript test files' program (bin/test/ts/main.ts), built by
+	// helder's compiler and run as the Haxe one is
+	@:coroutine static function typescript(t:String, p:Project, runner:Array<String>, map:Mapper, server:Null<Int>):{ok:Bool, summary:String} {
+		var connect = (server == null ? [] : ["--connect", Std.string(server)]).concat(["-D", "helder.text.engine=helder"]);
+		var wasm = t == "wasm";
+		var exe = wasm ? "bin/test/ts.wasm" : Sys.systemName() == "Windows" ? "bin/test/ts-host.exe" : "bin/test/ts-host";
+		var target = wasm ? ["-D", "hxmc.target=wasm32-wasi"] : Sys.systemName() == "Linux" ? ["-D", "hxmc.libc=glibc"] : [];
+		var words = connect.concat(["-cp", p.helder]).concat(AssetStep.define(exe)).concat([
+			"-main", "helder.typescript.js.Seed", "-D", "helder.typescript=" + FileSystem.fullPath(TS_MAIN), "-D", "helder.root=" + FileSystem.fullPath(".").split("\\").join("/"),
+			"--custom-target", 'hxmc=$exe'
+		]).concat(target);
+		var t0 = haxe.Timer.stamp();
+		var what = 'building the TypeScript tests for ${wasm ? "wasm" : "host"}';
+		var b = assets(words, exe, wasm ? "wasm32-wasi" : Compiler.hostTarget(), map, what, Output.of(Compiler.tool(), words, map, what));
+		var built = haxe.Timer.stamp() - t0;
+		if (b.code != 0) return buildFailed(t + " ts", built);
+		Term.out("");
+		Term.out(Style.status("built", Ok, '${wasm ? "wasm" : "host"} (TypeScript) in ${Style.bold(secs(built))}' + Style.dim(Style.sep() + kb(exe))));
+		var t1 = haxe.Timer.stamp();
+		var out = wasm ? Output.of(Sys.getEnv("NODE") ?? "node", ["--no-warnings", "--no-turbo-fast-api-calls", "--stack-size=65500", p.helder + "/helder/test/wasi.mjs", exe].concat(runner), map) : Output.of(exe, runner, map);
+		return {ok: out.code == 0, summary: out.summary() + ' (${secs(built)} build, ${secs(haxe.Timer.stamp() - t1)} run)'};
+	}
+
+	public static inline var TS_MAIN = "bin/test/ts/main.ts";
+
+	// the TypeScript tests' main: for each file, a module telling the runner
+	// its name (bin/test/ts/file<i>.ts), then the file itself, imported (ES
+	// modules run in the order imported: a file's top level registers its
+	// tests in its group); then the run
+	static function writeTypescriptMain(files:Array<TestFile>) {
+		if (files.length == 0) return;
+		var dir = Path.directory(TS_MAIN);
+		mkdirs(dir);
+		var main = ["// `helder test`'s runner for the TypeScript test files, in order"];
+		for (i in 0...files.length) {
+			var f = files[i];
+			save('$dir/file$i.ts', 'import { Script } from "helder/test/runner";\nScript.file("${lit(f.real)}");\n');
+			main.push('import "./file$i";');
+			var rel = f.real.startsWith("/") || ~/^[A-Za-z]:/.match(f.real) ? f.real : "../../../" + f.real;
+			main.push('import "${lit(~/\.tsx?$/.replace(rel, ""))}";');
+		}
+		main.push('import { Script } from "helder/test/runner";');
+		main.push("Script.run();");
+		save(TS_MAIN, main.join("\n") + "\n");
+	}
+
+	// (written only when it changed: the module cache keeps it)
+	static function save(path:String, text:String)
+		if (!FileSystem.exists(path) || File.getContent(path) != text) File.saveContent(path, text);
 
 	static function buildFailed(t:String, seconds:Float):{ok:Bool, summary:String} {
 		Term.err(Style.status("failed", Fail, '$t: the build failed in ${secs(seconds)}'));
@@ -232,6 +300,8 @@ typedef TestFile = {
 	module:String,
 	// (it opts in to interp: @:test.interp)
 	interp:Bool,
+	// a .test.ts or .test.tsx file (helder/test: the TypeScript tests' program)
+	?ts:Bool,
 	// a .story.hx file (its module-level stories, story({...}), each a test: helder.story.Stories)
 	?story:Bool,
 }
@@ -245,7 +315,8 @@ class Project {
 	public final roots:Array<String>;
 	public final helder:String;
 
-	public function new() {
+	// (named: a directory under no root searched too, its own root)
+	public function new(?named:Array<String>) {
 		var cps = [];
 		try {
 			var cfg:Dynamic = haxe.Json.parse(File.getContent("package.json")).haxe;
@@ -257,6 +328,10 @@ class Project {
 		roots = [];
 		for (r in classPath.concat(["src", "tests"]))
 			if (!roots.contains(r) && FileSystem.exists(r) && FileSystem.isDirectory(r)) roots.push(r);
+		for (n in named ?? []) {
+			var d = clean(n);
+			if (d != "" && d != "." && FileSystem.exists(d) && FileSystem.isDirectory(d) && root(d + "/x") == null && !roots.contains(d)) roots.push(d);
+		}
 		var beside = Path.directory(Sys.programPath()) + "/../../src";
 		helder = [for (d in ["src", "node_modules/helder/src", beside]) if (FileSystem.exists('$d/helder/test/Test.hx')) d][0] ?? "src";
 	}
@@ -266,6 +341,10 @@ class Project {
 		while (p.endsWith("/")) p = p.substr(0, p.length - 1);
 		return p.startsWith("./") ? p.substr(2) : p;
 	}
+
+	// (a TypeScript test file: Foo.test.ts, Foo.test.tsx)
+	static function isTypescript(name:String):Bool
+		return name.endsWith(".test.ts") || name.endsWith(".test.tsx");
 
 	// the directories a change in which runs the tests again
 	public function watched():Array<String>
@@ -296,13 +375,17 @@ class Project {
 			for (n in (try FileSystem.readDirectory(dir) catch (_:Dynamic) [])) {
 				if (n == "bin" || n == "node_modules" || n.startsWith(".")) continue;
 				var p = '$dir/$n';
-				if (FileSystem.isDirectory(p)) walk(p) else if ((n.endsWith(".test.hx") || n.endsWith(".story.hx")) && !found.contains(p)) found.push(p);
+				if (FileSystem.isDirectory(p)) walk(p) else if ((n.endsWith(".test.hx") || n.endsWith(".story.hx") || isTypescript(n)) && !found.contains(p)) found.push(p);
 			}
 		for (r in roots) walk(r);
 		found.sort(Reflect.compare);
-		var out = [];
+		var out:Array<TestFile> = [];
 		var seen = new Map<String, String>();
 		for (p in found) {
+			if (isTypescript(p)) {
+				out.push({real: p, linked: p, module: "", interp: false, ts: true});
+				continue;
+			}
 			var r = root(p);
 			var dirs = Path.directory(p.substr(r.length + 1));
 			var pack = dirs == "" ? "" : dirs.split("/").join(".");
