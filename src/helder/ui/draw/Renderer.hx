@@ -11,7 +11,8 @@ import helder.image.Resize;
 
 // helder.ui's Canvas on helder.gfx: a frame's rectangles, shadows, glyphs and
 // images become quads of one vertex buffer (UiShader: four vertices each,
-// two triangles by a shared index buffer), drawn in one call per run of
+// two triangles by a shared index buffer: helder.gfx's QuadBatch, the
+// batcher SpriteBatch is on too), drawn in one call per run of
 // quads with the same image (texture slot 1:
 // an image's texture, else a white texel). Every vertex carries the clip (a rectangle in target pixels and
 // its corners' radii) that UiShader clips its fragments by, so clips need no
@@ -51,15 +52,8 @@ class Renderer implements Canvas {
 	// the shader's texture slots: the atlas's, the image's
 	final atlasSlot:Int;
 	final imageSlot:Int;
-	var buffer:Buffer;
-	var capacity:Int;
-	var bytes:Bytes;
-	var used = 0; // bytes of vertices this frame
-	// (two triangles a quad: 0 1 2, 2 1 3 from each quad's first vertex; for so many quads)
-	var indices:Null<Buffer> = null;
-	var indexQuads = 0;
-	// the runs of quads by image texture: first quad, count, key (the image id, twice, plus whether glyphs are filtered)
-	final batches:Array<Int> = [];
+	// the frame's quads, in runs by key: the image id, twice, plus whether glyphs are read filtered
+	final quads = new QuadBatch(STRIDE);
 	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
 	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int, width:Int, height:Int}>();
 	// the frames begun (begin)
@@ -125,9 +119,6 @@ class Renderer implements Canvas {
 		linear = device.createSampler({filter: Linear, wrap: Clamp});
 		atlasSlot = UiShader.textures[0].binding;
 		imageSlot = UiShader.textures[1].binding;
-		capacity = 4 * STRIDE * 1024;
-		buffer = device.createBuffer({size: capacity, usage: Vertex});
-		bytes = Bytes.alloc(capacity);
 	}
 
 	// starts a frame's drawing into a target of width x height pixels
@@ -147,8 +138,7 @@ class Renderer implements Canvas {
 		targetH = height;
 		gpu.clear();
 		before.resize(0);
-		used = 0;
-		batches.resize(0);
+		quads.clear();
 		tx = ty = 0;
 		alpha = 1;
 		alphas.resize(0);
@@ -177,45 +167,16 @@ class Renderer implements Canvas {
 			device.writeTexture(atlasTexture, region, x, y, w, h);
 			atlas.clean();
 		}
-		if (used == 0) return;
-		if (used > capacity) {
-			while (capacity < used)
-				capacity *= 2;
-			device.destroyBuffer(buffer);
-			buffer = device.createBuffer({size: capacity, usage: Vertex});
-		}
-		device.writeBuffer(buffer, 0, bytes, 0, used);
-		var quads = Std.int(used / (4 * STRIDE));
-		if (quads > indexQuads) {
-			var n = indexQuads == 0 ? 4096 : indexQuads;
-			while (n < quads)
-				n *= 2;
-			var ib = Bytes.alloc(n * 6 * 4);
-			for (q in 0...n) {
-				var v = q * 4, o = q * 24;
-				ib.setInt32(o, v);
-				ib.setInt32(o + 4, v + 1);
-				ib.setInt32(o + 8, v + 2);
-				ib.setInt32(o + 12, v + 2);
-				ib.setInt32(o + 16, v + 1);
-				ib.setInt32(o + 20, v + 3);
-			}
-			if (indices != null) device.destroyBuffer(indices);
-			indices = device.createBuffer({size: ib.length, usage: Index, data: ib});
-			indexQuads = n;
-		}
+		if (!quads.upload(device)) return;
 		enc.setPipeline(pipeline);
-		enc.setVertexBuffer(0, buffer);
-		enc.setIndexBuffer(indices, UInt32);
-		var i = 0;
-		while (i < batches.length) {
+		quads.bind(enc);
+		for (r in 0...quads.draws()) {
 			// (a run's key: its image id, twice, plus whether glyphs are read filtered)
-			var key = batches[i + 2], image = key >> 1;
+			var key = quads.runs[r * 3], image = key >> 1;
 			var e = image <= 0 ? null : textures.get(image);
 			enc.setTexture(atlasSlot, atlasTexture, key & 1 == 1 ? linear : nearest);
 			enc.setTexture(imageSlot, image < 0 ? gpu.get(image) : e == null ? blank : e.texture, linear);
-			enc.drawIndexed(batches[i + 1] * 6, 1, batches[i] * 6, 0);
-			i += 3;
+			quads.draw(enc, r);
 		}
 	}
 
@@ -728,20 +689,7 @@ class Renderer implements Canvas {
 	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, mode:Float, blur:Float,
 			m:Float, image:Int) {
 		// (a new run where the image changes, or how glyphs are read)
-		var key = image * 2 + (mode == 1 && !aligned ? 1 : 0);
-		var nb = batches.length;
-		if (nb == 0 || batches[nb - 1] != key) {
-			batches.push(Std.int(used / (4 * STRIDE)));
-			batches.push(0);
-			batches.push(key);
-			nb += 3;
-		}
-		batches[nb - 2]++;
-		if (used + 4 * STRIDE > bytes.length) {
-			var b = Bytes.alloc(bytes.length * 2);
-			b.blit(0, bytes, 0, used);
-			bytes = b;
-		}
+		var used = quads.add(image * 2 + (mode == 1 && !aligned ? 1 : 0)), bytes = quads.bytes;
 		var hx = (x1 - x0) / 2, hy = (y1 - y0) / 2;
 		var ax = x0 - m, ay = y0 - m, bx = x1 + m, by = y1 + m;
 		var fa = fill.a / 255 * alpha, ba = border.a / 255 * alpha;

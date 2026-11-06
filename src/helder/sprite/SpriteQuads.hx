@@ -5,10 +5,9 @@ import helder.sprite.Atlas.AtlasFrame;
 
 // A frame's textured quads, on the CPU: SpriteBatch's vertices (four a
 // quad, SpriteShader's SpriteVertex: its position and texel, two floats
-// each, and its colour, four bytes; STRIDE bytes) and its runs (the quads
-// drawn in order with one texture: a draw each), kept between frames
-// (clear empties them, the buffer stays: a steady frame allocates
-// nothing). Each quad is a rectangle in its own units (x0, y0, x1, y1) put
+// each, and its colour, four bytes; STRIDE bytes) in helder.gfx's
+// QuadBatch, its runs by texture (clear empties them, the buffer stays: a
+// steady frame allocates nothing). Each quad is a rectangle in its own units (x0, y0, x1, y1) put
 // on the target by an affine transform (x' = a x + c y + e, y' = b x + d y
 // + f), its texture's u0, v0, u1, v1 over it (or turned a quarter
 // clockwise in the texture: an atlas's rotated frame), its colour tinted
@@ -19,38 +18,17 @@ import helder.sprite.Atlas.AtlasFrame;
 // 96; eight floats a vertex before, 128), what a frame writes and uploads.
 // (One instance a quad, 52 bytes, was slower: SwiftShader draws instances
 // one by one, and small instances waste a GPU's vertex work.)
-class SpriteQuads {
+class SpriteQuads extends helder.gfx.QuadBatch {
 	public static inline var STRIDE = 20;
 
-	public var bytes(default, null):Bytes;
-	// the quads this frame
-	public var count(default, null) = 0;
-	// the runs: texture, first quad, quads; three ints each
-	public final runs:Array<Int> = [];
-
-	public function new(capacity = 1024) {
-		bytes = Bytes.alloc(capacity * 4 * STRIDE);
-	}
-
-	public function clear() {
-		count = 0;
-		runs.resize(0);
-	}
-
-	// the number of runs (draws)
-	public inline function draws():Int
-		return Std.int(runs.length / 3);
+	public function new(capacity = 1024)
+		super(STRIDE, capacity);
 
 	public function quad(texture:Int, x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, a:Float, b:Float, c:Float,
 			d:Float, e:Float, f:Float, red:Float, green:Float, blue:Float, alpha:Float, additive:Bool, turned = false) {
 		if (alpha <= 0) return;
 		if (alpha > 1) alpha = 1;
-		var o = count * 4 * STRIDE, out = bytes;
-		if (o + 4 * STRIDE > out.length) {
-			var n = Bytes.alloc(out.length * 2);
-			n.blit(0, out, 0, o);
-			bytes = out = n;
-		}
+		var o = add(texture), out = bytes;
 		// (white and opaque, most sprites: all ones)
 		var rgba = red == 1 && green == 1 && blue == 1 && alpha == 1 && !additive ? -1 : byte(red * alpha) | byte(green * alpha) << 8
 			| byte(blue * alpha) << 16 | (additive ? 0 : byte(alpha)) << 24;
@@ -63,13 +41,6 @@ class SpriteQuads {
 		vertex(out, o + STRIDE, px + rx, py + ry, u1, turned ? v1 : v0, rgba);
 		vertex(out, o + 2 * STRIDE, px + dx, py + dy, u0, turned ? v0 : v1, rgba);
 		vertex(out, o + 3 * STRIDE, px + rx + dx, py + ry + dy, turned ? u0 : u1, v1, rgba);
-		var n = runs.length;
-		if (n > 0 && runs[n - 3] == texture) runs[n - 1]++ else {
-			runs.push(texture);
-			runs.push(count);
-			runs.push(1);
-		}
-		count++;
 	}
 
 	static inline function vertex(out:Bytes, o:Int, x:Float, y:Float, u:Float, v:Float, rgba:Int) {

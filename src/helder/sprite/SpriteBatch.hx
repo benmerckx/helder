@@ -10,7 +10,8 @@ import helder.sprite.Atlas.AtlasFrame;
 // of an atlas or parts of images, each moved, scaled, turned, faded and
 // drawn over (alpha) or added (additive), in the order drawn; one draw a
 // run of quads with the same texture (SpriteQuads: 80 bytes a quad), all
-// in one vertex buffer written once a frame, one pipeline (SpriteShader,
+// in one vertex buffer written once a frame (helder.gfx's QuadBatch, the
+// batcher helder.ui's Renderer is on too), one pipeline (SpriteShader,
 // premultiplied). Layers are the
 // caller's order: draw the back first.
 //
@@ -32,10 +33,6 @@ class SpriteBatch {
 	final viewBytes = Bytes.alloc(16);
 	final textures:Array<Null<Texture>> = [];
 	final sizes:Array<Int> = [];
-	var buffer:Buffer;
-	var capacity:Int;
-	var indices:Null<Buffer> = null;
-	var indexQuads = 0;
 	var width = 1.0;
 	var height = 1.0;
 
@@ -49,8 +46,6 @@ class SpriteBatch {
 		pipeline = device.createPipeline(d);
 		sampler = device.createSampler({filter: Linear, wrap: Clamp});
 		textureSlot = SpriteShader.textures[0].binding;
-		capacity = quads.bytes.length;
-		buffer = device.createBuffer({size: capacity, usage: Vertex});
 	}
 
 	// an image as a texture of the batch's (its pixels premultiplied): its id
@@ -86,33 +81,7 @@ class SpriteBatch {
 
 	// the quads drawn since begin, in the pass the encoder is in
 	public function flush(enc:Encoder) {
-		var n = quads.count;
-		if (n == 0) return;
-		var used = n * 4 * SpriteQuads.STRIDE;
-		if (quads.bytes.length > capacity) {
-			capacity = quads.bytes.length;
-			device.destroyBuffer(buffer);
-			buffer = device.createBuffer({size: capacity, usage: Vertex});
-		}
-		device.writeBuffer(buffer, 0, quads.bytes, 0, used);
-		if (n > indexQuads) {
-			var q = indexQuads == 0 ? 1024 : indexQuads;
-			while (q < n)
-				q *= 2;
-			var ib = Bytes.alloc(q * 6 * 4);
-			for (k in 0...q) {
-				var v = k * 4, o = k * 24;
-				ib.setInt32(o, v);
-				ib.setInt32(o + 4, v + 1);
-				ib.setInt32(o + 8, v + 2);
-				ib.setInt32(o + 12, v + 2);
-				ib.setInt32(o + 16, v + 1);
-				ib.setInt32(o + 20, v + 3);
-			}
-			if (indices != null) device.destroyBuffer(indices);
-			indices = device.createBuffer({size: ib.length, usage: Index, data: ib});
-			indexQuads = q;
-		}
+		if (!quads.upload(device)) return;
 		// (units to clip space, y up)
 		viewBytes.setFloat(0, 2 / width);
 		viewBytes.setFloat(4, -2 / height);
@@ -120,16 +89,13 @@ class SpriteBatch {
 		viewBytes.setFloat(12, 1);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(SpriteShader.uniforms[0].binding, viewBytes);
-		enc.setVertexBuffer(0, buffer);
-		enc.setIndexBuffer(indices, UInt32);
-		var runs = quads.runs, i = 0;
-		while (i < runs.length) {
-			var tex = textures[runs[i]];
+		quads.bind(enc);
+		for (r in 0...quads.draws()) {
+			var tex = textures[quads.runs[r * 3]];
 			if (tex != null) {
 				enc.setTexture(textureSlot, tex, sampler);
-				enc.drawIndexed(runs[i + 2] * 6, 1, runs[i + 1] * 6, 0);
+				quads.draw(enc, r);
 			}
-			i += 3;
 		}
 	}
 
@@ -137,9 +103,7 @@ class SpriteBatch {
 		for (t in textures)
 			if (t != null) device.destroyTexture(t);
 		textures.resize(0);
-		device.destroyBuffer(buffer);
-		if (indices != null) device.destroyBuffer(indices);
-		indices = null;
+		quads.dispose(device);
 	}
 }
 
