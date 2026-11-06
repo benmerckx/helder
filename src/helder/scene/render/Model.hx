@@ -57,7 +57,7 @@ class Model<N, M, A, C> {
 	}
 
 	// the model's scene as nodes of world (under parent, by default the root)
-	public function instantiate(world:World, device:Device, ?parent:Node, ?made:Array<Node>):Node {
+	@:typescript public function instantiate(world:World, device:Device, ?parent:Node, ?made:Array<Node>):Node {
 		if (scene == null || this.device != device) {
 			scene = new GltfScene(doc, device);
 			this.device = device;
@@ -73,7 +73,7 @@ class Model<N, M, A, C> {
 	}
 
 	// the model's GPU meshes released
-	public function dispose() {
+	@:typescript public function dispose() {
 		if (scene != null) scene.dispose(device);
 		scene = null;
 	}
@@ -100,7 +100,7 @@ class Model<N, M, A, C> {
 	// a model whose path is known only at run time: loaded in the background
 	// (in the browser fetched, relative to the page; natively read at once),
 	// its names unknown when compiling (find nodes by name: model.doc)
-	public static function load(path:String):helder.asset.Asset<Model<{}, {}, {}, {}>> {
+	@:typescript public static function load(path:String):helder.asset.Asset<Model<{}, {}, {}, {}>> {
 		var asset = new helder.asset.Asset<Model<{}, {}, {}, {}>>(path);
 		helder.async.Async.launch(_ -> new Model(helder.async.Fetch.bytes(path), {}, {}, {}, {}))
 			.onCompletion((m, e) -> if (e == null) asset.resolve(m) else asset.fail(e.message));

@@ -137,6 +137,7 @@ class Manifest {
 		for (f in c.statics) {
 			var m = member(f, t);
 			if (m == null) continue;
+			defaults(f, m.type);
 			Reflect.setField(statics, f.name, m);
 			var n = f.name;
 			if (m.kind != "const" && m.mount != true) keep.push(named(macro @:privateAccess $p{tpath}.$n, f));
@@ -151,10 +152,11 @@ class Manifest {
 		for (f in c.members) {
 			var m = member(f, t);
 			if (m == null) continue;
+			defaults(f, m.type);
 			Reflect.setField(members, f.name, m);
 			var n = f.name;
 			if (m.kind == "method" || m.get != null) {
-				keep.push(m.kind == "method" ? named(macro @:privateAccess o.$n, f) : macro keep.push(@:privateAccess o.$n));
+				keep.push(m.kind == "method" ? named(macro @:privateAccess o.$n, f, self, n) : macro keep.push(@:privateAccess o.$n));
 				any = true;
 			}
 			if (m.set != null) {
@@ -167,6 +169,7 @@ class Manifest {
 		var ctor:Dynamic = null;
 		if (c.ctor != null) {
 			ctor = t.of(c.ctor.type);
+			defaults(c.ctor, ctor);
 			keep.push(structs(c.ctor.type) ? {
 				var tp:TypePath = {pack: cls.pack, name: cls.module.split(".").pop(), sub: cls.module.split(".").pop() == cls.name ? null : cls.name};
 				var args = [for (_ in 0...arity(c.ctor.type)) macro cast(null : Dynamic)];
@@ -199,11 +202,25 @@ class Manifest {
 
 	// (a keep's naming of a function: as a value; one taking or returning a
 	// struct value (helder's math types), which cannot be one, called, its
-	// arguments nulls of Dynamic: never run)
-	static function named(e:Expr, f:ClassField):Expr {
+	// arguments nulls of Dynamic: never run; a member's on a receiver of its
+	// own and a struct result in a local of its own, each in a block of its
+	// own: hxmc lowers a struct result of a method on a receiver shared with
+	// another's as the other's struct)
+	static function named(e:Expr, f:ClassField, ?self:ComplexType, ?member:String):Expr {
 		if (!structs(f.type)) return macro keep.push($e);
 		var args = [for (_ in 0...arity(f.type)) macro cast(null : Dynamic)];
-		return macro $e($a{args});
+		var call = self == null ? macro $e($a{args}) : macro @:privateAccess receiver.$member($a{args});
+		var ret = switch Context.follow(f.type) {
+			case TFun(_, r) if (struct(r)): Context.toComplexType(r);
+			case _: null;
+		}
+		var body = ret == null ? call : macro var result:$ret = $call;
+		return self == null ? macro {
+			$body;
+		} : macro {
+			var receiver:$self = null;
+			$body;
+		};
 	}
 
 	static function arity(t:Type):Int
@@ -260,6 +277,49 @@ class Manifest {
 		var bare:Dynamic = Reflect.hasField(type, "null") ? Reflect.field(type, "null") : type;
 		if (text == null || !Reflect.hasField(bare, "bytes") || !~/^(Int8|Uint8|Uint8Clamped)Array$/.match(text)) return type;
 		return bare == type ? {bytes: text} : {"null": {bytes: text}};
+	}
+
+	// a method's optional arguments' defaults, constants, on its type's
+	// arguments (value: hxmc's call sites give them, not the callee)
+	static function defaults(f:ClassField, type:Dynamic) {
+		if (type == null || !f.kind.match(FMethod(_)) || !Reflect.hasField(type, "fn")) return;
+		var e = try f.expr() catch (_:Dynamic) null;
+		var args = switch e == null ? null : e.expr {
+			case TFunction(tf): tf.args;
+			case _: return;
+		}
+		var list:Array<Dynamic> = type.fn;
+		for (i in 0...args.length) {
+			if (i >= list.length || args[i].value == null) continue;
+			var v = value(args[i].value);
+			if (v != null) list[i].value = v;
+		}
+	}
+
+	static function value(e:TypedExpr):Dynamic {
+		while (e != null)
+			switch e.expr {
+				case TConst(TInt(i)): return i;
+				case TConst(TFloat(s)): return Std.parseFloat(s);
+				case TConst(TString(s)): return s;
+				case TConst(TBool(b)): return b;
+				case TUnop(OpNeg, false, x):
+					var v:Dynamic = value(x);
+					return Std.isOfType(v, Float) ? -v : null;
+				case TBinop(op, a, b):
+					var x:Dynamic = value(a), y:Dynamic = value(b);
+					if (!Std.isOfType(x, Float) || !Std.isOfType(y, Float)) return null;
+					return switch op {
+						case OpDiv: x / y;
+						case OpMult: x * y;
+						case OpAdd: x + y;
+						case OpSub: x - y;
+						case _: null;
+					}
+				case TCast(x, null) | TParenthesis(x) | TMeta(_, x): e = x;
+				case _: return null;
+			}
+		return null;
 	}
 
 	// an inline var's value (a number, a string, a Bool)

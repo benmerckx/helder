@@ -182,7 +182,7 @@ read-only or turned into an accessor (TSHX100 as well).
 
 A program calls helder's Haxe API through declarations: `helder/view`,
 `helder/ui`, `helder/web`, `helder/canvas`, `helder/async` (helder.async's tasks,
-each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story`, `helder/jobs`, `helder/asset` and `helder/test/runner` (`index.d.ts` beside the packages, exported
+each a promise: a Task<T> is a Promise<T>), `helder/dev`, `helder/story`, `helder/jobs`, `helder/asset`, `helder/scene/runtime` and `helder/test/runner` (`index.d.ts` beside the packages, exported
 by package.json), generated from the Haxe types (below). Each declares its
 classes, each the Haxe class `__haxe` names, its functions and components
 as `const f: typeof Class.f`, that class's static, and names the module's
@@ -226,6 +226,15 @@ name (not exported, never a value) has no function object, so what only
 the other branch calls is not reached and not linked (tests/typescript/platform:
 a Windows branch's kernel32 import absent from the Linux and WASI builds,
 in TypeScript and Haxe).
+
+`helder/scene` (src/helder/scene/index.ts, TypeScript over
+`helder/scene/runtime`, which re-exports it: a module's `export * from` a
+declaration file, whose names resolve to their declarations) is
+helder.scene: World, Node, Camera, Light, Material, MeshRenderer, Shapes,
+Model (helder/asset's `model(path)` loads one), Renderer, InputMap and
+Bindings, FixedStep, and what a scene is drawn with: helder.os's Window,
+App, Event and Surface (a headless one too), helder.gfx's Device, each of
+these by the members marked `@:typescript`.
 
 `helder/native` (src/helder/native/index.ts) calls C, Objective-C, COM and
 Java: `native.c`, `native.objc`, `native.com` and `native.jni` are
@@ -374,7 +383,19 @@ a struct result (written where the call says, its sret) or a struct field
 neither side sees the other change; a struct field written is copied in
 (tests/typescript/helder/math.ts, tests/view's MathProbe). The manifest's
 keep calls a function taking or returning one rather than naming it as a
-value, which hxmc refuses for struct values.
+value, which hxmc refuses for struct values (a method on a receiver of its
+own, a struct result into a local of its own, each in a block of its own:
+hxmc lowers the struct result of a method on a receiver shared with
+another's as the other's). An optional one (`?up:Vec3`, a Null<Vec3>) is
+given as its struct's box, or null.
+helder.scene's Node (a handle: an abstract over Int) is helder/scene's
+class Node (src/helder/scene/index.ts, the program's), an object of the
+handle (`id`), made where helder gives a node and read where it takes one
+(`Haxe.nodeToJs`, `nodeToHaxe`); its members call `helder.scene.Script`'s
+functions, as Node's own are inline (tests/typescript/helder/scene.ts).
+An argument the program leaves out is its default where the Haxe function
+has a constant one (the manifest's `value`: hxmc's call sites give
+defaults, not the callee), else null, 0 or false.
 helder's objects pass as they are, opaque to the program. A signal's call
 is chosen by its static type: `count()` its node read, `count(v)` written,
 `count(c => c + 1)` (an argument of a function type) updated;
@@ -516,7 +537,9 @@ attributes that read bound, a Read prop, a getter), `static.tsx` (helder.web's
 static renderer, an island), `ui.tsx` (helder.ui headless, `env()`), `async.ts`
 (async functions on the graph: an async memo, a run cancelled, writes after
 an await), `bytes.ts` (Bytes as typed arrays: ImageData, a PNG), `math.ts`
-(helder's math types as helder/gfx's classes, by value).
+(helder's math types as helder/gfx's classes, by value), `scene.ts`
+(helder/scene without a GPU: nodes, a camera, a light, a material and its
+constructor's defaults, a fixed step).
 
 The lane needs node 24 or later.
 

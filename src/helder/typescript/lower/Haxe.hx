@@ -80,7 +80,20 @@ class Haxe {
 		return b.temp(ECall(fi, Vector.fromArrayCopy(xs)));
 	}
 
-	// (an argument not given: null, 0, false)
+	// (an argument not given: its default (an optional one's constant, as
+	// hxmc's call sites give it), else null, 0, false)
+	function missing(a:Null<HArg>, t:Ty):Ex {
+		var v:Dynamic = a == null ? null : a.value;
+		if (v == null) return zero(t);
+		return switch t {
+			case TI32: EInt(Std.int(v));
+			case TF64: EF64(v);
+			case TBool: ECast(TBool, EInt(v == true ? 1 : 0));
+			case TRef(RStr): EStr(v);
+			case _: b.coerce(Std.isOfType(v, String) ? EStr(v) : Std.isOfType(v, Bool) ? ECast(TBool, EInt(v ? 1 : 0)) : Std.isOfType(v, Int) ? EInt(v) : EF64(v), t);
+		}
+	}
+
 	public static function zero(t:Ty):Ex return switch t {
 		case TI32 | TU8: EInt(0);
 		case TBool: ECast(TBool, EInt(0));
@@ -123,13 +136,32 @@ class Haxe {
 				from == TBool ? e : call(interop("bool"), [any(e), EStr(where)]);
 			case HString:
 				from.match(TRef(RStr)) ? e : call(interop("string"), [any(e), EStr(where)]);
-			case HNull(x) if (x.match(HInt | HFloat | HBool)):
+			case HNull(x) if (x.match(HInt | HFloat | HBool) || isNode(x)):
 				// (a scalar or null, boxed)
 				var v = b.temp(any(e));
 				var l = b.local("nullable", to);
 				b.out.push(SIf(nullish(v), b.block(() -> b.out.push(SSet(l, ENull(to)))), b.block(() -> {
 					var s = toHaxe(v, x, ty(x), where);
 					b.out.push(SSet(l, b.coerce(b.temp(EBox(Ir.typeOf(s), s)), to)));
+				})));
+				ELocal(l);
+			case HAbstract(path, _, _, _) if (path == NODE):
+				nodeToHaxe(e, where);
+			case HNull(x) if (mathOf(x) != null && to.match(TRef(RObj(_)))):
+				// (an optional math value: its struct's box, or null)
+				var box = switch to {
+					case TRef(RObj(ci)): ci;
+					case _: throw "unreachable";
+				}
+				var v = b.temp(any(e));
+				var l = b.local("nullable", to);
+				b.out.push(SIf(nullish(v), b.block(() -> b.out.push(SSet(l, ENull(to)))), b.block(() -> {
+					var values = mathValues(v, mathOf(x), where);
+					var o = b.temp(ENewObj(box));
+					var at = b.temp(EFieldAddr(box, 0, o));
+					for (k in 0...values.length)
+						b.out.push(SExpr(ECallHost("hxmc_unsafe_Mem_setF64", Vector.fromArrayCopy([at, EInt(8 * k), values[k]]), TVoid)));
+					b.out.push(SSet(l, o));
 				})));
 				ELocal(l);
 			case HAbstract(path, _, _, _) if (MATH.exists(path) && to.match(TStruct(_))):
@@ -244,6 +276,7 @@ class Haxe {
 		return switch [from, HTypes.bare(t)] {
 			case [TVoid, _]: b.runtime("getUndefined", []);
 			case [TStruct(_), _] if (mathOf(t) != null): mathToJs(e, mathOf(t));
+			case [TI32, _] if (isNode(t)): nodeToJs(e);
 			case [TI32, _]: EConv(I2F, e);
 			case [TF64 | TBool, _]: e;
 			case [TRef(RStr), _]: e;
@@ -298,6 +331,15 @@ class Haxe {
 
 	// a value of helder/gfx's class as Haxe's struct (its components copied into a slot of this frame)
 	function mathToHaxe(e:Ex, name:String, where:String):Ex {
+		var values = mathValues(e, name, where);
+		var slot = b.temp(ECallHost("hxmc_unsafe_Mem_structSlot", Vector.fromArrayCopy([EInt(8 * values.length), EInt(8)]), TI64));
+		for (k in 0...values.length)
+			b.out.push(SExpr(ECallHost("hxmc_unsafe_Mem_setF64", Vector.fromArrayCopy([slot, EInt(8 * k), values[k]]), TVoid)));
+		return slot;
+	}
+
+	// a value of helder/gfx's class's components, in the struct's order (checked an instance)
+	function mathValues(e:Ex, name:String, where:String):Array<Ex> {
 		var c = mathClass(name);
 		if (c == null) throw where + ": TSHX001: a " + name + " of helder/gfx is needed here: import helder/gfx";
 		var o = b.temp(f.reps.store(b, e, TRef(RObj(c.info)), where));
@@ -310,10 +352,7 @@ class Haxe {
 			}
 		} else
 			for (k in COMPONENTS.get(name)) values.push(b.temp(f.reps.fieldGet(b, c, o, k, where)));
-		var slot = b.temp(ECallHost("hxmc_unsafe_Mem_structSlot", Vector.fromArrayCopy([EInt(8 * values.length), EInt(8)]), TI64));
-		for (k in 0...values.length)
-			b.out.push(SExpr(ECallHost("hxmc_unsafe_Mem_setF64", Vector.fromArrayCopy([slot, EInt(8 * k), values[k]]), TVoid)));
-		return slot;
+		return values;
 	}
 
 	// a Haxe struct value (its address) as a new instance of helder/gfx's class
@@ -336,6 +375,48 @@ class Haxe {
 		if (name != "Mat4") return make(c, values);
 		var v4 = mathClass("Vec4");
 		return make(c, [for (col in 0...4) make(v4, values.slice(4 * col, 4 * col + 4))]);
+	}
+
+	// ---- helder.scene's Node: a handle (an abstract over Int), helder/scene's class
+
+	// helder.scene.Node as helder/scene's Node (src/helder/scene/index.ts, the
+	// program's: an object of its id, the handle), both ways by its id
+	// (Declarations names it so); Node.NONE is a Node of id 0
+	public static inline var NODE = "helder.scene.Node";
+
+	static function isNode(t:HType):Bool
+		return switch t {
+			case HNull(x): isNode(x);
+			case HAbstract(path, _, _, _): path == NODE;
+			case _: false;
+		}
+
+	// (helder/scene's class Node, the program's)
+	function nodeClass():Null<helder.typescript.lower.Classes.ClassLayout> {
+		for (c in f.classes.all)
+			if (c.name == "Node" && StringTools.endsWith(StringTools.replace(c.node.file.path, "\\", "/"), "helder/scene/index.ts")) return c;
+		return null;
+	}
+
+	// a Node of helder/scene's as its handle (checked an instance: TSHX100 where it is not)
+	function nodeToHaxe(e:Ex, where:String):Ex {
+		var c = nodeClass();
+		if (c == null) throw where + ": TSHX001: a Node of helder/scene is needed here: import helder/scene";
+		var o = b.temp(f.reps.store(b, e, TRef(RObj(c.info)), where));
+		var id = b.temp(b.coerce(f.reps.fieldGet(b, c, o, "id", where), TF64));
+		return b.temp(EConv(F2I, id));
+	}
+
+	// a handle as a new Node of helder/scene's
+	function nodeToJs(e:Ex):Ex {
+		var c = nodeClass();
+		if (c == null) throw "TSHX004: helder/scene's Node is not in the program (import helder/scene)";
+		var id = b.temp(EConv(I2F, e));
+		var o = b.temp(f.reps.allocate(b, c, EGlobal(c.prototype, TRef(RAny))));
+		var base = f.reps.objectBase;
+		b.out.push(SSetField(base, base.fieldIndex("layout"), ECast(TRef(RObj(base)), o), ECast(f.reps.layoutType, EGlobal(c.layout, TRef(RAny)))));
+		b.out.push(SSetField(c.info, f.reps.slot(c, "id"), o, b.coerce(id, c.info.fields[f.reps.slot(c, "id")].ty)));
+		return o;
 	}
 
 	// ---- calls
@@ -369,7 +450,7 @@ class Haxe {
 			var to = fi.args[i].ty;
 			var a = k < args.length ? args[k] : null;
 			var h = k < params.length ? params[k].t : HDynamic;
-			xs.push(a == null ? zero(to) : b.coerce(converted ? a : toHaxe(a, h, to, where), to));
+			xs.push(a == null ? missing(k < params.length ? params[k] : null, to) : b.coerce(converted ? a : toHaxe(a, h, to, where), to));
 		}
 		if (fi.sret) xs[xs.length - 1] = resultSlot(fi);
 		var call:Ex = self != null && fi.selfClass != null && dispatched(fi) ? ECallDispatch(fi.dispatchSel, p.selectors[fi.dispatchSel].sig, Vector.fromArrayCopy(xs)) : ECall(fi,
@@ -407,7 +488,7 @@ class Haxe {
 		for (i in 1...fi.args.length) {
 			var a = i - 1 < args.length ? args[i - 1] : null;
 			var h = i - 1 < params.length ? params[i - 1].t : HDynamic;
-			xs.push(a == null ? zero(fi.args[i].ty) : b.coerce(toHaxe(a, h, fi.args[i].ty, where), fi.args[i].ty));
+			xs.push(a == null ? missing(i - 1 < params.length ? params[i - 1] : null, fi.args[i].ty) : b.coerce(toHaxe(a, h, fi.args[i].ty, where), fi.args[i].ty));
 		}
 		b.out.push(SExpr(ECall(fi, Vector.fromArrayCopy(xs))));
 		return call(interop("toJs"), [any(o)]);

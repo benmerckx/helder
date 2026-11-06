@@ -31,7 +31,8 @@ enum HType {
 	HBytes(kind:String);
 }
 
-typedef HArg = {name:String, opt:Bool, t:HType};
+// (value: an optional argument's default, a constant the callee does not apply: hxmc's call sites do)
+typedef HArg = {name:String, opt:Bool, t:HType, ?value:Dynamic};
 
 class HTypes {
 	public static function of(d:Dynamic):HType {
@@ -59,7 +60,7 @@ class HTypes {
 	}
 
 	static function args(list:Array<Dynamic>):Array<HArg>
-		return [for (a in list) {name: a.name, opt: a.opt == true, t: of(a.t)}];
+		return [for (a in list) {name: a.name, opt: a.opt == true, t: of(a.t), value: a.value}];
 
 	// through Null and abstracts (but Read, ViewOf): what values look like
 	public static function bare(t:HType):HType
@@ -252,17 +253,30 @@ class Api {
 
 	public function new(project:Project) {
 		for (sf in project.declarations) index(sf);
+		// (a module of the program re-exporting a declaration file's, `export *
+		// from` it: helder/scene's of helder/scene/runtime)
+		var reexports = new Map<String, Array<String>>();
+		for (sf in project.files) for (n in sf.root.statements())
+			if (n.kind == KindExportDeclaration && n.exportClause() == null && n.moduleSpecifier() != null) {
+				var target = project.resolve(n.moduleSpecifier());
+				if (target == null || !exports.exists(target)) continue;
+				if (!reexports.exists(sf.path)) reexports.set(sf.path, []);
+				reexports.get(sf.path).push(target);
+			}
 		// (the program's imports of them)
 		for (sf in project.files) for (n in sf.root.statements()) if (n.kind == KindImportDeclaration) {
 			var target = project.resolve(n.moduleSpecifier());
 			var clause = n.importClause();
 			if (target == null || clause == null || clause.namedBindings() == null || clause.namedBindings().kind != KindNamedImports) continue;
 			var from = project.declarations.find(d -> d.path == target);
-			if (from == null) continue;
+			var sources = from != null ? [from.path] : reexports.get(target);
+			if (sources == null) continue;
 			for (spec in clause.namedBindings().elements()) {
 				var exported = (spec.propertyName() ?? spec.name()).text;
-				var f = exports.exists(from.path) ? exports.get(from.path).get(exported) : null;
-				if (f != null && spec.name().symbol != null) bySymbol.set(spec.name().symbol, f);
+				for (path in sources) {
+					var f = exports.get(path).get(exported);
+					if (f != null && spec.name().symbol != null) bySymbol.set(spec.name().symbol, f);
+				}
 			}
 		}
 		linkImports(project);

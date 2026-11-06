@@ -46,6 +46,12 @@
     "./story": {
       "types": "./src/helder/story/index.d.ts"
     },
+    "./scene": {
+      "types": "./src/helder/scene/index.ts"
+    },
+    "./scene/runtime": {
+      "types": "./src/helder/scene/runtime.d.ts"
+    },
     "./native": {
       "types": "./src/helder/native/index.ts"
     },

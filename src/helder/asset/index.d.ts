@@ -8,8 +8,9 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
+import type {Model} from "helder/scene/runtime";
 
-declare const __haxe: {Asset: "helder.asset.Asset", Image: "helder.image.Image", FontFile: "helder.text.FontFile", Model: "helder.scene.render.Model", ScriptAssets: "helder.asset.ScriptAssets", __module: "helder.asset.TypeScript"};
+declare const __haxe: {Asset: "helder.asset.Asset", Image: "helder.image.Image", FontFile: "helder.text.FontFile", ScriptAssets: "helder.asset.ScriptAssets", __module: "helder.asset.TypeScript"};
 
 // A file of the program, by its path (AssetPath): an image, a font, a model,
 // a sound or bytes. The path is checked when compiling (the file there, in
@@ -78,34 +79,6 @@ export declare class Image {
 // the next (outline: nothing allocated but a variable instance's deltas).
 export declare class FontFile {
 	private readonly fontFile: never;
-}
-
-// A glTF model referenced where it is used: Model.of("models/hero.glb") is
-// a macro that checks the file exists (an asset's path: helder.asset's
-// AssetPath), reads its structure when compiling and types the result from
-// it: model.nodes, model.meshes, model.materials and model.animations have
-// a field per name in the file (its value the name, for World.find; a name
-// that is no identifier made one: "Left Hand" is Left_Hand), so a typo is a
-// compile error. The file goes with the build as every asset does
-// (helder.asset's Bundle: the executable's data, the APK's or the app's
-// assets/, beside the page), and Model.of reads it before anything runs
-// (on the web os's browser.mjs fetches it before main):
-//
-//   var hero = Model.of("models/hero.glb");
-//   var root = hero.instantiate(world, device);
-//   var hand = root.find(hero.nodes.LeftHand);
-//
-// helder.asset's Asset.model(path) (or Model.of(path, Lazy)) is an Asset
-// of the model instead, loaded in the background (big games, loading
-// screens: `var hero = Asset.model(path).load();` in a coroutine), its
-// names typed the same, reloaded under helder dev (its meshes and
-// materials swapped in the instances: replace); Model.load(path) loads a
-// path known only at run time (an Asset, names unknown, not bundled).
-//
-// Its GPU meshes are made by the first instantiate with a device and
-// shared by every instance.
-export declare class Model<N, M, A, C> {
-	private readonly model: never;
 }
 
 // helder.asset for TypeScript programs (helder/asset): image(path), font,

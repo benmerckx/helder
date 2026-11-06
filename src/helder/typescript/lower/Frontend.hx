@@ -69,8 +69,10 @@ class Frontend extends ApiCalls {
 			}
 			order.push(m);
 		}
-		// (helder/gfx first where it is in the program: helder's API gives and takes its math types, Haxe.mathToJs)
-		for (f in src.files) if (StringTools.endsWith(StringTools.replace(f.path, "\\", "/"), "helder/gfx/index.ts")) visit(moduleOf.get(f.path));
+		// (helder/gfx first where it is in the program: helder's API gives and takes its math types, Haxe.mathToJs;
+		// then helder/scene: its Node, Haxe.nodeToJs)
+		for (first in ["helder/gfx/index.ts", "helder/scene/index.ts"])
+			for (f in src.files) if (StringTools.endsWith(StringTools.replace(f.path, "\\", "/"), first)) visit(moduleOf.get(f.path));
 		visit(moduleOf.get(src.file.path));
 		return order;
 	}
@@ -283,7 +285,9 @@ class Frontend extends ApiCalls {
 				}
 			case KindExportDeclaration:
 				var decl = n;
-				if (decl.isTypeOnly()) continue;
+				// (a declared module's re-exported, helder/scene's of helder/scene/runtime: its
+				// names resolve to their declarations, which the API calls)
+				if (decl.isTypeOnly() || decl.moduleSpecifier() != null && declared(decl.moduleSpecifier())) continue;
 				var target = decl.moduleSpecifier() == null ? null : targetModule(decl.moduleSpecifier());
 				var clause = decl.exportClause();
 				if (clause == null) {

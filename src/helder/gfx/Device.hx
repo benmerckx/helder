@@ -34,7 +34,7 @@ final class Device {
 	// headless surfaces stay single-sampled, readPixels reads the frame
 	// resolved; render targets are multisampled by their own samples
 	// (TextureDesc.samples, resolved through ColorTarget.resolve)
-	public static function create(surface:Surface, ?options:{?antialias:Bool}):Device
+	@:typescript public static function create(surface:Surface, ?options:{?antialias:Bool}):Device
 		return new Device(surface, options != null && options.antialias == true);
 
 	public function createBuffer(d:BufferDesc):Buffer
@@ -148,22 +148,22 @@ final class Device {
 
 	// the frame's encoder (the same object each frame); null: no frame now
 	// (a hidden window: Metal has no drawable for it), skip it
-	public function beginFrame():Null<Encoder>
+	@:typescript public function beginFrame():Null<Encoder>
 		return impl.beginFrame() ? encoder : null;
 
 	// submits the frame and presents it
-	public function endFrame()
+	@:typescript public function endFrame()
 		impl.endFrame();
 
 	// the frame's colour target as RGBA8, rows top to bottom (width * height
 	// * 4 bytes into dst), after the passes and before endFrame; waits for
 	// the GPU (tests and screenshots)
-	public function readPixels(dst:haxe.io.Bytes)
+	@:typescript public function readPixels(dst:haxe.io.Bytes)
 		impl.readPixels(dst);
 
 	// the size of the colour target in pixels
-	public var width(get, never):Int;
-	public var height(get, never):Int;
+	@:typescript public var width(get, never):Int;
+	@:typescript public var height(get, never):Int;
 
 	inline function get_width()
 		return impl.width;
@@ -171,6 +171,6 @@ final class Device {
 	inline function get_height()
 		return impl.height;
 
-	public function dispose()
+	@:typescript public function dispose()
 		impl.dispose();
 }

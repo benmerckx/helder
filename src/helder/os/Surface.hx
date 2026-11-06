@@ -34,8 +34,8 @@ class Surface {
 	// Resume renders to the new handle)
 	public var lost:Null<Void->Void> = null;
 	// the size in pixels
-	public var width(default, null):Int;
-	public var height(default, null):Int;
+	@:typescript public var width(default, null):Int;
+	@:typescript public var height(default, null):Int;
 
 	public function new(kind:SurfaceKind, display:Ptr, handle:Ptr, width:Int, height:Int) {
 		this.kind = kind;
@@ -45,7 +45,7 @@ class Surface {
 		this.height = height;
 	}
 
-	public static function headless(width:Int, height:Int):Surface
+	@:typescript public static function headless(width:Int, height:Int):Surface
 		return new Surface(Headless, Ptr.nil(), Ptr.nil(), width, height);
 
 	// a canvas of the page, by its element id (WebAssembly; a GPU view in

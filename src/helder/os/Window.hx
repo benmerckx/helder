@@ -20,16 +20,16 @@ import hxmc.unsafe.Mem;
 // same); on Linux with WAYLAND_DISPLAY set, Wayland's
 // (helder.os.wayland.WaylandWindow; X11 where it cannot connect, or HELDER_X11=1).
 class Window {
-	public final surface:Surface;
+	@:typescript public final surface:Surface;
 	// its title bar's text (the browser: the page's title)
-	public var title(default, set):String;
-	public var closed(default, null) = false;
+	@:typescript public var title(default, set):String;
+	@:typescript public var closed(default, null) = false;
 
 	// the native window, the target's (Mem.os() is known when compiling: the
 	// other's code is never reached, as long as no field or method has its type)
 	final native:Any;
 
-	public function new(title:String, width:Int, height:Int) {
+	@:typescript public function new(title:String, width:Int, height:Int) {
 		this.title = title;
 		native = Mem.platform() >= 1 ? new UIKitWindow(this, title, width, height) : Mem.os() == 1 ? new CocoaWindow(this, title, width, height) : Mem.os() == 2 ? new Win32Window(this, title, width,
 			height) : Mem.os() == 3 ? new CanvasWindow(this, title, width, height) : Mem.target() >= 9 ? new AndroidWindow(this, title, width,
@@ -40,8 +40,8 @@ class Window {
 	}
 
 	// the surface's size in pixels
-	public var width(get, never):Int;
-	public var height(get, never):Int;
+	@:typescript public var width(get, never):Int;
+	@:typescript public var height(get, never):Int;
 
 	inline function get_width()
 		return surface.width;
@@ -51,7 +51,7 @@ class Window {
 
 	// pixels per point (2 on a Retina display, the monitor's DPI / 96 on Windows,
 	// the browser's devicePixelRatio; 1 on X11; iOS: the screen's native scale)
-	public var scale(get, never):Float;
+	@:typescript public var scale(get, never):Float;
 
 	function get_scale():Float
 		return Mem.platform() >= 1 ? (cast native : UIKitWindow).scale : Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : Mem.target() >= 9 ? (cast native : AndroidWindow).scale : Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).scale() : 1;
@@ -232,7 +232,7 @@ class Window {
 			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).raise() : (cast native : X11Window).raise());
 	}
 
-	public function close() {
+	@:typescript public function close() {
 		if (closed) return;
 		closed = true;
 		if (Mem.platform() >= 1) (cast native : UIKitWindow).destroy() else if (Mem.os() == 1) (cast native : CocoaWindow).destroy() else if (Mem.os() == 2) (cast native : Win32Window).destroy() else if (Mem.os() == 3)

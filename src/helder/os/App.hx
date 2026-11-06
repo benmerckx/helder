@@ -156,7 +156,7 @@ class App {
 		return back();
 	}
 
-	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
+	@:typescript public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
 		// (helder.view.graph's writes land at the end of each event and frame)
 		var frame = onFrame, event = onEvent;

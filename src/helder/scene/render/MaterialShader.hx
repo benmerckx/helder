@@ -29,13 +29,13 @@ import helder.gfx.shader.SlotsMacro;
 // (params: the plain variant's writers, typed; the class is the material's
 // own, made beside its module).
 class MaterialShader {
-	public final plain:AnyShader;
-	public final normalMapped:AnyShader;
-	public final skinned:AnyShader;
-	public final instanced:AnyShader;
-	public final instancedNormalMapped:AnyShader;
+	@:typescript public final plain:AnyShader;
+	@:typescript public final normalMapped:AnyShader;
+	@:typescript public final skinned:AnyShader;
+	@:typescript public final instanced:AnyShader;
+	@:typescript public final instancedNormalMapped:AnyShader;
 	// the blocks of the material's own: its parameter's name, its slot, in each variant (in the order above)
-	public final blocks:Array<{name:String, bindings:Array<Int>}>;
+	@:typescript public final blocks:Array<{name:String, bindings:Array<Int>}>;
 
 	public function new(plain, normalMapped, skinned, instanced, instancedNormalMapped, blocks) {
 		this.plain = plain;

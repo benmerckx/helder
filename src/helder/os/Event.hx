@@ -72,21 +72,21 @@ class Mods {
 // One event, preallocated and refilled for each dispatch (App.run): copy
 // what must outlive the callback.
 class Event {
-	public var kind:EventKind = None;
-	public var window:Window;
+	@:typescript public var kind:EventKind = None;
+	@:typescript public var window:Window;
 	// KeyDown, KeyUp: the key (an X11 KeySym for now, also on macOS and
 	// Windows: Latin-1 keys are their unshifted character code, Escape 0xFF1B)
-	public var key = 0;
+	@:typescript public var key = 0;
 	// the pointer (Mouse*, Pointer*: rounded, from the top left) or the new size (Resize), in pixels
-	public var x = 0;
-	public var y = 0;
+	@:typescript public var x = 0;
+	@:typescript public var y = 0;
 	// MouseDown, MouseUp: 1 left, 2 middle, 3 right
-	public var button = 0;
+	@:typescript public var button = 0;
 	// Scroll: pixels toward the right and the bottom
-	public var deltaX = 0.0;
-	public var deltaY = 0.0;
+	@:typescript public var deltaX = 0.0;
+	@:typescript public var deltaY = 0.0;
 	// keys, mouse buttons and scrolls: the modifiers held (Mods: Shift, Control, Alt, Meta: the Windows or Command key)
-	public var mods = 0;
+	@:typescript public var mods = 0;
 	// TextInput: the characters; TextEditing: the composition
 	public var text = "";
 	// Pointer*: the pointer, already updated (its slot: copy what must

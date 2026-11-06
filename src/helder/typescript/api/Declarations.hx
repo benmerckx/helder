@@ -145,6 +145,14 @@ class Declarations {
 				if (names.indexOf(math) < 0) names.push(math);
 				return math;
 			}
+			// (helder.scene's Node, a handle: helder/scene's class, its id the
+			// handle: lower/Haxe.hx's NODE)
+			if (b.pack.concat([b.name]).join(".") == "helder.scene.Node") {
+				var names = imports.get("helder/scene");
+				if (names == null) imports.set("helder/scene", names = []);
+				if (names.indexOf("Node") < 0) names.push("Node");
+				return "Node";
+			}
 			var d = where.get(key(b));
 			if (d == null) {
 				var path = StringTools.endsWith(b.module, "." + b.name) || b.module == b.name ? b.module : b.module + "." + b.name;
@@ -175,6 +183,7 @@ class Declarations {
 			switch t {
 				case TAbstract(a, _): e.emitAbstract(a.get().name, a.get());
 				case TInst(c, _): e.emitOpaque(c.get().name, c.get());
+				case TEnum(en, _): e.emitOpaque(en.get().name, en.get());
 				case TType(d, _): e.emitTypedef(d.get().name, d.get());
 				case _:
 			}

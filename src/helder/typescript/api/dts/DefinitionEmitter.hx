@@ -202,7 +202,7 @@ class DefinitionEmitter {
 	}
 
 	// a class given as a type: opaque, made by helder only
-	public function emitOpaque(name:String, cl:ClassType) {
+	public function emitOpaque(name:String, cl:BaseType) {
 		comment(Docs.of(cl.pos));
 		line('export declare class ' + name + params(cl.params) + ' {');
 		line('\tprivate readonly ' + name.charAt(0).toLowerCase() + name.substr(1) + ': never;');
