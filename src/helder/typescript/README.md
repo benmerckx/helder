@@ -188,6 +188,17 @@ function of the lowering's own calls it there, by its number, through
 `helder.jobs.script.Entry`). `image(path)`, `font`, `model`, `sound` and `bytes` from `helder/asset`,
 and `import icon from "./icon.png" with {type: "image"}`, are Haxe's
 `Asset.*` (the file found and bundled when the build starts: `TsAssets`).
+`helder/platform` (src/helder/platform/index.ts) is the build's target as
+constants: `platform.os` (linux, macos, windows, wasi, android, ios),
+`platform.target` (hxmc's name) and `platform.arm` are literals where they
+are read, and so is a condition of them (`===`, `!==`, `!`, `&&`, `||`):
+an `if` or a `?:` on one lowers only the branch it takes (`lower/Platform.hx`),
+as hxmc folds Haxe's `Mem.os()`. A function the program only calls by its
+name (not exported, never a value) has no function object, so what only
+the other branch calls is not reached and not linked (tests/typescript/platform:
+a Windows branch's kernel32 import absent from the Linux and WASI builds,
+in TypeScript and Haxe).
+
 `helder/test` (src/helder/test/index.ts, TypeScript over
 `helder/test/runner`) is helder.test for `*.test.ts(x)`: its assertions'
 calls are given their file and line as their last argument, as Haxe's

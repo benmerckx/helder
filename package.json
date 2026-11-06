@@ -40,6 +40,9 @@
     "./story": {
       "types": "./src/helder/story/index.d.ts"
     },
+    "./platform": {
+      "types": "./src/helder/platform/index.ts"
+    },
     "./test": {
       "types": "./src/helder/test/index.ts"
     },

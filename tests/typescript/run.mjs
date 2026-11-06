@@ -96,6 +96,7 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
 // Haxe types make them (helder.typescript.api.Declarations)
 ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check']),'helder\'s declarations');
 ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check','--cp','tests/view','--cp','tests/ui','TestTypeScript','UiTypeScript']),'the tests\' declarations');
+ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check','--cp',`${T}/platform`,'PlatformTypeScript']),'platform/win32.d.ts');
 console.log('PASS declarations');
 // Programs calling helder's Haxe API (and TSX), rendering headless with
 // tests/view's TestRenderer: their output checked against <name>.out
@@ -105,6 +106,38 @@ for(const file of fs.readdirSync(`${T}/helder`).filter(f=>/\.tsx?$/.test(f)&&!f.
     const r=target==='linux-x86_64'?run(out,[]):run(process.execPath,[`${T}/run-wasi.cjs`,out]);ok(r,`${file} ${target}`);
     assert.equal(r.stdout,fs.readFileSync(`${T}/helder/${stem}.out`,'utf8'),`${file} stdout ${target}`);
     console.log(`PASS helder ${file} ${target}`);
+}
+// helder/platform's constants folded as Haxe's Mem.os() is: platform/main.ts
+// and Main.hx built for Linux (glibc's dynamic mode, where a C function of a
+// shared library is an import) and wasm32-wasi, their Windows branch
+// (kernel32's GetTickCount64) not in the binary; the same TS with a condition
+// that is no constant names it (the check's control)
+{
+    const P=`${T}/platform`,has=(f,s)=>fs.readFileSync(f).includes(Buffer.from(s));
+    for(const target of targets) {
+        const glibc=target==='linux-x86_64'?['-D','hxmc.libc=glibc']:[];
+        const ts=`${dir}/platform-ts${target!=='linux-x86_64'?'.wasm':''}`,hx=`${dir}/platform-hx${target!=='linux-x86_64'?'.wasm':''}`;
+        ok(run(compiler,[`${P}/main.ts`,'--cp',P,'--target',target,...glibc,'-o',ts]),`platform/main.ts compile ${target}`);
+        ok(run(compiler,['-cp',P,'-main','Main','-D',`hxmc.target=${target}`,...glibc,'--custom-target',`hxmc=${hx}`]),`platform/Main.hx compile ${target}`);
+        const os=target==='linux-x86_64'?'linux':'wasi';
+        const exec=f=>target==='linux-x86_64'?run(f,[]):run(process.execPath,[`${T}/run-wasi.cjs`,f]);
+        const a=exec(ts);ok(a,`platform/main.ts ${target}`);
+        assert.equal(a.stdout,`not windows: ${os} ${target}\n${os==='wasi'?'no x86-64 code':'x86-64'}\na Linux or a WASI build\n`,`platform/main.ts stdout ${target}`);
+        const h=exec(hx);ok(h,`platform/Main.hx ${target}`);
+        assert.equal(h.stdout,`not windows: ${os}\n`,`platform/Main.hx stdout ${target}`);
+        for(const f of [ts,hx]) assert.ok(!has(f,'GetTickCount64')&&!has(f,'kernel32'),`${f}: a Windows branch linked for ${target}`);
+        console.log(`PASS platform ${target} (main.ts ${Math.round(fs.statSync(ts).size/1024)} KB, Main.hx ${Math.round(fs.statSync(hx).size/1024)} KB: no GetTickCount64)`);
+    }
+    if(process.platform==='linux') {
+        const src=fs.readFileSync(`${P}/main.ts`,'utf8').replace('if (platform.os === "windows")','if (Math.random() > 2)');
+        fs.writeFileSync(`${P}/control.ts`,src);
+        try {
+            const c=`${dir}/platform-control`;
+            ok(run(compiler,[`${P}/control.ts`,'--cp',P,'-D','hxmc.libc=glibc','-o',c]),'platform/control.ts compile');
+            assert.ok(has(c,'GetTickCount64'),'the control names GetTickCount64');
+        } finally {fs.rmSync(`${P}/control.ts`);}
+        console.log('PASS platform control (a condition that is no constant: GetTickCount64 linked)');
+    }
 }
 // Programs whose values their types do not describe: compiled, then stopped
 // where such a value enters a typed slot (TSHX100, at the line of expect)

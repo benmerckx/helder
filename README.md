@@ -378,7 +378,7 @@ Still to come:
       src/helder/test/README.md);
     - `platform.os` / `platform.target` constants folded as `Mem.target()`
       is, so a platform's branch and what only it links drop elsewhere
-      (Haxe's `#if`);
+      (Haxe's `#if`) (done: helder/platform; tests/typescript/platform);
     - operators on the math types (`a * b` on Vec and Mat) lowered by the
       frontend, typed so tsgo accepts them;
     - native interop as definitions (`native.c({lib, fns})`, `native.com`,

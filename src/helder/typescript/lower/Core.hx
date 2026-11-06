@@ -81,6 +81,8 @@ abstract class Core {
 
 	// definitions' calls (helder/gfx's shader): their handlers' output
 	final definitions:Definitions;
+	// helder/platform's constants (the build's target)
+	final platform:Platform;
 	// (job(f)'s: each job's function on the worker, by its number)
 	var jobs:Array<FuncInfo> = [];
 
@@ -90,6 +92,7 @@ abstract class Core {
 		this.api = api;
 		this.dev = dev;
 		definitions = new Definitions(src, defined ?? (_ -> null));
+		platform = new Platform(defined ?? (_ -> null));
 	}
 
 	public function coverage():Dynamic return {expressions: expressions, typedSites: typed, dynamicSites: dynamicSites, unsupported: 0, typedOperations: typedOperations, dynamicOperations: dynamicOperations};

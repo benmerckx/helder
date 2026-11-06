@@ -123,7 +123,12 @@ class Frontend extends ApiCalls {
 		// (function objects first: direct functions' values, then the others; then namespace objects)
 		for (m in modules) {
 			enter(m);
-			for (name in functions.keys()) set(functionValues.get(name), functionValue(functions.get(name), name));
+			// (a function only ever called by name, not exported, has no value: what
+			// only it calls is reached only from its calls, so a branch helder/platform
+			// leaves out leaves it out)
+			var values = valueNames(m.file);
+			for (name in functions.keys())
+				if (values.exists(name) || hasModifier(nodes.get(name), KindExportKeyword)) set(functionValues.get(name), functionValue(functions.get(name), name));
 			for (n in m.others) set(n.name() != null ? env.get(n.name().text) : m.exports.get("default"), closure(n, n.name() == null ? "default" : null));
 		}
 		for (m in modules) if (m.namespace != null) {
@@ -218,6 +223,22 @@ class Frontend extends ApiCalls {
 				case _:
 			}
 		}
+	}
+
+	// the names a file reads as values: each identifier but a call's callee
+	// (without a spread or ?.) and a function declaration's own name
+	static function valueNames(file:SourceFile):Map<String, Bool> {
+		var out = new Map<String, Bool>();
+		for (i in 1...file.count) {
+			var n = file.node(i);
+			if (n.kind != KindIdentifier) continue;
+			var p = n.parent;
+			if (p != null && p.kind == KindCallExpression && p.expression() == n && p.questionDotToken() == null
+				&& !Lambda.exists(p.arguments() ?? [], a -> a.kind == KindSpreadElement)) continue;
+			if (p != null && p.kind == KindFunctionDeclaration && p.name() == n) continue;
+			out.set(n.text, true);
+		}
+		return out;
 	}
 
 	// Binds imports and records re-exports whose targets are known; true when something new was bound.

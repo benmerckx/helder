@@ -21,6 +21,10 @@ abstract class Expressions extends Statements {
 		expressions++;
 		var x = api == null ? null : apiExpr(n);
 		if (x != null) return x;
+		// (helder/platform's constants, and conditions of them: a literal)
+		var k:Dynamic = n.kind == KindPropertyAccessExpression || n.kind == KindBinaryExpression || n.kind == KindPrefixUnaryExpression ? platform.constant(n) : null;
+		if (k != null) return Std.isOfType(k, Bool) ? ECast(TBool, EInt(k ? 1 : 0)) : EStr(k);
+		if (Platform.bare(n)) fail(n, "helder/platform's platform is the build's constants: read its fields (platform.os, platform.target, platform.arm)");
 		var result:Ex = switch (n.kind) {
 			case KindPropertyAccessExpression | KindElementAccessExpression | KindCallExpression if (chainTop(n)): optionalChain(n);
 			case KindNumericLiteral: EF64(Std.parseFloat(n.text));
@@ -172,6 +176,9 @@ abstract class Expressions extends Statements {
 					b.runtime("libDelete", [any(obj), any(expr(target.argumentExpression()))]);
 				}
 				else fail(n, "delete requires a property");
+			case KindConditionalExpression if (platform.constant(n.condition()) != null):
+				// (a platform's constant: only the branch taken)
+				expr(Platform.truthy(platform.constant(n.condition())) ? n.whenTrue() : n.whenFalse());
 			case KindConditionalExpression:
 				var c = n;
 				var cond = truth(expr(c.condition()));
