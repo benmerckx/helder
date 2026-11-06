@@ -86,7 +86,7 @@ class Decode {
 				errorKind: ""
 			};
 		} catch (e:helder.pdf.PdfError) {
-			var d = failed(Std.string(e.kind), "PDF: " + e.message, size, "PDF");
+			var d = failedPdf(e, size);
 			d.page = page;
 			// (the others may be fine: their count, when the document opened)
 			d.pages = path == null ? 0 : Std.int(Math.max(0, PdfPages.pagesOf(path)));
@@ -162,6 +162,7 @@ class Decode {
 
 	public static function decode(bytes:Bytes, side = 0):Decoded {
 		var format = formatOf(bytes);
+		if (bytes.length == 0) return failed("corrupt", "The file is empty", 0, "");
 		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP, PDF" + (helder.os.SystemImages.available() ? "; the system's: TIFF, HEIC, AVIF, RAW" : "") + ")", bytes.length, "");
 		try {
 			var frames:Array<{rgba:Bytes, delay:Float}>, w:Int, h:Int, reps = 0;
@@ -248,9 +249,18 @@ class Decode {
 		} catch (e:ImageError) {
 			return failedBy(e, bytes.length, format);
 		} catch (e:helder.pdf.PdfError) {
-			return failed(Std.string(e.kind), "PDF: " + e.message, bytes.length, format);
+			return failedPdf(e, bytes.length);
 		}
 	}
+
+	// (a PdfError said as an ImageError is: what is wrong first, helder.pdf's reason after)
+	static function failedPdf(e:helder.pdf.PdfError, size:Int):Decoded
+		return switch e.kind {
+			case Encrypted: failed("encrypted", "This PDF is protected by a password", size, "PDF");
+			case TooLarge: failed("too large", "Too large to open: " + e.message, size, "PDF");
+			case Unsupported: failed("unsupported", "Not supported: " + e.message, size, "PDF");
+			case _: failed("corrupt", "A damaged PDF: " + e.message, size, "PDF");
+		}
 
 	static function failedBy(e:ImageError, size:Int, format:String):Decoded
 		return failed(Std.string(e.kind), switch e.kind {

@@ -59,6 +59,10 @@ class Shell implements Markup {
 		inline function arg(name:String):Null<String>
 			return args.indexOf(name) >= 0 ? args[args.indexOf(name) + 1] : null;
 		var exitAfter = arg("--exit-after") != null ? Std.parseFloat(arg("--exit-after")) : -1.0, report = arg("--report");
+		if (args.contains("--version")) {
+			Sys.println("Viewer " + Version.NAME);
+			return;
+		}
 		var path = [for (i in 0...args.length) if (!StringTools.startsWith(args[i], "-") && (i == 0 || !valued.contains(args[i - 1]))) args[i]][0];
 		// (--register: the file types registered for this user, "Open with"; then done)
 		if (args.contains("--register")) {
@@ -105,14 +109,22 @@ class Shell implements Markup {
 			ref={w -> {
 				window = w;
 				w.window.setMinSize(320, 240);
-				if (store != null && store.exists("x") && store.exists("y")) w.window.moveTo(num("x", 0), num("y", 0));
+				var placed = store != null && store.exists("x") && store.exists("y");
+				if (placed) w.window.moveTo(num("x", 0), num("y", 0));
+				asked = {x: placed ? num("x", 0) : null, y: placed ? num("y", 0) : null, width: num("width", 1100), height: num("height", 760)};
 				attach(w.ui.root, viewer);
 				effect(() -> viewer.fullscreen(), on -> w.window.fullscreen = on);
+				// (the window's size and place kept as they change, not only at its close: macOS's Quit, a crash, a logout)
+				Async.launch(_ -> while (!w.window.closed) {
+					Async.delay(1);
+					if (!w.window.closed) save(store, w, viewer);
+				});
 				if (exitAfter >= 0) Async.launch(_ -> {
 					Async.delay(exitAfter);
 					var line = 'viewer: ${viewer.title.peek()} (${viewer.state.peek()}${viewer.message.peek() == "" ? "" : ": " + viewer.message.peek()}, ${viewer.camera.percent()}%, ${w.window.width}x${w.window.height})';
 					Sys.println(line);
 					if (report != null) try sys.io.File.saveContent(report, line + "\n") catch (_:Dynamic) {}
+					save(store, w, viewer);
 					if (!args.contains("--new")) Instance.leave();
 					w.close();
 				});
@@ -147,18 +159,32 @@ class Shell implements Markup {
 	static function jobDecode(path:String, side:Int, done:Decoded->Void)
 		Async.launch(_ -> done(Decode.job(path, side)));
 
+	// (what the window was made with, and what it then measured: a menu bar
+	// in the window (Windows'), a frame the place counts or not; kept the
+	// same at the next start, so that size and place do not creep run by run)
+	static var asked:Null<{x:Null<Int>, y:Null<Int>, width:Int, height:Int}> = null;
+	static var offset:Null<{x:Int, y:Int, width:Int, height:Int}> = null;
+
 	static function save(store:Null<helder.os.Store>, w:Null<UiWindow>, viewer:Viewer) {
 		if (store == null || w == null) return;
 		store.set("status", viewer.statusOn.peek() ? "1" : "0");
 		if (viewer.fullscreen.peek()) return;
 		var k = w.window.scale > 0 ? w.window.scale : 1;
 		var p = w.window.position();
+		var width = Math.round(w.window.width / k), height = Math.round(w.window.height / k);
+		if (offset == null && asked != null) offset = {
+			x: p == null || asked.x == null ? 0 : p.x - asked.x,
+			y: p == null || asked.y == null ? 0 : p.y - asked.y,
+			width: width - asked.width,
+			height: height - asked.height
+		};
+		var o = offset ?? {x: 0, y: 0, width: 0, height: 0};
 		if (p != null) {
-			store.set("x", Std.string(p.x));
-			store.set("y", Std.string(p.y));
+			store.set("x", Std.string(p.x - o.x));
+			store.set("y", Std.string(p.y - o.y));
 		}
-		store.set("width", Std.string(Math.round(w.window.width / k)));
-		store.set("height", Std.string(Math.round(w.window.height / k)));
+		store.set("width", Std.string(width - o.width));
+		store.set("height", Std.string(height - o.height));
 	}
 
 	// the viewer's actions on the root (its key context "Viewer", with
@@ -167,7 +193,7 @@ class Shell implements Markup {
 	public static function attach(root:Node, viewer:Viewer, watch = true) {
 		ViewerActions.defaults(helder.ui.actions.Keymap.global);
 		renderEffect(() -> "Viewer" + (viewer.pickerOpen() ? " picker" : "") + (viewer.fullscreen() ? " fullscreen" : "") + (viewer.pagesSignal() > 1 ? " pdf" : "")
-			+ (viewer.gotoOpen() ? " goto" : ""),
+			+ (viewer.gotoOpen() ? " goto" : "") + (viewer.aboutOpen() ? " about" : ""),
 			c -> root.keyContext = helder.ui.actions.KeyContext.parse(c));
 		root.on(ViewerAction, a -> switch a {
 			case CopyPath:
@@ -181,6 +207,13 @@ class Shell implements Markup {
 				true;
 			case _: viewer.perform(a);
 		}, viewer.actionState);
+		// (Help's About, macOS's application menu's: the about card)
+		root.on(helder.ui.actions.Actions.StandardAction, a -> switch a {
+			case About:
+				viewer.aboutOpen(true);
+				true;
+			case _: false;
+		}, a -> a == About ? Enabled : Unhandled);
 		if (watch) Async.launch(_ -> while (true) {
 			Async.delay(1);
 			viewer.watch();
@@ -234,9 +267,27 @@ class Shell implements Markup {
 				return more;
 			});
 		});
+		// (Loading… only once a decode takes a moment: no flash on the first frame, nor on a flip to one about to land)
+		var slow = signal(false), waitFrom = -1.0;
+		renderEffect(() -> viewer.state() == Loading, loading -> {
+			slow(false);
+			if (!loading || waitFrom >= 0) return;
+			waitFrom = 0;
+			Clock.add(t -> {
+				if (waitFrom == 0) waitFrom = t;
+				if (viewer.state.peek() != Loading) {
+					waitFrom = -1;
+					return false;
+				}
+				if (t - waitFrom < 0.25) return true;
+				waitFrom = -1;
+				slow(true);
+				return false;
+			});
+		});
 		return <view tag="viewer" grow={1} background="#161618" color="#e4e4e7" font-size={13}>
 			{image}
-			<Show when={viewer.state() != Shown}>
+			<Show when={viewer.state() != Shown && (viewer.state() != Loading || slow())}>
 				<view tag="message" position="absolute" inset={0} align-items="center" justify="center" row-gap={8} padding={24} pointer-events="none">
 					<text tag="title" font-size={17} color={viewer.state() == Failed ? "#fca5a5" : "#e4e4e7"} text-align="center">{viewer.message}</text>
 					<text tag="detail" color="#a1a1aa" text-align="center">{viewer.detail}</text>
@@ -259,6 +310,19 @@ class Shell implements Markup {
 								<text color={StringTools.endsWith(entry(), "/") ? "#93c5fd" : "#e4e4e7"} max-lines={1} dir={helder.ui.Dir.Ltr}>{entry()}</text>
 							</view:button>
 						}</VirtualList>
+					</view>
+				</view>
+			</Show>
+			<Show when={viewer.aboutOpen()}>
+				<view tag="about-backdrop" position="absolute" inset={0} background="#00000099" align-items="center" justify="center"
+					onClick={_ -> viewer.aboutOpen(false)}>
+					<view tag="about" width={340} padding={20} row-gap={6} radius={12} background="#232326" border-width={1} border-color="#3f3f46"
+						align-items="center" shadow="0 8px 30px rgba(0, 0, 0, 0.5)">
+						<image src={helder.image.Image.decode(helder.asset.Asset.embed("about-icon.png"))} width={72} height={72}/>
+						<text tag="about-name" font-size={18} color="#f4f4f5">Viewer</text>
+						<text tag="about-version" color="#a1a1aa">{"Version " + Version.NAME}</text>
+						<text color="#d4d4d8" text-align="center">helder's image viewer: PNG, JPEG, GIF, WebP, PDF and the system's formats</text>
+						<text color="#71717a" text-align="center">MIT License · github.com/benmerckx/helder</text>
 					</view>
 				</view>
 			</Show>

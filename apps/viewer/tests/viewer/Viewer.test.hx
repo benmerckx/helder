@@ -115,6 +115,13 @@ function tests() {
 			helder.view.graph.Graph.flush();
 			equals(viewer.state.peek(), Failed);
 		});
+		test("what a broken file says", () -> {
+			equals(Decode.decode(haxe.io.Bytes.alloc(0)).error, "The file is empty");
+			var bad = Decode.decode(haxe.io.Bytes.ofString("%PDF-1.4\nnonsense"));
+			assert(StringTools.startsWith(bad.error, "A damaged PDF: "), bad.error);
+			equals(bad.errorKind, "corrupt");
+			assert(StringTools.startsWith(Decode.decode(haxe.io.Bytes.ofString("hello")).error, "Not an image this viewer reads"), "not an image");
+		});
 		test("a PDF's pages: the keys, the wheel, go to page, the next page decoded ahead", () -> {
 			var asked = [];
 			var viewer = new Viewer((path, side, done) -> {

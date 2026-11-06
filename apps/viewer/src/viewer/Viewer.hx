@@ -46,6 +46,8 @@ class Viewer {
 	// go to page: its card open, the number typed
 	public final gotoOpen = Graph.signal(false);
 	public final gotoText = Graph.signal("");
+	// the about card
+	public final aboutOpen = Graph.signal(false);
 
 	// the image shown (its decode, its path), the animation's frame
 	public var shown(default, null):Null<Decoded> = null;
@@ -357,6 +359,7 @@ class Viewer {
 				gotoText("");
 				gotoOpen(true);
 			case CloseGoTo: gotoOpen(false);
+			case CloseAbout: aboutOpen(false);
 			case CopyPath | ShowInFolder | OpenWithDefault: return false;
 		}
 		return true;

@@ -12,9 +12,13 @@
         "image/jpeg": [".jpg", ".jpeg", ".jfif"],
         "image/png": [".png", ".apng"],
         "image/gif": [".gif"],
-        "image/webp": [".webp"]
+        "image/webp": [".webp"],
+        "application/pdf": [".pdf"],
+        "image/tiff": [".tif", ".tiff"],
+        "image/heic": [".heic", ".heif"],
+        "image/avif": [".avif"]
       }
     }
   ],
-  "helder": {"id": "org.helder.viewer", "version": "0.1"}
+  "helder": {"id": "org.helder.viewer", "version": "0.1.0", "build": 1}
 }

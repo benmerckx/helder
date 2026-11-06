@@ -29,6 +29,7 @@ enum ViewerAction {
 	LastPage;
 	GoToPage;
 	CloseGoTo;
+	CloseAbout;
 	CopyPath;
 	ShowInFolder;
 	OpenWithDefault;
@@ -45,7 +46,7 @@ class ViewerActions {
 		if (declared) return;
 		declared = true;
 		Actions.declare("viewer", ViewerAction);
-		var here = "Viewer && !picker && !goto";
+		var here = "Viewer && !picker && !goto && !about";
 		keymap.bind("secondary-o", Open, "Viewer");
 		for (k in ["space", "pagedown", "down", "right"])
 			keymap.bind(k, Next, here);
@@ -64,11 +65,11 @@ class ViewerActions {
 		keymap.bind("enter", ToggleFullscreen, here);
 		keymap.bind("ctrl-cmd-f", ToggleFullscreen, here);
 		keymap.bind("f11", ToggleFullscreen, here);
-		keymap.bind("escape", LeaveFullscreen, "Viewer && fullscreen && !picker");
+		keymap.bind("escape", LeaveFullscreen, "Viewer && fullscreen && !picker && !goto && !about");
 		keymap.bind("i", ToggleStatus, here);
 		keymap.bind("escape", ClosePicker, "Viewer && picker");
 		// (a PDF's pages: Page Down and Up, Space and Backspace page through it, the arrows still the folder's files)
-		var pdf = "Viewer && pdf && !picker && !goto";
+		var pdf = "Viewer && pdf && !picker && !goto && !about";
 		for (k in ["pagedown", "space", "]"])
 			keymap.bind(k, NextPage, pdf);
 		for (k in ["pageup", "backspace", "shift-space", "["])
@@ -78,12 +79,14 @@ class ViewerActions {
 		keymap.bind("secondary-g", GoToPage, pdf);
 		keymap.bind("g", GoToPage, pdf);
 		keymap.bind("escape", CloseGoTo, "Viewer && goto");
+		keymap.bind("escape", CloseAbout, "Viewer && about");
+		keymap.bind("enter", CloseAbout, "Viewer && about");
 		keymap.bind("secondary-shift-c", CopyPath, here);
 		// (macOS: Command-Q is the application menu's)
 		if (!Keymap.mac) keymap.bind("secondary-q", StandardAction.Quit);
 	}
 
-	// the menu bar: File (Open, Open Recent, Quit), View
+	// the menu bar: File (Open, Open Recent, Quit), View, Help (About: on macOS the application menu's)
 	public static function menus(recent:Array<String>):Array<Menu> {
 		var open:Array<MenuItem> = [Item("Open…", Open)];
 		if (recent.length > 0) open.push(Submenu("Open Recent", [for (r in recent) Item(haxe.io.Path.withoutDirectory(r), OpenRecent(r))]));
@@ -96,7 +99,8 @@ class ViewerActions {
 					Item("Previous", Previous), Item("Next", Next), Separator, Item("Previous Page", PreviousPage), Item("Next Page", NextPage),
 					Item("Go to Page…", GoToPage), Separator, Item("Full Screen", ToggleFullscreen), Item("Status Line", ToggleStatus)
 				]
-			}
+			},
+			{label: "Help", items: [Role(About)]}
 		];
 	}
 
