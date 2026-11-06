@@ -2,6 +2,8 @@
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.scene.render.PbrShader;
+import helder.scene.render.PbrShader.aces;
+import helder.scene.render.PbrShader.encode;
 
 // A planet's air (Atmosphere), ported from Expansion's app.AtmosphereShader; after Maxime Heckel's "On rendering the sky,
 // sunsets and planets" and Hillaire's LUTs: the shell around the sphere
@@ -28,7 +30,7 @@ import helder.scene.render.PbrShader;
 }
 
 @:structInit @:publicFields class AirVaryings {
-	@:position var clip:Vec4;
+	var clip:Vec4;
 	var world:Vec3;
 	var center:Vec4;
 	var rayleigh:Vec4;
@@ -46,17 +48,47 @@ import helder.scene.render.PbrShader;
 	var lut:Vec4; // x: the LUT's bands, y: its width, z: its band's height
 }
 
-class AtmosphereShader implements Shaders {
-	@:vertex static function vs(v:AirVertex, view:AirView):AirVaryings {
+// where the ray o + d t crosses the sphere of radius r about the origin:
+// (near, far); a miss: near past far
+function hit(o:Vec3, d:Vec3, r:Float):Vec2 {
+	var b = dot(o, d), c = dot(o, o) - r * r, disc = b * b - c;
+	var s = sqrt(max(disc, 0));
+	return disc < 0 ? vec2(1, -1) : vec2(-b - s, -b + s);
+}
+
+// ozone's density at height h: a tent about its height c, as wide as c
+function ozone(h:Float, c:Float):Float
+	return c <= 0 ? 0 : max(0, 1 - abs(h - c) / c);
+
+// the sun's light (0 to 1 a channel) reaching a point at height hn (a
+// share of the shell's) under the sun at cos mu: the LUT's texel, stored
+// as its square root (8 bits enough at a sunset's dim end)
+function sunlight(lut:Texture2D, at:Vec4, band:Float, hn:Float, mu:Float):Vec3 {
+	var u = (0.5 + (mu * 0.5 + 0.5) * (at.y - 1)) / at.y;
+	var v = (band + (0.5 + clamp(hn, 0, 1) * (at.z - 1)) / at.z) / at.x;
+	var s = sample(lut, vec2(u, v)).xyz;
+	return s * s;
+}
+
+function rayleighPhase(mu:Float):Float
+	return 3 / (16 * 3.14159265) * (1 + mu * mu);
+
+// Cornette-Shanks's (Henyey-Greenstein's with Rayleigh's lobe shape)
+function miePhase(mu:Float, g:Float):Float {
+	var g2 = g * g;
+	return 3 * (1 - g2) * (1 + mu * mu) / (8 * 3.14159265 * (2 + g2) * pow(max(1 + g2 - 2 * g * mu, 0.0001), 1.5));
+}
+
+final AtmosphereShader = shader({
+	vertex: function(v:AirVertex, view:AirView):AirVaryings {
 		// (a little larger than the shell: the mesh's facets inside the true sphere)
 		var p = v.center.xyz + v.pos * (v.center.w * v.rayleigh.w * 1.03);
 		return {
-			clip: view.viewProj * vec4(p, 1), world: p, center: v.center, rayleigh: v.rayleigh, ozone: v.ozone, shape: v.shape,
+			clip: position(view.viewProj * vec4(p, 1)), world: p, center: v.center, rayleigh: v.rayleigh, ozone: v.ozone, shape: v.shape,
 			extra: v.extra, ground: v.ground
 		};
-	}
-
-	@:fragment static function fs(i:AirVaryings, view:AirView, lut:Texture2D):Vec4 {
+	},
+	fragment: function(i:AirVaryings, view:AirView, lut:Texture2D):Vec4 {
 		var o = (view.eye.xyz - i.center.xyz) / i.center.w;
 		var d = normalize(i.world - view.eye.xyz);
 		var top = i.rayleigh.w;
@@ -103,39 +135,8 @@ class AtmosphereShader implements Shaders {
 			scatter += surface * (sunT - vec3(least)) * (lit * seen);
 			var alpha = 1 - (1 - (1 - least) * lit) * (1 - (1 - seen) * i.extra.z);
 			var c = scatter * view.eye.w;
-			result = vec4(view.sun.w > 0.5 ? c : PbrShader.encode(PbrShader.aces(c)), alpha);
+			result = vec4(view.sun.w > 0.5 ? c : encode(aces(c)), alpha);
 		}
 		return result;
 	}
-
-	// where the ray o + d t crosses the sphere of radius r about the origin:
-	// (near, far); a miss: near past far
-	public static function hit(o:Vec3, d:Vec3, r:Float):Vec2 {
-		var b = dot(o, d), c = dot(o, o) - r * r, disc = b * b - c;
-		var s = sqrt(max(disc, 0));
-		return disc < 0 ? vec2(1, -1) : vec2(-b - s, -b + s);
-	}
-
-	// ozone's density at height h: a tent about its height c, as wide as c
-	public static function ozone(h:Float, c:Float):Float
-		return c <= 0 ? 0 : max(0, 1 - abs(h - c) / c);
-
-	// the sun's light (0 to 1 a channel) reaching a point at height hn (a
-	// share of the shell's) under the sun at cos mu: the LUT's texel, stored
-	// as its square root (8 bits enough at a sunset's dim end)
-	public static function sunlight(lut:Texture2D, at:Vec4, band:Float, hn:Float, mu:Float):Vec3 {
-		var u = (0.5 + (mu * 0.5 + 0.5) * (at.y - 1)) / at.y;
-		var v = (band + (0.5 + clamp(hn, 0, 1) * (at.z - 1)) / at.z) / at.x;
-		var s = sample(lut, vec2(u, v)).xyz;
-		return s * s;
-	}
-
-	public static function rayleighPhase(mu:Float):Float
-		return 3 / (16 * 3.14159265) * (1 + mu * mu);
-
-	// Cornette-Shanks's (Henyey-Greenstein's with Rayleigh's lobe shape)
-	public static function miePhase(mu:Float, g:Float):Float {
-		var g2 = g * g;
-		return 3 * (1 - g2) * (1 + mu * mu) / (8 * 3.14159265 * (2 + g2) * pow(max(1 + g2 - 2 * g * mu, 0.0001), 1.5));
-	}
-}
+});

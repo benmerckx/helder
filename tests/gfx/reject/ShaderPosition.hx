@@ -1,6 +1,6 @@
-// The vertex stage's output has one @:position (the clip-space position).
-// expect: ShaderPosition.hx:20: lines 20-21
-// expect: shader: @:vertex vs: NoPosition needs exactly one @:position field (it has 0)
+// The vertex stage's varyings have one position(...) (the clip-space position).
+// expect: ShaderPosition.hx:20: characters 10-68
+// expect: the vertex function: exactly one field of NoPosition is the clip-space position, marked by position(...) where it is built (it has 0)
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
@@ -9,20 +9,19 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class O {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 }
 
 @:structInit @:publicFields class NoPosition {
 	var color:Vec4;
 }
 
-class ShaderPosition implements Shaders {
-	@:vertex static function vs(v:V):NoPosition
-		return {color: vec4(v.pos, 0, 1)};
+final S = shader({
+	vertex: function(v:V):NoPosition return {color: vec4(v.pos, 0, 1)},
+	fragment: function(o:NoPosition):Vec4 return o.color
+});
 
-	@:fragment static function fs(o:NoPosition):Vec4
-		return o.color;
-
+class ShaderPosition {
 	static function main()
-		trace(vertexCode);
+		trace(S.vertexCode);
 }

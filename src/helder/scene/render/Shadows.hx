@@ -9,6 +9,7 @@ import helder.scene.World;
 import helder.scene.math.Aabb;
 import helder.scene.math.MathTools;
 import helder.scene.render.ShadowShader;
+import helder.scene.render.ShadowInstancedShader;
 
 // Shadow maps for the directional light, opted in (renderer.use(new
 // Shadows(device))): before the frame's pass, every shown mesh drawn from
@@ -172,7 +173,7 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		for (k in 0...meshes.length) {
 			var n = meshes.nodeAt(k);
 			if (!n.shown() || !world.inTree(n) || !casts(meshes.valueAt(k))) continue;
-			ShadowShader.writeShadowCaster({mvp: viewProj * n.worldMatrix()}, casterBytes);
+			ShadowShader.params.caster.write({mvp: viewProj * n.worldMatrix()}, casterBytes);
 			var prims = meshes.valueAt(k).primitives;
 			// (a skinned mesh: drawn by the skinning's shadow pipeline, its joints bound)
 			if (prims.length > 0 && prims[0].skinned) {
@@ -217,7 +218,7 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 					instancedPipeline = device.createPipeline(d);
 				}
 				enc.setPipeline(instancedPipeline);
-				ShadowShader.writeShadowCaster({mvp: viewProj}, casterBytes);
+				ShadowShader.params.caster.write({mvp: viewProj}, casterBytes);
 				enc.setUniforms(ShadowInstancedShader.uniforms[0].binding, casterBytes);
 				bound = true;
 			}

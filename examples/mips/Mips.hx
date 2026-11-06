@@ -8,6 +8,8 @@ import helder.gfx.*;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.os.*;
+import MipsShader.FloorShader;
+import MipsShader.SwatchShader;
 
 // Mip maps, in a window (Escape closes):
 //
@@ -79,7 +81,7 @@ class Mips {
 			var x = -0.78 + k * 0.4;
 			for (c in [[0, 0], [1, 0], [1, 1], [0, 1]])
 				vs.push({pos: vec2(x + c[0] * 0.36, 0.5 + c[1] * 0.4), uv: vec2(c[0], 1 - c[1])});
-			SwatchShader.writeSwatch({level: [0, 1.5, 3, 4][k]}, swatch[k]);
+			SwatchShader.params.s.write({level: [0, 1.5, 3, 4][k]}, swatch[k]);
 		}
 		bytes = SwatchShader.vertexBytes(vs);
 		swatches = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
@@ -96,7 +98,7 @@ class Mips {
 	public function draw(enc:Encoder, t:Float) {
 		var w = device.width, h = device.height;
 		var view = Mat4.perspective(Math.PI / 3, w / h, 0.1, 100) * Mat4.rotationX(0.3) * Mat4.translation(0, 0, t % 4);
-		FloorShader.writeFloorCamera({mvp: view}, camera);
+		FloorShader.params.cam.write({mvp: view}, camera);
 		enc.beginPass(pass);
 		enc.setIndexBuffer(quad, UInt16);
 		enc.setPipeline(floorPipeline);

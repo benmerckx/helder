@@ -15,7 +15,7 @@ import haxe.macro.Expr;
 //               geometric ones (dot, length, normalize, cross, ...), an
 //               overload per type
 //
-// The shader macro (Lower) knows them by name, so the names here are part
+// The shader definition's adapter (Lower) knows them by name, so the names here are part
 // of its interface.
 class VecBuild {
 	static final XYZW = ["x", "y", "z", "w"];

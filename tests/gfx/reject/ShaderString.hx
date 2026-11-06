@@ -1,6 +1,6 @@
 // Strings are not shader values.
 // expect: ShaderString.hx:17: characters 11-16
-// expect: shader: a String is not a shader value
+// expect: a String is not a shader value
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
@@ -9,18 +9,18 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class O {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 }
 
-class ShaderString implements Shaders {
-	@:vertex static function vs(v:V):O {
+final S = shader({
+	vertex: function(v:V):O {
 		var s = "pos";
-		return {pos: vec4(v.pos, s.length, 1)};
-	}
+		return {pos: position(vec4(v.pos, s.length, 1))};
+	},
+	fragment: function(o:O):Vec4 return o.pos
+});
 
-	@:fragment static function fs(o:O):Vec4
-		return o.pos;
-
+class ShaderString {
 	static function main()
-		trace(vertexCode);
+		trace(S.vertexCode);
 }

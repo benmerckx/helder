@@ -4,6 +4,8 @@ import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.scene.render.PbrShader;
 import helder.scene.render.PbrNormalShader;
+import helder.scene.render.PbrShader.shadeAt;
+import helder.scene.render.PbrShader.uvOf;
 
 // The normal-mapped material drawn many times in one call (NormalMaps,
 // for Renderer's instanced runs): PbrNormalShader's vertex with each
@@ -23,12 +25,12 @@ import helder.scene.render.PbrNormalShader;
 	var m3:Vec4;
 }
 
-class PbrInstancedNormalShader implements Shaders {
-	@:vertex static function vs(v:PbrInstanceNormalVertex, frame:PbrFrame):PbrNormalVaryings {
+final PbrInstancedNormalShader = shader({
+	vertex: function(v:PbrInstanceNormalVertex, frame:PbrFrame):PbrNormalVaryings {
 		var model = mat4(vec4(v.m0.xyz, 0), vec4(v.m1.xyz, 0), vec4(v.m2.xyz, 0), v.m3);
 		var world = model * vec4(v.pos, 1);
 		return {
-			clip: frame.viewProj * world,
+			clip: position(frame.viewProj * world),
 			world: world.xyz,
 			normal: (model * vec4(v.normal, 0)).xyz,
 			uv: v.uv,
@@ -36,18 +38,17 @@ class PbrInstancedNormalShader implements Shaders {
 			up: v.m1.xyz,
 			tint: vec3(1 + v.m0.w, 1 + v.m1.w, 1 + v.m2.w)
 		};
-	}
-
-	@:fragment static function fs(i:PbrNormalVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
+	},
+	fragment: function(i:PbrNormalVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
 			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D, normalTexture:Texture2D):Vec4 {
 		var ng = normalize(i.normal);
 		var t = normalize(i.tangent.xyz - ng * dot(ng, i.tangent.xyz));
 		var b = cross(ng, t) * i.tangent.w;
-		var uv = PbrShader.uvOf(material, i.uv);
+		var uv = uvOf(material, i.uv);
 		var m = sample(normalTexture, uv).xyz * 2 - 1;
 		var scale = material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
-		return PbrShader.shadeAt(n, i.world, uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
+		return shadeAt(n, i.world, uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
 			shadowMap, shadowMapFar, environmentMap);
 	}
-}
+});

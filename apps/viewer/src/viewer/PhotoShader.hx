@@ -12,7 +12,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class PhotoVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var uv:Vec2;
 }
 
@@ -25,11 +25,10 @@ import helder.gfx.shader.ShaderMath.*;
 	var background:Vec4;
 }
 
-class PhotoShader implements Shaders {
-	@:vertex static function vs(v:PhotoVertex, view:PhotoView):PhotoVaryings
-		return {pos: vec4(mix(view.rect.x, view.rect.z, v.corner.x), mix(view.rect.y, view.rect.w, v.corner.y), 0, 1), uv: vec2(mix(view.uv.x, view.uv.z, v.corner.x), mix(view.uv.y, view.uv.w, v.corner.y))};
-
-	@:fragment static function fs(i:PhotoVaryings, view:PhotoView, image:Texture2D):Vec4 {
+final PhotoShader = shader({
+	vertex: function(v:PhotoVertex, view:PhotoView):PhotoVaryings
+		return {pos: position(vec4(mix(view.rect.x, view.rect.z, v.corner.x), mix(view.rect.y, view.rect.w, v.corner.y), 0, 1)), uv: vec2(mix(view.uv.x, view.uv.z, v.corner.x), mix(view.uv.y, view.uv.w, v.corner.y))},
+	fragment: function(i:PhotoVaryings, view:PhotoView, image:Texture2D):Vec4 {
 		var c = sample(image, i.uv);
 		var rgb = mix(view.background.xyz, c.xyz, c.w);
 		// (linear to sRGB, the exact curve)
@@ -37,4 +36,4 @@ class PhotoShader implements Shaders {
 		var hi = pow(rgb, vec3(1 / 2.4, 1 / 2.4, 1 / 2.4)) * 1.055 - vec3(0.055, 0.055, 0.055);
 		return vec4(mix(lo, hi, step(vec3(0.0031308, 0.0031308, 0.0031308), rgb)), 1);
 	}
-}
+});

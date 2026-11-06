@@ -2,7 +2,7 @@ import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
 // Shader helpers in a module of their own, for LitShader (ShaderTest).
-class Lighting implements Shaders {
+class Lighting {
 	public static inline var AMBIENT = 0.1;
 
 	public static function lambert(n:Vec3, l:Vec3):Float

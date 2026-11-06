@@ -6,6 +6,11 @@ import helder.canvas.Gradient;
 import helder.canvas.Paint.Shader;
 import helder.canvas.gpu.CanvasShaders;
 import helder.gfx.*;
+import helder.canvas.gpu.CanvasShaders.BlendShader;
+import helder.canvas.gpu.CanvasShaders.ClipShader;
+import helder.canvas.gpu.CanvasShaders.CopyShader;
+import helder.canvas.gpu.CanvasShaders.CoverShader;
+import helder.canvas.gpu.CanvasShaders.CoverageShader;
 
 // helder.canvas on the GPU (helder.gfx): the same Painter as the CPU's
 // Canvas, its pixels in a render target (premultiplied RGBA8). A path is

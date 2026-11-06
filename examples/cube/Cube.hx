@@ -8,6 +8,8 @@ import helder.gfx.*;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.os.*;
+import CubeShader.BackdropShader;
+import CubeShader.ShadowShader;
 
 // A rotating cube in a window, textured, lit and depth-tested, over a
 // blended backdrop and a soft shadow (drag to turn it, with the mouse, a
@@ -25,7 +27,7 @@ import helder.os.*;
 // It uses what a program needs from helder.gfx: an index buffer of each size
 // (the cube's UInt16, the backdrop's and the shadow's UInt32), uniform
 // blocks written each frame (the camera's matrices:
-// CubeShader.writeCubeCamera, Encoder.setUniforms), a texture made here (no
+// CubeShader.params.cam.write, Encoder.setUniforms), a texture made here (no
 // image decoder) and its sampler, the depth buffer, alpha blending and the
 // fragment's position; the shaders are CubeShader.hx.
 class Cube {
@@ -119,9 +121,9 @@ class Cube {
 		// shadow; nothing is sized in pixels: the backdrop follows the target,
 		// the shadow the scene, alike on high-density screens)
 		var view = Mat4.perspective(Math.PI / 3, w / h, 0.1, 100) * Mat4.translation(0, 0.3, -4.6);
-		CubeShader.writeCubeCamera({mvp: view * model, model: model}, camera);
-		ShadowShader.writeGround({mvp: view}, ground);
-		BackdropShader.writeTarget({size: vec2(w, h)}, target);
+		CubeShader.params.cam.write({mvp: view * model, model: model}, camera);
+		ShadowShader.params.g.write({mvp: view}, ground);
+		BackdropShader.params.t.write({size: vec2(w, h)}, target);
 		enc.beginPass(pass);
 		// (the backdrop and the shadow: no depth test, under the cube)
 		enc.setIndexBuffer(quad, UInt32);

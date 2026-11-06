@@ -23,7 +23,7 @@ import hxmc.unsafe.*;
 // vertex, so drawIndexed's moves the vertex attributes' offsets instead
 // (not an instance buffer's: its attributes have divisor 1).
 // A texture at slot n is bound to texture unit n with its sampler object.
-// The shader macro's stages flip the fragment position with the frame's
+// The shader definitions' stages flip the fragment position with the frame's
 // height and, in a pass into a texture, the position, so that the texture's
 // first row is the image's top as elsewhere (u_target, set when a pipeline
 // is; the front faces turn clockwise there). A pass into a texture renders
@@ -609,7 +609,7 @@ class GLBackend {
 		if (p == pipeline) return;
 		pipeline = p;
 		GL.glUseProgram(p.program);
-		// (the flips of the shader macro's GLSL: the fragment position's in
+		// (the flips of the shader definitions' GLSL: the fragment position's in
 		// the frame, the position's into a texture)
 		var target = flipped ? -1 : height;
 		if (p.targetLoc >= 0 && p.target != target) {

@@ -3,6 +3,9 @@ import helder.gfx.*;
 import helder.os.*;
 import helder.os.x11.Xlib;
 import hxmc.unsafe.*;
+import BuiltinShader;
+import LitShader;
+import TexturedShader;
 
 // The examples' frames, checked against golden images (npm test -- gfx): the
 // triangle (Triangle.hx, triangle.png), the cube (Cube.hx, turned by
@@ -59,7 +62,7 @@ class GfxTest {
 			null;
 		}
 		var draw = Scene.make(name, device);
-		// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
+		// (the shader definition's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 		device.createPipeline(LitShader.pipeline());
 		device.createPipeline(BuiltinShader.pipeline());
 		device.createPipeline(TexturedShader.pipeline());

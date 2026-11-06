@@ -2,8 +2,12 @@ import LitShader;
 import haxe.io.Bytes;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
+import BuiltinShader;
+import InstancesShader;
+import TexturedShader;
+import TriangleShader;
 
-// The shader macro's tests, on Eval (npm test -- gfx-shader):
+// The shader definition's tests, on Eval (npm test -- gfx-shader):
 //
 //   <tool> -cp src -cp examples -cp tests/gfx
 //     --run ShaderTest <tool> [--bless]
@@ -102,29 +106,29 @@ class ShaderTest {
 
 	// the shaders' functions on the CPU
 	static function shaders() {
-		var o = @:privateAccess TriangleShader.vs({pos: vec2(0.6, -0.5), color: vec3(0, 0, 1)});
-		nearVec("TriangleShader.vs pos", o.pos, [0.6, -0.5, 0, 1]);
-		nearVec("TriangleShader.fs", @:privateAccess TriangleShader.fs(o), [0, 0, 1, 1]);
+		var o = TriangleShader.vertex({pos: vec2(0.6, -0.5), color: vec3(0, 0, 1)});
+		nearVec("TriangleShader.vertex pos", o.pos, [0.6, -0.5, 0, 1]);
+		nearVec("TriangleShader.fragment", TriangleShader.fragment(o), [0, 0, 1, 1]);
 		var cam:Camera = {viewProj: mat4(2), eye: vec3(1, 0, 5), time: 0};
-		var v = @:privateAccess LitShader.vs({pos: vec3(1, 0, 0), normal: vec3(0, 0, 1), uv: vec2(0.25, 0.75)}, cam);
-		nearVec("LitShader.vs clip", v.clip, [2 + Math.sin(3) * 0.05, 0, 0, 2]);
-		near("LitShader.vs uv", v.uv.x, 0.75);
-		near("LitShader.vs shade", v.shade, 1);
+		var v = LitShader.vertex({pos: vec3(1, 0, 0), normal: vec3(0, 0, 1), uv: vec2(0.25, 0.75)}, cam);
+		nearVec("LitShader.vertex clip", v.clip, [2 + Math.sin(3) * 0.05, 0, 0, 2]);
+		near("LitShader.vertex uv", v.uv.x, 0.75);
+		near("LitShader.vertex shade", v.shade, 1);
 		near("Lighting.lambert", Lighting.lambert(vec3(0, 3, 0), vec3(1, 1, 0)), Math.sqrt(0.5));
 		near("Lighting.posterize", Lighting.posterize(0.5, 4), 2 / 3);
 		var i:LitVaryings = {normal: vec3(0, 0, 1), clip: vec4(0), uv: vec2(0.25, 0.75), shade: 0.5};
 		var glow = 1 / 2 + 1 / 3 + 1 / 4 + 1 / 5, k = 0.1 + 2 / 3;
-		nearVec("LitShader.fs", @:privateAccess LitShader.fs(i, {tint: vec4(1, 0.5, 0.25, 1), steps: 4}),
+		nearVec("LitShader.fragment", LitShader.fragment(i, {tint: vec4(1, 0.5, 0.25, 1), steps: 4}),
 			[k + glow * 0.01, 0.5 * k + glow * 0.01, 0.25 * k + glow * 0.01, 1]);
 		// (the uv in the right half: the colour reversed; the checker's dark squares)
 		var j:LitVaryings = {normal: vec3(0, 0, 1), clip: vec4(0), uv: vec2(0.7, 0.75), shade: 0.5};
-		nearVec("LitShader.fs, right half", @:privateAccess LitShader.fs(j, {tint: vec4(1, 0.5, 0.25, 1), steps: 0}),
+		nearVec("LitShader.fragment, right half", LitShader.fragment(j, {tint: vec4(1, 0.5, 0.25, 1), steps: 0}),
 			[0.25 * 0.6 * 0.5, 0.5 * 0.6 * 0.5, 0.6 * 0.5, 1]);
 		// (a translation by pos.xyz, then halved)
-		var b = @:privateAccess BuiltinShader.vs({pos: vec4(1, 2, 3, 1)});
-		nearVec("BuiltinShader.vs", b.pos, [1, 2, 3, 0.5]);
-		var c = @:privateAccess BuiltinShader.fs(b);
-		check("BuiltinShader.fs", [c.x, c.y, c.z, c.w].filter(Math.isFinite).length == 4, Std.string([c.x, c.y, c.z, c.w]));
+		var b = BuiltinShader.vertex({pos: vec4(1, 2, 3, 1)});
+		nearVec("BuiltinShader.vertex", b.pos, [1, 2, 3, 0.5]);
+		var c = BuiltinShader.fragment(b);
+		check("BuiltinShader.fragment", [c.x, c.y, c.z, c.w].filter(Math.isFinite).length == 4, Std.string([c.x, c.y, c.z, c.w]));
 		// (textures on the CPU: the nearest texel, repeating; rows top to bottom)
 		var texels = Bytes.alloc(2 * 2 * 4);
 		for (i in 0...4) {
@@ -135,9 +139,9 @@ class ShaderTest {
 		var tex = new Texture2D(2, 2, texels);
 		near("sample", sample(tex, vec2(0.75, 0.25)).y, 64 / 255);
 		near("sample, repeating", sample(tex, vec2(-0.25, 1.75)).y, 255 / 255);
-		var tv = @:privateAccess TexturedShader.vs({pos: vec2(0, 0), uv: vec2(0.25, 0.75)}, tex);
-		near("TexturedShader.vs lift", tv.lift, 1);
-		nearVec("TexturedShader.fs", @:privateAccess TexturedShader.fs(tv, {amount: 0.5}, tex, tex), [1, (0.5 + 128 / 255) / 2, 0, 1]);
+		var tv = TexturedShader.vertex({pos: vec2(0, 0), uv: vec2(0.25, 0.75)}, tex);
+		near("TexturedShader.vertex lift", tv.lift, 1);
+		nearVec("TexturedShader.fragment", TexturedShader.fragment(tv, {amount: 0.5}, tex, tex), [1, (0.5 + 128 / 255) / 2, 0, 1]);
 	}
 
 	// the generated layouts and writers
@@ -157,11 +161,11 @@ class ShaderTest {
 		check("LitShader.uniforms", u.length == 2 && u[0].name == "Camera" && u[0].binding == 0 && u[0].size == 80 && u[1].name == "Material"
 			&& u[1].size == 32, Std.string(u));
 		var bytes = Bytes.alloc(96);
-		LitShader.writeCamera({viewProj: mat4(vec4(1, 2, 3, 4), vec4(5, 6, 7, 8), vec4(9, 10, 11, 12), vec4(13, 14, 15, 16)), eye: vec3(-1, -2, -3), time: 7}, bytes,
+		LitShader.params.cam.write({viewProj: mat4(vec4(1, 2, 3, 4), vec4(5, 6, 7, 8), vec4(9, 10, 11, 12), vec4(13, 14, 15, 16)), eye: vec3(-1, -2, -3), time: 7}, bytes,
 			16);
-		check("LitShader.writeCamera", [for (i in 0...20) bytes.getFloat(16 + 4 * i)].join(",") == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-1,-2,-3,7");
-		LitShader.writeMaterial({tint: vec4(0.5), steps: 3}, bytes);
-		check("LitShader.writeMaterial", bytes.getFloat(12) == 0.5 && bytes.getInt32(16) == 3);
+		check("LitShader.params.cam.write", [for (i in 0...20) bytes.getFloat(16 + 4 * i)].join(",") == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-1,-2,-3,7");
+		LitShader.params.m.write({tint: vec4(0.5), steps: 3}, bytes);
+		check("LitShader.params.m.write", bytes.getFloat(12) == 0.5 && bytes.getInt32(16) == 3);
 		var t = TexturedShader.textures, tu = TexturedShader.uniforms;
 		check("TexturedShader.textures", t.length == 2 && t[0].name == "height" && t[0].binding == 0 && t[1].name == "albedo" && t[1].binding == 2
 			&& tu.length == 1 && tu[0].binding == 1, Std.string(t) + " " + Std.string(tu));

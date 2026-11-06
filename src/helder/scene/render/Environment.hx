@@ -98,7 +98,7 @@ class Environment implements RenderFeature {
 
 	function draw(enc:Encoder, frame:Renderer.FrameInfo, renderer:Renderer) {
 		var e = frame.eye;
-		EnvironmentShader.writeEnvironmentParams({
+		EnvironmentShader.params.env.write({
 			invViewProj: MathTools.inverse(frame.viewProj),
 			eye: new Vec4(e.x, e.y, e.z, 1),
 			params: new Vec4(intensity * renderer.exposure, frame.hdr ? 1 : 0, rows, edge)

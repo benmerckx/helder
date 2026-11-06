@@ -1,5 +1,8 @@
 import helder.gfx.*;
 import helder.os.*;
+import BuiltinShader;
+import LitShader;
+import TexturedShader;
 
 // The examples' frames in a browser, on WebGPU or WebGL2 (web.mjs runs it
 // in headless Chromium, forcing WebGL2 with browser.mjs's option gfx:
@@ -22,7 +25,7 @@ class WebTest {
 		if (Sys.args()[0] == "headless") {
 			var device = Device.create(Surface.headless(256, 192));
 			var draw = Scene.make(scene, device);
-			// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
+			// (the shader definition's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 			device.createPipeline(LitShader.pipeline());
 			device.createPipeline(BuiltinShader.pipeline());
 			device.createPipeline(TexturedShader.pipeline());

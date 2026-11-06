@@ -7,6 +7,9 @@ import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.os.*;
+import FormatsShader.DepthShader;
+import FormatsShader.GradientShader;
+import FormatsShader.TileShader;
 
 // The texture formats, in a window (Escape closes):
 //
@@ -93,8 +96,8 @@ class Formats {
 		indices = device.createBuffer({size: qi.length, usage: Index, data: qi});
 		tilePipeline = device.createPipeline(TileShader.pipeline());
 		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
-		TileShader.writeTile({grey: 0}, colorTile);
-		TileShader.writeTile({grey: 1}, greyTile);
+		TileShader.params.t.write({grey: 0}, colorTile);
+		TileShader.params.t.write({grey: 1}, greyTile);
 	}
 
 	// the gradient's texels in the format: (x / 15, y / 15, 0.5, 1)

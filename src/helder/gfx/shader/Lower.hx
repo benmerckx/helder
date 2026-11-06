@@ -4,231 +4,123 @@ package helder.gfx.shader;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
+import helder.definition.Kernel;
 import helder.gfx.shader.Ir;
+import helder.gfx.shader.ShaderDefinition;
 
 using haxe.macro.Tools;
 
-// The shader macro's middle: a shader class's stages, from Haxe's typed AST
-// (typed without inlining, Macro.typeClass, so that the math types' and
-// ShaderMath's calls stay calls) to the IR. What a shader may contain:
-// Float, Int and Bool, the math types, @:structInit classes of those,
-// Texture2D parameters (passed on, or read by sample);
-// locals, assignments to them, if, while, for over an Int range, return,
-// break and continue; calls to ShaderMath, the math types' operators and
-// swizzles, a few of Math's functions, Std.int, and the static functions of
-// other shader classes (Shaders), none recursive. Anything else (allocation,
-// closures, Dynamic, strings, arrays, fields of other types) is a compile
-// error at its position, as are the stage interface's mismatches.
-// Expressions with statements inside (blocks, the operands Haxe stores in
-// temporaries) put those statements before the statement that uses them:
-// shader code has no side effects but assignments, so that order is safe.
-class Lower {
+// The shader definition's Haxe adapter (ShaderAdapter): a stage's function
+// (shader({vertex, fragment})'s, as written) and the functions it calls,
+// from Haxe's typed AST to the IR. Each is typed again without inlining
+// (Context.withOptions), so that the math types' and ShaderMath's calls
+// stay calls: a stage at the definition (in its caller's imports), any
+// other function from its own source (Sources), in its module's imports.
+// What a shader may contain: Float, Int and Bool, the math types, structs
+// of those (@:structInit classes, typedefs of anonymous structures),
+// Texture2D parameters (passed on, or read by sample); locals, assignments
+// to them, if, while, for over an Int range, return, break and continue;
+// calls to ShaderMath, the math types' operators and swizzles, a few of
+// Math's functions, Std.int, and static or module-level functions, none
+// recursive; position(v) around the clip-space position where the vertex
+// stage's varyings are built. Anything else (allocation, closures,
+// Dynamic, strings, arrays, fields of other types) is a compile error at
+// its position. Expressions with statements inside (blocks, the operands
+// Haxe stores in temporaries) put those statements before the statement
+// that uses them: shader code has no side effects but assignments, so that
+// order is safe.
+class Lower implements ShaderAdapter {
 	static final SHADER_PACK = "helder.gfx.shader";
 
 	final structs = new Map<String, SStruct>();
 	final building = new Map<String, Bool>();
 	final functions = new Map<String, SFunction>();
 	final active:Array<String> = [];
-	final globals = new Map<String, Bool>();
+	final names = new Names();
 	// each function's locals, renamed at the end if a global took their name
 	final vars = new Map<SFunction, Array<SVar>>();
+	// the vertex stage's result, for a fragment stage's first parameter given without a type
+	var varyings:Null<Type>;
+	var anonymous = 0;
+	// each struct's Haxe type (the generated writers' parameters)
+	final haxeTypes = new Map<SStruct, Type>();
+	// locals holding a position(...) (Haxe's temporaries of a struct's fields)
+	final positionLocals = new Map<Int, Bool>();
 
 	// the function being lowered
 	var fn:SFunction;
 	var locals:Map<Int, SVar>;
-	var names:Map<String, Bool>;
+	var localNames:Map<String, Bool>;
 	var temps = 0;
 
 	public function new() {}
 
-	public function program(c:ClassType):SProgram {
-		var vcf = stageField(c, ":vertex"), fcf = stageField(c, ":fragment");
-		var vf = func(c, vcf, vcf.pos), ff = func(c, fcf, fcf.pos);
-		// the interface: a vertex of attributes in, the varyings out, one of them the position
-		if (vf.params.length == 0) error('@:vertex ${vcf.name} takes no vertex', vcf.pos);
-		var input = switch vf.params[0].type {
-			case TStruct(s): s;
-			case t: error('@:vertex ${vcf.name}: the vertex is a ${name(t)}, not a @:structInit class', vcf.pos);
-		}
-		for (f in input.fields)
-			switch f.type {
-				case TFloat | TVec(_):
-				case t: error('@:vertex ${vcf.name}: ${input.path}.${f.field} is a ${name(t)}: vertex attributes are Float, Vec2, Vec3 or Vec4', vcf.pos);
-			}
-		var varyings = switch vf.ret {
-			case TStruct(s): s;
-			case t: error('@:vertex ${vcf.name} returns a ${name(t)}, not a @:structInit class of varyings', vcf.pos);
-		}
-		var positions = 0;
-		for (f in varyings.fields)
-			switch f.type {
-				case TVec(4) if (f.position): positions++;
-				case t if (f.position): error('@:vertex ${vcf.name}: the @:position ${varyings.path}.${f.field} is a ${name(t)}, not a Vec4', vcf.pos);
-				case TFloat | TVec(_):
-				case t: error('@:vertex ${vcf.name}: the varying ${varyings.path}.${f.field} is a ${name(t)}: varyings are Float, Vec2, Vec3 or Vec4', vcf.pos);
-			}
-		if (positions != 1) error('@:vertex ${vcf.name}: ${varyings.path} needs exactly one @:position field (it has $positions)', vcf.pos);
-		if (ff.params.length == 0 || !same(ff.params[0].type, vf.ret))
-			error('stage interface mismatch: @:fragment ${fcf.name} takes ' + (ff.params.length == 0 ? "nothing" : name(ff.params[0].type))
-				+ ', but @:vertex ${vcf.name} returns ${name(vf.ret)}', fcf.pos);
-		if (!same(ff.ret, TVec(4))) error('@:fragment ${fcf.name} returns a ${name(ff.ret)}, not a Vec4 (the colour)', fcf.pos);
-		// resources: the further parameters, uniform blocks (a slot per struct)
-		// and textures (a slot per name), slots in order of appearance
-		var uniforms:Array<SUniform> = [], textures:Array<STexture> = [];
-		function resources(f:SFunction, cf:ClassField):Array<SResource>
-			return [
-				for (p in f.params.slice(1)) {
-					var slot = uniforms.length + textures.length;
-					switch p.type {
-						case TStruct(s):
-							var u = Lambda.find(uniforms, u -> u.struct == s);
-							if (u == null) {
-								u = std140(s, slot, cf.pos);
-								uniforms.push(u);
-							}
-							RUniform(u);
-						case TTexture:
-							var t = Lambda.find(textures, t -> t.name == p.name);
-							if (t == null) {
-								t = new STexture(p.name, slot);
-								textures.push(t);
-							}
-							RTexture(t);
-						case t: error('${cf.name}: the parameter ${p.name} is a ${name(t)}, not a uniform block (a @:structInit class) or a Texture2D', cf.pos);
-					}
-				}
-			];
-		var vr = resources(vf, vcf), fr = resources(ff, fcf);
-		if (uniforms.length + textures.length > MAX_SLOTS) error('more than $MAX_SLOTS uniform blocks and textures', vcf.pos);
-		// (a local may not hide a global of the same name)
-		for (f => vs in vars)
-			for (v in vs)
-				if (globals.exists(v.name)) v.name = unique(v.name, n -> !globals.exists(n) && !Lambda.exists(vs, w -> w.name == n));
-		return new SProgram(entry(Vertex, vf, input, vr), entry(Fragment, ff, varyings, fr), uniforms, textures);
-	}
+	public function error(message:String, pos:KPos):Dynamic
+		return Context.error("shader: " + message, pos);
 
-	function stageField(c:ClassType, meta:String):ClassField {
-		var fs = [for (f in c.statics.get()) if (f.meta.has(meta)) f];
-		if (fs.length == 0) error('${c.name} has no @$meta function', c.pos);
-		if (fs.length > 1) error('${c.name} has more than one @$meta function', fs[1].pos);
-		return fs[0];
-	}
+	public function defined(name:String):Null<String>
+		return Context.definedValue(name);
 
-	// the stage's function and what it reaches, in declaration order
-	function entry(stage:SStage, f:SFunction, input:SStruct, resources:Array<SResource>):SEntry {
-		var fs:Array<SFunction> = [], ss:Array<SStruct> = [];
-		function ty(t:SType)
-			switch t {
-				case TStruct(s) if (!ss.contains(s)):
-					for (f in s.fields)
-						ty(f.type);
-					ss.push(s);
-				case _:
-			}
-		function visit(f:SFunction) {
-			if (fs.contains(f)) return;
-			for (p in f.params)
-				ty(p.type);
-			ty(f.ret);
-			function e(x:SExpr) {
-				ty(x.t);
-				switch x.e {
-					case EField(a, _) | ESwizzle(a, _) | EColumn(a, _) | EUnop(_, a) | EConvert(a): e(a);
-					case EBinop(_, a, b):
-						e(a);
-						e(b);
-					case ECond(c, a, b):
-						e(c);
-						e(a);
-						e(b);
-					case ENew(args) | EBuiltin(_, args): for (a in args) e(a);
-					case ECall(g, args):
-						for (a in args)
-							e(a);
-						visit(g);
-					case EFloat(_) | EInt(_) | EBool(_) | ELocal(_):
-				}
-			}
-			function s(st:SStmt)
-				switch st {
-					case SDecl(v, init):
-						ty(v.type);
-						if (init != null) e(init);
-					case SAssign(_, _, x) | SEval(x): e(x);
-					case SIf(c, a, b):
-						e(c);
-						for (x in a)
-							s(x);
-						if (b != null) for (x in b)
-							s(x);
-					case SWhile(c, body):
-						e(c);
-						for (x in body)
-							s(x);
-					case SReturn(x): if (x != null) e(x);
-					case SBreak | SContinue:
-				}
-			for (st in f.body)
-				s(st);
-			fs.push(f);
-		}
-		visit(f);
-		for (r in resources)
-			switch r {
-				case RUniform(u): ty(TStruct(u.struct));
-				case RTexture(_):
-			}
-		return new SEntry(stage, f, input, resources, ss, fs);
-	}
+	public function finish()
+		names.unhide(vars);
 
-	// std140 (and WGSL's uniform layout, the same for these types)
-	function std140(s:SStruct, binding:Int, pos:Position):SUniform {
-		var off = 0, offsets = [];
-		for (f in s.fields) {
-			var size = 0, align = 0;
-			switch f.type {
-				case TFloat | TInt:
-					size = align = 4;
-				case TVec(n):
-					size = 4 * n;
-					align = n == 2 ? 8 : 16;
-				case TMat4:
-					size = 64;
-					align = 16;
-				case t: error('the uniform ${s.path}.${f.field} is a ${name(t)}: uniforms are Float, Int, vectors and Mat4', pos);
-			}
-			off = (off + align - 1) & ~(align - 1);
-			offsets.push(off);
-			off += size;
-		}
-		return new SUniform(s, binding, offsets, (off + 15) & ~15);
-	}
+	public function haxeType(s:SStruct):Type
+		return haxeTypes.get(s);
+
+	// the stages' function types (vs, fs: as the CPU calls them)
+	public final stageTypes = new Map<String, Type>();
 
 	// --- functions ---
 
+	public function lowerStage(k:KFunction, name:String):SFunction {
+		var e:Expr = k.source;
+		var f = switch e.expr {
+			case EFunction(_, f): f;
+			case _: throw "lowerStage";
+		}
+		// (the fragment stage's varyings, when not written: the vertex stage's result)
+		if (varyings != null && f.args.length > 0 && f.args[0].type == null) {
+			var ct = Context.toComplexType(varyings);
+			f = Reflect.copy(f);
+			f.args = [Reflect.copy(f.args[0])].concat(f.args.slice(1));
+			f.args[0].type = ct;
+		}
+		var te = Context.withOptions({allowInlining: false}, () -> Context.typeExpr({expr: EFunction(FAnonymous, f), pos: e.pos}));
+		var tf = switch strip(te).expr {
+			case TFunction(tf): tf;
+			case _: throw "lowerStage";
+		}
+		if (varyings == null) varyings = tf.t;
+		stageTypes.set(name, te.t);
+		return lower("<stage>." + name, name, tf, e.pos);
+	}
+
+	// a static or module-level function called by shader code
 	function func(c:ClassType, cf:ClassField, pos:Position):SFunction {
 		var key = path(c) + "." + cf.name;
 		var f = functions.get(key);
 		if (f != null) return f;
 		if (active.contains(key))
 			error("recursion: " + active.slice(active.indexOf(key)).concat([key]).join(" -> ") + " (shader functions cannot recurse)", pos);
-		var te = Macro.typedFunction(c, cf.name);
-		if (te == null)
-			error('${path(c)}.${cf.name} is not a shader function (shader code calls the static functions of classes that implement helder.gfx.shader.Shaders)',
-				pos);
-		var tf = switch te.expr {
+		if (cf.params.length > 0) error('${cf.name}: a shader function has no type parameters', cf.pos);
+		var te = Sources.typed(c, cf);
+		if (te == null) error('${display(c, cf)} has no source a shader can compile (a static or module-level function written in Haxe)', pos);
+		var tf = switch strip(te).expr {
 			case TFunction(tf): tf;
 			case _: error('${cf.name} is not a function', cf.pos);
 		}
-		if (cf.params.length > 0) error('${cf.name}: a shader function has no type parameters', cf.pos);
+		return lower(key, cf.name, tf, cf.pos);
+	}
+
+	function lower(key:String, name:String, tf:TFunc, pos:Position):SFunction {
 		active.push(key);
-		var saved = {fn: fn, locals: locals, names: names};
+		var saved = {fn: fn, locals: locals, names: localNames};
 		locals = new Map();
-		names = new Map();
+		localNames = new Map();
 		var vs = [];
-		var params = [for (a in tf.args) declare(a.v, cf.pos, vs)];
-		f = new SFunction(global(cf.name), params, type(tf.t, cf.pos));
-		if (f.ret == TTexture) error('${cf.name}: a texture is not a result (pass the parameter on)', cf.pos);
+		var params = [for (a in tf.args) declare(a.v, pos, vs)];
+		var f = new SFunction(names.global(name), params, type(tf.t, pos));
+		if (f.ret == TTexture) error('$name: a texture is not a result (pass the parameter on)', pos);
 		fn = f;
 		vars.set(f, vs);
 		var body = [];
@@ -236,7 +128,7 @@ class Lower {
 		f.body = body;
 		fn = saved.fn;
 		locals = saved.locals;
-		names = saved.names;
+		localNames = saved.names;
 		active.pop();
 		functions.set(key, f);
 		return f;
@@ -247,17 +139,17 @@ class Lower {
 		if (t == TVoid) error('${v.name} has no value', pos);
 		// (a texture: a parameter, its sampler <name>_smp next to it where the language has one)
 		if (t == TTexture && list == null) error('${v.name}: a texture is a parameter, not a local', pos);
-		var s = new SVar(unique(sanitize(v.name), n -> !names.exists(n) && (t != TTexture || !names.exists(n + "_smp"))), t);
-		names.set(s.name, true);
-		if (t == TTexture) names.set(s.name + "_smp", true);
+		var s = new SVar(Names.unique(Names.sanitize(v.name), n -> !localNames.exists(n) && (t != TTexture || !localNames.exists(n + "_smp"))), t);
+		localNames.set(s.name, true);
+		if (t == TTexture) localNames.set(s.name + "_smp", true);
 		locals.set(v.id, s);
 		(list != null ? list : vars.get(fn)).push(s);
 		return s;
 	}
 
 	function temp(t:SType):SVar {
-		var s = new SVar(unique("t" + temps++, n -> !names.exists(n)), t);
-		names.set(s.name, true);
+		var s = new SVar(Names.unique("t" + temps++, n -> !localNames.exists(n)), t);
+		localNames.set(s.name, true);
 		vars.get(fn).push(s);
 		return s;
 	}
@@ -265,6 +157,12 @@ class Lower {
 	// --- types ---
 
 	function type(t:Type, pos:Position):SType {
+		// (a typedef of an anonymous structure: a struct of its name)
+		var named = namedStruct(t, pos);
+		if (named != null) {
+			if (!haxeTypes.exists(named)) haxeTypes.set(named, t);
+			return TStruct(named);
+		}
 		return switch t.follow() {
 			case TAbstract(a, params):
 				var a = a.get();
@@ -278,7 +176,7 @@ class Lower {
 					case [SHADER_PACK, "Vec4"]: TVec(4);
 					case [SHADER_PACK, "Mat4"]: TMat4;
 					case ["", "Null"]: error('${t.toString()}: a nullable type is not a shader type', pos);
-					case _: error('${t.toString()} is not a shader type (Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 and @:structInit classes of them)', pos);
+					case _: error('${t.toString()} is not a shader type (Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 and structs of them)', pos);
 				}
 			case TInst(c, []):
 				// (the math types' representations, as `this` of their methods)
@@ -289,11 +187,40 @@ class Lower {
 					case [SHADER_PACK, "Vec4Data"]: TVec(4);
 					case [SHADER_PACK, "Mat4Data"]: TMat4;
 					case [SHADER_PACK, "Texture2D"]: TTexture;
-					case _: TStruct(struct(c, pos));
+					case _:
+						var s = struct(c, pos);
+						if (!haxeTypes.exists(s)) haxeTypes.set(s, t.follow());
+						TStruct(s);
 				}
+			case TAnonymous(a):
+				// (an anonymous structure written out: a struct named after where it is first met)
+				var a = a.get();
+				var key = "{" + [for (f in sortedFields(a)) f.name + ":" + f.type.toString()].join(",") + "}";
+				var s = anonStruct(key, "S" + anonymous, a, pos);
+				if (!haxeTypes.exists(s)) haxeTypes.set(s, t.follow());
+				TStruct(s);
 			case TDynamic(_): error('Dynamic is not a shader type', pos);
-			case _: error('${t.toString()} is not a shader type (Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 and @:structInit classes of them)', pos);
+			case _: error('${t.toString()} is not a shader type (Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 and structs of them)', pos);
 		}
+	}
+
+	function namedStruct(t:Type, pos:Position):Null<SStruct>
+		return switch t {
+			case TType(td, []):
+				var d = td.get();
+				switch d.type {
+					case TAnonymous(a): anonStruct(d.pack.concat([d.name]).join("."), d.name, a.get(), pos);
+					case u: namedStruct(u, pos);
+				}
+			case TMono(r) if (r.get() != null): namedStruct(r.get(), pos);
+			case TLazy(f): namedStruct(f(), pos);
+			case _: null;
+		}
+
+	static function sortedFields(a:AnonType):Array<ClassField> {
+		var fs = a.fields.copy();
+		fs.sort((x, y) -> Context.getPosInfos(x.pos).min - Context.getPosInfos(y.pos).min);
+		return fs;
 	}
 
 	function struct(c:ClassType, pos:Position):SStruct {
@@ -301,30 +228,84 @@ class Lower {
 		var s = structs.get(key);
 		if (s != null) return s;
 		if (c.isExtern || c.isInterface || c.superClass != null || c.params.length > 0 || !c.meta.has(":structInit"))
-			error('$key is not a shader type (a struct is a @:structInit class of Float, Int, Bool, vectors, matrices and structs, without a superclass)',
+			error('$key is not a shader type (a struct is a @:structInit class or a typedef of an anonymous structure, of Float, Int, Bool, vectors, matrices and structs, without a superclass)',
 				pos);
-		if (building.exists(key)) error('$key contains itself', c.pos);
+		return fields(key, c.name, [
+			for (f in c.fields.get())
+				switch f.kind {
+					case FVar(AccNormal | AccNo, AccNormal | AccNo | AccNever | AccCtor): f;
+					case FVar(_, _): error('$key.${f.name}: a property is not a struct field', f.pos);
+					case FMethod(_): continue;
+				}
+		], c.pos);
+	}
+
+	function anonStruct(key:String, name:String, a:AnonType, pos:Position):SStruct {
+		var s = structs.get(key);
+		if (s != null) return s;
+		if (name == "S" + anonymous) anonymous++;
+		return fields(key, name, [
+			for (f in sortedFields(a))
+				switch f.kind {
+					case FVar(_, _): f;
+					case FMethod(_): error('$key.${f.name}: a method is not a struct field', f.pos);
+				}
+		], pos);
+	}
+
+	function fields(key:String, name:String, cfs:Array<ClassField>, pos:Position):SStruct {
+		if (building.exists(key)) error('$key contains itself', pos);
 		building.set(key, true);
 		var fields:Array<SField> = [];
-		for (f in c.fields.get())
-			switch f.kind {
-				case FVar(AccNormal | AccNo, AccNormal | AccNo | AccNever | AccCtor):
-					fields.push({
-						name: unique(sanitize(f.name), n -> !Lambda.exists(fields, g -> g.name == n)),
-						field: f.name,
-						type: type(f.type, f.pos),
-						position: f.meta.has(":position")
-					});
-					if (fields[fields.length - 1].type == TTexture) error('$key.${f.name}: a texture is not a struct field (it is a parameter)', f.pos);
-				case FVar(_, _): error('$key.${f.name}: a property is not a struct field', f.pos);
-				case FMethod(_):
-			}
-		if (fields.length == 0) error('$key has no fields', c.pos);
+		for (f in cfs) {
+			fields.push({
+				name: Names.unique(Names.sanitize(f.name), n -> !Lambda.exists(fields, g -> g.name == n)),
+				field: f.name,
+				type: type(f.type, f.pos),
+				position: false
+			});
+			if (fields[fields.length - 1].type == TTexture) error('$key.${f.name}: a texture is not a struct field (it is a parameter)', f.pos);
+		}
+		if (fields.length == 0) error('$key has no fields', pos);
 		building.remove(key);
-		s = new SStruct(global(c.name), key, fields);
+		var s = new SStruct(names.global(name), key, fields);
 		structs.set(key, s);
 		return s;
 	}
+
+	// a struct's value from its fields' (position(x): that field is the clip-space position)
+	function build(s:SStruct, args:Array<TypedExpr>, out:Array<SStmt>):SExpr {
+		var xs = [];
+		for (i in 0...args.length) {
+			var x = args[i], p = positionArg(x);
+			if (p != null) {
+				s.fields[i].position = true;
+				x = p;
+			} else switch strip(x).expr {
+				case TLocal(v) if (positionLocals.exists(v.id)): s.fields[i].position = true;
+				case _:
+			}
+			xs.push(coerce(expr(x, out), s.fields[i].type, x.pos));
+		}
+		return {e: ENew(xs), t: TStruct(s)};
+	}
+
+	// position(x)'s x
+	static function positionArg(e:TypedExpr):Null<TypedExpr>
+		return switch e.expr {
+			case TParenthesis(x) | TMeta(_, x) | TCast(x, null): positionArg(x);
+			case TCall({expr: TField(_, FStatic(c, cf))}, [x]) if (cf.get().name == "position" && path(c.get()) == SHADER_PACK + ".ShaderMath"): x;
+			case _: null;
+		}
+
+	static function strip(e:TypedExpr):TypedExpr
+		return switch e.expr {
+			case TParenthesis(x) | TMeta(_, x): strip(x);
+			case _: e;
+		}
+
+	static function display(c:ClassType, cf:ClassField):String
+		return StringTools.endsWith(c.name, "_Fields_") ? c.module + "." + cf.name : path(c) + "." + cf.name;
 
 	// --- statements ---
 
@@ -347,6 +328,11 @@ class Lower {
 				out.push(SDecl(s, local(i)));
 				out.push(SAssign(i, op == OpIncrement ? Add : Sub, one(i.type)));
 			case TVar(v, init):
+				var p = init == null ? null : positionArg(init);
+				if (p != null) {
+					positionLocals.set(v.id, true);
+					init = p;
+				}
 				var x = init == null ? null : expr(init, out);
 				var s = declare(v, e.pos);
 				out.push(SDecl(s, x == null ? null : coerce(x, s.type, init.pos)));
@@ -456,7 +442,7 @@ class Lower {
 			case TBinop(op, a, b): binary(op, a, b, e, out);
 			case TUnop(OpNeg, false, x):
 				var v = expr(x, out);
-				if (v.t != TFloat && v.t != TInt) error('-: a ${name(v.t)}', e.pos);
+				if (v.t != TFloat && v.t != TInt) error('-: a ${Names.typeName(v.t)}', e.pos);
 				{e: EUnop(Neg, v), t: v.t};
 			case TUnop(OpNot, false, x): {e: EUnop(Not, coerce(expr(x, out), TBool, x.pos)), t: TBool};
 			case TUnop(OpNegBits, false, x): {e: EUnop(BitNot, coerce(expr(x, out), TInt, x.pos)), t: TInt};
@@ -490,11 +476,25 @@ class Lower {
 				}
 				if (args.length != s.fields.length)
 					error('new ${s.path}: a shader struct is built by its @:structInit constructor, all fields given', e.pos);
-				{e: ENew([for (i in 0...args.length) coerce(expr(args[i], out), s.fields[i].type, args[i].pos)]), t: t};
+				build(s, args, out);
 			case TField(x, FInstance(c, _, cf)): field(x, c.get(), cf.get(), e, out);
 			case TField(_, FStatic(c, cf)): constant(c.get(), cf.get(), e);
 			case TField(_, _): error("this field access is not supported in a shader", e.pos);
-			case TObjectDecl(_): error("an anonymous object is not a shader value (a @:structInit class is)", e.pos);
+			case TObjectDecl(fs):
+				// (a struct of a typedef: its fields by name, in the struct's order)
+				var s = switch type(e.t, e.pos) {
+					case TStruct(s): s;
+					case _: error("an anonymous object is not a shader value (a struct is)", e.pos);
+				}
+				var args = [
+					for (f in s.fields) {
+						var given = Lambda.find(fs, x -> x.name == f.field);
+						if (given == null) error('${s.path}: the field ${f.field} is not given', e.pos);
+						given.expr;
+					}
+				];
+				if (fs.length != s.fields.length) error('${s.path} is built with all its fields, no others', e.pos);
+				build(s, args, out);
 			case TArrayDecl(_) | TArray(_, _): error("arrays are not supported in a shader (yet)", e.pos);
 			case TFunction(_): error("a closure is not supported in a shader", e.pos);
 			case TSwitch(_, _, _): error("switch is not supported in a shader (yet)", e.pos);
@@ -509,13 +509,13 @@ class Lower {
 		var x = expr(a, out), y = expr(b, out);
 		return switch op {
 			case OpAdd | OpSub | OpMult | OpDiv | OpMod:
-				if (t != TFloat && t != TInt) error('${name(x.t)} ${op} ${name(y.t)} is not a shader operation', e.pos);
+				if (t != TFloat && t != TInt) error('${Names.typeName(x.t)} ${op} ${Names.typeName(y.t)} is not a shader operation', e.pos);
 				if (op == OpMod && t == TFloat) error("% on Float is not supported in a shader", e.pos);
 				{e: EBinop(binop(op, e.pos), coerce(x, t, a.pos), coerce(y, t, b.pos)), t: t};
 			case OpEq | OpNotEq | OpLt | OpLte | OpGt | OpGte:
 				var w = x.t == TFloat || y.t == TFloat ? TFloat : x.t;
 				if (!(w == TFloat || w == TInt || (w == TBool && (op == OpEq || op == OpNotEq))))
-					error('${name(x.t)} and ${name(y.t)} cannot be compared in a shader', e.pos);
+					error('${Names.typeName(x.t)} and ${Names.typeName(y.t)} cannot be compared in a shader', e.pos);
 				{e: EBinop(binop(op, e.pos), coerce(x, w, a.pos), coerce(y, w, b.pos)), t: TBool};
 			case OpBoolAnd | OpBoolOr:
 				{e: EBinop(op == OpBoolAnd ? And : Or, coerce(x, TBool, a.pos), coerce(y, TBool, b.pos)), t: TBool};
@@ -603,6 +603,7 @@ class Lower {
 			return [for (i in 0...args.length) coerce(expr(args[i], out), type(argTypes[i], args[i].pos), args[i].pos)];
 		var p = path(c);
 		if (p == SHADER_PACK + ".ShaderMath") {
+			if (cf.name == "position") error("position(...) marks a field of the varyings where the vertex stage builds them ({clip: position(...), ...})", e.pos);
 			var xs = lowered();
 			return switch cf.name {
 				case "vec2" | "vec3" | "vec4": {e: ENew(xs), t: t};
@@ -665,14 +666,14 @@ class Lower {
 	// --- helpers ---
 
 	function coerce(x:SExpr, t:SType, pos:Position):SExpr {
-		if (same(x.t, t)) return x;
+		if (Names.same(x.t, t)) return x;
 		return switch [x.t, t] {
 			case [TInt, TFloat]:
 				switch x.e {
 					case EInt(i): {e: EFloat(i), t: TFloat};
 					case _: {e: EConvert(x), t: TFloat};
 				}
-			case _: error('${name(x.t)} where a ${name(t)} is needed', pos);
+			case _: error('${Names.typeName(x.t)} where a ${Names.typeName(t)} is needed', pos);
 		}
 	}
 
@@ -685,84 +686,7 @@ class Lower {
 	static function local(v:SVar):SExpr
 		return {e: ELocal(v), t: v.type};
 
-	public static function same(a:SType, b:SType):Bool
-		return switch [a, b] {
-			case [TVec(n), TVec(m)]: n == m;
-			case [TStruct(s), TStruct(r)]: s == r;
-			case _: a == b;
-		}
-
-	public static function name(t:SType):String
-		return switch t {
-			case TVoid: "Void";
-			case TBool: "Bool";
-			case TInt: "Int";
-			case TFloat: "Float";
-			case TVec(n): 'Vec$n';
-			case TMat4: "Mat4";
-			case TTexture: "Texture2D";
-			case TStruct(s): s.path;
-		}
-
 	static function path(c:ClassType):String
 		return c.pack.concat([c.name]).join(".");
-
-	// a struct's or function's name: not one of the entry points' either
-	// (main, main0, i, r, o, s, StageIn, StageOut; in_*, v_*, out_*, u_*, make_*, tex_*, smp_*)
-	function global(n:String):String {
-		var s = unique(sanitize(n), n -> !globals.exists(n) && !ENTRY.match(n));
-		globals.set(s, true);
-		return s;
-	}
-
-	// the name, or with _2, _3, ... until free; never reserved
-	static function unique(n:String, free:String->Bool):String {
-		var s = n, k = 1;
-		while (!free(s) || reserved(s))
-			s = n + "_" + ++k;
-		return s;
-	}
-
-	// an identifier every language takes: letters, digits and single
-	// underscores, starting with a letter
-	static function sanitize(n:String):String {
-		var s = ~/[^A-Za-z0-9_]/g.replace(n, "_");
-		s = ~/_+/g.replace(s, "_");
-		while (StringTools.startsWith(s, "_"))
-			s = s.substr(1);
-		if (s == "" || ~/^[0-9]/.match(s)) s = "t" + s;
-		return s;
-	}
-
-	static final ENTRY = ~/^(main|main0|i|r|o|s|StageIn|StageOut|(in|v|out|u|make|tex|smp)_.*)$/;
-	static inline var MAX_SLOTS = 16;
-	static var RESERVED:Map<String, Bool>;
-
-	// the keywords and builtins of GLSL ES 3.00, WGSL, MSL (C++) and HLSL
-	static function reserved(n:String):Bool {
-		if (RESERVED == null) {
-			RESERVED = new Map();
-			for (w in ("attribute const uniform varying layout centroid flat smooth noperspective patch sample break continue do for while switch case default "
-				+ "if else subroutine in out inout float double int void bool true false invariant precise discard return mat2 mat3 mat4 mat2x2 mat2x3 "
-				+ "mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 vec2 vec3 vec4 ivec2 ivec3 ivec4 bvec2 bvec3 bvec4 uint uvec2 uvec3 uvec4 lowp mediump "
-				+ "highp precision sampler2D sampler3D samplerCube struct common partition active asm class union enum typedef template this resource "
-				+ "goto inline noinline public static extern external interface long short half fixed unsigned superp input output filter sizeof cast "
-				+ "namespace using texture sampler gl_Position gl_FragCoord "
-				+ "fn let var alias override bitcast enable requires diagnostic loop continuing fallthrough f16 f32 i32 u32 vec2f vec3f vec4f vec2i "
-				+ "vec3i vec4i mat4x4f array atomic ptr private storage workgroup function read write read_write select module "
-				+ "auto catch char const_cast constexpr decltype delete dynamic_cast explicit export friend mutable new noexcept nullptr operator protected "
-				+ "register reinterpret_cast signed static_assert static_cast thread throw try typeid typename virtual volatile wchar_t device constant "
-				+ "threadgroup kernel vertex fragment packed_float3 float2 float3 float4 float4x4 half2 half3 half4 int2 int3 int4 uint2 uint3 uint4 metal "
-				+ "cbuffer tbuffer row_major column_major packoffset nointerpolation linear point line triangle lineadj triangleadj vector matrix string "
-				+ "technique pass compile dword min16float min16int SV_Position SV_Target TEXCOORD bool2 bool3 bool4 float1 groupshared "
-				+ "abs sign floor ceil fract frac sqrt inversesqrt inverseSqrt rsqrt sin cos tan exp log min max pow step mix lerp clamp smoothstep dot "
-				+ "length distance normalize reflect cross mul saturate mod atan atan2 any all transpose determinant").split(" "))
-				RESERVED.set(w, true);
-		}
-		return RESERVED.exists(n) || StringTools.startsWith(n, "gl_");
-	}
-
-	static function error(msg:String, pos:Position):Dynamic
-		return Context.error("shader: " + msg, pos);
 }
 #end

@@ -3,6 +3,8 @@ package helder.scene.render;
 import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.scene.Node;
+import helder.scene.render.PbrSkinnedShader;
+import helder.scene.render.ShadowSkinnedShader;
 
 // Skinned meshes drawn, opted in (renderer.use(new Skinning(device))):
 // PbrSkinnedShader's pipelines, each frame's joint matrices (Skin.update)

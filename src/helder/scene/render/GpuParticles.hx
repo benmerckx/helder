@@ -153,7 +153,7 @@ class GpuParticles implements RenderFeature {
 		var m = frame.camera.node.worldMatrix();
 		var right = MathTools.transformDir(m, new Vec3(1, 0, 0)), up = MathTools.transformDir(m, new Vec3(0, 1, 0)),
 			forward = MathTools.transformDir(m, new Vec3(0, 0, -1));
-		GpuParticleShader.writeGpuParticleView({
+		GpuParticleShader.params.view.write({
 			viewProj: frame.viewProj,
 			right: new Vec4(right.x, right.y, right.z, frame.hdr ? 1 : 0),
 			up: new Vec4(up.x, up.y, up.z, time),

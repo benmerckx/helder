@@ -8,6 +8,8 @@ import helder.gfx.*;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.os.*;
+import TargetsShader.FillShader;
+import TargetsShader.PanelShader;
 
 // Render to texture, in a window (Escape closes):
 //
@@ -83,7 +85,7 @@ class Targets {
 	// records the frame's passes at time t; the caller ends the frame
 	public function draw(enc:Encoder, t:Float) {
 		var view = Mat4.perspective(Math.PI / 3, 1, 0.1, 10) * Mat4.translation(0, 0, -2.2);
-		PanelShader.writePanelCamera({mvp: view * Mat4.rotationX(0.3) * Mat4.rotationY(t * 0.9)}, camera);
+		PanelShader.params.cam.write({mvp: view * Mat4.rotationX(0.3) * Mat4.rotationY(t * 0.9)}, camera);
 		enc.beginPass(pass);
 		enc.setPipeline(fillPipeline);
 		enc.setVertexBuffer(0, fill);

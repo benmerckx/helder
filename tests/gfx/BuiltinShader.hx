@@ -10,18 +10,17 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class BuiltinVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var a:Float;
 	var b:Vec2;
 }
 
-class BuiltinShader implements Shaders {
-	@:vertex static function vs(v:BuiltinVertex):BuiltinVaryings {
+final BuiltinShader = shader({
+	vertex: function(v:BuiltinVertex):BuiltinVaryings {
 		var m = mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(v.pos.xyz, 1)) * mat4(0.5);
-		return {pos: m * v.pos + m.c3 * 0, a: v.pos.w, b: v.pos.xy};
-	}
-
-	@:fragment static function fs(i:BuiltinVaryings):Vec4 {
+		return {pos: position(m * v.pos + m.c3 * 0), a: v.pos.w, b: v.pos.xy};
+	},
+	fragment: function(i:BuiltinVaryings):Vec4 {
 		var x = i.a, v2 = i.b, v3 = vec3(v2, x), v4 = vec4(v3, 1);
 		var s = abs(x) + sign(x) + floor(x) + ceil(x) + fract(x) + sqrt(x) + inversesqrt(x + 1) + sin(x) + cos(x) + tan(x) + exp(x) + log(x + 1);
 		s += min(x, 1) + max(x, 0) + pow(x, 2) + step(0.5, x) + mix(0, 1, x) + clamp(x, 0, 1) + smoothstep(0, 1, x);
@@ -40,4 +39,4 @@ class BuiltinShader implements Shaders {
 		var t = x > 0.5 ? x : -x;
 		return vec4(w, s) * 0.01 + v4 * (n + k % 5 + t) + vec4(v2, v2) + vec4(x, v3) - vec4(x);
 	}
-}
+});

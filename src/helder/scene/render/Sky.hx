@@ -39,7 +39,7 @@ class Sky implements RenderFeature {
 
 	function draw(enc:Encoder, frame:Renderer.FrameInfo, renderer:Renderer) {
 		var e = frame.eye, l = frame.toLight;
-		SkyShader.writeSkyParams({
+		SkyShader.params.sky.write({
 			invViewProj: MathTools.inverse(frame.viewProj),
 			eye: new Vec4(e.x, e.y, e.z, 1),
 			zenith: new Vec4(zenith.x, zenith.y, zenith.z, 0),

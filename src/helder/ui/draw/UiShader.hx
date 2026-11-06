@@ -38,7 +38,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class UiVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var local:Vec2;
 	var half:Vec2;
 	var uv:Vec2;
@@ -52,10 +52,68 @@ import helder.gfx.shader.ShaderMath.*;
 	var clipRadii:Vec4;
 }
 
-class UiShader implements Shaders {
-	@:vertex static function vs(v:UiVertex):UiVaryings
+// the signed distance from p (relative to the centre) to a rectangle
+// with rounded corners, each corner's radius its own (y down)
+function box(p:Vec2, half:Vec2, r:Vec4):Float {
+	var rc = p.x > 0 ? (p.y > 0 ? r.z : r.y) : (p.y > 0 ? r.w : r.x);
+	var rr = min(rc, min(half.x, half.y));
+	var q = abs(p) - half + vec2(rr, rr);
+	return length(max(q, vec2(0, 0))) + min(max(q.x, q.y), 0) - rr;
+}
+
+// the same for a rectangle whose corners are quarter ellipses (rad: the
+// corner's radii across and down), to the first order in the corners
+function ellipseBox(p:Vec2, half:Vec2, rad:Vec2):Float {
+	var rx = min(rad.x, half.x), ry = min(rad.y, half.y);
+	var q = abs(p) - half + vec2(rx, ry);
+	if (q.x > 0 && q.y > 0 && rx > 0 && ry > 0) {
+		var k = length(q / vec2(rx, ry));
+		return (k - 1) * k / length(q / vec2(rx * rx, ry * ry));
+	}
+	var e = abs(p) - half;
+	return length(max(e, vec2(0, 0))) + min(max(e.x, e.y), 0);
+}
+
+// erf, approximated (Abramowitz and Stegun 7.1.27), on two values
+function erf2(x:Vec2):Vec2 {
+	var s = sign(x), a = abs(x);
+	var r = vec2(1, 1) + (vec2(0.278393, 0.278393) + (vec2(0.230389, 0.230389) + a * a * 0.078108) * a) * a;
+	r = r * r;
+	return s - s / (r * r);
+}
+
+// a row of the blurred rectangle: its coverage at x, y blurred along x
+// (the row's half width narrowed by the corner)
+function blurRow(x:Float, y:Float, sigma:Float, corner:Float, half:Vec2):Float {
+	var delta = min(half.y - corner - abs(y), 0);
+	var curved = half.x - corner + sqrt(max(0, corner * corner - delta * delta));
+	var integral = vec2(0.5, 0.5) + erf2((vec2(x, x) + vec2(-curved, curved)) * (0.70710678 / sigma)) * 0.5;
+	return integral.y - integral.x;
+}
+
+function gauss(y:Float, sigma:Float):Float
+	return exp(-(y * y) / (2 * sigma * sigma)) / (2.5066283 * sigma);
+
+// a rectangle with rounded corners blurred by a Gaussian at p (from its
+// centre): rows blurred exactly, summed over the column at four points
+function blurred(p:Vec2, half:Vec2, r:Vec4, sigma:Float):Float {
+	var rc = p.x > 0 ? (p.y > 0 ? r.z : r.y) : (p.y > 0 ? r.w : r.x);
+	var corner = min(rc, min(half.x, half.y));
+	var low = p.y - half.y, high = p.y + half.y;
+	var y0 = clamp(-3 * sigma, low, high), y1 = clamp(3 * sigma, low, high);
+	var dy = (y1 - y0) / 4;
+	var y = y0 + dy * 0.5;
+	var a = blurRow(p.x, p.y - y, sigma, corner, half) * gauss(y, sigma);
+	a += blurRow(p.x, p.y - (y + dy), sigma, corner, half) * gauss(y + dy, sigma);
+	a += blurRow(p.x, p.y - (y + 2 * dy), sigma, corner, half) * gauss(y + 2 * dy, sigma);
+	a += blurRow(p.x, p.y - (y + 3 * dy), sigma, corner, half) * gauss(y + 3 * dy, sigma);
+	return a * dy;
+}
+
+final UiShader = shader({
+	vertex: function(v:UiVertex):UiVaryings
 		return {
-			pos: vec4(v.pos, 0, 1),
+			pos: position(vec4(v.pos, 0, 1)),
 			local: v.local,
 			half: v.half,
 			uv: v.uv,
@@ -67,67 +125,8 @@ class UiShader implements Shaders {
 			pixel: v.pixel,
 			clip: v.clip,
 			clipRadii: v.clipRadii
-		};
-
-	// the signed distance from p (relative to the centre) to a rectangle
-	// with rounded corners, each corner's radius its own (y down)
-	static function box(p:Vec2, half:Vec2, r:Vec4):Float {
-		var rc = p.x > 0 ? (p.y > 0 ? r.z : r.y) : (p.y > 0 ? r.w : r.x);
-		var rr = min(rc, min(half.x, half.y));
-		var q = abs(p) - half + vec2(rr, rr);
-		return length(max(q, vec2(0, 0))) + min(max(q.x, q.y), 0) - rr;
-	}
-
-	// the same for a rectangle whose corners are quarter ellipses (rad: the
-	// corner's radii across and down), to the first order in the corners
-	static function ellipseBox(p:Vec2, half:Vec2, rad:Vec2):Float {
-		var rx = min(rad.x, half.x), ry = min(rad.y, half.y);
-		var q = abs(p) - half + vec2(rx, ry);
-		if (q.x > 0 && q.y > 0 && rx > 0 && ry > 0) {
-			var k = length(q / vec2(rx, ry));
-			return (k - 1) * k / length(q / vec2(rx * rx, ry * ry));
-		}
-		var e = abs(p) - half;
-		return length(max(e, vec2(0, 0))) + min(max(e.x, e.y), 0);
-	}
-
-	// erf, approximated (Abramowitz and Stegun 7.1.27), on two values
-	static function erf2(x:Vec2):Vec2 {
-		var s = sign(x), a = abs(x);
-		var r = vec2(1, 1) + (vec2(0.278393, 0.278393) + (vec2(0.230389, 0.230389) + a * a * 0.078108) * a) * a;
-		r = r * r;
-		return s - s / (r * r);
-	}
-
-	// a row of the blurred rectangle: its coverage at x, y blurred along x
-	// (the row's half width narrowed by the corner)
-	static function blurRow(x:Float, y:Float, sigma:Float, corner:Float, half:Vec2):Float {
-		var delta = min(half.y - corner - abs(y), 0);
-		var curved = half.x - corner + sqrt(max(0, corner * corner - delta * delta));
-		var integral = vec2(0.5, 0.5) + erf2((vec2(x, x) + vec2(-curved, curved)) * (0.70710678 / sigma)) * 0.5;
-		return integral.y - integral.x;
-	}
-
-	static function gauss(y:Float, sigma:Float):Float
-		return exp(-(y * y) / (2 * sigma * sigma)) / (2.5066283 * sigma);
-
-	// a rectangle with rounded corners blurred by a Gaussian at p (from its
-	// centre): rows blurred exactly, summed over the column at four points
-	static function blurred(p:Vec2, half:Vec2, r:Vec4, sigma:Float):Float {
-		var rc = p.x > 0 ? (p.y > 0 ? r.z : r.y) : (p.y > 0 ? r.w : r.x);
-		var corner = min(rc, min(half.x, half.y));
-		var low = p.y - half.y, high = p.y + half.y;
-		var y0 = clamp(-3 * sigma, low, high), y1 = clamp(3 * sigma, low, high);
-		var dy = (y1 - y0) / 4;
-		var y = y0 + dy * 0.5;
-		var a = blurRow(p.x, p.y - y, sigma, corner, half) * gauss(y, sigma);
-		a += blurRow(p.x, p.y - (y + dy), sigma, corner, half) * gauss(y + dy, sigma);
-		a += blurRow(p.x, p.y - (y + 2 * dy), sigma, corner, half) * gauss(y + 2 * dy, sigma);
-		a += blurRow(p.x, p.y - (y + 3 * dy), sigma, corner, half) * gauss(y + 3 * dy, sigma);
-		return a * dy;
-	}
-
-	@:fragment static function fs(i:UiVaryings, atlas:Texture2D, image:Texture2D):Vec4 {
+		},
+	fragment: function(i:UiVaryings, atlas:Texture2D, image:Texture2D):Vec4 {
 		// (the textures read only by the modes that draw them: sample is at level 0, no derivatives)
 		var ch = (i.clip.zw - i.clip.xy) * 0.5;
 		var clipped = clamp(0.5 - box(i.pixel - i.clip.xy - ch, ch, i.clipRadii), 0, 1);
@@ -164,4 +163,4 @@ class UiShader implements Shaders {
 		var inBorder = w.x + w.y + w.z + w.w > 0 ? clamp(0.5 + ellipseBox(inP, inHalf, rad), 0, 1) : 0.0;
 		return mix(i.color, i.border, inBorder) * edge * clipped;
 	}
-}
+});

@@ -4,6 +4,8 @@ import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.image.Image;
 import helder.sprite.Atlas.AtlasFrame;
+import helder.sprite.SpriteShader;
+import helder.sprite.SpriteShader.buffers;
 
 // Textured quads on helder.gfx, batched: what a 2D game draws (Kha's
 // graphics2, PixiJS's and Phaser's batchers, OpenFL's drawTiles), sprites
@@ -40,7 +42,7 @@ class SpriteBatch {
 	public function new(device:Device, ?colorFormat:TextureFormat, samples = 1) {
 		this.device = device;
 		var d = SpriteShader.pipeline({blend: Premultiplied});
-		d.layout = SpriteShader.buffers;
+		d.layout = buffers;
 		if (colorFormat != null) d.colorFormat = colorFormat;
 		if (samples > 1) d.samples = samples;
 		pipeline = device.createPipeline(d);

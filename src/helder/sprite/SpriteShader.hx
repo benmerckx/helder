@@ -15,7 +15,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class SpriteVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var uv:Vec2;
 	var color:Vec4;
 }
@@ -24,22 +24,21 @@ import helder.gfx.shader.ShaderMath.*;
 	var view:Vec4;
 }
 
-class SpriteShader implements Shaders {
-	// the vertex buffer: SpriteQuads' 20 bytes a vertex, the colour four bytes
-	public static final buffers:Array<VertexBufferLayout> = [
-		{
-			stride: SpriteQuads.STRIDE,
-			attributes: [
-				{location: 0, format: Float2, offset: 0},
-				{location: 1, format: Float2, offset: 8},
-				{location: 2, format: UByte4Norm, offset: 16}
-			]
-		}
-	];
+// the vertex buffer: SpriteQuads' 20 bytes a vertex, the colour four bytes
+final buffers:Array<VertexBufferLayout> = [
+	{
+		stride: SpriteQuads.STRIDE,
+		attributes: [
+			{location: 0, format: Float2, offset: 0},
+			{location: 1, format: Float2, offset: 8},
+			{location: 2, format: UByte4Norm, offset: 16}
+		]
+	}
+];
 
-	@:vertex static function vs(v:SpriteVertex, s:SpriteView):SpriteVaryings
-		return {pos: vec4(v.pos.x * s.view.x + s.view.z, v.pos.y * s.view.y + s.view.w, 0, 1), uv: v.uv, color: v.color};
-
-	@:fragment static function fs(i:SpriteVaryings, image:Texture2D):Vec4
-		return sample(image, i.uv) * i.color;
-}
+final SpriteShader = shader({
+	vertex: function(v:SpriteVertex, s:SpriteView):SpriteVaryings
+		return {pos: position(vec4(v.pos.x * s.view.x + s.view.z, v.pos.y * s.view.y + s.view.w, 0, 1)), uv: v.uv, color: v.color},
+	fragment: function(i:SpriteVaryings, image:Texture2D):Vec4
+		return sample(image, i.uv) * i.color
+});

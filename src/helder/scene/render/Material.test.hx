@@ -8,8 +8,11 @@ import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 import helder.scene.render.PbrShader;
 import helder.test.Test;
+import helder.scene.render.PbrShader.materialOf;
+import helder.scene.render.PbrShader.shadeAt;
+import helder.scene.render.PbrShader.uvOf;
 
-// The standard shader's material options run on the CPU (PbrShader.shadeAt
+// The standard shader's material options run on the CPU (shadeAt
 // as the GPU runs it, its textures white): Material.ground's sunset with
 // the sphere under it and the sky it no longer reflects below its
 // horizon, Material.air towards the limb, Material.crystal's Fresnel and
@@ -32,10 +35,10 @@ function tests() {
 			};
 		}
 		function material(m:Material):PbrMaterial
-			return PbrShader.materialOf(m);
+			return materialOf(m);
 		// the colour at the origin, its normal n, the node's up, tinted
 		function shade(m:Material, n:Vec3, up:Vec3, l:Vec3, eye:Vec3, ?tint:Vec3):Vec4
-			return PbrShader.shadeAt(n, new Vec3(0, 0, 0), new Vec2(0, 0), up, tint ?? new Vec3(1, 1, 1), frame(l, eye), material(m), white, white, white,
+			return shadeAt(n, new Vec3(0, 0, 0), new Vec2(0, 0), up, tint ?? new Vec3(1, 1, 1), frame(l, eye), material(m), white, white, white,
 				white, white, white, white);
 		function sum(c:Vec4):Float
 			return c.x + c.y + c.z;
@@ -95,7 +98,7 @@ function tests() {
 			m.uvRotation = Math.PI / 2;
 			m.uvScale = new Vec2(2, 3);
 			// (glTF's: translation * rotation * scale; u' = cos sx u + sin sy v + ox, v' = -sin sx u + cos sy v + oy)
-			var uv = PbrShader.uvOf(material(m), new Vec2(1, 1));
+			var uv = uvOf(material(m), new Vec2(1, 1));
 			approx(uv.x, 3.5, 1e-6);
 			approx(uv.y, -1.75, 1e-6);
 		});

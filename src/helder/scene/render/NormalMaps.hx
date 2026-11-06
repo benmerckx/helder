@@ -1,6 +1,8 @@
 package helder.scene.render;
 
 import helder.gfx.*;
+import helder.scene.render.PbrInstancedNormalShader;
+import helder.scene.render.PbrNormalShader;
 
 // Normal maps drawn, opted in (renderer.use(new NormalMaps(device))):
 // PbrNormalShader's pipelines for primitives with tangents whose material

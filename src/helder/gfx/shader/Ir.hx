@@ -1,10 +1,13 @@
 package helder.gfx.shader;
 
-// The shader IR: what the shader macro (Lower) makes of a program's typed
-// Haxe functions, and what the emitters (Glsl, Wgsl, Msl, Hlsl) print. Typed
+// The shader IR: what a shader definition's adapter (Lower, Haxe's typed
+// functions; helder.typescript's, TypeScript's) makes of its stages and
+// the functions they call, the handler (ShaderDefinition) checks and the
+// emitters (Glsl, Wgsl, Msl, Hlsl) print. The kernel of definitions
+// (helder.definition.Kernel) for shaders. Typed
 // and structured (no gotos): values of scalar, vector, matrix and struct
 // types, locals assigned in statements, calls to functions that are not
-// recursive. Names are already the emitted ones (Lower avoids every
+// recursive. Names are already the emitted ones (Names avoids every
 // language's keywords and builtins), so an emitter only prints.
 
 enum SType {
@@ -35,7 +38,7 @@ typedef SField = {
 	name:String, // emitted
 	field:String, // Haxe's
 	type:SType,
-	// @:position: the clip-space position of a vertex stage's output
+	// the clip-space position of a vertex stage's output (built position(...))
 	position:Bool
 }
 

@@ -31,7 +31,7 @@ var pipeline = device.createPipeline(CubeShader.pipeline({
 var enc = device.beginFrame();                        // null: no frame now (a hidden window)
 enc.beginPass({colors: [{load: Clear, clear: new Color(0.1, 0.1, 0.12)}], depth: {load: Clear}});
 enc.setPipeline(pipeline);
-CubeShader.writeCubeCamera({mvp: mvp, model: model}, bytes); // a uniform block's std140 bytes
+CubeShader.params.cam.write({mvp: mvp, model: model}, bytes); // a uniform block's std140 bytes
 enc.setUniforms(0, bytes);                            // its slot: into the frame's uniform ring
 enc.setTexture(1, tex, smp);
 enc.setVertexBuffer(0, vb);
@@ -155,39 +155,42 @@ Conventions, the same on every back end: clip space y up and z from 0
 pixels from the target's top left; a texture's first row is its top
 (v = 0), a render target's too (GL renders into it upside down, its front
 faces clockwise, so that it reads alike); `readPixels` rows top to bottom. `Mat4.perspective` and
-`Mat4.orthographic` project into that clip space. The GLSL the shader macro
+`Mat4.orthographic` project into that clip space. The GLSL a shader definition
 emits makes GL match (its clip z and `gl_FragCoord.y` differ).
 
 ## Shaders
 
-Shaders are Haxe (`helder.gfx.shader`): static functions of a class that
-implements `Shaders`, on the math types (`Vec2`, `Vec3`, `Vec4`, `Mat4`,
-swizzles, operators, `ShaderMath`'s builtins), `@:structInit` classes of
-them and `Texture2D` parameters (`sample(t, uv)`: in the fragment stage at
-the mip level the fragment's footprint needs, in the vertex stage the
-first; `sampleLevel(t, uv, level)` at a given one; `discard()`, a statement
-of the fragment stage, drops the fragment: alpha testing). They run on the CPU as they are; a macro
-compiles the `@:vertex` and `@:fragment` stages to GLSL ES 3.00, WGSL, MSL
-and HLSL (the target's only), with the vertex layout, the uniform blocks'
-layout, the slots and the CPU writers:
+Shaders are Haxe (`helder.gfx.shader`): a definition, `shader({vertex,
+fragment})` (src/helder/compiler/DESIGN.md), of functions on the math types
+(`Vec2`, `Vec3`, `Vec4`, `Mat4`, swizzles, operators, `ShaderMath`'s
+builtins), structs of them (`@:structInit` classes, typedefs of anonymous
+structures) and `Texture2D` parameters (`sample(t, uv)`: in the fragment
+stage at the mip level the fragment's footprint needs, in the vertex stage
+the first; `sampleLevel(t, uv, level)` at a given one; `discard()`, a
+statement of the fragment stage, drops the fragment: alpha testing). The
+stages call any static or module-level function of those values. They run
+on the CPU as they are; the definition compiles them, when the program is
+built, to GLSL ES 3.00, WGSL, MSL and HLSL (the target's only), with the
+vertex layout, the uniform blocks' layout, the slots and the CPU writers:
 
 ```haxe
 @:structInit @:publicFields class Vertex { var pos:Vec2; var uv:Vec2; }
-@:structInit @:publicFields class Varyings { @:position var pos:Vec4; var uv:Vec2; }
+@:structInit @:publicFields class Varyings { var pos:Vec4; var uv:Vec2; }
 @:structInit @:publicFields class Tint { var color:Vec4; }
 
-class SpriteShader implements Shaders {
-	@:vertex static function vs(v:Vertex):Varyings
-		return {pos: vec4(v.pos, 0, 1), uv: v.uv};
-	@:fragment static function fs(i:Varyings, tint:Tint, image:Texture2D):Vec4
-		return sample(image, i.uv) * tint.color;   // slots: tint 0, image 1
-}
+final SpriteShader = shader({
+	vertex: function(v:Vertex):Varyings
+		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},  // position: the clip-space position
+	fragment: function(i:Varyings, tint:Tint, image:Texture2D):Vec4
+		return sample(image, i.uv) * tint.color   // slots: tint 0, image 1
+});
 
 var pipeline = device.createPipeline(SpriteShader.pipeline({blend: Alpha}));
 var bytes = SpriteShader.vertexBytes([{pos: vec2(0, 0.6), uv: vec2(0.5, 0)}, ...]);
+SpriteShader.params.tint.write({color: vec4(1)}, uniformBytes);   // std140
 ```
 
-`src/helder/gfx/shader/Shaders.hx` lists the generated members; the tests are
+`src/helder/gfx/shader/Shader.hx` lists the generated members; the tests are
 `tests/gfx/ShaderTest.hx` (`bun run test gfx-shader`) and GfxTest and WebTest,
 the examples' frames against `tests/gfx/<scene>.png` (triangle, cube,
 instances, targets, mips, formats) on each back end (`bun run test gfx`, `bun run test gfx-web`).

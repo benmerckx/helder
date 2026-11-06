@@ -2,7 +2,7 @@ import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
 // A shader with uniform blocks and helpers from another module
-// (Lighting.hx), for the shader macro's tests (ShaderTest: run on the CPU,
+// (Lighting.hx), for the shader definition's tests (ShaderTest: run on the CPU,
 // the emitted source against test/shader/; GfxTest and WebTest: compiled
 // by each back end).
 @:structInit @:publicFields class LitVertex {
@@ -13,7 +13,7 @@ import helder.gfx.shader.ShaderMath.*;
 
 @:structInit @:publicFields class LitVaryings {
 	var normal:Vec3;
-	@:position var clip:Vec4;
+	var clip:Vec4;
 	var uv:Vec2;
 	var shade:Float;
 }
@@ -29,21 +29,20 @@ import helder.gfx.shader.ShaderMath.*;
 	var steps:Int;
 }
 
-class LitShader implements Shaders {
-	static final WOBBLE = 0.05;
+final WOBBLE = 0.05;
 
-	@:vertex static function vs(v:LitVertex, cam:Camera):LitVaryings {
+final LitShader = shader({
+	vertex: function(v:LitVertex, cam:Camera):LitVaryings {
 		var clip = cam.viewProj * vec4(v.pos, 1);
 		var wobble = sin(cam.time + v.pos.x * 3) * WOBBLE;
 		return {
 			normal: v.normal,
-			clip: clip + vec4(wobble, 0, 0, 0),
+			clip: position(clip + vec4(wobble, 0, 0, 0)),
 			uv: v.uv.yx,
 			shade: Lighting.lambert(v.normal, cam.eye - v.pos)
 		};
-	}
-
-	@:fragment static function fs(i:LitVaryings, m:Material):Vec4 {
+	},
+	fragment: function(i:LitVaryings, m:Material):Vec4 {
 		var glow = 0.0;
 		for (k in 0...m.steps)
 			glow += 1 / (k + 2);
@@ -52,4 +51,4 @@ class LitShader implements Shaders {
 		var check = Std.int(i.uv.x * 8) % 2 == 0 ? 1.0 : 0.5;
 		return vec4(clamp(color * check + glow * 0.01, 0, 1), m.tint.w);
 	}
-}
+});

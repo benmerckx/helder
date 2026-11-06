@@ -1,8 +1,8 @@
 package helder.gfx;
 
-// The shader's source for each kind of back end: emitted by the shader
-// macro (helder.gfx.shader: a Shaders class's vertexCode and fragmentCode,
-// in the target's languages only), or written by hand. GL (also on
+// The shader's source for each kind of back end: emitted by a shader
+// definition (helder.gfx.shader.Shader: its vertexCode and fragmentCode, in
+// the target's languages only), or written by hand. GL (also on
 // WebGL2): GLSL ES 3.00 (`#version 300 es`), vertex inputs at
 // `layout(location = n)`. Metal: MSL, the entry point named main0 (as
 // SPIRV-Cross names it), vertex inputs `[[attribute(n)]]` of a

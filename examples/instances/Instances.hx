@@ -94,7 +94,7 @@ class Instances {
 		var w = device.width, h = device.height;
 		// (the field's height fills the target's: square units)
 		var unit = 2 / (ROWS * CELL + 0.2);
-		InstancesShader.writeInstanceField({scale: vec2(unit * h / w, unit), time: t}, field);
+		InstancesShader.params.f.write({scale: vec2(unit * h / w, unit), time: t}, field);
 		enc.beginPass(pass);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(0, field);

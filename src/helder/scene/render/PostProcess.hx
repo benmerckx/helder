@@ -5,6 +5,10 @@ import helder.gfx.*;
 import helder.gfx.shader.Vec2;
 import helder.gfx.shader.Vec4;
 import helder.scene.render.PostShader;
+import helder.scene.render.PbrShader.aces;
+import helder.scene.render.PostShader.BloomDownShader;
+import helder.scene.render.PostShader.BloomUpShader;
+import helder.scene.render.PostShader.CompositeShader;
 
 // The post-process chain of an HDR frame (Renderer.hdr: drawn in linear
 // light into an RGBA16F target): physically based bloom, then the frame
@@ -167,7 +171,7 @@ class PostProcess {
 		enc.beginPass(outPass);
 		enc.setPipeline(composite);
 		// (the first level holds the n levels' light added: lift.w, 1 / n, scales it back)
-		CompositeShader.writeCompositeParams({
+		CompositeShader.params.p.write({
 			exposure: new Vec4(exposure, n > 0 ? Math.min(1, bloom) : 0, (cast toneMap : Int), grain > 0 ? time % 1000 : 0),
 			grade: new Vec4(saturation, contrast, vignette, grain),
 			lift: new Vec4(lift.x, lift.y, lift.z, n > 0 ? 1 / n : 0),
@@ -184,7 +188,7 @@ class PostProcess {
 	}
 
 	inline function bloomParams(tx:Float, ty:Float, r:Float, first:Float)
-		BloomDownShader.writeBloomParams({texel: new Vec4(tx, ty, r, first)}, bloomBytes);
+		BloomDownShader.params.p.write({texel: new Vec4(tx, ty, r, first)}, bloomBytes);
 
 	function release() {
 		for (t in chain)
@@ -208,7 +212,7 @@ class PostProcess {
 enum abstract ToneMap(Int) to Int {
 	// Sobotka's AgX: hues kept, highlights to white
 	var AgX;
-	// ACES filmic, Narkowicz's fit: the 8-bit path's (PbrShader.aces), so a
+	// ACES filmic, Narkowicz's fit: the 8-bit path's (aces), so a
 	// scene tuned there keeps its look
 	var Aces;
 	// none: clipped at 1

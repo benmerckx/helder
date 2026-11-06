@@ -2,6 +2,7 @@ package helder.scene.render;
 
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
+import helder.scene.render.PbrShader.output;
 
 // GPU particles (GpuParticles): each particle written once, when it is
 // emitted (where, how fast, when, for how long, its colour and sizes),
@@ -23,7 +24,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class GpuParticleVaryings {
-	@:position var clip:Vec4;
+	var clip:Vec4;
 	var corner:Vec2;
 	var color:Vec4;
 }
@@ -36,8 +37,8 @@ import helder.gfx.shader.ShaderMath.*;
 	var gravity:Vec4;
 }
 
-class GpuParticleShader implements Shaders {
-	@:vertex static function vs(v:GpuParticleVertex, view:GpuParticleView):GpuParticleVaryings {
+final GpuParticleShader = shader({
+	vertex: function(v:GpuParticleVertex, view:GpuParticleView):GpuParticleVaryings {
 		var age = view.up.w - v.start.w, life = v.velocity.w;
 		var t = age / max(life, 0.0001);
 		var alive = step(0.0, age) * step(t, 1.0);
@@ -60,16 +61,15 @@ class GpuParticleShader implements Shaders {
 		var q = p - axis * (len * 0.5 * (1.0 - v.corner.x)) + axis * (v.corner.x * size) + side * (v.corner.y * size);
 		var fade = (1.0 - t) * min(1.0, t * 12.0 + 0.2);
 		var hot = 1.0 + v.shape.w * (1.0 - t) * (1.0 - t) * 3.0;
-		return {clip: view.viewProj * vec4(q, 1), corner: v.corner, color: vec4(v.color.xyz * hot, v.color.w * fade * alive)};
-	}
-
-	@:fragment static function fs(i:GpuParticleVaryings, view:GpuParticleView):Vec4 {
+		return {clip: position(view.viewProj * vec4(q, 1)), corner: v.corner, color: vec4(v.color.xyz * hot, v.color.w * fade * alive)};
+	},
+	fragment: function(i:GpuParticleVaryings, view:GpuParticleView):Vec4 {
 		var d = 1 - smoothstep(0.15, 1, length(i.corner));
-		var c = PbrShader.output(i.color.xyz * (i.color.w * d), view.right.w);
+		var c = output(i.color.xyz * (i.color.w * d), view.right.w);
 		// (light added, coverage untouched: into HDR none, so that a
 		// see-through target keeps what is behind; into 8 bits its brightest
 		// channel, a glow over it, as the target is composed premultiplied)
 		var cover = view.right.w > 0.5 ? 0.0 : min(1.0, max(c.x, max(c.y, c.z)));
 		return vec4(c, cover);
 	}
-}
+});

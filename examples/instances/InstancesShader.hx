@@ -14,7 +14,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class InstanceVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var color:Vec3;
 	var corner:Vec2;
 }
@@ -24,14 +24,13 @@ import helder.gfx.shader.ShaderMath.*;
 	var time:Float; // turns every instance by as many radians
 }
 
-class InstancesShader implements Shaders {
-	@:vertex static function vs(v:InstanceVertex, f:InstanceField):InstanceVaryings {
+final InstancesShader = shader({
+	vertex: function(v:InstanceVertex, f:InstanceField):InstanceVaryings {
 		var a = v.angle + f.time;
 		var c = cos(a), s = sin(a);
 		var p = vec2(v.corner.x * c - v.corner.y * s, v.corner.x * s + v.corner.y * c) * v.size + v.at;
-		return {pos: vec4(p * f.scale, 0, 1), color: v.color, corner: v.corner};
-	}
-
-	@:fragment static function fs(i:InstanceVaryings):Vec4
-		return vec4(i.color * (1 - 0.3 * length(i.corner)), 1);
-}
+		return {pos: position(vec4(p * f.scale, 0, 1)), color: v.color, corner: v.corner};
+	},
+	fragment: function(i:InstanceVaryings):Vec4
+		return vec4(i.color * (1 - 0.3 * length(i.corner)), 1)
+});

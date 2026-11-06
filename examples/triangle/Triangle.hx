@@ -5,6 +5,7 @@
 import helder.gfx.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.os.*;
+import TriangleShader;
 
 // A coloured triangle in a window (close it, or press Escape):
 //
@@ -14,7 +15,7 @@ import helder.os.*;
 // (macOS and Windows: without -D hxmc.libc=glibc; the browser: -D
 // hxmc.target=wasm32-wasi, run by src/helder/os/browser.mjs with the packages'
 // imports.mjs, as on the site's examples page.) The shaders are Haxe (TriangleShader.hx),
-// compiled by the shader macro into the target's shader languages. The
+// compiled by its definition into the target's shader languages. The
 // tests (tests/gfx) draw the same frames headless and in a window
 // (Xvfb on Linux, a canvas in headless Chromium).
 class Triangle {

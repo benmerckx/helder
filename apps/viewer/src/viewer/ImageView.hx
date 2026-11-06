@@ -222,7 +222,7 @@ class ImageView extends helder.ui.Node {
 				// (off the view: not drawn)
 				if (x1 < 0 || y1 < 0 || x0 > tw || y0 > th) continue;
 				// (device pixels to clip space: y up)
-				PhotoShader.writePhotoView({
+				PhotoShader.params.view.write({
 					rect: helder.gfx.shader.ShaderMath.vec4(x0 / tw * 2 - 1, 1 - y0 / th * 2, x1 / tw * 2 - 1, 1 - y1 / th * 2),
 					uv: helder.gfx.shader.ShaderMath.vec4((t.x0 - t.tx) / t.tw, (t.y0 - t.ty) / t.th, (t.x1 - t.tx) / t.tw, (t.y1 - t.ty) / t.th),
 					background: helder.gfx.shader.ShaderMath.vec4(lin(bg >> 16), lin(bg >> 8), lin(bg), 1)

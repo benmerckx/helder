@@ -6,6 +6,8 @@ import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 import helder.scene.render.Renderer;
 import helder.scene.render.Renderer.FrameInfo;
+import AtmosphereShader.ozone;
+import AtmosphereShader.sunlight;
 
 // A planet's air, physically based (AtmosphereShader), ported from
 // Expansion's app.Atmosphere (benmerckx/expansion), the example's own code
@@ -161,7 +163,7 @@ class Atmosphere {
 	// x the cosine of the sun's angle from the zenith (-1 to 1), y the
 	// height (the ground to the shell's top), its rows from the ground up;
 	// 0 where the ground is in the way; each channel its square root, in 8
-	// bits (AtmosphereShader.sunlight)
+	// bits (sunlight)
 	public static function transmittance(p:Preset):Bytes {
 		var out = Bytes.alloc(LUT_W * LUT_H * 4);
 		var k = p.radius, top = 1 + p.height / k;
@@ -172,7 +174,7 @@ class Atmosphere {
 			var r = 1 + y / (LUT_H - 1) * (top - 1);
 			for (x in 0...LUT_W) {
 				var mu = x / (LUT_W - 1) * 2 - 1, o = (y * LUT_W + x) * 4;
-				// (the ground: ahead and in the way; ozone's tent as AtmosphereShader.ozone's)
+				// (the ground: ahead and in the way; ozone's tent as ozone's)
 				var b = r * mu, disc = b * b - (r * r - 1);
 				if (disc >= 0 && -b - Math.sqrt(disc) > 0) {
 					out.setInt32(o, 0xff000000);
@@ -199,7 +201,7 @@ class Atmosphere {
 	function draw(enc:Encoder, frame:FrameInfo) {
 		if (count == 0 || frame.camera == null) return;
 		var l = frame.toLight, e = frame.eye, s = renderer.sunColor;
-		AtmosphereShader.writeAirView({
+		AtmosphereShader.params.view.write({
 			viewProj: frame.viewProj,
 			eye: new Vec4(e.x, e.y, e.z, renderer.exposure),
 			light: new Vec4(l.x, l.y, l.z, steps),

@@ -11,7 +11,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class FloorVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var uv:Vec2;
 	var far:Float; // 0 near, 1 at the far end (Mips.DEPTH)
 }
@@ -20,13 +20,12 @@ import helder.gfx.shader.ShaderMath.*;
 	var mvp:Mat4;
 }
 
-class FloorShader implements Shaders {
-	@:vertex static function vs(v:FloorVertex, cam:FloorCamera):FloorVaryings
-		return {pos: cam.mvp * vec4(v.pos, 1), uv: v.uv, far: -v.pos.z / 40};
-
-	@:fragment static function fs(i:FloorVaryings, checks:Texture2D):Vec4
-		return vec4(mix(sample(checks, i.uv).xyz, vec3(0.1, 0.1, 0.12), smoothstep(0.01, 0.25, i.far)), 1);
-}
+final FloorShader = shader({
+	vertex: function(v:FloorVertex, cam:FloorCamera):FloorVaryings
+		return {pos: position(cam.mvp * vec4(v.pos, 1)), uv: v.uv, far: -v.pos.z / 40},
+	fragment: function(i:FloorVaryings, checks:Texture2D):Vec4
+		return vec4(mix(sample(checks, i.uv).xyz, vec3(0.1, 0.1, 0.12), smoothstep(0.01, 0.25, i.far)), 1)
+});
 
 @:structInit @:publicFields class SwatchVertex {
 	var pos:Vec2; // clip space
@@ -34,7 +33,7 @@ class FloorShader implements Shaders {
 }
 
 @:structInit @:publicFields class SwatchVaryings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var uv:Vec2;
 }
 
@@ -42,10 +41,9 @@ class FloorShader implements Shaders {
 	var level:Float;
 }
 
-class SwatchShader implements Shaders {
-	@:vertex static function vs(v:SwatchVertex):SwatchVaryings
-		return {pos: vec4(v.pos, 0, 1), uv: v.uv};
-
-	@:fragment static function fs(i:SwatchVaryings, s:Swatch, levels:Texture2D):Vec4
-		return vec4(sampleLevel(levels, i.uv, s.level).xyz, 1);
-}
+final SwatchShader = shader({
+	vertex: function(v:SwatchVertex):SwatchVaryings
+		return {pos: position(vec4(v.pos, 0, 1)), uv: v.uv},
+	fragment: function(i:SwatchVaryings, s:Swatch, levels:Texture2D):Vec4
+		return vec4(sampleLevel(levels, i.uv, s.level).xyz, 1)
+});

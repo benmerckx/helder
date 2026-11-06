@@ -2,18 +2,20 @@ package helder.scene.render;
 
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
+import helder.scene.render.PbrShader.aces;
+import helder.scene.render.PbrShader.output;
 
 // The sky (Sky): a quad over the whole target behind everything (no depth
 // written), each pixel's colour from its view direction (the inverse view
 // projection's ray): the ground below the horizon, a glow at it, the
 // zenith above, a sun's disc and halo; tone mapped and encoded as the
-// standard material is (PbrShader.aces, encode).
+// standard material is (aces, encode).
 @:structInit @:publicFields class SkyVertex {
 	var pos:Vec2; // clip space
 }
 
 @:structInit @:publicFields class SkyVaryings {
-	@:position var clip:Vec4;
+	var clip:Vec4;
 	var ndc:Vec2;
 }
 
@@ -24,14 +26,13 @@ import helder.gfx.shader.ShaderMath.*;
 	var horizon:Vec4;
 	var ground:Vec4;
 	var sun:Vec4; // xyz: towards the sun; w: exposure
-	var sunColor:Vec4; // w: 1 into an HDR target (PbrShader.output)
+	var sunColor:Vec4; // w: 1 into an HDR target (output)
 }
 
-class SkyShader implements Shaders {
-	@:vertex static function vs(v:SkyVertex):SkyVaryings
-		return {clip: vec4(v.pos, 0.9999, 1), ndc: v.pos};
-
-	@:fragment static function fs(i:SkyVaryings, sky:SkyParams):Vec4 {
+final SkyShader = shader({
+	vertex: function(v:SkyVertex):SkyVaryings
+		return {clip: position(vec4(v.pos, 0.9999, 1)), ndc: v.pos},
+	fragment: function(i:SkyVaryings, sky:SkyParams):Vec4 {
 		var far = sky.invViewProj * vec4(i.ndc, 1, 1);
 		var d = normalize(far.xyz / far.w - sky.eye.xyz);
 		var up = d.y;
@@ -40,6 +41,6 @@ class SkyShader implements Shaders {
 		var color = up > 0 ? above : below;
 		var s = max(dot(d, sky.sun.xyz), 0);
 		color += sky.sunColor.xyz * (pow(s, 600) * 8 + pow(s, 12) * 0.25);
-		return vec4(PbrShader.output(color * sky.sun.w, sky.sunColor.w), 1);
+		return vec4(output(color * sky.sun.w, sky.sunColor.w), 1);
 	}
-}
+});

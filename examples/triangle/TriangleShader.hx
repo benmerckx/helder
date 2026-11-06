@@ -10,14 +10,11 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class Varyings {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 	var color:Vec3;
 }
 
-class TriangleShader implements Shaders {
-	@:vertex static function vs(v:Vertex):Varyings
-		return {pos: vec4(v.pos, 0, 1), color: v.color};
-
-	@:fragment static function fs(i:Varyings):Vec4
-		return vec4(i.color, 1);
-}
+final TriangleShader = shader({
+	vertex: function(v:Vertex):Varyings return {pos: position(vec4(v.pos, 0, 1)), color: v.color},
+	fragment: function(i:Varyings):Vec4 return vec4(i.color, 1)
+});

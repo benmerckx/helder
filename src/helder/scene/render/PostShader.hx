@@ -2,6 +2,8 @@ package helder.scene.render;
 
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
+import helder.scene.render.PbrShader.aces;
+import helder.scene.render.PbrShader.encode;
 
 // The post-process chain's shaders (PostProcess): each a triangle over the
 // whole target, reading the pass before.
@@ -23,7 +25,7 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class PostVaryings {
-	@:position var clip:Vec4;
+	var clip:Vec4;
 	var uv:Vec2;
 }
 
@@ -41,15 +43,22 @@ import helder.gfx.shader.ShaderMath.*;
 	var size:Vec4; // xy: the target's size in pixels, z: its aspect, w: the scene's alpha kept (1) or opaque (0)
 }
 
-class BloomDownShader implements Shaders {
-	@:vertex static function vs(v:PostVertex):PostVaryings
-		return fullscreen(v);
+// (a target's uv at a corner of the triangle over it: its top left 0, 0)
+function fullscreen(v:PostVertex):PostVaryings
+	return {clip: position(vec4(v.pos, 0, 1)), uv: vec2(v.pos.x * 0.5 + 0.5, 0.5 - v.pos.y * 0.5)};
 
-	// (a target's uv at a corner of the triangle over it: its top left 0, 0)
-	public static function fullscreen(v:PostVertex):PostVaryings
-		return {clip: vec4(v.pos, 0, 1), uv: vec2(v.pos.x * 0.5 + 0.5, 0.5 - v.pos.y * 0.5)};
+// (a texel's colour, past a ceiling no bright speck reaches: half floats'
+// infinities and NaNs kept out)
+function tap(t:Texture2D, uv:Vec2):Vec3
+	return clamp(sampleLevel(t, uv, 0).xyz, 0, 256);
 
-	@:fragment static function fs(i:PostVaryings, p:BloomParams, source:Texture2D):Vec4 {
+function luma(c:Vec3):Float
+	return dot(c, vec3(0.2126, 0.7152, 0.0722));
+
+final BloomDownShader = shader({
+	vertex: function(v:PostVertex):PostVaryings
+		return fullscreen(v),
+	fragment: function(i:PostVaryings, p:BloomParams, source:Texture2D):Vec4 {
 		var t = p.texel.xy;
 		var uv = i.uv;
 		var a = tap(source, uv + t * vec2(-2, -2));
@@ -86,21 +95,12 @@ class BloomDownShader implements Shaders {
 		var sum = g0 * w0 + g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4;
 		return vec4(sum / (w0 + w1 + w2 + w3 + w4), 1);
 	}
+});
 
-	// (a texel's colour, past a ceiling no bright speck reaches: half floats'
-	// infinities and NaNs kept out)
-	static function tap(t:Texture2D, uv:Vec2):Vec3
-		return clamp(sampleLevel(t, uv, 0).xyz, 0, 256);
-
-	public static function luma(c:Vec3):Float
-		return dot(c, vec3(0.2126, 0.7152, 0.0722));
-}
-
-class BloomUpShader implements Shaders {
-	@:vertex static function vs(v:PostVertex):PostVaryings
-		return BloomDownShader.fullscreen(v);
-
-	@:fragment static function fs(i:PostVaryings, p:BloomParams, source:Texture2D):Vec4 {
+final BloomUpShader = shader({
+	vertex: function(v:PostVertex):PostVaryings
+		return fullscreen(v),
+	fragment: function(i:PostVaryings, p:BloomParams, source:Texture2D):Vec4 {
 		var t = p.texel.xy * p.texel.z;
 		var uv = i.uv;
 		var sum = sampleLevel(source, uv, 0).xyz * 4
@@ -110,20 +110,49 @@ class BloomUpShader implements Shaders {
 			+ sampleLevel(source, uv + t * vec2(-1, 1), 0).xyz + sampleLevel(source, uv + t * vec2(1, 1), 0).xyz;
 		return vec4(sum / 16, 1);
 	}
+});
+
+// (a pixel's random value in 0..1)
+function hash(p:Vec2):Float {
+	var q = fract(p * vec2(0.1031, 0.1030));
+	var d = dot(q, vec2(q.y + 33.33, q.x + 33.33));
+	q = q + vec2(d, d);
+	return fract((q.x + q.y) * q.x);
 }
 
-class CompositeShader implements Shaders {
-	@:vertex static function vs(v:PostVertex):PostVaryings
-		return BloomDownShader.fullscreen(v);
+// AgX (Sobotka's; Wrensch's fit of its sigmoid): the colour into AgX's
+// inset primaries, its log2 between -12.47 and 4.03 stops, the curve,
+// back out: highlights desaturate towards white as film does, hues
+// stay; display values (sRGB's encoding), 0..1
+function agx(c:Vec3):Vec3 {
+	var v = vec3(dot(c, vec3(0.842479062253094, 0.0784335999999992, 0.0792237451477643)),
+		dot(c, vec3(0.0423282422610123, 0.878468636469772, 0.0791661274605434)),
+		dot(c, vec3(0.0423756549057051, 0.0784336, 0.879142973793104)));
+	var lo = -12.47393;
+	var hi = 4.026069;
+	v = clamp(log(max(v, vec3(0.0000001))) * 1.4426950, lo, hi);
+	v = (v - lo) / (hi - lo);
+	var v2 = v * v;
+	var v4 = v2 * v2;
+	v = 15.5 * v4 * v2 - 40.14 * v4 * v + 31.96 * v4 - 6.868 * v2 * v + 0.4298 * v2 + 0.1191 * v - 0.00232;
+	// (the inset's inverse)
+	var o = vec3(dot(v, vec3(1.19687900512017, -0.0980208811401368, -0.0990297440797205)),
+		dot(v, vec3(-0.0528968517574562, 1.15190312990417, -0.0989611768448433)),
+		dot(v, vec3(-0.0529716355144438, -0.0980434501171241, 1.15107367264116)));
+	return clamp(o, 0, 1);
+}
 
-	@:fragment static function fs(i:PostVaryings, p:CompositeParams, scene:Texture2D, bloom:Texture2D):Vec4 {
+final CompositeShader = shader({
+	vertex: function(v:PostVertex):PostVaryings
+		return fullscreen(v),
+	fragment: function(i:PostVaryings, p:CompositeParams, scene:Texture2D, bloom:Texture2D):Vec4 {
 		var s = sampleLevel(scene, i.uv, 0);
 		var hdr = clamp(s.xyz, 0, 65000);
 		var spread = sampleLevel(bloom, i.uv, 0).xyz * p.lift.w;
 		var color = mix(hdr, spread, p.exposure.y) * p.exposure.x;
 		var curve = p.exposure.z;
-		var mapped = PbrShader.encode(clamp(color, 0, 1));
-		if (curve < 1.5) mapped = PbrShader.encode(PbrShader.aces(color));
+		var mapped = encode(clamp(color, 0, 1));
+		if (curve < 1.5) mapped = encode(aces(color));
 		if (curve < 0.5) mapped = agx(color);
 		// (the grade, on display values)
 		var y = dot(mapped, vec3(0.2126, 0.7152, 0.0722));
@@ -144,34 +173,4 @@ class CompositeShader implements Shaders {
 		mapped += vec3(noise * (p.grade.w * (0.35 + 0.65 * mid) + 1.0 / 255)) * alpha;
 		return vec4(clamp(mapped, 0, 1), alpha);
 	}
-
-	// (a pixel's random value in 0..1)
-	static function hash(p:Vec2):Float {
-		var q = fract(p * vec2(0.1031, 0.1030));
-		var d = dot(q, vec2(q.y + 33.33, q.x + 33.33));
-		q = q + vec2(d, d);
-		return fract((q.x + q.y) * q.x);
-	}
-
-	// AgX (Sobotka's; Wrensch's fit of its sigmoid): the colour into AgX's
-	// inset primaries, its log2 between -12.47 and 4.03 stops, the curve,
-	// back out: highlights desaturate towards white as film does, hues
-	// stay; display values (sRGB's encoding), 0..1
-	public static function agx(c:Vec3):Vec3 {
-		var v = vec3(dot(c, vec3(0.842479062253094, 0.0784335999999992, 0.0792237451477643)),
-			dot(c, vec3(0.0423282422610123, 0.878468636469772, 0.0791661274605434)),
-			dot(c, vec3(0.0423756549057051, 0.0784336, 0.879142973793104)));
-		var lo = -12.47393;
-		var hi = 4.026069;
-		v = clamp(log(max(v, vec3(0.0000001))) * 1.4426950, lo, hi);
-		v = (v - lo) / (hi - lo);
-		var v2 = v * v;
-		var v4 = v2 * v2;
-		v = 15.5 * v4 * v2 - 40.14 * v4 * v + 31.96 * v4 - 6.868 * v2 * v + 0.4298 * v2 + 0.1191 * v - 0.00232;
-		// (the inset's inverse)
-		var o = vec3(dot(v, vec3(1.19687900512017, -0.0980208811401368, -0.0990297440797205)),
-			dot(v, vec3(-0.0528968517574562, 1.15190312990417, -0.0989611768448433)),
-			dot(v, vec3(-0.0529716355144438, -0.0980434501171241, 1.15107367264116)));
-		return clamp(o, 0, 1);
-	}
-}
+});

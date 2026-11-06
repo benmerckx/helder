@@ -10,6 +10,9 @@ import helder.scene.Node;
 import helder.scene.World;
 import helder.scene.math.MathTools;
 import helder.scene.render.PbrShader;
+import helder.scene.render.PbrInstancedShader;
+import helder.scene.render.PbrShader.materialOf;
+import helder.scene.render.PbrShader.output;
 
 // Draws a world's meshes (MeshRenderer) as seen by a camera, lit by its
 // first directional Light and up to four point Lights (a world without
@@ -341,7 +344,7 @@ class Renderer {
 			lightViewProjFar = f.viewProjFar;
 			shadowFar = f.paramsFar;
 		}
-		PbrShader.writePbrFrame({
+		PbrShader.params.frame.write({
 			viewProj: viewProj,
 			eye: new Vec4(eye.x, eye.y, eye.z, 1),
 			lightDir: new Vec4(l.x, l.y, l.z, 0),
@@ -415,7 +418,7 @@ class Renderer {
 			}
 			if (!many && d.node != node) {
 				var model = d.node.worldMatrix(), t = d.tint;
-				PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model), tint: new Vec4(t.x, t.y, t.z, 1)}, objectBytes);
+				PbrShader.params.object.write({model: model, normalMatrix: MathTools.normalMatrix(model), tint: new Vec4(t.x, t.y, t.z, 1)}, objectBytes);
 				enc.setUniforms(slots[1], objectBytes);
 				node = d.node;
 			}
@@ -464,7 +467,7 @@ class Renderer {
 
 	// a material's block and textures, at a shader's slots
 	function bindMaterial(enc:Encoder, slots:Array<Int>, m:Material, normals:Null<RenderFeature.NormalSource>) {
-		PbrShader.writePbrMaterial(PbrShader.materialOf(m), materialBytes);
+		PbrShader.params.material.write(materialOf(m), materialBytes);
 		enc.setUniforms(slots[2], materialBytes);
 		var ms = m.sampler != null ? m.sampler : sampler;
 		enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
@@ -538,11 +541,11 @@ class Renderer {
 		enc.setPipeline(tintPipelines[k]);
 		enc.setUniforms(slots[0], frameBytes);
 		var model = d.node.worldMatrix(), t = d.tint;
-		PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model), tint: new Vec4(t.x, t.y, t.z, 1)}, objectBytes);
+		PbrShader.params.object.write({model: model, normalMatrix: MathTools.normalMatrix(model), tint: new Vec4(t.x, t.y, t.z, 1)}, objectBytes);
 		enc.setUniforms(slots[1], objectBytes);
-		var block = PbrShader.materialOf(m);
+		var block = materialOf(m);
 		block.layers = new Vec4(block.layers.x, block.layers.y, -m.transmission, block.layers.w);
-		PbrShader.writePbrMaterial(block, materialBytes);
+		PbrShader.params.material.write(block, materialBytes);
 		enc.setUniforms(slots[2], materialBytes);
 		var ms = m.sampler != null ? m.sampler : sampler;
 		enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
@@ -586,7 +589,7 @@ class Renderer {
 	// frame, object (-1: none), material, base colour, shadow map, skin,
 	// joints, metallic-roughness, emissive, occlusion, normal, the far shadow
 	// map, the environment map
-	public static function slotsOf(uniforms:Array<helder.gfx.shader.Shaders.UniformBlock>, textures:Array<helder.gfx.shader.Shaders.TextureBinding>):Array<Int> {
+	public static function slotsOf(uniforms:Array<helder.gfx.shader.Shader.UniformBlock>, textures:Array<helder.gfx.shader.Shader.TextureBinding>):Array<Int> {
 		function u(name:String):Int {
 			for (b in uniforms)
 				if (b.name == name) return b.binding;
@@ -647,7 +650,7 @@ class FrameInfo {
 	// towards the light (the world's sun or the renderer's)
 	public var toLight:Vec3 = new Vec3(0, 1, 0);
 	// whether the target is the renderer's HDR one (linear light, RGBA16F:
-	// PbrShader.output)
+	// output)
 	public var hdr = false;
 
 	public function new() {}

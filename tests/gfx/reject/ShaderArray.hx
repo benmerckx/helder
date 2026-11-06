@@ -1,6 +1,6 @@
 // Arrays allocate: not in a shader (the error at the array).
 // expect: ShaderArray.hx:17: characters 11-21
-// expect: shader: arrays are not supported in a shader
+// expect: arrays are not supported in a shader
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
@@ -9,18 +9,18 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 @:structInit @:publicFields class O {
-	@:position var pos:Vec4;
+	var pos:Vec4;
 }
 
-class ShaderArray implements Shaders {
-	@:vertex static function vs(v:V):O {
+final S = shader({
+	vertex: function(v:V):O {
 		var a = [1.0, 2.0];
-		return {pos: vec4(v.pos, a[0], a[1])};
-	}
+		return {pos: position(vec4(v.pos, a[0], a[1]))};
+	},
+	fragment: function(o:O):Vec4 return o.pos
+});
 
-	@:fragment static function fs(o:O):Vec4
-		return o.pos;
-
+class ShaderArray {
 	static function main()
-		trace(vertexCode);
+		trace(S.vertexCode);
 }
