@@ -205,6 +205,16 @@ class Inspect {
 			extrasType = ARRAY_EXTRAS;
 			formatter = r -> formatArray(a, r);
 		}
+		else if (Std.isOfType(value, TypedArrays.JsTypedArray)) {
+			var t:TypedArrays.JsTypedArray = cast value;
+			var n = t.length();
+			keys = propertyKeys(value, true);
+			braces = [prefix(constructor, tag, TypedArrays.NAMES[t.kind], "(" + n + ")") + "[", "]"];
+			if (n == 0 && keys.length == 0) return braces[0] + "]";
+			extrasType = ARRAY_EXTRAS;
+			var a = Lib.array([for (i in 0...n) TypedArrays.elementGet(t, i)]);
+			formatter = r -> formatArray(a, r);
+		}
 		else if (Std.isOfType(value, JsMap)) {
 			var m:JsMap = cast value;
 			keys = propertyKeys(value, false);
@@ -394,7 +404,8 @@ class Inspect {
 		var totalLength = 0;
 		var maxLength = 0;
 		var outputLength = output.length;
-		if (Std.isOfType(value, JsArray) && (value : JsArray).length > maxArrayLength && StringTools.startsWith(output[output.length - 1], "... ")) outputLength--;
+		if ((Std.isOfType(value, JsArray) && (value : JsArray).length > maxArrayLength || Std.isOfType(value, TypedArrays.JsTypedArray) && (value : TypedArrays.JsTypedArray).length() > maxArrayLength)
+			&& StringTools.startsWith(output[output.length - 1], "... ")) outputLength--;
 		var separatorSpace = 2;
 		var dataLen = [];
 		for (i in 0...outputLength) {

@@ -144,7 +144,7 @@ class Buffers {
 			if (length > maximum) return error("RangeError", "ArrayBuffer length exceeds maximum");
 			return allocate(length, maximum, resizable, protoFrom(nt, BufferProto));
 		});
-		Builtins.method(bufferCtor, "isView", 1, (_, a, _) -> Std.isOfType(arg(a, 0), JsDataView));
+		Builtins.method(bufferCtor, "isView", 1, (_, a, _) -> Std.isOfType(arg(a, 0), JsDataView) || Std.isOfType(arg(a, 0), TypedArrays.JsTypedArray));
 		Builtins.getter(bufferCtor, "\x00@@species", t -> t);
 		Builtins.getter(BufferProto, "byteLength", t -> buffer(t).length());
 		Builtins.getter(BufferProto, "maxByteLength", t -> {

@@ -27,6 +27,8 @@ enum HType {
 	HAbstract(path:String, params:Array<HType>, under:HType, values:Null<Array<String>>);
 	HEnum(path:String);
 	HParam(name:String);
+	// haxe.io.Bytes: a typed array of kind sharing them
+	HBytes(kind:String);
 }
 
 typedef HArg = {name:String, opt:Bool, t:HType};
@@ -44,6 +46,7 @@ class HTypes {
 		if (d == null) return HDynamic;
 		if (Reflect.hasField(d, "null")) return HNull(of(Reflect.field(d, "null")));
 		if (Reflect.hasField(d, "array")) return HArray(of(d.array));
+		if (Reflect.hasField(d, "bytes")) return HBytes(d.bytes);
 		if (Reflect.hasField(d, "fn")) return HFn(args(d.fn), of(d.ret));
 		if (Reflect.hasField(d, "anon")) return HAnon(args(d.anon));
 		if (Reflect.hasField(d, "class")) return HClass(Reflect.field(d, "class"), [for (p in (d.params : Array<Dynamic>)) of(p)]);

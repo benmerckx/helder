@@ -135,6 +135,8 @@ class Haxe {
 				toHaxe(e, x, to, where);
 			case HRead(_):
 				b.coerce(call(interop("reader"), [any(e)]), to);
+			case HBytes(_):
+				b.coerce(call(interop("bytes"), [any(e), EStr(where)]), to);
 			case HClass(path, _):
 				var ci = classInfo(path);
 				if (ci == null) b.coerce(call(interop("toHaxe"), [any(e)]), to) else b.coerce(checked(ci, e, where), to);
@@ -241,6 +243,7 @@ class Haxe {
 			case [TI32, _]: EConv(I2F, e);
 			case [TF64 | TBool, _]: e;
 			case [TRef(RStr), _]: e;
+			case [_, HBytes(kind)]: call(interop("bytesToJs"), [any(e), EStr(kind)]);
 			case _: call(interop("toJs"), [any(e)]);
 		}
 	}

@@ -92,6 +92,7 @@ class Lib {
 				if (v != hole) return v;
 			}
 		}
+		else if (Std.isOfType(o, TypedArrays.JsTypedArray) && isNumber(k)) return TypedArrays.elementGet(cast o, numericIndex(k));
 		return getKey(o, key(k), o);
 	}
 
@@ -123,6 +124,13 @@ class Lib {
 			if (i >= 0 && i < a.items.length) {
 				var v = a.items[Std.int(i)];
 				return v == hole ? absent : v;
+			}
+		}
+		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
+			var i = index(name);
+			if (i >= 0) {
+				var t:TypedArrays.JsTypedArray = cast obj;
+				return TypedArrays.elementGet(t, i);
 			}
 		}
 		if (obj.hasOwn(name)) {
@@ -166,6 +174,10 @@ class Lib {
 			var i = index(name);
 			if (i >= 0 && i < a.items.length) return a.items[Std.int(i)] != hole;
 		}
+		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
+			var i = index(name);
+			if (i >= 0) return i < (cast obj : TypedArrays.JsTypedArray).length();
+		}
 		if (obj.hasOwn(name)) return true;
 		if (Std.isOfType(obj, JsFunction)) return functionOwn(cast obj, name) != absent;
 		return false;
@@ -193,6 +205,10 @@ class Lib {
 				return v;
 			}
 		}
+		else if (Std.isOfType(o, TypedArrays.JsTypedArray) && isNumber(k)) {
+			TypedArrays.elementSet(cast o, numericIndex(k), v);
+			return v;
+		}
 		setKey(o, key(k), v, o);
 		return v;
 	}
@@ -218,6 +234,13 @@ class Lib {
 			var i = index(name);
 			if (i >= 0 && !obj.hasOwn(name) && inherited(obj.proto, name) == null) {
 				setIndex(a, i, v);
+				return;
+			}
+		}
+		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
+			var i = index(name);
+			if (i >= 0) {
+				TypedArrays.elementSet(cast obj, i, v);
 				return;
 			}
 		}
@@ -330,6 +353,11 @@ class Lib {
 			}
 			if (name == "length") return error("TypeError", "Cannot delete property 'length' of [object Array]");
 		}
+		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) {
+			var i = index(name);
+			if (i >= 0 && i < (cast obj : TypedArrays.JsTypedArray).length()) return error("TypeError", "Cannot delete property '" + name + "' of " + describe(obj));
+			if (i >= 0) return true;
+		}
 		if (obj.attr(name) & Attr.LOCKED != 0) return error("TypeError", "Cannot delete property '" + name + "' of " + describe(obj));
 		if (Std.isOfType(obj, JsFunction) && (name == "name" || name == "length")) {
 			var f:JsFunction = cast obj;
@@ -354,6 +382,7 @@ class Lib {
 			var a:JsArray = cast obj;
 			for (i in 0...a.items.length) if (a.items[i] != hole) out.push(Std.string(i));
 		}
+		else if (Std.isOfType(obj, TypedArrays.JsTypedArray)) for (i in 0...(cast obj : TypedArrays.JsTypedArray).length()) out.push(Std.string(i));
 		var own = obj.ownNames();
 		if (own == null) return out;
 		var numeric:Array<String> = [];

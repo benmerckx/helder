@@ -103,8 +103,9 @@ and async functions' step functions), `Statements.hx` (control flow),
 `Frontend.hx` itself (the modules, their imports and exports). Values
 are JavaScript values (`js/`): objects with prototypes, sparse arrays,
 closures, classes, iterators, generators, promises with an event loop,
-RegExp, Date, Map/Set, iterator helpers, ArrayBuffer/DataView, JSON and
-node's `console.log` formatting; `Builtins.hx` installs the built-ins,
+RegExp, Date, Map/Set, iterator helpers, ArrayBuffer/DataView and the
+typed arrays (`TypedArrays.hx`: Int8Array to Float64Array, Float16Array,
+over haxe.io.Bytes), JSON and node's `console.log` formatting; `Builtins.hx` installs the built-ins,
 each family's in a file of its own (`Objects.hx`, `Arrays.hx`,
 `Strings.hx`, `Collections.hx`, `Globals.hx`, and `Dates.hx`, `Regex.hx`...
 for the optional ones). `ir/` has the IR builder, a verifier for the frontend's
@@ -206,7 +207,11 @@ or a Float, a string, a Bool, a Read (`Interop.reader`), an instance
 checked (TSHX100 where it is not one), an array's elements, a function as
 a closure of the parameter's signature (its arguments made the program's,
 its result Haxe's), a structure field by field, the rest untyped
-(`Interop.toHaxe`); the result back (`Interop.toJs`, numbers as they are).
+(`Interop.toHaxe`); the result back (`Interop.toJs`, numbers as they are). helder's `haxe.io.Bytes` is a
+Uint8Array sharing them (a field's `@:typescript.type("Uint8ClampedArray")`
+another kind: ImageData's `data`), and a typed array, a DataView or an
+ArrayBuffer given for Bytes its bytes (shared when it views all its
+buffer, else copied).
 helder's objects pass as they are, opaque to the program. A signal's call
 is chosen by its static type: `count()` its node read, `count(v)` written,
 `count(c => c + 1)` (an argument of a function type) updated;
@@ -267,7 +272,7 @@ handlers typed by ui's events).
 ### Built-ins
 
 The runtime's optional built-ins (RegExp, normalize's Unicode tables,
-Date, ArrayBuffer/DataView, JSON, iterator helpers, Promise and the timers
+Date, ArrayBuffer/DataView, the typed arrays, JSON, iterator helpers, Promise and the timers
 with the event loop, `Array.fromAsync`, Set's algebra, the URI functions,
 `structuredClone`) are installed by a program that uses them (`Features.hx`:
 the globals it names, the method names it calls, its syntax); hxmc leaves
@@ -278,8 +283,8 @@ A `.json` file the program imports (`import data from "./data.json"`,
 resolveJsonModule's) is a module whose default export is its value.
 
 Excluded, with a diagnostic: `eval`, `Function`, `Proxy`, `with`,
-`__proto__`/`setPrototypeOf`, dynamic `import()`. Not yet: BigInt, typed
-arrays, `process` and node's other globals.
+`__proto__`/`setPrototypeOf`, dynamic `import()`. Not yet: BigInt (and so
+BigInt64Array), `process` and node's other globals.
 
 ## What is built
 

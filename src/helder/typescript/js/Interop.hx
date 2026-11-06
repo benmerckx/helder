@@ -1,6 +1,7 @@
 package helder.typescript.js;
 
 import helder.typescript.js.Values;
+import helder.typescript.js.Buffers;
 
 // Values crossing between a TypeScript program and helder's Haxe API, where
 // the compiled program calls it (helder.typescript.lower.Haxe: the
@@ -31,6 +32,8 @@ class Interop {
 		}
 		if (Std.isOfType(v, Float)) return v;
 		if (Std.isOfType(v, Array)) return Lib.array([for (x in (v : Array<Dynamic>)) toJs(x)]);
+		// (helder's bytes: a Uint8Array sharing them)
+		if (Std.isOfType(v, haxe.io.Bytes)) return TypedArrays.ofBytes(v);
 		if (Reflect.isFunction(v))
 			return Builtins.nativeFunction("", 0, (_, args, _) -> toJs(Reflect.callMethod(null, v, [for (a in args) toHaxe(a)])));
 		if (Type.typeof(v) == TObject) {
@@ -47,6 +50,8 @@ class Interop {
 		if (v == null || v == Seed.undefinedValue) return null;
 		if (Std.isOfType(v, JsFunction) && (v : JsFunction).haxe != null) return (v : JsFunction).haxe;
 		if (Std.isOfType(v, JsArray)) return [for (x in (v : JsArray).items) x == Lib.hole ? null : toHaxe(x)];
+		// (a typed array, a DataView, an ArrayBuffer: its bytes, shared when it views all its buffer's)
+		if (Std.isOfType(v, TypedArrays.JsTypedArray) || Std.isOfType(v, JsBuffer) || Std.isOfType(v, JsDataView)) return TypedArrays.bytesOf(v);
 		if (Std.isOfType(v, JsFunction)) {
 			var f = v;
 			return Reflect.makeVarArgs(args -> toHaxe(call(f, [for (a in args) toJs(a)])));
@@ -58,6 +63,21 @@ class Interop {
 			return o;
 		}
 		return v;
+	}
+
+	// a typed array's, a DataView's or an ArrayBuffer's bytes, as Haxe's
+	// Bytes takes them (shared when the view is all its buffer: TypedArrays.bytesOf)
+	public static function bytes(v:Dynamic, where:String):haxe.io.Bytes {
+		if (v == null || v == Seed.undefinedValue) return null;
+		var b = TypedArrays.bytesOf(v);
+		if (b == null) Seed.diverge("a typed array, a DataView or an ArrayBuffer", v, where);
+		return b;
+	}
+
+	// Haxe's Bytes as a typed array of kind sharing them
+	public static function bytesToJs(v:Dynamic, kind:String):Dynamic {
+		if (v == null) return null;
+		return TypedArrays.ofBytes(v, kind == "Uint8ClampedArray" ? TypedArrays.UINT8C : kind == "Int8Array" ? TypedArrays.INT8 : TypedArrays.UINT8);
 	}
 
 	// f called with args (JavaScript's values), this undefined

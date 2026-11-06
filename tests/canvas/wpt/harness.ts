@@ -34,8 +34,8 @@ export function assert_false(v: any, text?: string): void {
 	if (v !== false) fail("assert_false " + (text ?? ""));
 }
 
-function pixel(canvas: Canvas, x: number, y: number): number[] {
-	return canvas.getContext("2d")!.getImageData(x, y, 1, 1).data as any;
+function pixel(canvas: Canvas, x: number, y: number): Uint8ClampedArray {
+	return canvas.getContext("2d")!.getImageData(x, y, 1, 1).data;
 }
 
 export function _assertPixel(canvas: Canvas, x: number, y: number, r: number, g: number, b: number, a: number): void {

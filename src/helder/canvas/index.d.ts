@@ -29,7 +29,7 @@ export declare class Canvas {
 	// the pixels as a file: "png", "jpg" or "jpeg" (also their MIME
 	// types; quality 0 to 1 for JPEG, 0.92), or the drawing as vectors:
 	// "pdf" (every page), "svg" (the last)
-	toBuffer(format?: string, quality?: number): unknown;
+	toBuffer(format?: string, quality?: number): Uint8Array;
 	// the pixels written to a file, its format by its extension unless given
 	saveAs(path: string, format?: string, quality?: number): void;
 	toDataURL(type?: string, quality?: number): string;
@@ -173,16 +173,16 @@ export declare class CanvasPattern {
 }
 
 // The browser's ImageData: straight RGBA pixels, rows of width. `data`
-// is its bytes as numbers (a copy: helder's TypeScript has no typed
-// arrays yet, so a TypeScript program makes new pixels with
-// new ImageData(array, width)); Haxe reads and writes `bytes`.
+// is its bytes (a TypeScript program's Uint8ClampedArray, sharing them:
+// what it writes there putImageData draws); Haxe reads and writes `bytes`.
 export declare class ImageData {
-	// (width, height): transparent; (array, width, height?): its bytes
+	// (width, height): transparent; (array, width, height?): its bytes (a
+	// typed array's shared, an array's copied)
 	constructor(a: any, b: number, c?: number);
 	readonly width: number;
 	readonly height: number;
 	readonly colorSpace: string;
-	readonly data: number[];
+	readonly data: Uint8ClampedArray;
 }
 
 // The browser's DOMMatrix, its 2D part (a to f, m11 to m42): what

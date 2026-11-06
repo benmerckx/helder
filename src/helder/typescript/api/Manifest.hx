@@ -47,6 +47,7 @@ using haxe.macro.TypeTools;
 //     functions (its statics: name -> "function" | "macro" | "const"), setters ({names: {attribute: function path},
 //     prefixes: {prefix: function path}, fallback: function path} or null)}
 //   Type: "Int" | "Float" | "Bool" | "String" | "Void" | "Dynamic" | {null: Type} | {array: Type}
+//     | {bytes: "Uint8Array" | "Uint8ClampedArray" | "Int8Array"} (haxe.io.Bytes)
 //     | {fn: [{name, opt, t}], ret: Type} | {anon: [{name, opt, t}]} | {class: path, params: [Type]}
 //     | {read: Type} | {view: R} | {abstract: path, params, under: Type, values ([String], an enum abstract's)}
 //     | {enum: path} | {param: name}
@@ -204,12 +205,20 @@ class Manifest {
 			case FVar(read, write):
 				{
 					kind: "var",
-					type: t.of(f.type),
+					type: bytesKind(f, t.of(f.type)),
 					get: read == AccCall ? "get_" + f.name : null,
 					set: write == AccCall ? "set_" + f.name : null,
 					readonly: write == AccNever || write == AccNo || write == AccCtor
 				};
 		}
+	}
+
+	// (a Bytes field typed for TypeScript as another kind of typed array: @:typescript.type("Uint8ClampedArray"))
+	static function bytesKind(f:ClassField, type:Dynamic):Dynamic {
+		var text = helder.typescript.api.dts.TypeEmitter.typeMeta(f.meta);
+		var bare:Dynamic = Reflect.hasField(type, "null") ? Reflect.field(type, "null") : type;
+		if (text == null || !Reflect.hasField(bare, "bytes") || !~/^(Int8|Uint8|Uint8Clamped)Array$/.match(text)) return type;
+		return bare == type ? {bytes: text} : {"null": {bytes: text}};
 	}
 
 	// an inline var's value (a number, a string, a Bool)
@@ -384,6 +393,8 @@ class Types {
 					case KTypeParameter(_): {param: c.name};
 					case _ if (c.pack.length == 0 && c.name == "String"): "String";
 					case _ if (c.pack.length == 0 && c.name == "Array"): {array: of(ps[0])};
+					// (helder's bytes: a typed array sharing them, a Uint8Array unless the member's @:typescript.type names another)
+					case _ if (c.pack.join(".") == "haxe.io" && c.name == "Bytes"): {bytes: "Uint8Array"};
 					case _:
 						var r = helder.view.HostMacro.rendered(t);
 						if (r != null && views.indexOf(r) < 0) views.push(r);

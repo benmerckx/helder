@@ -216,6 +216,8 @@ class Seed {
 
 	public static function libInstallBuffers():Void Builtins.installBuffers();
 
+	public static function libInstallTypedArrays():Void Builtins.installTypedArrays();
+
 	public static function libInstallJson():Void Builtins.installJson();
 
 	public static function libInstallIteratorHelpers():Void Builtins.installIteratorHelpers();
@@ -448,6 +450,7 @@ class Seed {
 		libInstallNormalize();
 		libInstallDate();
 		libInstallBuffers();
+		libInstallTypedArrays();
 		libInstallJson();
 		libInstallIteratorHelpers();
 		libInstallPromise();

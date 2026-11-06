@@ -136,6 +136,11 @@ class Builtins {
 		publish();
 	}
 
+	public static function installTypedArrays() if (once("typed arrays")) {
+		TypedArrays.install();
+		publish();
+	}
+
 	public static function installJson() if (once("JSON")) {
 		Json.setup();
 		publish();
@@ -177,6 +182,7 @@ class Builtins {
 		installNormalize();
 		installDate();
 		installBuffers();
+		installTypedArrays();
 		installJson();
 		installIteratorHelpers();
 		installPromise();

@@ -119,6 +119,9 @@ class TypeEmitter {
 						write(~/^[A-Za-z0-9_.<>]+$/.match(inner) ? inner + '[]' : 'Array<' + inner + '>');
 					case [{name: name, kind: KTypeParameter(_)}, _]:
 						write(name);
+					case [{pack: ["haxe", "io"], name: "Bytes"}, _]:
+						// (a typed array sharing them: Interop)
+						write('Uint8Array');
 					default:
 						var name = writer.declared(cl);
 						if (name == null) write('unknown') else {

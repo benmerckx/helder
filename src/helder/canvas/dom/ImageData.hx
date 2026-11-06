@@ -3,20 +3,29 @@ package helder.canvas.dom;
 import haxe.io.Bytes;
 
 // The browser's ImageData: straight RGBA pixels, rows of width. `data`
-// is its bytes as numbers (a copy: helder's TypeScript has no typed
-// arrays yet, so a TypeScript program makes new pixels with
-// new ImageData(array, width)); Haxe reads and writes `bytes`.
+// is its bytes (a TypeScript program's Uint8ClampedArray, sharing them:
+// what it writes there putImageData draws); Haxe reads and writes `bytes`.
 class ImageData {
 	public var width(default, null):Int;
 	public var height(default, null):Int;
 	public final colorSpace = "srgb";
 	@:noCompletion public var bytes(default, null):Bytes;
 
-	public var data(get, never):Array<Int>;
+	@:typescript.type("Uint8ClampedArray") public var data(get, never):Bytes;
 
-	// (width, height): transparent; (array, width, height?): its bytes
+	// (width, height): transparent; (array, width, height?): its bytes (a
+	// typed array's shared, an array's copied)
 	public function new(a:Dynamic, b:Int, ?c:Int) {
-		if (Std.isOfType(a, Array)) {
+		if (Std.isOfType(a, Bytes)) {
+			var data:Bytes = a;
+			if (b <= 0) throw new Path2D.DOMException("IndexSizeError", "The source width is zero or not a number.");
+			if (data.length % (4 * b) != 0 || data.length == 0)
+				throw new Path2D.DOMException("IndexSizeError", "The input data length is not a multiple of (4 * width).");
+			width = b;
+			height = Std.int(data.length / (4 * b));
+			if (c != null && c != height) throw new Path2D.DOMException("IndexSizeError", "The input data length is not equal to (4 * width * height).");
+			bytes = data;
+		} else if (Std.isOfType(a, Array)) {
 			var list:Array<Dynamic> = a;
 			if (b <= 0) throw new Path2D.DOMException("IndexSizeError", "The source width is zero or not a number.");
 			if (list.length % (4 * b) != 0 || list.length == 0)
@@ -47,6 +56,6 @@ class ImageData {
 		return d;
 	}
 
-	function get_data():Array<Int>
-		return [for (i in 0...bytes.length) bytes.get(i)];
+	function get_data():Bytes
+		return bytes;
 }

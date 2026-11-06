@@ -19,6 +19,7 @@ class Features {
 		add("Normalize", ["normalize"]);
 		add("Date", ["Date"]);
 		add("Buffers", ["ArrayBuffer", "DataView", "SharedArrayBuffer"]);
+		add("TypedArrays", ["Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float16Array", "Float32Array", "Float64Array"]);
 		add("Json", ["JSON", "rawJSON", "isRawJSON"]);
 		add("IteratorHelpers", ["Iterator", "take", "drop", "toArray", "flatMap", "map", "filter", "reduce", "forEach", "some", "every", "find"]);
 		add("Promise", ["Promise", "then", "setTimeout", "setInterval", "setImmediate", "clearTimeout", "clearInterval", "clearImmediate", "queueMicrotask"]);
