@@ -1079,6 +1079,45 @@ fix.
     extents (estimated from a node's box now), explore by touch on Android
     (its hover events), iOS's data-table container and text input's
     UITextInput, text attributes.
+- **After Rune** (anomalyco/rune, a Rust GPU UI framework built to be
+  written and checked by agents):
+  - **Headless agent tooling for every app**: `helder run --headless` with
+    the real renderer and a virtual clock: `--snap out.png --at 0.4`
+    (`--size`, `--scale`, `--theme`), `--tree tree.json` (each node's tag,
+    role, label, text, presented rect, opacity, colours, hover and press),
+    `--script demo.json` (timestamped moves, presses, drags, keys, typing,
+    wheel, resizes and menu and dialog answers, aimed at a node by its tag
+    or a tag path, not at coordinates), `--frames`, `--video` (with the
+    keys and presses drawn over it) and `--trace` (motion as JSON lines).
+    One tool for what is spread over stories' trees, `helder inspect` and
+    the device tests' scripts, so an agent checks UI work without a display.
+  - **Motion as property tracks**: every animatable property of a node a
+    track, an analytic spring (duration and bounce) that keeps position
+    and velocity when retargeted; layout animated per edge (an edge that
+    stays put never moves), presence (enter and exit transitions, drawn
+    until the exit settles), colours in premultiplied OKLab, matched
+    elements flying between two places in the layout, reduced motion
+    snapping travel and keeping fades; declared on nodes in markup
+    (`motion`, `transition`), not coded per widget.
+  - **The UI in one draw call**: helder.ui's batcher over QuadBatch as one
+    instanced pass a frame (rounded rects, borders, shadows, gradients,
+    images and glyphs as kinds of one quad), measured against Rune's
+    0.13 ms a frame of CPU.
+  - **Text as good as macOS's everywhere**: helder.text's own engine (tests,
+    stories, games, any platform) rasterised after CoreGraphics' pipeline:
+    pens at its subpixel steps by size, pixel-snapped baselines, the font
+    smoothing's dilation as a mode; measured against CoreText's own.
+  - **Lists of a million rows**: helder.ui's scroll virtualised over a
+    height index (a sum tree of rows' measured heights, estimated until
+    measured), rows made and recycled as they come into view.
+  - **Demos that show off**: purpose-made showcase scenes, each animating
+    itself from the virtual clock so a headless `--video` records it frame
+    exact (a showreel for the site); an effects gallery (liquid metal, glass,
+    glow, fire, mesh gradients, grain) on canvas and gfx shaders as
+    definitions; playful demos where the UI does what it says (a firewall
+    switch that builds a wall of fire); and one real app recreated whole
+    (a settings window, a notes app with a launcher) instead of widget
+    lists. The site's demos page leads with these.
 - **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**
   (*phase 1 landed*, src/helder/canvas/README.md: the core API and its CPU
   back end, analytic coverage into premultiplied RGBA8, typed so `-dce
