@@ -320,6 +320,23 @@ Still to come:
     compile-time calls on plain object literals, `shader({vertex, fragment})`,
     `job(fn)`, `actions(...)`, `image(path)`, `story(...)`, the same in TS and
     Haxe, one handler for both; material slots and variants after TSL.
+  - **TS on par with Haxe for apps**, after definitions, in this order:
+    - `*.test.ts(x)` in `helder test` (helder.test's API from TS, natively
+      and as wasm; logic tests on node where Eval runs Haxe's);
+    - `platform.os` / `platform.target` constants folded as `Mem.target()`
+      is, so a platform's branch and what only it links drop elsewhere
+      (Haxe's `#if`);
+    - operators on the math types (`a * b` on Vec and Mat) lowered by the
+      frontend, typed so tsgo accepts them;
+    - native interop as definitions (`native.c({lib, fns})`, `native.com`,
+      `native.objc`, `native.jni`) generating the externs, with hxmc's
+      interop types declared;
+    - small functions inlined and generics over numbers specialised, branded
+      number types free (hot paths in TS near Haxe's speed);
+    - BigInt; the `bench/` programs against the same in Haxe, not only
+      against node.
+    Kept Haxe's: the GC-free tier (`hxmc.unsafe`), definitions' handlers
+    (written in Haxe, used from both), libraries for Haxe written in TS.
   - A proof first: the `.d.ts` for view and ui, the emitter, the counter
     and todo examples in TSX built and live-reloaded by `helder dev`; started
     once TypeScript 7.1's API is out of beta.
