@@ -28,7 +28,7 @@ class SpellTest {
 		var name = Type.getClassName(Type.getClass(c));
 		Sys.println('SpellTest: $name, ${c.language}');
 		check('$name: a right word', c.check("hello") && c.check("language"));
-		check('$name: a wrong word', !c.check("helo") && !c.check("langauge"));
+		check('$name: a wrong word', !c.check("brwon") && !c.check("langauge"));
 		var s = c.suggest("langauge");
 		check('$name: suggestions for it, the right among them', s.indexOf("language") >= 0, s.join(", "));
 		var before = c.check(w);
