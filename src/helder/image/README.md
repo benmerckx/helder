@@ -179,7 +179,7 @@ APP1 or a WebP's EXIF chunk: IFD0 only, every offset within the TIFF block
 upright. JpegDecoder applies it as browsers do; WebpDecoder's pixels are
 libwebp's, as stored (helder's viewer applies it).
 
-SVG is `helder.ui`'s (`Svg`: it draws through ui's `Drawing`).
+SVG is `helder.canvas`'s (`Svg`: an image it draws keeps it as its `drawing`).
 
 Tests: `src/helder/image/ImageLimits.test.hx` and `Exif.test.hx` (the
 test lane, natively and on wasm32); `tests/image/ImageTest.hx` (`bun run test image`, on Eval and

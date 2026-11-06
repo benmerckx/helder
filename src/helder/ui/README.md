@@ -180,7 +180,7 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     `Contain`, `Cover` or `None`, placed by `position` (CSS's object-position:
     `"right 10px top"`, markup `object-position`; centred by default, the
     part outside cut), its corners rounded with the node's.
-  - SVG: `Svg.parse` reads the static subset icon sets use (shapes, all of
+  - SVG: `Svg.parse` (helder.canvas's `Svg`) reads the static subset icon sets use (shapes, all of
     path data, fills and strokes with their joins, caps and dashes, linear
     and radial gradients, opacities, transforms, use and symbol, clip-path,
     nested viewports, CSS colours, currentColor); `render` draws it at any

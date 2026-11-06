@@ -7,7 +7,7 @@ import helder.image.PngEncoder;
 using StringTools;
 
 // Every icon a target needs from the manifest's few (Manifest: its icons,
-// PNG, JPEG, WebP or GIF at their sizes, or SVG at any: helder.ui.Svg drawn
+// PNG, JPEG, WebP or GIF at their sizes, or SVG at any: helder.canvas.Svg drawn
 // at the size asked): the source picked by purpose (maskable for a
 // full-bleed one, any, monochrome), an SVG first, else the smallest raster
 // at least as large, else the largest (scaled up at most twice: more is an
@@ -69,7 +69,7 @@ class Icons {
 		var name = at >= 0 ? '${cfg.source ?? Manifest.FILE}: icons[$at] (${i.src})' : '${cfg.source ?? Manifest.FILE}: ${i.src}';
 		var bytes = try read(i.src) catch (e:Dynamic) throw '$name: no such file';
 		var out = isSvg(i) ? {
-			var svg = try helder.ui.Svg.parse(bytes.toString()) catch (e:Dynamic) throw '$name: not an SVG ($e)';
+			var svg = try helder.canvas.Svg.parse(bytes.toString()) catch (e:Dynamic) throw '$name: not an SVG ($e)';
 			svg.render(px, px).pixels;
 		} : {
 			var img = try helder.image.Image.decode(bytes) catch (e:Dynamic) throw '$name: not an image ($e)';

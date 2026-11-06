@@ -103,9 +103,12 @@ of a pixel. A colour drawn source-over takes an integer path, four pixels
 at a time in 16-bit lanes, a run of whole coverage of an opaque colour
 stored as it is; shaders and blend modes compose in floats.
 
-helder.ui's SVG rendering (`Svg.render`, `Path.render`) draws through it:
-its groups' opacities as layers, its clip paths as clips, its gradients
-(spread included) as shaders, its strokes as `Stroke`; its CSS gradients
+**SVG** (`Svg.parse`, `render`: the static subset icon sets use, checked
+against Chromium in helder.ui's tests; helder.ui's `Svg` and the CLI's
+icons) draws through it: its groups' opacities as layers, its clip paths
+as clips, its gradients (spread included) as shaders, its strokes as
+`Stroke`, its colours CSS's (`CssColor`: the grammar helder.ui's `Color`
+and the DOM facade read too). helder.ui's `Path.render` draws on it; its CSS gradients
 (`Gradient.render`) are this one's shaders (`premultiplied`: stops mixed
 as CSS mixes them), their rows shaded without a canvas.
 

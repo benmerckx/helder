@@ -206,7 +206,7 @@ browser extensions and PWA tools each claim.
   small for what it makes (more than twice: give a larger one or an SVG).
 - **Icons from a few sources** (`Icons.hx`): every size a target needs is
   made at build time from the manifest's icons: an SVG drawn at the size
-  (helder.ui's `Svg`), else the smallest PNG (JPEG, WebP, GIF) at least as
+  (helder.canvas's `Svg`), else the smallest PNG (JPEG, WebP, GIF) at least as
   large, else the largest, scaled (an area's average down, bilinear up),
   placed on its canvas and written as PNG (`helder.image.PngEncoder`).
   One 1024 px icon, or one SVG, is enough.

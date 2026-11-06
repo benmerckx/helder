@@ -99,7 +99,7 @@ class Manifest {
 		function color(o:Dynamic, k:String, path:String):Null<Int> {
 			var s = str(o, k, path);
 			if (s == null) return null;
-			var c = helder.ui.Color.tryParse(s.trim().toLowerCase());
+			var c = helder.canvas.CssColor.parse(s.trim().toLowerCase());
 			if (c == null || ((c : Int) >>> 24) == 0 && (c : Int) != 0) throw '$where: $path: "$s" is not a CSS colour (#rrggbb, rgb(), a name)';
 			return c;
 		}

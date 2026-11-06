@@ -43,10 +43,10 @@ class Image {
 	// "webp"), kept for a writer to embed as it is (a PDF's JPEG); null once
 	// its pixels change, or when it was made from pixels
 	public var source(default, null):Null<{bytes:Bytes, type:String}> = null;
-	// what it was rendered from, for a writer to draw as vectors (helder.ui's
-	// Svg.render: {svg:Drawing, color:Color}, an icon in its colour); null
+	// what it was rendered from, for a writer to draw as vectors (helder.canvas's
+	// Svg.render: {svg:Svg, color:Int}, an icon in its colour); null
 	// once its pixels change
-	@:allow(helder.ui.Svg) public var drawing(default, null):Null<Any> = null;
+	@:allow(helder.canvas.Svg) public var drawing(default, null):Null<Any> = null;
 
 	static var nextId = 1;
 

@@ -5,7 +5,7 @@ package helder.canvas.dom;
 // the space form with "/ alpha", never mixed; numbers or percentages as
 // each allows; angles in deg, rad, grad, turn; a missing ")" at the end
 // closed, as CSS's tokenizer does); names, #hex and the other functions
-// by helder.ui's Color. Serialized as the browser does (#rrggbb when
+// by CssColor. Serialized as the browser does (#rrggbb when
 // opaque, else rgba(r, g, b, a)).
 class Colors {
 	public static function parse(s:String):Null<Int> {
@@ -14,7 +14,7 @@ class Colors {
 		var fn = ~/^(rgba?|hsla?)\(/;
 		if (fn.match(v)) return func(fn.matched(1), v.substr(fn.matched(0).length));
 		if (StringTools.startsWith(v, "var(") || v == "canvas" || v == "canvastext") return null;
-		return helder.ui.Color.tryParse(s);
+		return helder.canvas.CssColor.parse(s);
 	}
 
 	// (a token: a number, a percentage, an angle, none, a comma or a slash)

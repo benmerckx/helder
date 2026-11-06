@@ -1,7 +1,7 @@
 package helder.ui;
 
-import helder.ui.Svg.SvgCanvas;
-import helder.ui.Svg.SvgParse;
+import helder.canvas.Svg.SvgCanvas;
+import helder.canvas.Svg.SvgParse;
 import helder.ui.Paint;
 import helder.image.Image;
 
@@ -133,7 +133,7 @@ class Path {
 	// units mapped to pixels by m (a, b, c, d, e, f: x' = a x + c y + e,
 	// y' = b x + d y + f), drawn by helder.canvas; a gradient spans the whole image
 	public function render(w:Int, h:Int, m:Array<Float>, fill:Null<Paint>, ?stroke:Stroke):Image {
-		var c = new helder.canvas.Canvas(w, h), p = into(commands, new helder.canvas.Path());
+		var c = new helder.canvas.Canvas(w, h), p = SvgCanvas.into(commands, new helder.canvas.Path());
 		c.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 		var paint = fill == null ? null : paintOf(fill, m, w, h);
 		if (paint != null) c.fill(p, paint, evenOdd);
@@ -154,26 +154,4 @@ class Path {
 				var s = g.shader(w, h), at = new helder.canvas.Matrix(m[0], m[1], m[2], m[3], m[4], m[5]);
 				if (!at.invertInto(s.matrix)) null else helder.canvas.Paint.shaded(s);
 		}
-
-	// path commands (0 move, 1 line, 2 cubic, 3 close) as a canvas path, into out
-	public static function into(p:Array<Float>, out:helder.canvas.Path):helder.canvas.Path {
-		out.clear();
-		var i = 0;
-		while (i < p.length)
-			switch Std.int(p[i]) {
-				case 0:
-					out.moveTo(p[i + 1], p[i + 2]);
-					i += 3;
-				case 1:
-					out.lineTo(p[i + 1], p[i + 2]);
-					i += 3;
-				case 2:
-					out.cubicTo(p[i + 1], p[i + 2], p[i + 3], p[i + 4], p[i + 5], p[i + 6]);
-					i += 7;
-				case _:
-					out.close();
-					i++;
-			}
-		return out;
-	}
 }
