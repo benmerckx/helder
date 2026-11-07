@@ -1,0 +1,11 @@
+{
+  "name": "studio",
+  "private": true,
+  "description": "helder studio: a project's screens on a canvas, its code, an inspector and an agent's tools, editing the source both ways",
+  "license": "MIT",
+  "author": "Ben Merckx",
+  "homepage": "https://github.com/benmerckx/helder/tree/main/apps/studio",
+  "helder": {
+    "main": "Main"
+  }
+}

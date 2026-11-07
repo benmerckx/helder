@@ -16,6 +16,7 @@ npx helder build                  # bin/<target>/<name>, its compile time and si
 npx helder inspect --tree         # a running dev build's ui tree (--log, --frames)
 npx helder run --headless --script demo.json --snap out.png --tree tree.json   # no window: scripted, its frame and nodes
 npx helder devices                # where it can run: this machine, a browser, phones
+npx helder studio                 # the project's screens (its stories) on a canvas, code, inspector, MCP (apps/studio)
 npx helder build --target android # an APK, signed with your debug key (no SDK)
 npx helder dev --target android   # on the device or emulator adb reaches: installed once, live reloads
 npx helder run --target ios       # on the booted iOS simulator (macOS)

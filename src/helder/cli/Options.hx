@@ -173,6 +173,20 @@ class Options {
 			],
 		},
 		{
+			name: "studio",
+			usage: "[project] [options]",
+			about: "helder studio on a project: its screens (stories) on a canvas, its code, an inspector, an agent's tools over MCP",
+			entry: true,
+			common: ["args"],
+			own: [
+				{key: "mcp-port", names: ["--mcp-port"], value: "<n>", number: true, about: "the MCP server's port on 127.0.0.1 (else HELDER_STUDIO_MCP_PORT, else a free one)"},
+			],
+			notes: [
+				"the project's screens are its stories (*.story.hx, *.story.tsx), \"Flow/Screen\" by name;",
+				"each runs as a dev build in a process of its own (apps/studio/README.md)",
+			],
+		},
+		{
 			name: "devices",
 			usage: "",
 			about: "where to run: this machine, a browser, Android devices and emulators, iOS simulators",

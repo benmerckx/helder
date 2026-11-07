@@ -187,8 +187,11 @@ class Entry {
 		if (manifest != null) config = Manifest.load(manifest) else deprecated = Manifest.legacy(config);
 		helder = Lambda.find(classPaths, c -> FileSystem.exists('$c/helder/dev/Hot.hx'));
 		if (helder == null) {
-			// (the CLI's own checkout: bin/cli/helder)
+			// (the CLI's own checkout: bin/cli/helder; else HELDER_SRC, helder's
+			// src/ as a program built from it says: the studio's)
 			var beside = Path.directory(Sys.programPath()) + "/../../src";
+			var env = Sys.getEnv("HELDER_SRC");
+			if (!FileSystem.exists('$beside/helder/dev/Hot.hx') && env != null && env != "") beside = env;
 			if (!FileSystem.exists('$beside/helder/dev/Hot.hx')) throw "no helder library: add helder to package.json's dependencies";
 			helder = FileSystem.fullPath(beside);
 			classPaths.push(helder);

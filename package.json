@@ -4,7 +4,10 @@
   "description": "An experimental app and GUI stack in Haxe",
   "license": "MIT",
   "files": [
-    "src/"
+    "src/",
+    "apps/studio/src/",
+    "apps/studio/fonts/",
+    "apps/studio/package.json"
   ],
   "bin": {
     "helder": "src/helder/cli/run.mjs"

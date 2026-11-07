@@ -1,0 +1,28 @@
+{
+  "events": [
+    {"t": 0.3, "type": "mark", "name": "overview"},
+    {"t": 0.4, "type": "tap", "tag": "screen-todo-three-items"},
+    {"t": 1.6, "type": "mark", "name": "zoomed"},
+    {"t": 1.7, "type": "tap", "tag": "stage", "ox": 160, "oy": 66},
+    {"t": 2.4, "type": "mark", "name": "selected"},
+    {"t": 2.5, "type": "tap", "tag": "input-color"},
+    {"t": 2.6, "type": "key", "name": "a", "secondary": true},
+    {"t": 2.7, "type": "type", "text": "#ef4444"},
+    {"t": 2.8, "type": "key", "name": "Enter"},
+    {"t": 3.2, "type": "mark", "name": "colored"},
+    {"t": 3.3, "type": "tap", "tag": "input-padding"},
+    {"t": 3.4, "type": "type", "text": "20"},
+    {"t": 3.5, "type": "key", "name": "Enter"},
+    {"t": 4.0, "type": "mark", "name": "padded"},
+    {"t": 4.1, "type": "tap", "tag": "undo"},
+    {"t": 4.6, "type": "mark", "name": "undone"},
+    {"t": 4.7, "type": "tap", "tag": "seg-code"},
+    {"t": 5.0, "type": "type", "text": " tag=\"title\""},
+    {"t": 7.0, "type": "mark", "name": "typed"},
+    {"t": 7.1, "type": "tap", "tag": "seg-design"},
+    {"t": 7.4, "type": "tap", "tag": "prompt"},
+    {"t": 7.5, "type": "type", "text": "/tree"},
+    {"t": 7.6, "type": "key", "name": "Enter"},
+    {"t": 8.0, "type": "mark", "name": "end"}
+  ]
+}

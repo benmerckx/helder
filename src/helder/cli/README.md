@@ -23,6 +23,7 @@ helder test                                   # the *.test.hx files (src/helder/
 helder inspect --tree                         # a running helder dev's ui tree (--log, --frames, --state)
 helder run --headless --script s.json --snap a.png --tree t.json   # no display: scripted, a frame and the node tree
 helder devices                                # this machine, a browser, Android devices, iOS simulators
+helder studio examples/ts-todo                # helder studio (apps/studio) on a project: its screens, code, inspector, MCP
 helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key (or the release key)
 helder build --target android --bundle        # bin/android/<name>.aab for Google Play, signed with the release key
 helder publish --play [--track beta] [--dry-run]   # the .aab to Google Play's track (internal by default)
@@ -40,7 +41,7 @@ helder dev --target ios                       # on the booted simulator: install
 helder <command> [entry] [options]      entry: a .hx file, a directory or a project (default: .)
 helder <entry>                          shorthand for: helder dev <entry>
 
-commands: dev, run, build, test, inspect, devices, help
+commands: dev, run, build, test, inspect, publish, studio, devices, help
 
   --target <t>       host (default), web, android, ios, ios-sim, macos (a universal app bundle), or an exact hxmc target (windows-x86_64, android-x86_64, ...)
   -d, --device <d>   which phone, emulator or simulator (android, ios); `helder devices` lists them

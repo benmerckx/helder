@@ -7,6 +7,7 @@ import helder.cli.Options.Usage;
 // sockets and file watching):
 //
 //   helder <command> [entry] [options]
+//   helder studio [project]               helder studio (apps/studio) on a project
 //   helder <entry>                        shorthand for: helder dev <entry>
 //
 // the grammar and the help Options'. Built from this checkout by `bun run
@@ -45,6 +46,8 @@ class Cli {
 				Async.main(task -> Sys.exit(Inspect.run(task, o)));
 			case "publish":
 				Async.main(_ -> Sys.exit(Publish.run(o)));
+			case "studio":
+				Async.main(_ -> Sys.exit(StudioCommand.run(o)));
 			case "devices":
 				Async.main(_ -> Sys.exit(Devices.run(o)));
 			case c:
