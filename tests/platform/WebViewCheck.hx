@@ -80,6 +80,9 @@ class WebViewCheck implements Markup {
 			}
 			return @:privateAccess bundled.serve("webview/" + path);
 		});
+		// (HELDER_WEBVIEW_LOCAL=1: over HTTP on the loopback address, WebServer, not a scheme)
+		content.local = Sys.getEnv("HELDER_WEBVIEW_LOCAL") == "1";
+		Sys.println("webview: content at " + content.origin());
 	}
 
 	var node:Null<WebView> = null;

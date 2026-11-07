@@ -76,7 +76,7 @@ class AppleWebView implements PlatformWebView {
 		ObjC.release(src);
 		Msg.vPtr(ucc, ObjC.sel("addUserScript:"), script);
 		ObjC.release(script);
-		if (content != null) {
+		if (content != null && !content.local) {
 			var scheme = ObjC.str(content.scheme);
 			Msg.vPtrPtr(config, ObjC.sel("setURLSchemeHandler:forURLScheme:"), delegate, scheme);
 			ObjC.release(scheme);

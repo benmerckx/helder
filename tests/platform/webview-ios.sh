@@ -50,28 +50,31 @@ xcrun simctl bootstatus "$udid" -b > /dev/null 2>&1
 run() {
 	name=$1
 	id=org.helder.$name
+	base=$name${2:+-local}
 	xcrun simctl install "$udid" "$out/$name.app"
 	check "simctl install $name.app" $?
-	: > "$out/$name.txt"
-	SIMCTL_CHILD_HELDER_WEB_DIR="$out/todo" xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" > "$out/$name.txt" 2>&1 &
+	: > "$out/$base.txt"
+	SIMCTL_CHILD_HELDER_WEBVIEW_LOCAL=${2:-0} SIMCTL_CHILD_HELDER_WEB_DIR="$out/todo" xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" > "$out/$base.txt" 2>&1 &
 	console=$!
 	i=0
 	shot=0
-	while [ $i -lt 150 ] && ! grep -q "webview: [a-z]*: [0-9]* checks" "$out/$name.txt"; do
-		if [ $shot = 0 ] && grep -q "a snapshot of the page" "$out/$name.txt"; then
-			xcrun simctl io "$udid" screenshot "$out/$name.png" > /dev/null 2>&1
+	while [ $i -lt 150 ] && ! grep -q "webview: [a-z]*: [0-9]* checks" "$out/$base.txt"; do
+		if [ $shot = 0 ] && grep -q "a snapshot of the page" "$out/$base.txt"; then
+			xcrun simctl io "$udid" screenshot "$out/$base.png" > /dev/null 2>&1
 			shot=1
 		fi
 		sleep 1
 		i=$((i + 1))
 	done
-	[ $shot = 0 ] && xcrun simctl io "$udid" screenshot "$out/$name.png" > /dev/null 2>&1
-	grep "webview:" "$out/$name.txt"
-	grep -q "webview: [a-z]*: [0-9]* checks, ok" "$out/$name.txt"
-	check "$name: its checks" $?
+	[ $shot = 0 ] && xcrun simctl io "$udid" screenshot "$out/$base.png" > /dev/null 2>&1
+	grep "webview:" "$out/$base.txt"
+	grep -q "webview: [a-z]*: [0-9]* checks, ok" "$out/$base.txt"
+	check "$base: its checks" $?
 	xcrun simctl terminate "$udid" "$id" > /dev/null 2>&1
 	kill $console > /dev/null 2>&1
 }
 run WebViewCheck
 run WebShellCheck
+# (the same, served over HTTP on the loopback address: WebContent.local)
+run WebShellCheck 1
 exit $failed

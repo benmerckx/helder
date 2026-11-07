@@ -35,6 +35,10 @@ class WebContent {
 	];
 	// the path a directory's request gets (a path ending in /)
 	public var index = "index.html";
+	// served over HTTP on the loopback address instead of a scheme
+	// (WebServer: http://127.0.0.1:<port>), set before its first use
+	public var local = false;
+	var server:Null<WebServer> = null;
 
 	final serve:String->Null<WebResponse>;
 	// bytes posted to the page (WebView.postBytes): fetched once from /__helder/bytes/<id>
@@ -78,6 +82,12 @@ class WebContent {
 
 	// the origin, without a slash at the end
 	public function origin():String {
+		#if (hxmc.target != "wasm32-wasi")
+		if (local) {
+			if (server == null) server = new WebServer(this);
+			return "http://127.0.0.1:" + server.port;
+		}
+		#end
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 		return "https://" + host;
 		#else
