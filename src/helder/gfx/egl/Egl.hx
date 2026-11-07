@@ -43,7 +43,7 @@ import hxmc.unsafe.*;
 }
 
 // Linux's syscall with three arguments (pidfd_open, pidfd_getfd)
-@:hxmc.c extern class LinuxCall {
+@:hxmc.c @:hxmc.fast extern class LinuxCall {
 	@:hxmc.varargs(1) static function syscall(n:hxmc.I64, a:hxmc.I64, b:hxmc.I64, c:hxmc.I64):hxmc.I64;
 }
 
