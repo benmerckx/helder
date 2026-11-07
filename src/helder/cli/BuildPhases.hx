@@ -21,9 +21,24 @@ class BuildPhases {
 	public static function environment(env:Map<String, String>)
 		if (on) env.set("HXMC_STATS", "1");
 
+	// the last request's ms (the server's, from the request sent to its answer read)
+	static var requestMs = -1;
+
+	public static function requested(ms:Int)
+		requestMs = ms;
+
+	// whether hxmc's split of the last build has come (its link's line)
+	public static function ready():Bool
+		return Lambda.exists(stats, l -> l.indexOf(" link ") >= 0 || l.startsWith("data "));
+
 	// a line of the compilation server's output
-	public static function line(l:String)
+	public static function line(l:String) {
+		// (HELDER_DEV_SERVER_LOG=1: the server's own output shown, its stats and macro stats)
+		if (log) Sys.stderr().writeString("server: " + l + "\n");
 		if (on && l.startsWith("hxmc: ")) stats.push(l.substr(6));
+	}
+
+	static final log = Sys.getEnv("HELDER_DEV_SERVER_LOG") == "1";
 
 	// the build's define: the file its phases are written to
 	public static function define(out:String):Array<String>
@@ -78,6 +93,7 @@ class BuildPhases {
 		stats = [];
 		if (r == null) r = {phases: []};
 		r.hxmc = h;
+		r.requestMs = requestMs;
 		return r;
 	}
 }

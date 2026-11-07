@@ -53,7 +53,7 @@ class Compiler {
 		for (a in ["--wait", "--server-listen", "--server-connect"]) if (args.contains(a)) hxmc.Driver.resident = true;
 		compiler.Compiler.generateHook = function(com) {
 			var owner = Lambda.find(plugins, p -> p.owns(com));
-			Phases.mark("typing");
+			Phases.mark("to generation");
 			if (args.contains("--no-output") && owner == null) {
 				Phases.end();
 				return;

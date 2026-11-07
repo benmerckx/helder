@@ -445,8 +445,12 @@ class Hot {
 	// helder.os.App, after each frame: the first one tells the dev server
 	// (the reload's time, save to pixels) and ends the start: a value the
 	// last build saved and nothing asked for is dropped (logged)
+	// (each frame's end: helder.dev.Literals' patches told their frame)
+	@:noCompletion public static var afterFrame:Null<Void->Void> = null;
+
 	@:noCompletion public static function framed() {
 		helder.devtools.Agent.frame();
+		if (afterFrame != null) afterFrame();
 		if (settled) return;
 		init();
 		settled = true;

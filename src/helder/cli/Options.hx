@@ -39,7 +39,7 @@ class Options {
 		{key: "snap", names: ["--snap"], value: "<png>", about: "a frame as a PNG, at --at (several: each --at after its --snap)"},
 		{key: "tree", names: ["--tree"], value: "<json>", about: "every node: tag, path, role, label, text, rect, opacity, colours, hover, press, focus, moving"},
 		{key: "at", names: ["--at"], value: "<t>", about: "when the --snap or --tree before it is taken (default: end)"},
-		{key: "script", names: ["--script"], value: "<json>", about: "timestamped steps: move, down, up, tap, double-click, drag, wheel, key, type, resize, menu-pick, file-dialog, mark"},
+		{key: "script", names: ["--script"], value: "<json>", about: "timestamped steps: move, down, up, tap, double-click, drag, wheel, key, type, resize, menu-pick, file-dialog, mark, literal"},
 		{key: "frames", names: ["--frames"], value: "<n>", number: true, about: "n frames as PNGs into -o/--out (frame_0000.png...) from --start"},
 		{key: "every", names: ["--every"], value: "<k>", number: true, about: "--frames: every k-th frame written (1)"},
 		{key: "start", names: ["--start"], value: "<t>", about: "where --frames and --video begin (0)"},
@@ -56,6 +56,7 @@ class Options {
 		{key: "theme", names: ["--theme"], value: "<t>", about: "the system's appearance: light (default) or dark"},
 		{key: "reduced-motion", names: ["--reduced-motion"], about: "the system asks for reduced motion: transitions jump"},
 		{key: "seed", names: ["--seed"], value: "<n>", number: true, about: "Math.random's seed (1)"},
+		{key: "dev", names: ["--dev"], about: "a dev build (-D hxmc.dev): its live literals, which the script's literal steps patch"},
 	];
 
 	static final COMMON:Array<Opt> = [
@@ -81,6 +82,8 @@ class Options {
 			own: [
 				{key: "port", names: ["--port"], value: "<n>", number: true, about: "the HTTP port, the page's and the devtools' (4321, else the next free one)"},
 				{key: "host", names: ["--host"], value: "<address>", about: "the address it listens on (127.0.0.1; 0.0.0.0: every interface)"},
+				{key: "literals-only-check", names: ["--literals-only-check"], about: "each change's path said, and why: its literals patched (no build) or built"},
+				{key: "no-literals", names: ["--no-literals"], about: "every change built, none patched (live literals off: the edit-loop lane's before)"},
 			],
 		},
 		{

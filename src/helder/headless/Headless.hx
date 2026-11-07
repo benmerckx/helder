@@ -307,6 +307,17 @@ class Headless {
 				a.key = s.data.id == null ? -1 : Std.int(s.data.id);
 			case "menu-cancel":
 				at(s, s.t, MenuCancel);
+			case "literal":
+				#if hxmc.dev
+				// (a live literal: by id, else by file, value and line; patched now, the next frame shows it)
+				var id = s.str("id"), file = s.str("file"), value:Dynamic = s.data.value, line:Dynamic = s.data.line;
+				var found = Lambda.find(helder.dev.Literals.list(), l -> id != null ? l.id == id : (file == null || StringTools.endsWith(l.file, file))
+					&& (value == null || l.base == value) && (line == null || l.line == line));
+				if (found == null) failStep(s, 'no live literal ${id ?? (file ?? "") + (value == null ? "" : " of " + Std.string(value))} read by this time');
+				helder.dev.Literals.patch([{id: found.id, value: s.data.set}]);
+				#else
+				fail('$s: a literal step patches a dev build\'s live literals: helder run --headless --dev');
+				#end
 			case "file-dialog" | "file-dialog-cancel":
 			// (FileDialog.open takes the next answer whenever it asks)
 			case t:

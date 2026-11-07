@@ -79,6 +79,13 @@ class DevCommand {
 	static var timing:Null<{seen:Float, build:Int}> = null;
 	// (the change seen, wall clock seconds: Runtime.built's changedAt)
 	static var changedAt:Null<Float> = null;
+	// live literals: the sources the program was built from (null: off, --no-literals, the web),
+	// --literals-only-check, the files patched since the build, the patch being measured
+	static var literals = false;
+	static var checkLiterals = false;
+	static var patchedFiles:Array<String> = [];
+	static var framedEarly:Dynamic = null;
+	static var literalTiming:Null<{seen:Float, changedAt:Null<Float>, ids:Array<String>}> = null;
 	// natively: the program, its connection, whether it said saved
 	static var child:Null<Child> = null;
 	// (a signal: helder dev ending)
@@ -166,7 +173,11 @@ class DevCommand {
 		snapshot = FileSystem.fullPath(dir) + '/${e.name}.snapshot';
 		try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
 		try FileSystem.deleteFile(depsFile()) catch (_:Dynamic) {};
+		// (live literals: natively, where the devtools' connection reaches the program)
+		checkLiterals = o.has("literals-only-check");
+		literals = !web && !o.has("no-literals");
 		server = CompileServer.start(task);
+		if (server != null && literals) server.service.literals(literalDir());
 		if (server == null) {
 			Term.err(Style.status("error", Fail, "the compilation server did not start (" + Compiler.tool() + ")"));
 			return 1;
@@ -214,13 +225,14 @@ class DevCommand {
 			log(Style.status("watching", Info, Style.path(e.sources.join(", "))));
 			log(Style.status("devtools", Quiet, Style.path('ws://$at:${http.port}/__helder/devtools')));
 		}
-		var w = new SampledWatcher();
+		// (the file being edited seen within 25 ms: the recent ones checked each tick)
+		var w = new SampledWatcher(0.025, 0.01);
 		rebuild(task, null);
 		watch(w);
 		while (true) {
 			var changed = w.next();
 			// (seen within the tick: half of it on average, and the debounce)
-			var seen = haxe.Timer.stamp() - 0.07;
+			var seen = haxe.Timer.stamp();
 			changedAt = Sys.time();
 			// (an asset's file: sent, nothing built)
 			var rest = [];
@@ -229,12 +241,69 @@ class DevCommand {
 				if (k != null && FileSystem.exists(f)) assetChanged(k) else rest.push(f);
 			}
 			if (rest.length == 0) continue;
-			for (f in rest)
+			// (live literals: a save that changed only their values patched, nothing built)
+			if (literalsOnly(rest, seen)) continue;
+			for (f in rest.concat(patchedFiles))
 				if (f.endsWith(".hx") && FileSystem.exists(f)) server.invalidate(f, cwd);
+			patchedFiles = [];
 			rebuild(task, seen);
 			watch(w);
 		}
 		return 0;
+	}
+
+	// --- live literals (helder.dev.Literals, helder.markup.Live, LiteralEdit)
+
+	// whether a change was only to live literals' values, then patched in the
+	// running program (Hot.literals); else (or when the program cannot take
+	// them: none connected, a literal read once, not bound) it builds
+	@:coroutine static function literalsOnly(files:Array<String>, seen:Float):Bool {
+		if (!literals || !built || lastError != null) {
+			if (checkLiterals && literals) log(Style.status("build", Info, Style.dim("the last build failed")));
+			return false;
+		}
+		// (the frame's notification may come before the answer is read: kept until then)
+		literalTiming = null;
+		framedEarly = null;
+		var running:helder.compiler.service.Service.Running = (r, done) -> Devtools.request(r.method, r.params, done);
+		switch server.service.edit(running, files) {
+			case Patched(all):
+				literalTiming = {seen: seen, changedAt: changedAt, ids: all.map(c -> c.id)};
+				for (f in files) if (!patchedFiles.contains(f)) patchedFiles.push(f);
+				var said = [for (c in all) shortId(c.id) + " " + c.source];
+				log(Style.status("patched", Ok, '${all.length} literal${all.length == 1 ? "" : "s"}' + Style.dim(Style.sep() + "nothing built" + (checkLiterals ? Style.sep() + said.join(", ") : ""))));
+				if (framedEarly != null) patchFramed(framedEarly);
+				return true;
+			case Unchanged:
+				literalTiming = null;
+				if (checkLiterals) log(Style.status("unchanged", Quiet, Style.path(files.map(Path.withoutDirectory).join(", "))));
+				return true;
+			case Build(why):
+				literalTiming = null;
+				if (checkLiterals) log(Style.status("build", Info, Style.dim(why)));
+				return false;
+		}
+	}
+
+	// (Hot.patched: the first frame after a patch)
+	@:coroutine public static function patchFramed(p:Dynamic) {
+		var t = literalTiming;
+		if (t == null) {
+			framedEarly = p;
+			return;
+		}
+		framedEarly = null;
+		literalTiming = null;
+		var ms = Math.round((haxe.Timer.stamp() - t.seen) * 1000);
+		log(Style.status("shown", Ok, 'in ${Style.time(ms)}' + Style.dim(Style.sep() + 'patch to frame ${p?.ms} ms')));
+		Devtools.patched({ms: ms, frameMs: p?.ms, changedAt: t.changedAt, ids: t.ids});
+	}
+
+	// (a literal's id as said: its file's name, line and column)
+	static function shortId(id:String):String {
+		var parts = id.split(":");
+		var n = parts.length;
+		return n < 4 ? id : Path.withoutDirectory(parts.slice(0, n - 3).join(":")) + ":" + parts[n - 3] + ":" + parts[n - 2];
 	}
 
 	// what the last build read: its module files under the sources (Deps;
@@ -270,6 +339,10 @@ class DevCommand {
 
 	static function depsFile():String
 		return Path.withoutExtension(out) + ".deps";
+
+	// the live literals' tables (helder.markup.Live: a source's per its content)
+	static function literalDir():String
+		return (FileSystem.fullPath(Path.directory(exeOut) == "" ? "." : Path.directory(exeOut)) + "/" + Path.withoutExtension(Path.withoutDirectory(exeOut)) + ".literals").split("\\").join("/");
 
 	// the executable a build wrote (its manifest: AssetStep)
 	static function builtExe():String
@@ -363,7 +436,7 @@ class DevCommand {
 		// (HELDER_DEV_PHASES: where its time went, and when, wall clock)
 		var phases:Dynamic = null;
 		if (BuildPhases.on) {
-			Async.delay(0.02);
+			until(BuildPhases.ready, 0.05);
 			phases = BuildPhases.take(out);
 			phases.changedAt = changedAt;
 			phases.startedAt = startedAt;

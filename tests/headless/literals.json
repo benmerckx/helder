@@ -1,0 +1,9 @@
+{
+  "events": [
+    {"t": 0.48, "type": "mark", "name": "before"},
+    {"t": 0.5, "type": "literal", "value": "#3b82f6", "set": "#ef4444"},
+    {"t": 0.5, "type": "literal", "value": "todos", "set": "dones"},
+    {"t": 0.5, "type": "mark", "name": "patched"},
+    {"t": 0.6, "type": "mark", "name": "end"}
+  ]
+}

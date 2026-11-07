@@ -13,7 +13,9 @@ enum PKind {
 	PExpr(code:String, at:Int);
 }
 
-typedef PNode = {kind:PKind};
+// (at, end: a text's raw run, its offsets in the root literal, where a
+// target can say it: live literals, helder.markup.Live)
+typedef PNode = {kind:PKind, ?at:Int, ?end:Int};
 typedef PAttr = {name:String, value:PValue, at:Int};
 
 enum PValue {
@@ -112,11 +114,11 @@ class Parser {
 	// children until </name>
 	function content(name:String):Array<PNode> {
 		var out:Array<PNode> = [];
-		var text = new StringBuf(), hasText = false;
+		var text = new StringBuf(), hasText = false, textAt = 0;
 		function flush() {
 			if (!hasText) return;
 			var t = Whitespace.clean(text.toString());
-			if (t != null) out.push({kind: PText(Entities.decode(t))});
+			if (t != null) out.push({kind: PText(Entities.decode(t)), at: textAt, end: i});
 			text = new StringBuf();
 			hasText = false;
 		}
@@ -142,6 +144,7 @@ class Parser {
 				var code = braces();
 				out.push({kind: PExpr(code, at)});
 			} else {
+				if (!hasText) textAt = i;
 				text.add(c);
 				hasText = true;
 				i++;

@@ -179,7 +179,7 @@ class Plan<E> {
 		if (Lambda.foreach(kids, k -> k.kind.match(PText(_) | PExpr(_, _)))) {
 			// (text only: the element's own text when it holds text)
 			var parts = [for (k in kids) part(k)];
-			if (Lambda.foreach(kids, k -> k.kind.match(PText(_)))) out.push(target.call(Runtime, "textOf", [e, join(kids)], null));
+			if (Lambda.foreach(kids, fixedText)) out.push(target.call(Runtime, "textOf", [e, join(kids)], null));
 			else out.push(target.call(Runtime, "flat", [e, target.string(name), target.anyArray(parts)], null));
 			return out;
 		}
@@ -198,7 +198,7 @@ class Plan<E> {
 		function flush(last = false) {
 			if (run.length == 0) return;
 			var tail = last ? [target.bool(true)] : [];
-			if (Lambda.foreach(run, k -> k.kind.match(PText(_)))) s.push(target.call(Runtime, "text", [parent, before, out, join(run), span], null));
+			if (Lambda.foreach(run, fixedText)) s.push(target.call(Runtime, "text", [parent, before, out, join(run), span], null));
 			else if (run.length == 1) s.push(target.call(Runtime, "hole", [parent, before, out, parts[0], span].concat(tail), null));
 			else s.push(target.call(Runtime, "run", [parent, before, out, target.anyArray(parts), span].concat(tail), null));
 			run = [];
@@ -227,6 +227,7 @@ class Plan<E> {
 	// a child of a run: its text, or its hole
 	function part(c:PNode):E
 		return switch c.kind {
+			case PText(t) if (!fixedText(c)): hole(target.thunk(target.live(target.string(t), LText(c.at, c.end))));
 			case PText(t): target.string(t);
 			case PExpr(code, at):
 				var h = hole(reactive(target.code(code, at, inner(), false)));
@@ -239,6 +240,29 @@ class Plan<E> {
 	// function of it, which the runtime binds)
 	function reactive(x:Null<E>):Null<E>
 		return x != null && target.mayRead(x) ? target.thunk(x) : x;
+
+	// --- live literals (dev builds: helder.markup.Live, helder.dev.Literals)
+
+	// a text set as it is: not a live literal (a release build, a text of no place)
+	function fixedText(k:PNode):Bool
+		return switch k.kind {
+			case PText(t): !target.liveOn() || k.at == null || StringTools.trim(t) == "";
+			case _: false;
+		}
+
+	// a literal attribute's value as its slot's read, a hole bound as one that reads; null: not live
+	function liveAttr(name:String, value:E, at:LiveAt):Null<E> {
+		if (!target.liveOn() || Live.fixed(name)) return null;
+		var x = target.live(value, at);
+		return x == null ? null : hole(target.thunk(x));
+	}
+
+	// a component's literal prop as its slot's read (bound when the prop reads), else as given
+	function liveProp(name:String, value:E, at:LiveAt, reads:Bool):E {
+		if (!target.liveOn() || Live.fixed(name)) return value;
+		var x = target.live(value, at);
+		return x == null ? value : reads ? target.thunk(x) : x;
+	}
 
 	function join(run:Array<PNode>):E
 		return target.string([for (k in run) switch k.kind {
@@ -258,6 +282,8 @@ class Plan<E> {
 					case AStatic(s): target.string(s);
 					case _: target.bool(true);
 				}
+				var live = event ? null : liveAttr(name, v, LAttr(a.at, name));
+				if (live != null) return target.call(Runtime, "prop", [e, target.string(name, ap), live], ap);
 				if (event) target.call(Host, "listen", [e, target.string(name, ap), v], ap);
 				else switch name {
 					case "key": null;
@@ -267,9 +293,13 @@ class Plan<E> {
 				}
 			case AExpr(code, at):
 				var x = target.code(code, at, inner(), true);
-				// (a literal number or string: set as a static value is, never bound)
-				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x))
+				// (a literal number or string: set as a static value is, never bound; a dev build's: its slot's, bound)
+				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x)) {
+					var live = liveAttr(name, x, LExpr);
+					if (live != null) return target.call(Runtime, "prop", [e, target.string(name, ap), live], ap);
 					return target.call(Host, "setProperty", [e, target.string(name, ap), x], ap);
+				}
+				if (!event && target.liveOn() && !Live.fixed(name)) x = target.liveIn(x);
 				if (!event && name != "ref" && name != "key") x = reactive(x);
 				if (event) x = target.handler(x, name, renderer, false, ap);
 				var plain = !event && name != "ref" && name != "key" && name != "style" && target.isPlain(x);
@@ -299,14 +329,20 @@ class Plan<E> {
 					case AStatic(s): target.string(s);
 					case _: target.bool(true);
 				}
+				var live = event ? null : liveAttr(name, v, LAttr(a.at, name));
+				if (live != null) return target.call(Neutral, "prop", [e, target.string(tag), target.string(name, ap), live], ap);
 				event ? target.call(Neutral, "listen", [e, target.string(tag), target.string(name, ap), v],
 					ap) : target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), v], ap);
 			case AExpr(code, at):
 				var x = target.code(code, at, inner(), true);
 				// (a literal, or tag and id, one renderer's only (ui's Node.find, a page's id): in each pass,
 				// dropped where its renderer has no use for it)
-				if (!event && name != "ref" && target.isLiteral(x))
+				if (!event && name != "ref" && target.isLiteral(x)) {
+					var live = liveAttr(name, x, LExpr);
+					if (live != null) return target.call(Neutral, "prop", [e, target.string(tag), target.string(name, ap), live], ap);
 					return target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), x], ap);
+				}
+				if (!event && target.liveOn() && !Live.fixed(name)) x = target.liveIn(x);
 				// (an agnostic literal's code has no scope: a hole)
 				if (!event && name != "ref" && (name == "tag" || name == "id"))
 					return target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), renderer == null ? hole(x) : x], ap);
@@ -359,12 +395,16 @@ class Plan<E> {
 		for (a in attrs) {
 			if (a.name == "key") continue;
 			var ap = {at: a.at, length: a.name.length};
+			var reads = c.reads != null && c.reads.indexOf(a.name) >= 0;
 			var v = switch a.value {
-				case AStatic(s): target.string(s, ap);
-				case AFlag: target.bool(true, ap);
+				case AStatic(s): liveProp(a.name, target.string(s, ap), LAttr(a.at, a.name), reads);
+				case AFlag: liveProp(a.name, target.bool(true, ap), LAttr(a.at, a.name), reads);
 				case AExpr(code, at):
 					var x = target.code(code, at, inner(), true);
-					c.reads != null && c.reads.indexOf(a.name) >= 0 ? reactive(x) : x;
+					if (x != null && target.isLiteral(x)) liveProp(a.name, x, LExpr, reads) else {
+						if (x != null && target.liveOn() && !Live.fixed(a.name)) x = target.liveIn(x);
+						reads ? reactive(x) : x;
+					}
 				case ASpread(_, at): target.error("markup: a component's props cannot be spread", {at: at, length: 3});
 			}
 			props.push({name: a.name, value: v, at: a.at});
@@ -425,6 +465,14 @@ interface Target<E> {
 	// written; null in a build that keeps none (a component's call and
 	// definition: its factory's, the target's own)
 	function located(element:E, at:Int):Null<E>;
+	// live literals (dev builds: helder.markup.Live): whether they are on;
+	// a literal's read of its slot, its value as the planner has it (a
+	// string, a flag's true, the literal's expression), at where it is
+	// (null: not live there); e with the literals of its branches (a
+	// ternary's, ??'s, a Color's channels) read from their slots
+	function liveOn():Bool;
+	function live(value:E, at:LiveAt):Null<E>;
+	function liveIn(e:E):E;
 	// a component's tag at an offset, for a literal of renderer: its callee
 	// (Pick's choice for that renderer), the renderer its children are for
 	// (null: the literal's); its checks failing an error
@@ -464,6 +512,14 @@ enum Callee {
 }
 
 typedef Where = {at:Int, length:Int};
+
+// where a live literal is: an attribute's value (static, or a flag: after
+// its name at at), its own expression's place, a text's raw run
+enum LiveAt {
+	LAttr(at:Int, name:String);
+	LExpr;
+	LText(at:Int, end:Null<Int>);
+}
 
 // (reads: the props of a type that reads, Read<T>: bound when their value may read)
 // (childFunction: its children prop is a function, For's row)

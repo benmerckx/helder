@@ -149,97 +149,43 @@ class Compiler {
 }
 
 // The compiler as a resident compilation server the CLI drives, as
-// @hxmc/cli's dev.mjs does: `--server-connect`, the server connecting to a
-// port of ours and taking its requests on that one connection (arguments
-// one per line, after their length, a 32-bit little-endian integer; the
-// answer after its length too, in lines: \x01 output, \x02 failure, any
-// other a message). A request at a time.
+// @hxmc/cli's dev.mjs does: helder.compiler.service's (Service, Server: the
+// compiler as a library, the studio's path too), what a build printed shown
+// here. A request at a time.
 class CompileServer {
-	final process:Process;
-	final socket:Socket;
-	final reader:Reader;
-	final lock = new Lock();
+	public final service:helder.compiler.service.Service;
 	// the server's own output, the last of it (when it stops)
-	public var output(default, null) = "";
+	public var output(get, never):String;
 
-	function new(process, socket) {
-		this.process = process;
-		this.socket = socket;
-		reader = new Reader(socket);
-	}
+	function get_output():String
+		return service.server.output;
+
+	function new(service)
+		this.service = service;
 
 	// started, and connected (null: it did not connect)
 	@:coroutine public static function start(task:Node):Null<CompileServer> {
-		var link = Server.listen("127.0.0.1", 0);
-		// (a resident compiler keeps what it makes: a large nursery and old space spare it collections)
 		// (tool() first: it sets the compiler's variables, the std's)
 		var tool = Compiler.tool(), env = Process.environment();
-		for (k => v in ["RT_OLD_MB" => "4096", "RT_MINOR_KB" => "32768"])
-			if (!env.exists(k)) env.set(k, v);
 		BuildPhases.environment(env);
-		var p = try new Process(tool, ["--server-connect", '127.0.0.1:${link.port}'], {env: env}) catch (e:haxe.Exception) {
-			link.close();
-			Term.err(Style.status("error", Fail, '$tool: ${e.message}'));
-			return null;
-		}
-		p.closeStdin();
-		var sock = try Async.timeout(30, _ -> link.accept()) catch (_:haxe.Exception) null;
-		link.close();
-		if (sock == null) {
-			p.stop();
-			p.close();
-			return null;
-		}
-		var s = new CompileServer(p, sock);
-		for (pipe in [p.stdout, p.stderr])
-			task.async(_ -> {
-				var r = new Reader(pipe), line;
-				while ((line = r.readLine()) != null) {
-					s.output = (s.output + line + "\n").substr(-8192);
-					BuildPhases.line(line);
-				}
-			});
-		return s;
+		var s = helder.compiler.service.Service.start(task, {tool: tool, env: env, std: Compiler.hxmcStd()}, m -> Term.err(Style.status("error", Fail, m)));
+		if (s == null) return null;
+		s.server.onOutput = BuildPhases.line;
+		return new CompileServer(s);
 	}
 
 	// a build: its words, run in cwd; whether it compiled, its messages (errors and warnings)
 	@:coroutine public function request(words:Array<String>, cwd:String):{ok:Bool, messages:String} {
-		lock.acquire();
-		try {
-			var std = Compiler.hxmcStd();
-			var body = Bytes.ofString(["--cwd", cwd].concat(words).concat(std == null || words[0] == "--display" ? [] : ["-cp", std]).join("\n"));
-			var head = Bytes.alloc(4);
-			head.setInt32(0, body.length);
-			socket.write(head, 0, 4);
-			socket.write(body, 0, body.length);
-			var n = reader.readBytes(4).getInt32(0);
-			var answer = reader.readBytes(n).toString();
-			lock.release();
-			var ok = true, messages = [];
-			for (line in answer.split("\n")) {
-				if (line.startsWith("\x01")) {
-					var text = line.substr(1).split("\x01").join("\n");
-					Term.write(text.endsWith("\n") ? text.substr(0, text.length - 1) : text);
-				}
-				else if (line.startsWith("\x02")) ok = false;
-				else if (line != "") messages.push(line);
-			}
-			return {ok: ok, messages: messages.join("\n")};
-		} catch (e:haxe.Exception) {
-			lock.release();
-			throw new haxe.Exception("the compilation server stopped\n" + output.substr(-2000));
-		}
+		var r = service.build(words, cwd);
+		BuildPhases.requested(r.ms);
+		if (r.printed != "") Term.write(r.printed);
+		return {ok: r.ok, messages: r.messages};
 	}
 
 	// a file changed: the server compares a file's time, which two saves in one second share
 	@:coroutine public function invalidate(file:String, cwd:String)
-		request(["--display", haxe.Json.stringify({jsonrpc: "2.0", id: 1, method: "server/invalidate", params: {file: file}})], cwd);
+		service.server.invalidate(file, cwd);
 
-	// its connection closed, then the process asked to end (SIGTERM) and
-	// ended (SIGKILL) if it has not within 2 s
-	@:coroutine public function stop() {
-		socket.close();
-		process.stop();
-		process.close();
-	}
+	@:coroutine public function stop()
+		service.stop();
 }

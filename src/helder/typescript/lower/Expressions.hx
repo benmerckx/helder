@@ -19,6 +19,11 @@ import helder.typescript.lower.Core.*;
 abstract class Expressions extends Statements {
 	function expr(n:Node):Ex {
 		expressions++;
+		// (a dev build's live literal, an attribute's branch: its slot's read, Tsx.liveIn)
+		if (tsx != null && (n.kind == KindStringLiteral || n.kind == KindNumericLiteral)) {
+			var l = tsx.lives.get(Tsx.key(n));
+			if (l != null) return tsx.liveRead(n, l);
+		}
 		var x = api == null ? null : apiExpr(n);
 		if (x != null) return x;
 		// (helder/platform's constants, and conditions of them: a literal)

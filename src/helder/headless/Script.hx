@@ -18,6 +18,9 @@ using StringTools;
 //   menu-pick              id or label: the open pop-up menu's item chosen; menu-cancel
 //   file-dialog            path: the answer to the next file dialog; file-dialog-cancel
 //   mark                   name: a time to refer to (--at mark:name+0.5), nothing done
+//   literal                a live literal patched (a dev build: helder run --headless --dev;
+//                          helder.dev.Literals): the one of id, else of file (its path's end),
+//                          value (as compiled) and line, set to set
 //
 // A node is aimed at by its tag, or a path of tags ("list/checkbox": a
 // checkbox inside the list, as a CSS descendant selector), and/or its role
@@ -57,6 +60,7 @@ class Script {
 				if (name == null || Keys.code(name) == null) throw '$where: no key ${name ?? "(no \"name\")"} (Enter, Escape, Tab, Backspace, Delete, Space, ArrowLeft, Home, F1, a single character...)';
 			}
 			if (type == "type" && !Std.isOfType(Reflect.field(o, "text"), String)) throw '$where: type has a "text"';
+			if (type == "literal" && !Reflect.hasField(o, "set")) throw '$where: a literal step has a "set" (its new value)';
 			s.steps.push(step);
 			var end = t + step.duration();
 			if (end > s.last) s.last = end;
@@ -67,7 +71,7 @@ class Script {
 
 	public static final TYPES = [
 		"move", "down", "up", "tap", "double-click", "drag", "wheel", "key", "key-up", "type", "resize", "menu-pick", "menu-cancel", "file-dialog",
-		"file-dialog-cancel", "mark"
+		"file-dialog-cancel", "mark", "literal"
 	];
 }
 

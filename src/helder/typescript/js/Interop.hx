@@ -304,6 +304,15 @@ class Interop {
 	// which commits helder.view's writes at the end of each of its turns)
 	public static function hostLoop():Void
 		if (Promises.eventHost == null) Promises.eventHost = new LoopHost();
+
+	#if hxmc.dev
+	// a TSX literal's slot (live literals, dev builds: helder.dev.Literals; Tsx's MLive)
+	public static function liveString(id:String, value:String, anchor:String):String return helder.dev.Literals.string(id, value, anchor);
+
+	public static function liveFloat(id:String, value:Float, anchor:String):Float return helder.dev.Literals.float(id, value, anchor);
+
+	public static function liveBool(id:String, value:Bool, anchor:String):Bool return helder.dev.Literals.bool(id, value, anchor);
+	#end
 }
 
 // The JavaScript event loop's work on helder.async's loop (Promises.EventHost).

@@ -658,5 +658,15 @@ class HaxeTarget implements Target<Expr> {
 	// last in the file, so that a release build's positions of the code above stay the same)
 	public function located(element:Expr, at:Int):Null<Expr>
 		return SourceMap.element(element, file, base, at, pos);
+
+	// (live literals: LiveMacro; last in the file, the positions of the code above unmoved)
+	public function liveOn():Bool
+		return LiveMacro.on();
+
+	public function live(value:Expr, at:helder.markup.Plan.LiveAt):Null<Expr>
+		return LiveMacro.live(value, at, file, base);
+
+	public function liveIn(e:Expr):Expr
+		return LiveMacro.liveIn(e, file);
 }
 #end

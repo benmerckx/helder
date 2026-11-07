@@ -38,6 +38,7 @@ class Check {
 			sources(app, app == "todo" ? "examples/todo/Todo.hx" : "examples/ts-todo/app.tsx", end);
 			traceLines(app, '$one/$app.jsonl');
 			image('$app-toggled.png', '$one/$app-toggled.png', bless);
+			literals(app, '$one/$app-literal-before.png', '$one/$app-literal-after.png', tree('$one/$app-literal.json'));
 		}
 		image("glow.png", '$one/glow.png', bless);
 		viewer(tree('$one/viewer-menu.json'), tree('$one/viewer-end.json'));
@@ -164,6 +165,30 @@ class Check {
 		}
 		check('$app trace: JSON lines of tagged nodes', ok);
 		check('$app trace: the count\'s text moving as it changed', moved);
+	}
+
+	// live literals (a dev build, tests/headless/literals.json): the title's
+	// colour patched from #3b82f6 to #ef4444 and its text from todos to
+	// dones; the frame before the patch blue, the frame of the patch red
+	static function literals(app:String, before:String, after:String, nodes:Array<Dynamic>) {
+		function count(path:String, rgb:Int):Int {
+			var img = helder.image.PngDecoder.decode(File.getBytes(path)), n = 0;
+			for (p in 0...img.width * img.height) {
+				var d = 0;
+				for (k in 0...3) {
+					var v = img.rgba.get(4 * p + k) - ((rgb >> (16 - 8 * k)) & 0xFF);
+					if (v < 0) v = -v;
+					if (v > d) d = v;
+				}
+				if (d <= 8) n++;
+			}
+			return n;
+		}
+		var blue0 = count(before, 0x3b82f6), red0 = count(before, 0xef4444), blue1 = count(after, 0x3b82f6), red1 = count(after, 0xef4444);
+		check('$app literal: the frame before the patch, its title blue', blue0 > 50 && red0 == 0, 'blue $blue0, red $red0');
+		check('$app literal: the frame of the patch, its title red', red1 > 50 && blue1 == 0, 'blue $blue1, red $red1');
+		var t = texts(nodes);
+		check('$app literal: the title\'s text patched (dones)', t.contains("dones") && !t.contains("todos"), t.join(", "));
 	}
 
 	// against tests/headless/<golden> (BLESS: rewritten): at most 1% of the pixels more than 3 levels

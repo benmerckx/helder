@@ -67,6 +67,7 @@ class Devtools {
 			return;
 		}
 		if (method == "Runtime.ready") DevCommand.measured();
+		if (method == "Hot.patched") DevCommand.patchFramed(m.params);
 		broadcast(method.substr(0, method.indexOf(".")), line);
 	}
 
@@ -108,6 +109,10 @@ class Devtools {
 		broadcast("Log", notification("Log.entry", e));
 		broadcast("Runtime", notification("Runtime.buildError", {ms: ms, message: message}));
 	}
+
+	// live literals patched, nothing built: from the change seen to the frame that shows them
+	@:coroutine public static function patched(params:Dynamic)
+		broadcast("Runtime", notification("Runtime.patched", params));
 
 	@:coroutine public static function reloaded(ms:Int, build:Int)
 		broadcast("Runtime", notification("Runtime.reloaded", {ms: ms, build: build}));

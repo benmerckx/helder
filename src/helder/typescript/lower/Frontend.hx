@@ -105,6 +105,7 @@ class Frontend extends ApiCalls {
 		if (api != null && api.manifest != null) {
 			bridge = new Haxe(this, p, api.manifest);
 			tsx = new Tsx(this, bridge, api, dev, dev || definitions.define("helder.headless") != null);
+			tsx.liveTable = definitions.define("helder.literals");
 			// (its timers and promises on helder.async's loop: Interop.hostLoop)
 			if (eventLoop) bridge.call(bridge.interop("hostLoop"), []);
 		}
@@ -154,6 +155,8 @@ class Frontend extends ApiCalls {
 		});
 		// (its agnostic literals' code for each renderer, set first)
 		if (tsx != null) body = Vector.fromArrayCopy(tsx.install().concat(body.toArray()));
+		// (live literals: the sources' tables, helder.markup.Live)
+		helder.markup.Live.flush();
 		if (jobs.length > 0) jobCalls();
 		// (generic functions' copies for numbers the program called, and those they call)
 		while (pendingCopies.length > 0) {

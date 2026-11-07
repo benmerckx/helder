@@ -201,7 +201,7 @@ class App {
 			onFrame();
 			if (!helder.headless.Headless.run.framed()) running = false;
 		}
-		return true;
+		#if hxmc.dev helder.dev.Hot.framed(); #end return true; // (a dev build's frame: helder.dev.Literals' patches)
 		#end
 		if (!running || windows.length == 0) {
 			running = false;

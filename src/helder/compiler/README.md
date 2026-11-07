@@ -23,6 +23,14 @@ compilation server alike.
   types it) and its generation in hxmc's place. helder.typescript's
   (`helder.typescript.Frontend`) is the one listed.
 
+- `Phases.hx`: where a build's time goes (`-D helder.phases=<file>`:
+  Haxe's init macros, typing and filters, hxmc's lowering, codegen and
+  link, a frontend's own), for the edit-loop lane (`bun run test
+  edit-loop`).
+- `service/`: the compiler as a library (its README): `Service`'s check,
+  build, edit (live literals) and reload over a warm compilation server,
+  the path `helder build`, `run` and `dev` take and the studio's.
+
 DESIGN.md: definitions, compile-time calls such as `shader({...})`, `job(fn)` and
 `actions(...)` that read as runtime code in TypeScript and in Haxe and are
 handled once for both. The kernel (`helder.definition`: the argument's tree,

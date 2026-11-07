@@ -31,7 +31,8 @@ class HeadlessCommand {
 		}
 		Term.out(Style.header("run", ["headless", e.label()]));
 		var exe = e.out("headless");
-		var r = BuildCommand.build(e, exe, Release, null, ["-D", "helder.headless"]);
+		// (--dev: a dev build, -D hxmc.dev: its live literals, which a script's literal step patches)
+		var r = BuildCommand.build(e, exe, o.has("dev") ? Dev : Release, null, ["-D", "helder.headless"]);
 		if (!r.ok) return 1;
 		var frames = video == null ? null : Path.withoutExtension(video) + ".frames";
 		var cfg = config(o, frames);

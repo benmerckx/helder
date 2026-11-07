@@ -7,19 +7,22 @@
 // compiler's and hxmc's; Runtime.ready's startedAt and ms):
 //
 //   watcher     the save to the change seen (helder.async's SampledWatcher)
+//   patch       live literals: the change seen to the values set in the program (compared, sent, flushed)
 //   check       tsgo's check (TypeScript)
-//   typing      Haxe's typing, its macros (markup) included
+//   typing      Haxe's init macros and typing, its macros (markup) included
+//   filters     Haxe's filters (DCE, the analyzer), to generation
 //   lowering    hxmc's IR (and the TypeScript program's)
 //   codegen     hxmc's code generation (prepare, codegen, data)
 //   link        hxmc's own linker
-//   build rest  the server's request beyond the phases (arguments, the module cache's checks)
+//   server      the server's request beyond the phases (its arguments, the target's init, the module cache's checks and writes)
+//   cli         helder dev's build beyond the request (the assets' step, the tables of live literals read)
 //   reload      the build done to the new build started (snapshot, dispose, the library loaded)
-//   first frame the new build's start to its first frame
+//   frame       the new build's start to its first frame; live literals': the patch to its frame
 //   other       the rest: the relays (the program to helder dev to the tool)
 //
 // Three kinds of edit, each EDITS times (median, and the range):
-//   literal     a colour in the markup (the title's) — live literals' path
-//               when helder dev has them (Literals: no build), else a build
+//   literal     a colour in the markup (the title's): live literals' path,
+//               patched with no build (EDIT_LOOP_ARGS=--no-literals: built)
 //   body        a component's body changed (a handler's code)
 //   component   a component added, and used
 //
@@ -79,6 +82,8 @@ async function lane(name) {
 	const port = 4500 + Math.floor(Math.random() * 400);
 	const dev = spawn(path.resolve(helder), ['dev', app.entry, '--port', String(port), ...(process.env.EDIT_LOOP_ARGS ? process.env.EDIT_LOOP_ARGS.split(' ') : [])],
 		{ cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env });
+	// (helder dev ended with the lane, whatever happens)
+	process.on('exit', () => { try { dev.kill('SIGTERM'); } catch {} });
 	for (const s of [dev.stdout, dev.stderr]) {
 		let buf = '';
 		s.on('data', (d) => {
@@ -139,13 +144,17 @@ async function lane(name) {
 		for (let i = 0; i < WARMUP + EDITS; i++) {
 			await sleep(400);
 			edit++;
-			const built = next((e) => e.method === 'Runtime.built' || e.method === 'Runtime.buildError' || e.method === 'Literals.applied');
+			const built = next((e) => e.method === 'Runtime.built' || e.method === 'Runtime.buildError' || e.method === 'Runtime.patched');
 			const t0 = save(app[kind], edit);
 			const b = await built;
 			if (b.method === 'Runtime.buildError') throw new Error(`${name}: ${kind}: the build failed:\n${b.params.message}`);
-			if (b.method === 'Literals.applied') {
+			if (b.method === 'Runtime.patched') {
 				// (live literals: no build; the frame after the values were set)
-				if (i >= WARMUP) rows[kind].push({ path: 'literals', total: b.at - t0, watcher: (b.params.changedAt ?? b.at / 1000) * 1000 - t0, patch: b.params.ms, frame: b.params.frameMs });
+				if (i >= WARMUP) {
+					const r = { path: 'literals', total: b.at - t0, watcher: b.params.changedAt * 1000 - t0, frame: b.params.frameMs };
+					r.patch = r.total - r.watcher - r.frame;
+					rows[kind].push(r);
+				}
 				continue;
 			}
 			const ready = await next((e) => e.method === 'Runtime.ready');
@@ -160,18 +169,20 @@ async function lane(name) {
 				total: ready.at - t0,
 				watcher: ph.changedAt * 1000 - t0,
 				check: of('check (tsgo)'),
-				typing: of('typing'),
+				typing: of('init macros') + of('typing'),
+				filters: of('filters') + of('to generation'),
 				lowering: of('lowering') + of('lowering (TypeScript)'),
 				codegen: Number.isNaN(link) ? gen : gen - link,
 				link,
-				buildRest: b.params.ms - (ph.ms ?? 0),
+				server: ph.requestMs - (ph.ms ?? 0),
+				cli: b.params.ms - ph.requestMs,
 				build: b.params.ms,
 				reload: ready.params.startedAt != null ? ready.params.startedAt * 1000 - ph.endedAt * 1000 : NaN,
 				frame: ready.params.ms ?? NaN,
 				modules: h.modules, compiled: h.compiled,
 			});
 			const r = rows[kind].at(-1);
-			r.other = r.total - ['watcher', 'check', 'typing', 'lowering', 'codegen', 'link', 'buildRest', 'reload', 'frame'].reduce((a, c) => a + (Number.isNaN(r[c]) ? 0 : r[c]), 0);
+			r.other = r.total - ['watcher', 'check', 'typing', 'filters', 'lowering', 'codegen', 'link', 'server', 'cli', 'reload', 'frame'].reduce((a, c) => a + (Number.isNaN(r[c]) ? 0 : r[c]), 0);
 		}
 	}
 	ws.close();
@@ -186,7 +197,7 @@ try {
 } finally {
 	if (xvfb) xvfb.kill();
 }
-const cols = ['total', 'watcher', 'check', 'typing', 'lowering', 'codegen', 'link', 'buildRest', 'reload', 'frame', 'other'];
+const cols = ['total', 'watcher', 'patch', 'check', 'typing', 'filters', 'lowering', 'codegen', 'link', 'server', 'cli', 'reload', 'frame', 'other'];
 const fmt = (v) => v == null || Number.isNaN(v) ? '' : String(Math.round(v));
 let md = `# The edit loop (\`bun run test edit-loop\`)\n\nms, median of ${EDITS} edits after ${WARMUP} unmeasured (from the save to the new frame).\n\n`;
 md += '| app | edit | path | ' + cols.join(' | ') + ' | modules compiled |\n|' + ' --- |'.repeat(cols.length + 4) + '\n';

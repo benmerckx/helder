@@ -102,6 +102,24 @@ source.
 | `Runtime.reloaded` | CLI | `{ms, build}`: from the change seen to the new build's first frame, and the build's part |
 | `Runtime.exited` | CLI | `{code}`: the program ended by itself |
 
+### Hot (live literals)
+
+| method | params | result |
+| --- | --- | --- |
+| `Hot.literals` | `{}` | `{literals: [{id, file, line, column, kind, value, base, patched, live}]}`: the slots read so far (helder.dev.Literals) |
+| `Hot.literals` | `{set: [{id, value} or {id, source}]}` | `{set, stale, unknown}`: patched; `stale` read once, not bound (a patch cannot reach them: helder dev builds); `unknown` not read yet (kept for when they are) |
+
+| notification | from | params |
+| --- | --- | --- |
+| `Hot.patched` | program | `{ms, ids}`: the first frame after a patch, ms from the patch |
+| `Runtime.patched` | CLI | `{ms, frameMs, changedAt, ids}`: a save's literals patched, nothing built; ms from the change seen to that frame |
+
+A literal's id is `<file>:<line>:<column>:<kind>` (kind: color, length,
+number, string, text, boolean); `value` is JSON of the slot's type,
+`source` the literal as written (quotes and all, or a text's raw run).
+Dev builds only (`-D hxmc.dev`): the method exists once a slot is read
+(src/helder/compiler/service/README.md, "Live literals").
+
 ### Log
 
 | method | params | result |

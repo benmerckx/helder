@@ -3,7 +3,8 @@ package helder.compiler;
 // Where a build's time goes (-D helder.phases=<file>): its phases' times,
 // written as JSON when the build ends, `{"phases": [{"name", "ms"}],
 // "ms"}` (ms: from the start of typing to the end). The compiler marks
-// typing (Haxe's, its macros and markup included: helder.compiler.Compiler),
+// Haxe's stages (its init macros, typing with the macros and markup, its
+// filters: DCE, the analyzer; the rest to generation: finalize, save),
 // lowering (hxmc's IR) and generation (codegen and link); a frontend adds
 // its own (helder.typescript's: tsgo's check, the TypeScript program's
 // lowering). `helder dev` reads it (HELDER_DEV_PHASES=1: helder.cli.BuildPhases)
@@ -19,6 +20,11 @@ class Phases {
 		file = core.Define.rawDefined(com.defines, "helder.phases") ? core.Define.rawDefinedValue(com.defines, "helder.phases") : null;
 		marks = [];
 		first = last = haxe.Timer.stamp();
+		if (file == null) return;
+		// (Haxe's own stages: its init macros, the typing, its filters (DCE, analyzer); then generateHook's)
+		com.callbacks.addAfterInitMacros(() -> mark("init macros"));
+		com.callbacks.addAfterTyping(_ -> mark("typing"));
+		com.callbacks.addAfterFilters(() -> mark("filters"));
 	}
 
 	// the phase that ends now

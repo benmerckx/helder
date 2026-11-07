@@ -39,6 +39,8 @@ enum TsMarkup {
 	MScriptComponent(tag:Node);
 	// (dev builds, headless runs: the element made by the tag at at told where it is written, helder.view.Sources)
 	MLocated(el:TsMarkup, at:Int);
+	// a live literal (dev builds): its slot's read, helder.typescript.js.Interop's liveString, liveFloat or liveBool
+	MLive(fn:String, id:String, value:TsMarkup, anchor:String);
 }
 
 // TSX through helder.markup's planner (DESIGN.md 7.2): the same decisions
@@ -69,6 +71,13 @@ class Tsx {
 	// (dev builds and headless runs: elements and components told where they are written, helder.view.Source)
 	public final sources:Bool;
 	var serial = 0;
+	// live literals (dev builds, helder.markup.Live): the literals of
+	// attributes' branches read from their slots (by node: file#index), the
+	// expressions holding them (bound: they read), and the table's directory
+	// (-D helder.literals)
+	public final lives:Map<String, {fn:String, id:String, anchor:String}> = [];
+	public final liveRoots:Map<String, Bool> = [];
+	public var liveTable:Null<String> = null;
 
 	public function new(f:Frontend, bridge:Haxe, api:Api, dev:Bool, sources = false) {
 		this.f = f;
@@ -121,7 +130,7 @@ class Tsx {
 		for (c in list) switch c.kind {
 			case KindJsxText | KindJsxTextAllWhiteSpaces:
 				var t = Whitespace.clean(c.text);
-				if (t != null) out.push({kind: PText(Entities.decode(t))});
+				if (t != null) out.push({kind: PText(Entities.decode(t)), at: dev ? at(c) : null});
 			case KindJsxExpression if (c.dotDotDotToken() != null): f.fail(c, "a spread among TSX children");
 			case KindJsxExpression if (c.expression() == null): out.push({kind: PExpr("", at(c))});
 			case KindJsxExpression: out.push({kind: PExpr("x", at(c.expression()))});
@@ -454,6 +463,7 @@ class Tsx {
 
 	// a value as the program's: its expression's, a literal's View, a thunk's function
 	function script(e:TsMarkup):Ex return switch e {
+		case MLive(fn, id, value, anchor): bridge.call(bridge.interop(fn), [EStr(id), script(value), EStr(anchor)]);
 		case MCode(n, renderer):
 			if (renderer != null) mark(n, renderer);
 			f.expr(n);
@@ -470,6 +480,67 @@ class Tsx {
 		var r = f.lambda(null, [], true, false, fi -> b.out.push(SReturn(value())));
 		return b.runtime("libFunction", [r.clos, EInt(r.arity), ECast(TBool, EInt(0)), EInt(1), EStr("")]);
 	}
+
+	// ---- live literals (dev builds: helder.markup.Live, helder.dev.Literals)
+
+	public static function key(n:Node):String return n.file.path + "#" + n.index;
+
+	// a live literal's slot read: value (MString, MBool, a literal's MCode) at where its node is; null: not live
+	public function live(value:TsMarkup, n:Null<Node>, form:String):Null<TsMarkup> {
+		if (!dev || n == null) return null;
+		var file = try sys.FileSystem.fullPath(n.file.path) catch (_:Dynamic) n.file.path;
+		var c = helder.markup.Live.content(file);
+		if (c == null) return null;
+		var start = n.file.offset(n.file.skipTrivia(n.pos)), end = n.file.offset(n.end);
+		if (form == "text") start = n.file.offset(n.pos);
+		var kind = "string", fn = "liveString";
+		switch value {
+			case MString(v): kind = form == "text" ? "text" : helder.markup.Live.stringKind(v);
+			case MBool(_):
+				kind = "boolean";
+				fn = "liveBool";
+			case MCode(x, _) if (x.kind == KindNumericLiteral):
+				kind = "number";
+				fn = "liveFloat";
+			case MCode(x, _) if (x.kind == KindStringLiteral): kind = helder.markup.Live.stringKind(x.text);
+			case _: return null;
+		}
+		var id = helder.markup.Live.id(file, c.content, start, kind);
+		if (liveTable != null && liveTable != "" && liveTable != "1") helder.markup.Live.record(liveTable, file, c.hash, {id: id, start: start, end: end, form: form});
+		return MLive(fn, id, value, helder.markup.Live.anchor(c.content, start, end));
+	}
+
+	// an attribute's expression: the literals of its branches (a ternary's, ??'s) live, read by Expressions
+	public function liveIn(n:Node) {
+		var any = false;
+		var branch:Node->Void = null;
+		function walk(x:Node) switch x.kind {
+			case KindConditionalExpression:
+				branch(x.whenTrue());
+				branch(x.whenFalse());
+			case KindBinaryExpression if (x.operatorToken().kind == KindQuestionQuestionToken): branch(x.right());
+			case KindParenthesizedExpression: walk(x.expression());
+			case _:
+		}
+		branch = function(y:Node) {
+			while (y.kind == KindParenthesizedExpression) y = y.expression();
+			if (y.kind == KindNumericLiteral || y.kind == KindStringLiteral) {
+				var l = live(MCode(y, null), y, y.kind == KindNumericLiteral ? "number" : "quoted");
+				switch l {
+					case MLive(fn, id, _, anchor):
+						lives.set(key(y), {fn: fn, id: id, anchor: anchor});
+						any = true;
+					case _:
+				}
+			} else walk(y);
+		};
+		walk(n);
+		if (any) liveRoots.set(key(n), true);
+	}
+
+	// (Expressions) a literal of an attribute's branch, live: its slot's read
+	public function liveRead(n:Node, l:{fn:String, id:String, anchor:String}):Ex
+		return bridge.call(bridge.interop(l.fn), [EStr(l.id), n.kind == KindNumericLiteral ? EF64(Std.parseFloat(n.text)) : EStr(n.text), EStr(l.anchor)]);
 
 	// (the literals in a hole's expression: for its literal's renderer, as Haxe's markup in a hole is)
 	function mark(n:Node, renderer:String) {
@@ -808,13 +879,36 @@ class TsTarget implements Target<TsMarkup> {
 	}
 
 	public function isPlain(e:TsMarkup):Bool return switch e {
-		case MCode(n, _): tsx.plain(n);
+		case MCode(n, _): !tsx.liveRoots.exists(Tsx.key(n)) && tsx.plain(n);
 		case _: false;
 	}
 
 	public function mayRead(e:TsMarkup):Bool return switch e {
-		case MCode(n, _): tsx.mayRead(n);
+		case MCode(n, _): tsx.liveRoots.exists(Tsx.key(n)) || tsx.mayRead(n);
+		case MLive(_, _, _, _): true;
 		case _: false;
+	}
+
+	public function liveOn():Bool return tsx.dev;
+
+	public function live(value:TsMarkup, at:LiveAt):Null<TsMarkup> return switch at {
+		case LText(at, _): tsx.live(value, tsx.nodes[at], "text");
+		case LAttr(at, _):
+			var a = tsx.nodes[at];
+			var init = a.initializer();
+			init == null ? tsx.live(value, a.name(), "flag") : init.kind == KindStringLiteral ? tsx.live(value, init, "quoted") : null;
+		case LExpr: switch value {
+				case MCode(n, _): tsx.live(value, n, n.kind == KindNumericLiteral ? "number" : "quoted");
+				case _: null;
+			}
+	}
+
+	public function liveIn(e:TsMarkup):TsMarkup {
+		switch e {
+			case MCode(n, _): tsx.liveIn(n);
+			case _:
+		}
+		return e;
 	}
 
 	public function thunk(e:TsMarkup):TsMarkup return MThunk(e);

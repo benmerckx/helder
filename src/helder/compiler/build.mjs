@@ -52,7 +52,8 @@ if (process.argv.includes('--sources')) {
 function hashTree(dir, h) {
 	for (const e of fs.readdirSync(dir, {withFileTypes: true}).sort((a, b) => a.name < b.name ? -1 : 1)) {
 		const p = path.join(dir, e.name);
-		if (e.isDirectory()) hashTree(p, h);
+		// (helder.compiler.service: the library's side, not the compiler's)
+		if (e.isDirectory() && e.name !== 'service') hashTree(p, h);
 		else if (e.name.endsWith('.hx')) h.update(e.name).update(fs.readFileSync(p));
 	}
 	return h;
