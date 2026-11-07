@@ -266,6 +266,59 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   README](../view/README.md)). The graph's writes land at the end of each
   event (`Ui`'s pointer, key and text entry points, a native control's
   callbacks) and frame (`Ui.update`, `Clock.tick`, `App.run`'s turns).
+- **`helder.ui.motion`**: motion as property tracks, declared on nodes
+  (examples/motion, in Haxe and TSX). A `Track` is one value moving: an
+  analytic spring by duration and bounce (SwiftUI's
+  `Spring(duration:bounce:)`, closed form in each damping regime), a tween
+  (a duration on a cubic Bézier) or a decay (a fling's), evaluated at the
+  `Clock`'s time (a headless run's virtual one), retargeted from exactly
+  where it is and how fast it moves, settled once within its epsilon for
+  good; sampling allocates nothing. A node's `Present` keeps a track per
+  property that moves, `Motions` changes them:
+  - `motion` (Node.motion, markup's `motion="snappy|default|calm"`,
+    `motion="0.3 0.15"`, `motion={{duration: 0.3, bounce: 0.2}}`, a
+    `MotionSpec`) for a node and its subtree, per property class over it
+    (`motion-layout`, `motion-opacity`, `motion-color`,
+    `motion-transform`, `motion-radius`, `motion-presence`); the palette's
+    tokens (snappy .25/0, default .3/0, calm .4/0, lead .2/0, fade .15,
+    bouncy, morph, glide, drift: `Curve.TOKENS`), a theme's own over them
+    (`StyleSheet.motion`).
+  - Layout: a node laid out elsewhere after it was drawn moves there edge
+    by edge in its parent's space, from where its edges are drawn: an edge
+    that stays put never moves, children ride their parent's leading
+    (top left) edges, or its trailing ones (`ride="trailing"`, `"x"`,
+    `"y"`); `lead` and `trail`: the edge in the direction of travel on one
+    curve, the other on another, the box stretching as it goes. Drawn
+    where the tracks are (the renderer's translation, the presented size;
+    text and children keep their layout); `windowBounds`, the inspector
+    and `--trace` say where it is drawn. Hit testing stays on the layout.
+  - Properties: `opacity`, `radius`, `background`, `borderColor` and
+    `color` (premultiplied OKLab; a text colour in half the time, so a
+    theme switch keeps its contrast: `textLeads`) spring as they are set;
+    the style reads where they are, `style.target(name)` where they go;
+    `transform` moves as translation, scale and rotation lanes.
+  - Presence: a transition's presence words (`transition="fade"`,
+    `"scale"`, `"slide-up"`, `"slide-left(24)"`, `"pop"`, combined: `"fade
+    scale"`; with CSS's parts: `"fade, background-color 150ms"`) play as a
+    node is inserted into a drawn parent and as it is removed: kept drawn
+    where it was, out of the tree and its layout (its old parent's
+    `exits`), until its exit settles, revived from where it is if it is
+    inserted again; helder.view's keyed `For` keeps such a row and takes
+    it back when its key returns (Renders' `leaving`). Nothing enters on
+    the first frame. `blur` is a fade (the renderer has no blur).
+  - Matched elements (`matched="id"`): one removed and another of that id
+    laid out within an update: the new one flies from where the old one
+    was seen, its rect, velocity, radius and fill, drawn over everything,
+    its content scaled to cover its frame as it goes.
+  - `instant` (a node's subtree; `Motions.instant(f)`): its changes without
+    motion, its own entrance and exit kept. `Clock.reducedMotion`: travel,
+    size, transforms and matched flights snap; opacity, presence and
+    colours fade over 0.15 s.
+  - A change between frames moves from the next frame on (the Clock may
+    have been idle); a layout's within the frame it is laid out.
+  1,000 boxes moving at once: a frame's work the same as drawing them still
+  (0.82 ms against 0.85 ms median, headless on llvmpipe), retargeting all
+  of them 3.7 ms, 152 GC bytes a frame either way (the motion-bench lane).
 - **`helder.ui.widgets`**: text editing, `TextField` (caret, selection,
   keyboard editing, `cut`, `copy`, `paste`, `selectAll`) and `TextArea`
   (lines: wrapping, Up and Down, scrolling), both on `EditableText`, with

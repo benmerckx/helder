@@ -7,7 +7,7 @@
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
 import type {Read, RootView, Signal, View} from "helder/view";
 
-declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", UiFlow: "helder.ui.view.UiFlow", __module: "helder.ui.TypeScript"};
+declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", Clock: "helder.ui.Clock", UiFlow: "helder.ui.view.UiFlow", __module: "helder.ui.TypeScript"};
 
 // a menu of the menu bar; role Window: the window menu (macOS's: its own
 // items after Minimize, Zoom and Close)
@@ -177,6 +177,28 @@ export declare class VirtualScroll {
 	scrollToIndex(index: number, align?: string): void;
 	// focuses row index (made, scrolled into view first), the focus ring shown
 	focusIndex(index: number): void;
+}
+
+// The animation clock: what animates adds a step, called with the time (in
+// seconds) at each tick until it returns false. A window ticks it before
+// each frame and keeps drawing while anything animates (active); a test
+// ticks it by hand.
+export declare class Clock {
+	// the last tick's time
+	static readonly now: number;
+	// the system asks for reduced motion (a headless run's --reduced-motion):
+	// what moves a node's place, size or shape jumps to its end (Style's
+	// transitions of transform and shadow, Motion's transition and spring,
+	// helder.ui.motion's travel, sizes, radii and matched flights), fades,
+	// presence and colours still ease (motion's over 0.15 s)
+	static reducedMotion: boolean;
+	static add(step: (arg0: number) => boolean): void;
+	static readonly active: boolean;
+	// runs the steps to their ends (tests, a screenshot): ticks a tenth of a
+	// second apart, from now on, until none is left
+	static finish(): void;
+	// runs the steps at time t (the ones done are dropped): whether any is left
+	static tick(t: number): boolean;
 }
 
 // helder.ui's own control flow components for markup (import

@@ -13,9 +13,14 @@ using StringTools;
 // the viewer's file dialog and context menu answered by its script, a
 // VirtualList of a million rows (examples/million and ts-million: scrolled,
 // jumped, the keyboard, the selection, rows put in above the view), the
-// trace's lines, the frames written, and each output of the second run
-// byte for byte the first's.
+// trace's lines, the frames written, examples/motion's traces checked for
+// continuity (motion: no jump past what a spring allows, the edges that
+// stay put still, reduced motion's snaps) and its frame strips against
+// their goldens, and each output of the second run byte for byte the
+// first's.
 //   Check <dir> [--bless]
+typedef Frame = {t:Float, nodes:Map<Int, Array<Float>>, opacity:Map<Int, Float>, tags:Map<Int, String>, paths:Map<Int, String>};
+
 class Check {
 	static var failed = 0;
 	static var checks = 0;
@@ -45,6 +50,7 @@ class Check {
 		image("glow.png", '$one/glow.png', bless);
 		for (app in ["million", "ts-million"])
 			million(app, one, bless);
+		motion(one, bless);
 		codeEditor(dir, one, bless);
 		viewer(tree('$one/viewer-menu.json'), tree('$one/viewer-end.json'));
 		var frames = [for (f in FileSystem.readDirectory('$one/frames')) f];
@@ -297,6 +303,173 @@ class Check {
 
 	// against tests/headless/<golden> (BLESS: rewritten): at most 1% of the pixels more than 3 levels
 	// off (text's edges differ a little between Mesa's releases: 25.2's against CI's)
+	// examples/motion scripted (tests/headless/motion.json): its trace (every
+	// tagged node's rect and opacity a frame) checked for continuity until
+	// the script turns reduced motion on (3.8 s): each edge's steps within a
+	// spring's (a quarter of the way it travels a frame, at most: the
+	// palette's quickest, 0.2 s, moves a fifth), the rows' left and right
+	// edges never moving (they only move down and up), the list's box still,
+	// the rows above the one removed still while it leaves, the matched tile
+	// flying from where the small one was; from 3.8 s, reduced motion: every
+	// move of a box done in one frame (the fades over a few); the same with
+	// --reduced-motion from the start; frame strips of the rows, the zoom
+	// and the theme against their goldens
+	static function motion(one:String, bless:Bool) {
+		motionTrace("motion", traceOf('$one/motion.jsonl'));
+		// (examples/motion/main.tsx: the same from TypeScript)
+		motionTrace("motion-ts", traceOf('$one/motion-ts.jsonl'));
+		var reduced = traceOf('$one/motion-reduced.jsonl');
+		check("motion --reduced-motion: every move one frame", snapsOnly(reduced, 0) == "", snapsOnly(reduced, 0));
+		// (its opacities fade over a few frames: the rows added)
+		var fades = 0;
+		for (i in 1...reduced.length)
+			for (id => r in reduced[i].nodes) {
+				var o = reduced[i].opacity.get(id);
+				if (o > 0 && o < 1 && reduced[i].tags.get(id).startsWith("row-")) fades++;
+			}
+		check("motion --reduced-motion: the rows still fade", fades >= 6 && fades < 60, '$fades');
+		for (strip in ["rows", "zoom", "theme"]) {
+			var shots = [for (k in 0...6) '$one/motion-$strip-$k.png'];
+			// (beside the runs' outputs, which are compared run by run)
+			var out = '$one/../motion-$strip.png';
+			File.saveBytes(out, stripOf(shots));
+			image('motion-$strip.png', out, bless);
+		}
+	}
+
+	static function motionTrace(name:String, frames:Array<Frame>) {
+		check('$name trace: a line a frame through its end (5 s at 60)', frames.length == 301, '${frames.length}');
+		var jumps = [], stationary = [], ids = new Map<Int, Bool>();
+		for (f in frames)
+			for (id in f.nodes.keys())
+				ids.set(id, true);
+		for (id in ids.keys()) {
+			// (each edge's runs of change, before reduced motion)
+			for (k in 0...4) {
+				var run:Array<Float> = [];
+				function close() {
+					if (run.length > 2) {
+						var end = run[run.length - 1], most = 0.0;
+						for (v in run)
+							most = Math.max(most, Math.abs(v - end));
+						for (j in 1...run.length)
+							if (Math.abs(run[j] - run[j - 1]) > 0.25 * most + 1.5 && jumps.length < 8)
+								jumps.push('${frames[0].tags.get(id) ?? Std.string(id)} edge $k: ${run[j - 1]} to ${run[j]} (of $most)');
+					}
+					run = [];
+				}
+				for (i in 1...frames.length) {
+					var a = frames[i - 1], b = frames[i];
+					if (b.t >= 3.8) break;
+					var ra = a.nodes.get(id), rb = b.nodes.get(id);
+					if (ra == null || rb == null) {
+						close();
+						continue;
+					}
+					var va = ra[k], vb = rb[k];
+					if (va != vb) {
+						if (run.length == 0) run.push(va);
+						run.push(vb);
+					} else close();
+				}
+				close();
+			}
+		}
+		check('$name trace: no jump past what a spring allows', jumps.length == 0, jumps.join("; "));
+		// (the rows only move down and up; the list's box never moves)
+		for (f in frames) {
+			if (f.t >= 3.8) break;
+			for (id => r in f.nodes) {
+				var tag = f.tags.get(id);
+				if (tag == "list" && (r[0] != 20 || r[1] != 68 || r[2] != 280 || r[3] != 500)) stationary.push('list at ${f.t}: $r');
+				if (tag.startsWith("row-") && (r[0] != 32 || r[2] != 268)) stationary.push('$tag\'s sides at ${f.t}: $r');
+			}
+		}
+		// (row 2 removed at 1 s: row 1, above it, still until the shuffle at 1.12 s)
+		var row1 = [for (f in frames) if (f.t >= 1.0 && f.t < 1.12) for (id => r in f.nodes) if (f.tags.get(id) == "row-1") r[1] + "," + r[3]];
+		if (row1.length > 0 && row1.filter(x -> x != row1[0]).length > 0) stationary.push('row-1 while row 2 leaves: ${row1.join(" ")}');
+		check('$name trace: stationary edges never move', stationary.length == 0, stationary.slice(0, 6).join("; "));
+		// (the tile zoomed into: its first frame where the small one was seen, then on its way)
+		var small:Null<Array<Float>> = null, first:Null<Array<Float>> = null;
+		for (f in frames) {
+			if (f.t < 1.5 || f.t > 2.2) continue;
+			for (id => r in f.nodes)
+				if (f.tags.get(id) == "tile-2") {
+					if (f.paths.get(id).indexOf("/zoom/") < 0) {
+						if (f.t < 1.6) small = r;
+					} else if (first == null) first = r;
+				}
+		}
+		check('$name trace: the matched tile flies from where the small one was', small != null && first != null
+			&& Math.abs(first[0] - small[0]) < 8 && Math.abs(first[2] - small[2]) < 8 && Math.abs(first[3] - small[3]) < 8, '$small then $first');
+		// (reduced motion: a box's move done in one frame)
+		check('$name trace: reduced motion snaps travel and size', snapsOnly(frames, 3.85) == "", snapsOnly(frames, 3.85));
+	}
+
+	// (the first changes of a box past from that take more than one frame, as "tag: n frames")
+	static function snapsOnly(frames:Array<Frame>, from:Float):String {
+		var slow = [];
+		var ids = new Map<Int, Bool>();
+		for (f in frames)
+			for (id in f.nodes.keys())
+				ids.set(id, true);
+		for (id in ids.keys()) {
+			var streak = 0;
+			for (i in 1...frames.length) {
+				if (frames[i].t < from) continue;
+				var a = frames[i - 1].nodes.get(id), b = frames[i].nodes.get(id);
+				var moved = a != null && b != null && (a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3]);
+				streak = moved ? streak + 1 : 0;
+				if (streak == 2 && slow.length < 6) slow.push('${frames[i].tags.get(id)} at ${frames[i].t}: ${a} to ${b}');
+			}
+		}
+		return slow.join("; ");
+	}
+
+	// (a trace's frames: each node's edges (left, top, right, bottom), opacity, tag and path by its id)
+	static function traceOf(path:String):Array<Frame> {
+		var out:Array<Frame> = [];
+		for (l in File.getContent(path).trim().split("\n")) {
+			var o:Dynamic = haxe.Json.parse(l);
+			var f:Frame = {t: o.t, nodes: new Map(), opacity: new Map(), tags: new Map(), paths: new Map()};
+			for (n in (o.nodes : Array<Dynamic>)) {
+				var r:Array<Float> = n.rect;
+				f.nodes.set(n.id, [r[0], r[1], r[0] + r[2], r[1] + r[3]]);
+				f.opacity.set(n.id, n.opacity);
+				f.tags.set(n.id, n.tag);
+				f.paths.set(n.id, n.path);
+			}
+			out.push(f);
+		}
+		// (a node's tag in the first frame's map, whichever frame it is in)
+		for (f in out)
+			for (id => t in f.tags)
+				out[0].tags.set(id, t);
+		return out;
+	}
+
+	// (frames side by side at half their size: a strip)
+	static function stripOf(paths:Array<String>):Bytes {
+		var imgs = [for (p in paths) helder.image.PngDecoder.decode(File.getBytes(p))];
+		var w = Std.int(imgs[0].width / 2), h = Std.int(imgs[0].height / 2), gap = 4;
+		var W = imgs.length * w + (imgs.length - 1) * gap;
+		var px = Bytes.alloc(W * h * 4);
+		px.fill(0, px.length, 255);
+		for (k in 0...imgs.length) {
+			var img = imgs[k];
+			for (y in 0...h)
+				for (x in 0...w)
+					for (c in 0...4) {
+						var s = 0;
+						for (dy in 0...2)
+							for (dx in 0...2)
+								s += img.rgba.get(4 * ((2 * y + dy) * img.width + 2 * x + dx) + c);
+						px.set(4 * (y * W + k * (w + gap) + x) + c, (s + 2) >> 2);
+					}
+		}
+		return helder.image.PngEncoder.encode(px, W, h, true);
+	}
+
 	static function image(golden:String, got:String, bless:Bool) {
 		if (bless) {
 			File.saveBytes('$here/$golden', File.getBytes(got));

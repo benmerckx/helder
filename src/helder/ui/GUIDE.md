@@ -278,6 +278,21 @@ var height = Motion.spring(() -> open() ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
+Motion is declared on nodes (helder.ui.motion, src/helder/ui/README.md):
+`motion` on a node moves its subtree's layout edge by edge and springs its
+colours, opacity, radius and transform as they change; a `transition` of
+presence words plays as a node comes and goes; `matched` flies an element
+between two places:
+
+```haxe
+<view motion="default" row-gap={8}>
+	<For each={rows}>{(r:Read<Row>) -> <view transition="fade slide-up" padding={10}>{r().title}</view>}</For>
+</view>
+<Show when={() -> zoomed() < 0} fallback={<view matched="photo" grow={1}/>}>
+	<view matched="photo" width={120} height={80} radius={12}/>
+</Show>
+```
+
 A style's `transition`, as CSS's, eases its colours, opacity, transform
 and shadow whenever they change (a hover's colour from a theme, a value
 bound to a signal) once the node has been drawn:

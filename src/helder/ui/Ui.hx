@@ -427,6 +427,7 @@ class Ui {
 		}
 		// (motion: where its tracks draw it, helder.ui.motion.Present)
 		var p = n.present;
+		if (p != null && p.away) return;
 		if (p != null && p.flying && !flying) {
 			flights.push(n);
 			flightAt.push(ptx);

@@ -1,10 +1,12 @@
 package studio;
 
 import helder.ui.Clock;
+import helder.ui.motion.Track;
 import helder.view.graph.Graph.*;
 
 // The canvas' view of its world: a point of the world at (wx, wy) is drawn
 // at (wx * k + x, wy * k + y) in the stage. It flies to a view on a spring
+// (helder.ui.motion's analytic tracks: the same frames at any frame rate)
 // (the zoom's scale in log space, so that zooming in and out feel the same),
 // or jumps there (a pan, a wheel's zoom, reduced motion). `changed` is
 // bumped at each move, for what is drawn from it.
@@ -14,15 +16,11 @@ class Camera {
 	public var k(default, null) = 1.0;
 	public final changed = signal(0);
 
-	var tx = 0.0;
-	var ty = 0.0;
-	var tl = 0.0;
-	var vx = 0.0;
-	var vy = 0.0;
-	var vl = 0.0;
-	var lk = 0.0;
+	// (where it flies: the view's x, y and the scale's log, each an analytic track, helder.ui.motion's)
+	final fx = new Track(0, 0.05);
+	final fy = new Track(0, 0.05);
+	final fl = new Track(0, 1e-4);
 	var running = false;
-	var last = -1.0;
 	// whether a flight is on (the stage's handlers jump instead)
 	public var flying(get, never):Bool;
 
@@ -33,55 +31,40 @@ class Camera {
 
 	// at once
 	public function jump(nx:Float, ny:Float, nk:Float) {
-		x = tx = nx;
-		y = ty = ny;
+		x = nx;
+		y = ny;
 		k = nk;
-		lk = tl = Math.log(nk);
-		vx = vy = vl = 0;
+		fx.set(nx);
+		fy.set(ny);
+		fl.set(Math.log(nk));
 		running = false;
 		changed(c -> c + 1);
 	}
 
-	// on the spring (Theme's stiffness and damping)
+	// on the spring (Theme's: from where it is, its velocity kept when it is re-aimed)
 	public function fly(nx:Float, ny:Float, nk:Float) {
 		if (Clock.reducedMotion) {
 			jump(nx, ny, nk);
 			return;
 		}
-		tx = nx;
-		ty = ny;
-		tl = Math.log(nk);
+		var c = Theme.ZOOM;
+		fx.animate(-1, nx, c);
+		fy.animate(-1, ny, c);
+		fl.animate(-1, Math.log(nk), c);
 		if (running) return;
 		running = true;
-		last = -1;
 		Clock.add(step);
 	}
 
 	function step(now:Float):Bool {
 		if (!running) return false;
-		if (last < 0) last = now;
-		var dt = Math.min(0.1, now - last);
-		last = now;
-		var n = Math.ceil(dt / 0.004), s = Theme.SPRING_STIFFNESS, d = Theme.SPRING_DAMPING;
-		// (the view's centre springs in screen space: x and y at the target's scale)
-		for (_ in 0...n) {
-			var h = dt / n;
-			vx += (-s * (x - tx) - d * vx) * h;
-			vy += (-s * (y - ty) - d * vy) * h;
-			vl += (-s * (lk - tl) - d * vl) * h;
-			x += vx * h;
-			y += vy * h;
-			lk += vl * h;
-		}
-		k = Math.exp(lk);
-		var done = Math.abs(x - tx) < 0.05 && Math.abs(y - ty) < 0.05 && Math.abs(lk - tl) < 1e-4 && Math.abs(vx) + Math.abs(vy) < 0.5 && Math.abs(vl) < 1e-3;
-		if (done) {
-			x = tx;
-			y = ty;
-			lk = tl;
-			k = Math.exp(tl);
-			running = false;
-		}
+		fx.sample(now);
+		fy.sample(now);
+		fl.sample(now);
+		x = fx.value;
+		y = fy.value;
+		k = Math.exp(fl.value);
+		running = fx.moving() || fy.moving() || fl.moving();
 		changed(c -> c + 1);
 		return running;
 	}

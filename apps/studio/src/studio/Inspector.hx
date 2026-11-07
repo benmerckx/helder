@@ -19,6 +19,7 @@ using StringTools;
 class Inspector implements Markup {
 	public static function view(studio:Studio):View {
 		return <view tag="inspector" slot="floating" position="absolute" right={12} top={12} width={Theme.INSPECTOR} padding="8 12"
+			transition="fade slide-left(16)" motion="snappy"
 			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
 			<Show when={studio.selection() != null} fallback={<text color={c("fg3")} font-size={Theme.SMALL} padding="4 0">Click a part of the screen to select it.</text>}>
 				{field(studio, "width", "Width", true)}

@@ -34,8 +34,8 @@ class Theme {
 	// the canvas: gaps between screens and flows, the zoom's spring
 	public static inline var SCREEN_GAP = 40;
 	public static inline var FLOW_GAP = 170;
-	public static inline var SPRING_STIFFNESS = 210.0;
-	public static inline var SPRING_DAMPING = 29.0;
+	// (SwiftUI's duration and bounce: stiffness 210 and damping 29, as it was integrated)
+	public static final ZOOM = helder.ui.motion.Curve.spring(0.43, 0);
 
 	public static final colors:Map<String, Color> = withCode([
 		// greys:the chrome (sidebar, header, panels), the canvas under the screens, fields, hover

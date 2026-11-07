@@ -24,6 +24,8 @@ class Present {
 	public var rideY = false;
 	// a matched element flying from where its counterpart was seen to its own place (drawn over everything)
 	public var flying = false;
+	// a matched element whose counterpart flew from it: no longer drawn (inside a node leaving)
+	public var away = false;
 	public var presence:Null<Track> = null;
 	public var effect:Presence = Presence.FADE;
 	// leaving: drawn where it was (gx, gy: its left and top in its old

@@ -11,7 +11,10 @@ import helder.ui.platform.PlatformMenuItem;
 // ancestors' scrolling and transforms), its opacity through its
 // ancestors', its background and text colour, its state, its role, label
 // and value from the accessibility tree (Ui.accessTree), whether a
-// transition is moving it; and its pop-up menus (DrawnMenu), chosen from.
+// transition or its motion's tracks move it (helder.ui.motion: where they
+// draw it, its presence's opacity; the nodes leaving, drawn until their
+// exits settle, after their old parent's children); and its pop-up menus
+// (DrawnMenu), chosen from.
 class UiInspector implements Inspector {
 	final ui:Ui;
 	final ids = new haxe.ds.ObjectMap<Node, Int>();
@@ -41,10 +44,11 @@ class UiInspector implements Inspector {
 
 	function visit(n:Node, parent:Int, depth:Int, path:String, opacity:Float, access:helder.ui.access.AccessTree, out:Array<InspectedNode>) {
 		var s = n.style;
-		if (s.display == None) return;
+		if (s.display == None || n.present != null && n.present.away) return;
 		var b = n.windowBounds();
 		var path = path == "" ? n.tag : path + "/" + n.tag;
-		var op = opacity * s.opacity;
+		var pr = n.present;
+		var op = opacity * s.opacity * (pr == null ? 1 : pr.presenceOpacity());
 		var text = Std.isOfType(n, TextNode) ? (cast n : TextNode).text : null;
 		var a = access.nodes.get(@:privateAccess n.accessId);
 		if (a != null && access.node(a.id) != n) a = null;
@@ -74,13 +78,16 @@ class UiInspector implements Inspector {
 			hover: n.hovered,
 			press: n.pressed,
 			focus: n.focused,
-			transitioning: themed != null && themed.moving != null,
+			transitioning: themed != null && themed.moving != null || pr != null && pr.active,
 			source: n.source,
 			component: n.sourceComponent
 		};
 		out.push(node);
 		for (c in n.children)
 			visit(c, node.id, depth + 1, path, op, access, out);
+		if (n.exits != null)
+			for (c in n.exits)
+				visit(c, node.id, depth + 1, path, op, access, out);
 	}
 
 	// "#rrggbb", "#rrggbbaa" when not opaque

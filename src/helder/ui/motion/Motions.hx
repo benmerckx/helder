@@ -196,6 +196,7 @@ class Motions {
 		if (src == null) return false;
 		var par = n.parent;
 		src.consumed = true;
+		present(src.node).away = true;
 		var p = present(n);
 		p.rideX = p.rideY = false;
 		// (its start in its parent's space: where the source was seen, less where the parent is drawn)
@@ -258,6 +259,7 @@ class Motions {
 	// (Node.insert: child put into parent)
 	public static function inserted(parent:Node, child:Node) {
 		var p = child.present;
+		if (p != null) p.away = false;
 		// (revived: back from where it is, its exit undone)
 		if (p != null && p.exiting) {
 			endGhost(p);

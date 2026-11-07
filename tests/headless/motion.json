@@ -1,0 +1,22 @@
+{
+  "events": [
+    {"t": 0.3, "type": "tap", "tag": "add"},
+    {"t": 0.5, "type": "tap", "tag": "add"},
+    {"t": 1.0, "type": "mark", "name": "added"},
+    {"t": 1.0, "type": "tap", "tag": "remove"},
+    {"t": 1.12, "type": "tap", "tag": "shuffle"},
+    {"t": 1.6, "type": "mark", "name": "removed"},
+    {"t": 1.6, "type": "tap", "tag": "tile-2"},
+    {"t": 2.3, "type": "mark", "name": "zoomed"},
+    {"t": 2.3, "type": "tap", "tag": "tile-2"},
+    {"t": 3.0, "type": "mark", "name": "back"},
+    {"t": 3.0, "type": "tap", "tag": "theme"},
+    {"t": 3.8, "type": "mark", "name": "dark"},
+    {"t": 3.8, "type": "tap", "tag": "reduce"},
+    {"t": 3.9, "type": "tap", "tag": "add"},
+    {"t": 4.1, "type": "tap", "tag": "tile-1"},
+    {"t": 4.5, "type": "mark", "name": "reduced"},
+    {"t": 4.5, "type": "tap", "tag": "tile-1"},
+    {"t": 5.0, "type": "mark", "name": "end"}
+  ]
+}

@@ -83,6 +83,7 @@ class Run {
 		{name: "syntax", about: "helder.syntax, the syntax trees the studio edits (src/helder/syntax; its edits' tests are the test lane's, Syntax.test.hx): every .ts and .tsx file, and every .hx file with markup, of the repository read and printed back byte for byte, read structurally, each Haxe markup literal read as the macro's parser reads it (tests/syntax/Check.hx, on Eval and natively: the read of the largest file timed)", run: syntaxLane},
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
 		{name: "studio", about: "helder studio (apps/studio; Linux: Mesa's llvmpipe, no display) run headless on copies of examples/todo and examples/ts-todo by tests/studio/edit.json: every screen shown (each story a dev build in a process of its own), one zoomed into, its title clicked and selected, its colour changed in the inspector (the value's span alone, a live literal patched, the program's frame showing it within 3 frames), a padding added and undone (built twice), tag=\"title\" typed into the code view (built, the node tagged), the prompt bar's /tree; the files at the end and every edit's span checked, the overview, zoomed and selected frames against tests/studio's goldens, the times printed (tests/studio/Check.hx); `helder studio --help`", run: studioLane},
+		{name: "motion-bench", about: "helder.ui.motion's budget measured (Linux: Mesa's llvmpipe, no display): tests/bench/MotionStress.hx, 1,000 boxes under motion retargeted every 0.25 s, run headless with --stats, against the same boxes drawn each frame without motion: ms a frame (median, p95) between retargets and at them, GC bytes a frame (checked: as many moving as still, no allocation in the steady state): bin/motion-bench/results.md", run: motionBench},
 		{name: "code-bench", about: "helder.ui.code's budgets measured, not checked (Linux: Mesa's llvmpipe, no display): examples/code-editor on a 10,000-line TSX file run headless with --stats (tests/bench/code.mjs: keystrokes, the wheel down and back up, idle frames: ms against the 8 ms budget, GC bytes a frame), and the editor's own work without the renderer (tests/bench/CodeBench.hx, natively)", run: codeBench},
 		{name: "million-bench", about: "helder.ui's VirtualList measured, not checked (Linux: Mesa's llvmpipe, no display): examples/million (a million rows of their own heights) run headless with --stats on a script of the wheel over new rows and over rows made before, jumps to the end and back, rows put in above the view and the keyboard (tests/bench/million.mjs: each phase's ms and GC bytes a frame against the 8 ms budget), then tests/bench/MillionBench.hx: the list's own work a frame natively without the renderer, and what it holds (tests/bench/results/million.md)", run: millionBench},
 		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; examples/million and ts-million (a VirtualList of a million rows of their own heights, tests/headless/million.json: the wheel, End, the keyboard, the selection through recycling, rows put in above the view; their trees' options, places and rects at each mark, their last frame against its golden); examples/code-editor (helder.ui.code) on a 2,000-line TSX file (tests/headless/code-editor.json: a word double-clicked and typed over, go to line, three cursors by secondary-D, undo and redo, find and replace all, a drag), its text and status bar at each mark and its last frame against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); examples/todo's and ts-todo's dev builds with a live literal's colour and a text patched by the script (tests/headless/literals.json: helder.dev.Literals), the frame after showing them; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
@@ -1026,6 +1027,19 @@ class Run {
 					args = args.concat(["--tree", '$o/$app-$m.json', "--at", 'mark:$m']);
 				run(h, args.concat(["--snap", '$o/$app-last.png', "--at", "mark:last"]));
 			}
+			// (helder.ui.motion: examples/motion scripted, its trace and frame strips; again under --reduced-motion)
+			var shots = [];
+			for (strip in [
+				{name: "rows", at: [0.32, 0.37, 0.42, 0.47, 0.52, 0.6]},
+				{name: "zoom", at: [1.62, 1.68, 1.74, 1.8, 1.88, 2.0]},
+				{name: "theme", at: [3.02, 3.08, 3.14, 3.2, 3.3, 3.5]}
+			])
+				for (k => t in strip.at)
+					shots = shots.concat(["--snap", '$o/motion-${strip.name}-$k.png', "--at", '$t']);
+			run(h, ["run", "--headless", "examples/motion/Motion.hx", "--script", "tests/headless/motion.json", "--trace", '$o/motion.jsonl'].concat(shots)
+				.concat(["--tree", '$o/motion-end.json', "--at", "end"]));
+			run(h, ["run", "--headless", "examples/motion/Motion.hx", "--script", "tests/headless/motion.json", "--reduced-motion", "--trace", '$o/motion-reduced.jsonl']);
+			run(h, ["run", "--headless", "examples/motion/main.tsx", "--script", "tests/headless/motion.json", "--trace", '$o/motion-ts.jsonl']);
 			run(h, [
 				"run", "--headless", "apps/viewer", "--script", "tests/headless/viewer.json", "--size", "480x360", "--tree", '$o/viewer-menu.json', "--at", "mark:menu",
 				"--tree", '$o/viewer-end.json'
@@ -1058,6 +1072,31 @@ class Run {
 		}
 		exe('$b/Check', cps(["src", "tests/studio"]).concat(["-main", "Check"]));
 		run(exePath('$b/Check', HOST), [b].concat(BLESS ? ["--bless"] : []));
+	}
+
+	static function motionBench() {
+		var h = helderCli(), b = "bin/motion-bench";
+		mkdirs(b);
+		var rows = ["| 1,000 boxes | frames | ms median | ms p95 | retarget frames' ms median | GC bytes a frame (median) |", "|---|---|---|---|---|---|"];
+		var gc = new Map<String, Float>();
+		for (mode in ["still", "motion"]) {
+			run(h, ["run", "--headless", "tests/bench/MotionStress.hx", "--script", "tests/bench/motion-stress.json", "--stats", '$b/$mode.json', "--", "1000"].concat(mode == "still" ? ["still"] : []));
+			var frames:Array<Dynamic> = haxe.Json.parse(File.getContent('$b/$mode.json')).frames;
+			// (once the boxes move: between their retargets, and the frames of them)
+			var steady = [for (f in frames) if (f.t >= 0.6 && f.t < 3 && Math.abs((f.t - 0.5) % 0.25) > 0.02) f];
+			var at = [for (f in frames) if (f.t >= 0.6 && f.t < 3 && Math.abs((f.t - 0.5) % 0.25) <= 0.001) f];
+			function stat(fs:Array<Dynamic>, k:String, q:Float):Float {
+				var v:Array<Float> = [for (f in fs) Reflect.field(f, k)];
+				v.sort(Reflect.compare);
+				return v.length == 0 ? 0 : v[Std.int(Math.min(v.length - 1, v.length * q))];
+			}
+			gc.set(mode, stat(steady, "gcBytes", 0.5));
+			rows.push('| $mode | ${steady.length} | ${stat(steady, "ms", 0.5)} | ${stat(steady, "ms", 0.95)} | ${stat(at, "ms", 0.5)} | ${gc.get(mode)} |');
+		}
+		var table = rows.join("\n");
+		Sys.println(table);
+		File.saveContent('$b/results.md', table + "\n");
+		if (gc.get("motion") > gc.get("still")) throw new Failed('motion-bench: the moving frames allocate ${gc.get("motion")} bytes, the still ones ${gc.get("still")}');
 	}
 
 	static function codeBench() {

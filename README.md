@@ -1135,14 +1135,24 @@ fix.
     keys and presses drawn over it) and `--trace` (motion as JSON lines).
     One tool for what is spread over stories' trees, `helder inspect` and
     the device tests' scripts, so an agent checks UI work without a display.
-  - **Motion as property tracks**: every animatable property of a node a
-    track, an analytic spring (duration and bounce) that keeps position
-    and velocity when retargeted; layout animated per edge (an edge that
-    stays put never moves), presence (enter and exit transitions, drawn
-    until the exit settles), colours in premultiplied OKLab, matched
+  - **Motion as property tracks** (*landed*: helder.ui.motion,
+    src/helder/ui/README.md's "Motion"; examples/motion in Haxe and TSX;
+    the studio's zoom, inspector and selection): every animatable property
+    of a node a track, an analytic spring (duration and bounce) that keeps
+    position and velocity when retargeted, or a tween or a decay, sampled
+    on the virtual clock; layout animated per edge (an edge that stays put
+    never moves; lead and trail; children ride their parent, or its
+    trailing edge), presence (enter and exit transitions, drawn until the
+    exit settles, revived mid-exit, a keyed For's rows too), colours in
+    premultiplied OKLab (a text colour leading its background), matched
     elements flying between two places in the layout, reduced motion
-    snapping travel and keeping fades; declared on nodes in markup
-    (`motion`, `transition`), not coded per widget.
+    snapping travel and keeping a 0.15 s fade; declared on nodes in markup
+    (`motion`, `transition`, `matched`, `instant`), not coded per widget.
+    Checked by unit tests and by the headless-run lane's traces (no jump
+    past a spring's, stationary edges still) and frame strips; 1,000 boxes
+    moving at once cost a frame what drawing them still does, without
+    allocating (the motion-bench lane). Not yet: blur (the renderer has
+    none; a blur transition fades), hit testing on presented rects.
   - **The UI in one draw call**: helder.ui's batcher over QuadBatch as one
     instanced pass a frame (rounded rects, borders, shadows, gradients,
     images and glyphs as kinds of one quad), measured against Rune's

@@ -207,37 +207,29 @@ class Track {
 				var tp = Math.log(Math.sqrt(c0 * c0 + c1 * c1) / ep), tv = Math.log(Math.sqrt(c2 * c2 + c3 * c3) / ev);
 				return clamp(Math.max(tp, tv) / c4);
 			case CRITICAL:
-				var omega = c4;
-				inline function at(a:Float, b:Float, t:Float):Float
-					return Math.abs((a + b * t) * Math.exp(-omega * t));
-				// (each of offset and velocity (a + b t) e^-ωt: its most from t on, at t or at its one extremum)
-				inline function tail(a:Float, b:Float, t:Float):Float {
-					var ext = b == 0 ? -1.0 : 1 / omega - a / b;
-					return Math.max(at(a, b, t), ext > t ? at(a, b, ext) : 0);
-				}
-				return bisect(t -> tail(c0, c1, t) <= ep && tail(c2, c3, t) <= ev, 1 / omega);
+				// (each of offset and velocity (a + b t) e^-ωt, within (|a| + |b| t) e^-ωt: its time to eps by a
+				// fixed point, t = ln((|a| + |b| t) / eps) / ω, from below; no allocation)
+				return clamp(Math.max(critical(c0, c1, ep), critical(c2, c3, ev)));
 			case OVER:
-				return bisect(t -> Math.abs(c0) * Math.exp(c2 * t) + Math.abs(c1) * Math.exp(c3 * t) <= ep
-					&& Math.abs(c0 * c2) * Math.exp(c2 * t) + Math.abs(c1 * c3) * Math.exp(c3 * t) <= ev, -1 / c2);
+				// (within (|c1| + |c2|) e^(r1 t), r1 the slower root; |r1 c1| + |r2 c2| times e^(r1 t) for the velocity)
+				var tp = Math.log((Math.abs(c0) + Math.abs(c1)) / ep) / -c2, tv = Math.log((Math.abs(c0 * c2) + Math.abs(c1 * c3)) / ev) / -c2;
+				return clamp(Math.max(tp, tv));
 			case _:
 				return 0;
 		}
 	}
 
-	// (the first t at which ok holds for good, ok staying true once true)
-	static function bisect(ok:Float->Bool, scale:Float):Float {
-		if (ok(0)) return 0;
-		var hi = Math.max(scale, 1e-3);
-		while (!ok(hi)) {
-			hi *= 2;
-			if (hi > MAX_SETTLE) return MAX_SETTLE;
+	// (when (|a| + |b| t) e^-ωt falls to eps for good, ω the segment's)
+	function critical(a:Float, b:Float, eps:Float):Float {
+		var aa = Math.abs(a), bb = Math.abs(b), t = 1 / c4;
+		if (aa + bb == 0) return 0;
+		// (past 1/ω the bound only falls: from there up to its fixed point)
+		for (_ in 0...100) {
+			var next = Math.log((aa + bb * t) / eps) / c4;
+			if (next <= t + 1e-7) break;
+			t = next;
 		}
-		var lo = 0.0;
-		for (_ in 0...50) {
-			var mid = (lo + hi) / 2;
-			if (ok(mid)) hi = mid else lo = mid;
-		}
-		return hi;
+		return t;
 	}
 
 	// (the easing's slope at the last bezier's point: dy/dx)

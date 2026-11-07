@@ -89,8 +89,18 @@ class Board implements Markup {
 			var kk = studio.camera.k;
 			return {x: studio.camera.sx(r.x + s.x), y: studio.camera.sy(r.y + s.y), w: s.width * kk, h: s.height * kk};
 		}
+		// (a node selected: the box springs to it, helder.ui.motion; the camera moving it: with the camera, at once)
+		var camAt = -1, was:Null<Studio.Selection> = null;
+		function still():Bool {
+			var s = selected(studio), cc = studio.camera.changed();
+			if (s != was) {
+				was = s;
+				camAt = cc;
+			}
+			return cc != camAt;
+		}
 		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1}
-			border-color={c("sel")} outline-width={1} outline-color={c("sel-halo")}/>;
+			border-color={c("sel")} outline-width={1} outline-color={c("sel-halo")} motion="snappy" instant={still()}/>;
 	}
 
 	// (the selection while its screen is the one zoomed into)
