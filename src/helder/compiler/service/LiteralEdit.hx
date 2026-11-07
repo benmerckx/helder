@@ -135,12 +135,18 @@ class Sources {
 
 	// a save of file: the patches (empty: no change), null when it needs a build (why: said)
 	public function patches(file:String, ?why:String->Void):Null<Array<{id:String, source:String}>> {
+		var now = try File.getContent(file) catch (_:Dynamic) return null;
+		return patchesOf(file, now, why);
+	}
+
+	// the patches of file's text now (before it is saved: the studio's
+	// inspector patches first, then saves), null when it needs a build
+	public function patchesOf(file:String, now:String, ?why:String->Void):Null<Array<{id:String, source:String}>> {
 		var b = built.get(file);
 		if (b == null) {
 			if (why != null) why("no live literals known (its first build, or none in it)");
 			return null;
 		}
-		var now = try File.getContent(file) catch (_:Dynamic) return null;
 		var d = LiteralEdit.diff(b.content, now, b.entries, why);
 		if (d == null) return null;
 		// (against what was sent since the build: a value set back is sent too)

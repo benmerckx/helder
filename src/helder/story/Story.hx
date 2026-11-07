@@ -45,7 +45,7 @@ import helder.view.graph.Signal;
 	var render:Expr = s.render.source;
 	if (s.render.params.length == 0) render = macro(_ : helder.story.Story.Controls) -> $render();
 	var shot = s.store ? macro {caption: $v{s.caption}, background: $v{s.background}, color: $v{s.color}} : macro null;
-	return macro @:pos(Context.currentPos()) new helder.story.Story($v{s.name}, $render, $v{s.seed}, $shot);
+	return macro @:pos(Context.currentPos()) new helder.story.Story($v{s.name}, $render, $v{s.seed}, $shot, $v{s.width}, $v{s.height});
 }
 
 #if !macro
@@ -57,12 +57,18 @@ class Story {
 	// a store screenshot's settings (null: not one)
 	public final screenshot:Null<StoreOptions>;
 	public final pos:PosInfos;
+	// its size in points (null: a phone's, Stories.WIDTH x HEIGHT): the
+	// studio's screen of it (helder.story.Screens)
+	public final width:Null<Int>;
+	public final height:Null<Int>;
 
-	public function new(name:String, build:Controls->View, seed = 1, ?screenshot:StoreOptions, ?pos:PosInfos) {
+	public function new(name:String, build:Controls->View, seed = 1, ?screenshot:StoreOptions, ?width:Int, ?height:Int, ?pos:PosInfos) {
 		this.name = name;
 		this.build = build;
 		this.seed = seed;
 		this.screenshot = screenshot;
+		this.width = width;
+		this.height = height;
 		this.pos = pos;
 	}
 
@@ -85,6 +91,8 @@ typedef StoryDef = {
 	name:String,
 	render:Controls->View,
 	?seed:Int,
+	?width:Int,
+	?height:Int,
 	?store:Bool,
 	?caption:String,
 	?background:Int,

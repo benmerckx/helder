@@ -1,0 +1,61 @@
+import helder.ui.actions.Actions;
+import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
+import helder.view.*;
+import studio.Studio;
+
+// helder studio (apps/studio/README.md): `helder studio [project]`, or
+// `studio [project] [--events <file>] [--mcp-port <n>] [--hold-while <file>]`
+class Main implements Markup {
+	public static var window(default, null):Null<UiWindow> = null;
+
+	static function main() {
+		var args = Sys.args(), dir:Null<String> = null, events:Null<String> = null, port:Null<Int> = null, holdWhile:Null<String> = null;
+		var width = 1180, height = 740;
+		var i = 0;
+		while (i < args.length) {
+			var a = args[i++];
+			switch a {
+				case "--events": events = args[i++];
+				case "--mcp-port": port = Std.parseInt(args[i++]);
+				case "--hold-while": holdWhile = args[i++];
+				case "--width": width = Std.parseInt(args[i++]) ?? width;
+				case "--height": height = Std.parseInt(args[i++]) ?? height;
+				case _ if (!StringTools.startsWith(a, "--")): dir = a;
+				case _: Sys.println('studio: $a: not an option (studio [project] [--events <file>] [--mcp-port <n>] [--hold-while <file>])');
+			}
+		}
+		var env = Sys.getEnv("HELDER_STUDIO_MCP_PORT");
+		if (port == null && env != null && env != "") port = Std.parseInt(env);
+		fonts();
+		actions("studio", studio.Shell.StudioAction);
+		helder.ui.actions.Keymap.global.bind("secondary-z", studio.Shell.StudioAction.Undo)
+			.bind("secondary-shift-z", studio.Shell.StudioAction.Redo)
+			.bind("secondary-y", studio.Shell.StudioAction.Redo)
+			.bind("escape", studio.Shell.StudioAction.Overview);
+		var s = new Studio(dir, {events: events, mcpPort: port, holdWhile: holdWhile});
+		UiWindow.run(<Surface title={s.project == null ? "helder studio" : s.project.name + " · helder studio"} width={width} height={height}
+			theme={studio.Theme.sheet} background={studio.Theme.c("frame")} dark={true} ref={w -> {
+				window = w;
+				w.onFrame = () -> s.drawn();
+				s.open();
+			}} onClose={() -> {
+				helder.async.Async.launch(_ -> s.stop());
+				window.close();
+			}}>
+			{studio.Shell.view(s)}
+		</Surface>);
+	}
+
+	// the studio's fonts: Hanken Grotesk for the interface, Geist Mono for values (apps/studio/fonts)
+	static function fonts() {
+		var f = helder.text.SystemFonts.get();
+		for (b in [
+			helder.asset.Asset.embed("fonts/HankenGrotesk-Regular.ttf"),
+			helder.asset.Asset.embed("fonts/HankenGrotesk-Medium.ttf"),
+			helder.asset.Asset.embed("fonts/HankenGrotesk-SemiBold.ttf"),
+			helder.asset.Asset.embed("fonts/GeistMono-Regular.ttf")
+		])
+			try f.add(b) catch (_:Dynamic) {}
+	}
+}
