@@ -127,7 +127,12 @@ class AndroidWebView implements PlatformWebView {
 		Jni.call(web, m["setFocusable"], 1);
 		Jni.call(web, m["setFocusableInTouchMode"], 1);
 		// (WebShell's: it makes an AndroidContent, so the APK's activity draws views)
-		if (full) Glue.setContentView(web);
+		if (full) {
+			Glue.setContentView(web);
+			// (the theme's action bar gone: the page is the app)
+			var bar = Jni.obj(Jni.activity, Jni.method(Jni.cls("android.app.Activity"), "getActionBar", "()Landroid/app/ActionBar;"));
+			if (!bar.isNull()) Jni.call(bar, Jni.method(Jni.cls("android.app.ActionBar"), "hide", "()V"));
+		}
 	}
 
 	// the classes and methods, once (the main thread)
@@ -186,6 +191,9 @@ class AndroidWebView implements PlatformWebView {
 			"getWidth" => Jni.method(view, "getWidth", "()I"),
 			"getHeight" => Jni.method(view, "getHeight", "()I"),
 			"draw" => Jni.method(view, "draw", "(Landroid/graphics/Canvas;)V"),
+"getWindow" => Jni.method(Jni.cls("android.app.Activity"), "getWindow", "()Landroid/view/Window;"),
+			"getDecorView" => Jni.method(Jni.cls("android.view.Window"), "getDecorView", "()Landroid/view/View;"),
+			"getLocationOnScreen" => Jni.method(view, "getLocationOnScreen", "([I)V"),
 			"getWindowManager" => Jni.method(Jni.cls("android.app.Activity"), "getWindowManager", "()Landroid/view/WindowManager;"),
 			"addView" => Jni.method(vm, "addView", "(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V"),
 			"updateViewLayout" => Jni.method(vm, "updateViewLayout", "(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V"),
@@ -430,8 +438,10 @@ class AndroidWebView implements PlatformWebView {
 				JniEnv.SetIntField(Jni.env, params, m["lp.softInputMode"], 0x10); // SOFT_INPUT_ADJUST_RESIZE
 				JniEnv.SetIntField(Jni.env, params, m["lp.layoutInDisplayCutoutMode"], 3); // ALWAYS
 			}
-			JniEnv.SetIntField(Jni.env, params, m["lp.x"], px);
-			JniEnv.SetIntField(Jni.env, params, m["lp.y"], py);
+			// (the window's own place on the screen: the panel's is the screen's, FLAG_LAYOUT_IN_SCREEN)
+			var o = origin();
+			JniEnv.SetIntField(Jni.env, params, m["lp.x"], px + o.x);
+			JniEnv.SetIntField(Jni.env, params, m["lp.y"], py + o.y);
 			JniEnv.SetIntField(Jni.env, params, m["lp.width"], pw);
 			JniEnv.SetIntField(Jni.env, params, m["lp.height"], ph);
 			// (hidden: FLAG_NOT_TOUCHABLE too, the touches the window's below)
@@ -444,6 +454,21 @@ class AndroidWebView implements PlatformWebView {
 			Jni.deleteLocal(wm);
 			Jni.call(web, m["setVisibility"], shown ? 0 : 4); // VISIBLE, INVISIBLE
 		});
+	}
+
+	// (the main thread) the activity's window's top left on the screen (its decor view's)
+	function origin():{x:Int, y:Int} {
+		var w = Jni.obj(Jni.activity, m["getWindow"]);
+		var d = Jni.obj(w, m["getDecorView"]);
+		var a = JniEnv.NewIntArray(Jni.env, 2);
+		Jni.call(d, m["getLocationOnScreen"], a.toI64());
+		var buf = LibC.malloc(8);
+		JniEnv.GetIntArrayRegion(Jni.env, a, 0, 2, buf);
+		var r = {x: Mem.getI32(buf, 0), y: Mem.getI32(buf, 4)};
+		LibC.free(buf);
+		for (o in [a, d, w])
+			Jni.deleteLocal(o);
+		return r;
 	}
 
 	public function load(url:String)

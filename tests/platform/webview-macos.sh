@@ -37,10 +37,8 @@ kill $p > /dev/null 2>&1
 cat "$out/WebViewCheck.txt"
 grep -q "webview: [a-z]*: [0-9]* checks, ok" "$out/WebViewCheck.txt"
 check "WebViewCheck: its checks" $?
-# (a crash: the system's report, its thread that crashed)
-r=$(ls -t ~/Library/Logs/DiagnosticReports/WebViewCheck*.ips 2> /dev/null | head -1)
-if [ -n "$r" ]; then
-	cp "$r" "$out/crash.ips"
-	python3 -c 'import json,sys; t=open(sys.argv[1]).read().split("\n",1)[1]; d=json.loads(t); th=[x for x in d["threads"] if x.get("triggered")][0]; im=d["usedImages"]; print(d.get("exception")); [print(f.get("imageOffset"), im[f["imageIndex"]].get("name"), f.get("symbol")) for f in th["frames"][:40]]' "$r"
+# (a failure: run again under lldb, the crashed thread's backtrace)
+if ! grep -q "checks, ok" "$out/WebViewCheck.txt"; then
+	HELDER_WEB_DIR="$out/todo" perl -e "alarm 120; exec @ARGV" lldb --batch -o run -k "thread backtrace" -k "register read" -k quit -- "$out/WebViewCheck" 2>&1 | tail -80
 fi
 exit $failed
