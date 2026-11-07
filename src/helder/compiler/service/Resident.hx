@@ -71,10 +71,11 @@ class Resident {
 		lock.acquire();
 		try {
 			var body = Bytes.ofString(["--cwd", cwd].concat(words).concat(std == null || words[0] == "--display" ? [] : ["-cp", std]).join("\n"));
-			var head = Bytes.alloc(4);
-			head.setInt32(0, body.length);
-			socket.write(head, 0, 4);
-			socket.write(body, 0, body.length);
+			// (length and text in one write: two would wait on the server's delayed ACK, ~40 ms)
+			var message = Bytes.alloc(4 + body.length);
+			message.setInt32(0, body.length);
+			message.blit(4, body, 0, body.length);
+			socket.write(message, 0, message.length);
 			var n = reader.readBytes(4).getInt32(0);
 			var answer = reader.readBytes(n).toString();
 			lock.release();
