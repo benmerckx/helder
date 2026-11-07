@@ -48,12 +48,32 @@ jobs:
           SITE_APK: 1
           HELDER_ANDROID_KEY: ${{ secrets.HELDER_ANDROID_KEY }}
         run: bun run site
-      - name: "Videos (the showreel and the demos' clips: headless, frame-exact, into bin/site/media)"
+      # (the videos kept in the actions cache by what they show: the demos'
+      # sources and the recorder; recorded again, some 15 minutes, only when
+      # those change, so that other pushes deploy as fast as before)
+      - id: reel
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/reel-out/media
+          key: reel-${{ hashFiles('examples/showreel/**', 'examples/fx/**', 'examples/literal/**', 'examples/notes/**', 'site/reel.mjs') }}
+      - id: videos
+        name: "Videos (the showreel and the demos' clips: headless, frame-exact, into bin/site/media)"
         # (not required: the page shows a note where a video is missing)
         continue-on-error: true
+        timeout-minutes: 30
         run: |
-          sudo apt-get install -qqy --no-install-recommends ffmpeg libegl1 libegl-mesa0 libgl1-mesa-dri
-          bun run site:reel
+          if [ "${{ steps.reel.outputs.cache-hit }}" != "true" ]; then
+            sudo apt-get install -qqy --no-install-recommends ffmpeg libegl1 libegl-mesa0 libgl1-mesa-dri
+            bun run site:reel bin/reel-out
+          fi
+          mkdir -p bin/site/media
+          cp bin/reel-out/media/* bin/site/media/
+      - if: steps.reel.outputs.cache-hit != 'true' && steps.videos.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: bin/reel-out/media
+          key: ${{ steps.reel.outputs.cache-primary-key }}
       - name: Check (the page in Chromium)
         # (not required: the page is deployed without it)
         continue-on-error: true
