@@ -612,11 +612,11 @@ class Renderer implements Canvas {
 	// the translation's fraction, which the glyph is moved back by)
 	inline function glyph(f:helder.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool, sigma = 0.0) {
 		// (aligned: the subpixel offset on the target's grid, as the transform moves it;
-		// the position rounded to the nearest of the atlas's steps, not down, as Skia's)
+		// the pen floored to CoreGraphics' step for its ppem, as CoreText places it;
+		// the colour's luminance sets font smoothing's dilation)
 		var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
-		var px = gx + ex + 0.5 / GlyphAtlas.SUBPIXELS, ix = Math.floor(px);
-		var sub = Std.int((px - ix) * GlyphAtlas.SUBPIXELS);
-		var a = atlas.get(f, id, size, sub, oblique, sigma);
+		var ix = GlyphAtlas.pixel(gx + ex, size), sub = GlyphAtlas.phase(gx + ex, size);
+		var a = atlas.get(f, id, size, sub, oblique, sigma, color & 0xFFFFFF);
 		if (a.w > 0) {
 			var qx = ix - ex + a.left, qy = gy + a.top - ey;
 			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h)) {

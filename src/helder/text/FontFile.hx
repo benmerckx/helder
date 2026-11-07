@@ -56,6 +56,16 @@ class FontFile {
 	public var italic(default, null) = false;
 	public var family(default, null) = "";
 	public var subfamily(default, null) = "";
+	// the name table's PostScript name (id 6)
+	public var postScriptName(default, null) = "";
+	// head's yMax: the top of every glyph's box, font units
+	public var yMax(default, null) = 0;
+
+	// whether its outlines are TrueType's (glyf), not CFF's or bitmaps
+	public var trueType(get, never):Bool;
+
+	inline function get_trueType():Bool
+		return glyf != 0 && cff == null;
 
 	var longLoca = false;
 	var numHMetrics = 0;
@@ -98,6 +108,8 @@ class FontFile {
 		italic = other.italic;
 		family = other.family;
 		subfamily = other.subfamily;
+		postScriptName = other.postScriptName;
+		yMax = other.yMax;
 		longLoca = other.longLoca;
 		numHMetrics = other.numHMetrics;
 		cmap = other.cmap;
@@ -164,6 +176,7 @@ class FontFile {
 		hmtx = tables.get("hmtx");
 		var head = tables.get("head");
 		unitsPerEm = u16(data, head + 18);
+		yMax = s16(data, head + 42);
 		if (tag == "OTTO") cff = new Cff(data, tables.get("CFF "), unitsPerEm) else if (!bitmapsOnly) {
 			glyf = tables.get("glyf");
 			locaAt = tables.get("loca");
@@ -1312,11 +1325,11 @@ class FontFile {
 		if (!tables.exists("name")) return;
 		var t = tables.get("name");
 		var count = u16(data, t + 2), strings = t + u16(data, t + 4);
-		var fam = new Map<Int, String>(), sub = new Map<Int, String>();
+		var fam = new Map<Int, String>(), sub = new Map<Int, String>(), psRank = -1;
 		for (i in 0...count) {
 			var r = t + 6 + 12 * i;
 			var platform = u16(data, r), encoding = u16(data, r + 2), language = u16(data, r + 4), id = u16(data, r + 6);
-			if (id != 1 && id != 2 && id != 16 && id != 17) continue;
+			if (id != 1 && id != 2 && id != 6 && id != 16 && id != 17) continue;
 			var len = u16(data, r + 8), off = strings + u16(data, r + 10);
 			var s:String = null;
 			if (platform == 3 && (encoding == 1 || encoding == 10) && (language == 0x409 || !fam.exists(id + 100))) s = utf16be(off, len);
@@ -1326,7 +1339,12 @@ class FontFile {
 			// (English, Windows' names first)
 			var rank = platform == 3 && language == 0x409 ? 3 : platform == 3 ? 2 : platform == 0 ? 1 : 0;
 			var key = id * 10 + rank;
-			if (id == 1 || id == 16) fam.set(key, s) else sub.set(key, s);
+			if (id == 6) {
+				if (rank >= psRank) {
+					psRank = rank;
+					postScriptName = s;
+				}
+			} else if (id == 1 || id == 16) fam.set(key, s) else sub.set(key, s);
 		}
 		function best(m:Map<Int, String>, ids:Array<Int>):String {
 			for (id in ids)

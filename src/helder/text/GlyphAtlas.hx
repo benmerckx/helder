@@ -3,16 +3,22 @@ package helder.text;
 import haxe.io.Bytes;
 
 // Rasterized glyphs packed into one coverage bitmap (R8, width x height),
-// for a GPU texture: each glyph of a face at a size and a quarter-pixel
-// horizontal offset once, placed on shelves (rows as tall as their tallest
-// glyph, a pixel apart). dirty is the region changed since the last
-// upload (clean() after uploading it); when the bitmap is full it is
-// cleared (generation counts the clears: the glyphs drawn before must be
-// asked for again). A glyph blurred (a text shadow's) is a glyph of its
-// own: its coverage spread by a Gaussian, the bitmap grown by three of its
-// standard deviations each side. A glyph is drawn by a Rasterizer kept for
-// the next, a blur in buffers kept too: a miss allocates its AtlasGlyph,
-// nothing else.
+// for a GPU texture: each glyph of a face at a size and a pen phase once,
+// placed on shelves (rows as tall as their tallest glyph, a pixel apart).
+// helder's own engine draws them through CoreGraphics' glyph pipeline
+// (GlyphPipeline: what macOS's CoreText draws), its font smoothing as a
+// mode (smoothing: FontSmoothing, the app's Shaping.smoothing unless set:
+// a window's): with it on a glyph's outline is dilated by its ink's
+// luminance (get's ink), so a light and a dark ink are glyphs of their own;
+// each mode keeps its own entries. Pens are floored to CoreGraphics'
+// subpixel steps (pixel, phase: fifths of a pixel to wholes by the ppem).
+// dirty is the region changed since the last upload (clean() after
+// uploading it); when the bitmap is full it is cleared (generation counts
+// the clears: the glyphs drawn before must be asked for again). A glyph
+// blurred (a text shadow's) is a glyph of its own: its coverage spread by a
+// Gaussian, the bitmap grown by three of its standard deviations each side.
+// A glyph is drawn by a GlyphPipeline and Rasterizer kept for the next, a
+// blur in buffers kept too: a miss allocates its AtlasGlyph, nothing else.
 class GlyphAtlas {
 	// a synthetic oblique's slant: x moves by a quarter of y (Skia's)
 	static inline var SKEW = 0.25;
@@ -27,17 +33,30 @@ class GlyphAtlas {
 	public var dirtyX1(default, null) = 0;
 	public var dirtyY1(default, null) = 0;
 
-	public static inline var SUBPIXELS = 4;
+	// font smoothing for helder's own engine's glyphs (null: the app's, Shaping.smoothing)
+	public var smoothing:Null<FontSmoothing> = null;
 
-	// per face (font, size, oblique, blur): its glyphs by glyph * SUBPIXELS + sub
+	// the phases a pixel holds (get's sub): sixtieths, every step CoreGraphics quantises pens to
+	public static inline var SUBPIXELS = GlyphPipeline.PHASES;
+
+	// the pixel and phase (sixtieths: get's sub) a glyph whose pen is at x
+	// device pixels draws at, size its ppem: floored to CoreGraphics' step
+	public static inline function pixel(x:Float, size:Float):Int
+		return GlyphPipeline.penPixel(x, size);
+
+	public static inline function phase(x:Float, size:Float):Int
+		return GlyphPipeline.penPhase(x, size);
+
+	// per face (font, size, oblique, blur, dilation): its glyphs by glyph * SUBPIXELS + sub
 	final faces = new Map<String, IntTable<AtlasGlyph>>();
 	// (the faces asked for lately, the last first: a frame's text takes a few
 	// in turn, found again without making their key)
 	final recent:Array<Face> = [];
 	final shelves:Array<Shelf> = [];
-	// (what draws a glyph, kept for the next: the rasterizer; a blur's sharp
-	// coverage, its pass across and its weights)
+	// (what draws a glyph, kept for the next: the pipeline and rasterizer; a
+	// blur's sharp coverage, its pass across and its weights)
 	final raster = new Rasterizer(0, 0);
+	final pipeline = new GlyphPipeline();
 	var sharp = Bytes.alloc(0);
 	var across = new haxe.ds.Vector<Float>(0);
 	var weights = new haxe.ds.Vector<Float>(0);
@@ -50,31 +69,42 @@ class GlyphAtlas {
 	}
 
 	// the glyph's bitmap in the atlas (rasterized now if needed): sub is the
-	// quarter-pixel offset of its origin (0 to 3); oblique: slanted a quarter
-	// of its height, as browsers make an italic the font lacks; blur: the
-	// standard deviation of a Gaussian blurring it, in pixels (0: none)
-	public function get(font:FontFile, glyph:Int, size:Float, sub:Int, oblique = false, blur = 0.0):AtlasGlyph {
-		var glyphs = face(font, size, oblique, blur), key = glyph * SUBPIXELS + sub;
+	// phase of its origin right of a pixel's edge, in sixtieths (0 to 59:
+	// phase()); oblique: slanted a quarter of its height, as browsers make an
+	// italic the font lacks; blur: the standard deviation of a Gaussian
+	// blurring it, in pixels (0: none); ink: the colour it is drawn in
+	// (0xRRGGBB, sRGB), which sets font smoothing's dilation
+	public function get(font:FontFile, glyph:Int, size:Float, sub:Int, oblique = false, blur = 0.0, ink = 0):AtlasGlyph {
+		var d = dilation(font, size, oblique, ink);
+		var glyphs = face(font, size, oblique, blur, d), key = glyph * SUBPIXELS + sub;
 		var g = glyphs.get(key, null);
 		if (g != null) return g;
-		g = rasterize(font, glyph, size, sub, oblique, blur);
+		g = rasterize(font, glyph, size, sub, oblique, blur, d);
 		if (g == null) {
 			// full: start again
 			clear();
-			glyphs = face(font, size, oblique, blur);
-			g = rasterize(font, glyph, size, sub, oblique, blur);
+			glyphs = face(font, size, oblique, blur, d);
+			g = rasterize(font, glyph, size, sub, oblique, blur, d);
 			if (g == null) g = new AtlasGlyph(0, 0, 0, 0, 0, 0);
 		}
 		glyphs.set(key, g);
 		return g;
 	}
 
+	// (font smoothing's radius for a glyph of helder's engine: 0 with it
+	// off, or where the platform's engine draws; -1: the plain pipeline, off)
+	inline function dilation(font:FontFile, size:Float, oblique:Bool, ink:Int):Float {
+		var mode = smoothing == null ? Shaping.smoothing : smoothing;
+		if (!oblique && !font.bitmapsOnly && Shaping.backendFor(font) != null) return 0;
+		return mode == Off ? -1 : GlyphPipeline.radius(size, GlyphPipeline.bucket(ink));
+	}
+
 	static inline var RECENT = 8;
 
-	function face(font:FontFile, size:Float, oblique:Bool, blur:Float):IntTable<AtlasGlyph> {
+	function face(font:FontFile, size:Float, oblique:Bool, blur:Float, d:Float):IntTable<AtlasGlyph> {
 		for (i in 0...recent.length) {
 			var f = recent[i];
-			if (f.font == font && f.size == size && f.oblique == oblique && f.blur == blur) {
+			if (f.font == font && f.size == size && f.oblique == oblique && f.blur == blur && f.d == d) {
 				// (moved to the front)
 				for (j in 0...i)
 					recent[i - j] = recent[i - j - 1];
@@ -82,40 +112,30 @@ class GlyphAtlas {
 				return f.glyphs;
 			}
 		}
-		var key = font.id + ":" + size + (oblique ? ":o" : "") + (blur > 0 ? ":b" + blur : "");
+		var key = font.id + ":" + size + (oblique ? ":o" : "") + (blur > 0 ? ":b" + blur : "") + ":d" + d;
 		var m = faces.get(key);
 		if (m == null) faces.set(key, m = new IntTable());
 		if (recent.length < RECENT) recent.push(null);
 		for (j in 0...recent.length - 1)
 			recent[recent.length - 1 - j] = recent[recent.length - 2 - j];
-		recent[0] = new Face(font, size, oblique, blur, m);
+		recent[0] = new Face(font, size, oblique, blur, d, m);
 		return m;
 	}
 
-	function rasterize(font:FontFile, glyph:Int, size:Float, sub:Int, oblique:Bool, blur:Float):Null<AtlasGlyph> {
-		var scale = size / font.unitsPerEm, dx = sub / SUBPIXELS;
+	function rasterize(font:FontFile, glyph:Int, size:Float, sub:Int, oblique:Bool, blur:Float, d:Float):Null<AtlasGlyph> {
+		var dx = sub / SUBPIXELS;
 		// (the platform's raster, where the face's engine is the platform's: FreeType, DirectWrite, Core Text)
 		var be = oblique || font.bitmapsOnly ? null : Shaping.backendFor(font);
 		if (be != null && be.rasterize(font, glyph, size, dx, native)) return placeNative(blur);
-		if (!font.box(glyph)) return new AtlasGlyph(0, 0, 0, 0, 0, 0);
-		var bx0 = font.boxX0, by0 = font.boxY0, bx1 = font.boxX1, by1 = font.boxY1;
-		var k = oblique ? SKEW : 0.0;
-		var x0 = Math.floor(Math.min(bx0 + k * by0, bx0 + k * by1) * scale + dx), x1 = Math.ceil(Math.max(bx1 + k * by0, bx1 + k * by1) * scale + dx);
-		var y0 = Math.floor(-by1 * scale), y1 = Math.ceil(-by0 * scale);
-		var w = x1 - x0 + 1, h = y1 - y0 + 1;
+		// (helder's own: CoreGraphics' pipeline, dilated by d where font smoothing is on)
+		var r = raster, p = pipeline;
+		if (!p.draw(font, glyph, size, dx, d > 0 ? d : 0, oblique ? SKEW : 0, r)) return new AtlasGlyph(0, 0, 0, 0, 0, 0);
+		var w = r.width, h = r.height, x0 = p.left, y0 = p.top;
 		// (blurred: grown on each side by what the blur reaches)
 		var pad = blur > 0 ? Math.ceil(3 * blur) : 0;
 		var spot = place(w + 2 * pad, h + 2 * pad);
 		if (spot < 0) return null;
 		var sx = spot & 0xFFFF, sy = spot >>> 16;
-		var r = raster;
-		r.reset(w, h);
-		r.scaleX = scale;
-		r.scaleY = -scale;
-		r.offsetX = dx - x0;
-		r.offsetY = -y0;
-		r.skew = k;
-		font.outline(glyph, r);
 		if (pad == 0) {
 			r.writeTo(pixels, sy * width + sx, width);
 			touch(sx, sy, w, h);
@@ -272,13 +292,15 @@ private class Face {
 	public final size:Float;
 	public final oblique:Bool;
 	public final blur:Float;
+	public final d:Float;
 	public final glyphs:IntTable<AtlasGlyph>;
 
-	public function new(font, size, oblique, blur, glyphs) {
+	public function new(font, size, oblique, blur, d, glyphs) {
 		this.font = font;
 		this.size = size;
 		this.oblique = oblique;
 		this.blur = blur;
+		this.d = d;
 		this.glyphs = glyphs;
 	}
 }

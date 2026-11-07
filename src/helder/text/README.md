@@ -80,9 +80,15 @@ text with, usable on its own.
   lacks is slanted (`FontSet.oblique`), as browsers synthesize it.
   `maxLines` keeps so many lines, the last ending in an ellipsis that fits
   (CSS's line-clamp, checked against Chromium's).
-- `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
-  packed into an R8 bitmap for a GPU texture, its changed region tracked.
-  A glyph is drawn by a Rasterizer the atlas keeps, from points `FontFile`
+- `GlyphPipeline`: CoreGraphics' glyph pipeline, what macOS's CoreText
+  draws (below, "CoreText's look"): pens floored to its subpixel steps,
+  font smoothing's dilation, its y autohinter, its curve flattening, then
+  the Rasterizer's coverage as is.
+- `GlyphAtlas`: glyphs rasterized once per size, pen phase (sixtieths of
+  a pixel: `GlyphAtlas.pixel` and `phase` floor a pen to CoreGraphics'
+  step) and font smoothing's radius, packed into an R8 bitmap for a GPU
+  texture, its changed region tracked. A glyph is drawn by a
+  GlyphPipeline and Rasterizer the atlas keeps, from points `FontFile`
   reads into buffers it keeps: a miss allocates its cache entry and
   nothing else, a hit nothing (tests/bench/results/text.md).
 
@@ -92,8 +98,10 @@ var face = fonts.match("sans-serif", 400);
 var layout = new TextLayout("Hello, world", new FontSet(face, fonts.fallbacks(), 16), 1.25, 200);
 for (line in layout.lines)
 	for (i in line.glyphStart...line.glyphEnd) {
-		var bitmap = atlas.get(layout.glyphFont(i), layout.glyphId(i), 16, 0); // where its pixels are
-		var x = layout.glyphX(i) + layout.glyphOffsetX(i), y = line.top + line.baseline + layout.glyphOffsetY(i);
+		var x = layout.glyphX(i) + layout.glyphOffsetX(i), y = Math.round(line.top + line.baseline + layout.glyphOffsetY(i));
+		// (where its pixels are: the pen floored to CoreGraphics' step, the bitmap drawn for that phase and ink)
+		var bitmap = atlas.get(layout.glyphFont(i), layout.glyphId(i), 16, GlyphAtlas.phase(x, 16), false, 0, 0x1d1e22);
+		var left = GlyphAtlas.pixel(x, 16) + bitmap.left, top = y + bitmap.top;
 	}
 layout.wrap(120); // the same glyphs in lines of 120 pixels, not shaped again
 ```
@@ -112,11 +120,70 @@ engine reports, lays its texts out again).
 Limits of helder's own engine: no multiple or reverse chained
 substitutions, lookup flags (marks skipped), `ccmp` and `locl`, no
 cursive attachment or Indic shaping, marks not reordered by combining
-class, no hinting, grayscale anti-aliasing. The same pixels on every
-machine, which makes golden-image tests portable; the platform's engine
-(below) does the rest.
+class, CoreGraphics' y autohinter alone (TrueType faces at 7 to 18 ppem),
+grayscale anti-aliasing. The same pixels on every machine, which makes
+golden-image tests portable; the platform's engine (below) does the rest.
 
-Tests: `bun run test text` (`tests/text/TextTest.hx`).
+Tests: `bun run test text` (`tests/text/TextTest.hx`; the pipeline against
+CoreGraphics' own output: `tests/text/CoreGraphicsTest.hx`).
+
+## CoreText's look
+
+helder's engine draws text as macOS's CoreText does, on every OS, at 1x
+and 2x, with font smoothing or without: `GlyphPipeline` is CoreGraphics'
+glyph pipeline, ported from Rune's (github.com/anomalyco/rune, MIT:
+`crates/rune/src/text/macos/`, which recovered it from macOS 15.3; its
+constants are Rune's measurements, credited where they are kept).
+
+- Pens are floored to CoreGraphics' subpixel step, which depends on the
+  ppem: fifths of a device pixel below 8⅓ ppem, quarters to 11.1, thirds
+  to 16.7, halves to 33.3, whole pixels above (`GlyphPipeline.steps`).
+  Baselines are whole device pixels.
+- Curves are flattened with CoreGraphics' tolerances (coordinates as f32,
+  halved until flat), and at whole ppem 7 to 18 its y autohinter maps
+  every point's y to snap the x-height ('o') and cap height ('X') to whole
+  pixels (TrueType faces; CFF and obliques are not hinted).
+- Coverage is drawn as is (exact area, no gamma), blended in sRGB-encoded
+  space as Core Animation and CSS blend: helder.ui's Renderer already does
+  (premultiplied colours of sRGB values into a target that is not sRGB),
+  so nothing changes there but the glyphs.
+- Font smoothing is a mode (`FontSmoothing`). **On**, macOS's default:
+  each outline is dilated before its coverage, by a radius from the ink's
+  luminance (its linear Rec. 709 luminance to quarters, q) and the device
+  ppem, `min(ppem · (0.0058 + 0.01 q), 0.3)`: lines and the monotonic
+  pieces of curves moved by the signs of their direction, sides ±r, tops
+  +2r, bottoms not at all, joined by bevels. Light text on dark is
+  thickened more than dark on light, as on a Mac. **Off**: CoreText with
+  smoothing off, what macOS browsers draw for
+  `-webkit-font-smoothing: antialiased`, lighter.
+- Chosen per app with `Shaping.smoothing` (`HELDER_FONT_SMOOTHING=on|off`,
+  or `-D helder.text.smoothing=off`; On by default on every OS, so
+  goldens do not vary), per window with its atlas's
+  (`renderer.atlas.smoothing`), in markup and TSX with `<Surface
+  fontSmoothing="off">` (or `"antialiased"`; reactive). Each mode, and
+  each radius an ink gives, keeps its own atlas entries: switching back
+  draws nothing again. `GlyphAtlas.get` takes the ink (0xRRGGBB).
+- Its masks land within 3 levels of 255 of CoreGraphics' for Inter at 8
+  to 72 ppem, dark and white ink, smoothing on and off, two phases
+  (tests/text/coretext: Rune's captures; 94% of pixels exact, the rest
+  CoreGraphics' fixed-point scan conversion).
+
+The platform's engine (`Shaping.SYSTEM`) draws with its own rasters, as
+before; on macOS Core Text's without smoothing.
+
+The text-quality lane (`bun run test text-quality`,
+`tests/text/TextQuality.hx`) measures helder's engine against CoreText
+itself: Inter Regular and Bold at 9 to 32 pt, DejaVu Sans at 11 to 16 and
+an Inter 16/26 paragraph, in four inks (dark on light, light grey and
+near white on dark, a mid blue), at 1x and 2x, in both modes, drawn as
+the Renderer draws them, against CoreText drawing the same glyphs at the
+same pens (`CoreText.sheet`: CTFontDrawGlyphs through helder's Core Text
+back end into an sRGB bitmap; the system-text lane draws them on CI's Mac,
+`tests/text/coretext/sheets` is a copy). It reports Rune's numbers:
+structural similarity (Gaussian SSIM on each row's ink), the ink's weight
+against CoreText's, and the pixels' differences (their distribution, the
+share off by more than 8, the mean, the largest), and the same for the
+rasterizer helder had before (`bin/text-quality/report.md`, heatmaps).
 
 ## The platform's own stack
 

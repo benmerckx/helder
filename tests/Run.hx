@@ -52,6 +52,7 @@ class Run {
 		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
 		{name: "viewer-package", about: "the viewer's releases (helder build --package: helder.cli.Desktop, helder.pack): Linux's .tar.gz and Flatpak manifest (on Linux), Windows' zip signed by tests/pack/signing's throwaway identity, macOS's universal .app in a zip, ad hoc; checked on Eval (tests/pack/DesktopCheck.hx: the tarball's entries, the .desktop file, the icons, the metainfo; the .exe's GUI subsystem, resources, checksum and Authenticode digest; the bundle's seal and each slice's signature), then by osslsigncode verify, desktop-file-validate and appstreamcli where installed, codesign --verify on a Mac; the runtime objects of the other desktops fetched by tests/pack/runtime.mjs --desktop", run: viewerPackage},
 		{name: "system-text", about: "helder.text on the platform's own stack (tests/text/SystemTextTest.hx, natively: Linux's fontconfig, HarfBuzz and FreeType, Windows' DirectWrite, macOS's Core Text): each script's fallback face, a family found, Devanagari, Bengali and Tamil shaped (reordered and split vowels), TextLayout through it, glyphs rasterised; each script drawn with the platform's engine and helder's (bin/text/system-<os>.png; GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemText},
+		{name: "text-quality", about: "helder.text's own engine against macOS's CoreText (tests/text/TextQuality.hx, natively): Inter Regular and Bold at seven sizes, DejaVu Sans at three and a paragraph, four inks on their pages, 1x and 2x, font smoothing on and off, the way the Renderer draws them, against CoreText's sheets of the same glyphs at the same pens (tests/text/coretext/sheets, drawn by the system-text lane on a Mac: CTFontDrawGlyphs through helder's Core Text back end): SSIM, the ink's weight, the pixels' differences, before (the rasterizer helder had) and now (bin/text-quality/report.md, heatmaps)", run: textQuality},
 		{name: "system-images", about: "helder.os's system decoders (tests/os/SystemImagesTest.hx: Windows' WIC, macOS's ImageIO): a TIFF of a known gradient, plain and LZW, its pixels and straight alpha; macOS: a HEIC made by sips, whole and at a side; ImageLimits before any pixel; a file that is no image (GFX_TARGET=windows-x86_64 from Linux: under Wine)", run: systemImages},
 		{name: "dbus", about: "helder.os's D-Bus client against a real dbus-daemon (Linux: dbus-run-session): Hello, ListNames, a service's half, then xdg-desktop-portal's FileChooser OpenFile against a stand-in portal (its arguments, its Response's URI as the path picked; tests/os/DBusTest.hx)", run: dbus},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
@@ -451,6 +452,17 @@ class Run {
 			env.set("HELDER_UNDER_WINE", "1");
 			run("wine", [exe], env);
 		} else run(exe, [], env);
+		// (on a Mac: CoreText's sheets for the text-quality lane, bin/text/coretext: tests/text/coretext/sheets is a copy)
+		if (GFX_TARGET.startsWith("macos-") && HOST.startsWith("macos-")) {
+			native('bin/text/$GFX_TARGET/TextQuality', cps(["src", "tests/text"]).concat(["-main", "TextQuality"]), GFX_TARGET);
+			run(exePath('bin/text/$GFX_TARGET/TextQuality', GFX_TARGET), ["reference", "bin/text/coretext"]);
+		}
+	}
+
+	// (the references: tests/text/coretext/sheets, CoreText's, drawn by the system-text lane on a Mac)
+	static function textQuality() {
+		exe("bin/text-quality/TextQuality", cps(["src", "tests/text"]).concat(["-main", "TextQuality"]));
+		run(exePath("bin/text-quality/TextQuality", HOST), ["compare", "tests/text/coretext/sheets", "bin/text-quality"]);
 	}
 
 	static function systemImages() {

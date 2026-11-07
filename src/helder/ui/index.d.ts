@@ -23,7 +23,7 @@ export type Menu = { label: string; items: unknown[]; role?: "about" | "quit" | 
 export type PlatformMenuItem = { id: number; label: string; shortcut?: string; keys?: unknown; disabled?: boolean; checked?: boolean; separator?: boolean; items?: PlatformMenuItem[]; role?: string };
 
 // <Surface>'s props (UiWindow.Surface)
-export type SurfaceProps = { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; onDrop?: (files: string[], x: number, y: number) => void; ref?: (arg0: UiWindow) => void; antialias?: boolean; children?: UiView };
+export type SurfaceProps = { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; onDrop?: (files: string[], x: number, y: number) => void; ref?: (arg0: UiWindow) => void; antialias?: boolean; fontSmoothing?: Read<string>; children?: UiView };
 
 // helder.ui's markup (helder.view.ViewOf): a component returning one is
 // pinned to ui, a children prop typed so makes its content ui's (a

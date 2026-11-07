@@ -173,8 +173,8 @@ class Bench {
 		var ids = glyphsOf(), atlas = new GlyphAtlas(1024, 1024);
 		for (size in SIZES)
 			for (id in ids)
-				for (sub in 0...GlyphAtlas.SUBPIXELS)
-					check += atlas.get(font, id, size, sub).w;
+				for (k in 0...4)
+					check += atlas.get(font, id, size, k * 15).w;
 	}
 
 	static function atlasWarmSetup() {
@@ -183,8 +183,8 @@ class Bench {
 		glyphsOf();
 		for (size in SIZES)
 			for (id in glyphIds)
-				for (sub in 0...GlyphAtlas.SUBPIXELS)
-					warmAtlas.get(font, id, size, sub);
+				for (k in 0...4)
+					warmAtlas.get(font, id, size, k * 15);
 	}
 
 	// (a frame drawing 3000 glyphs: runs of 50 in one size)
@@ -192,7 +192,7 @@ class Bench {
 		var ids = glyphIds, n = ids.length;
 		for (k in 0...3000) {
 			var size = SIZES[Std.int(k / 50) % SIZES.length];
-			check += warmAtlas.get(font, ids[(k * 7) % n], size, k & 3).x;
+			check += warmAtlas.get(font, ids[(k * 7) % n], size, (k & 3) * 15).x;
 		}
 	}
 

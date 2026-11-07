@@ -274,7 +274,8 @@ jobs:
         run: bun run test -k window viewer viewer-window viewer-app viewer-package system-images system-text typescript-native
       - uses: actions/upload-artifact@v7
         if: always()
-        with: {name: text-macos, path: "bin/text/*.png", retention-days: 7, if-no-files-found: ignore}
+        # (and CoreText's sheets for the text-quality lane: tests/text/coretext/sheets is a copy of bin/text/coretext)
+        with: {name: text-macos, path: "bin/text/*.png\nbin/text/coretext/*", retention-days: 7, if-no-files-found: ignore}
 
   desktop-windows:
     runs-on: windows-2025

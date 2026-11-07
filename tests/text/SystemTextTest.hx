@@ -112,7 +112,7 @@ class SystemTextTest {
 					var by = Math.round(y + line.top + line.baseline);
 					for (i in line.glyphStart...line.glyphEnd) {
 						if (l.glyphHidden(i) || l.glyphFont(i).hasColor) continue;
-						var gx = x0 + l.glyphX(i) + l.glyphOffsetX(i), ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
+						var gx = x0 + l.glyphX(i) + l.glyphOffsetX(i), ix = GlyphAtlas.pixel(gx, 22), sub = GlyphAtlas.phase(gx, 22);
 						var a = atlas.get(l.glyphFont(i), l.glyphId(i), 22, sub);
 						for (py in 0...a.h)
 							for (px in 0...a.w) {

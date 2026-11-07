@@ -22,8 +22,11 @@ import helder.text.*;
 // - variations: a variable font's instances (var.ttf) against Chromium
 // - layout: widths, wrapping, hard breaks, caret and hit; decorations' rows
 //   (their thickness, an underline's offset) as Chromium draws them
+// - CoreGraphics' glyph pipeline (GlyphPipeline) against CoreGraphics' own
+//   paths, hints and masks (CoreGraphicsTest.hx, tests/text/coretext)
 // - a sample of text rendered through the atlas against sample.png; with
-//   Inter (CFF outlines), against sample-cff.png
+//   Inter (CFF outlines), against sample-cff.png: black on white, font
+//   smoothing on (the default), pens at CoreGraphics' steps
 //   (our own rasterizer: the same pixels on every machine with that font)
 class TextTest {
 	static var checks = 0;
@@ -33,6 +36,10 @@ class TextTest {
 		var bless = Sys.args().contains("--bless");
 		var here = "tests/text";
 		rasterizer();
+		// (CoreGraphics' glyph pipeline against CoreGraphics' own masks: tests/text/coretext)
+		var cg = CoreGraphicsTest.run();
+		checks += cg.checks;
+		failed += cg.failed;
 		bidi();
 		graphemes();
 		variations(here);
@@ -677,7 +684,7 @@ class TextTest {
 				var by = Math.round(y + l.top + l.baseline);
 				for (i in l.glyphStart...l.glyphEnd) {
 					if (t.glyphHidden(i)) continue;
-					var gx = 4 + t.glyphX(i) + t.glyphOffsetX(i), ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
+					var gx = 4 + t.glyphX(i) + t.glyphOffsetX(i), ix = GlyphAtlas.pixel(gx, size), sub = GlyphAtlas.phase(gx, size);
 					var a = atlas.get(t.glyphFont(i), t.glyphId(i), size, sub);
 					for (py in 0...a.h)
 						for (px in 0...a.w) {

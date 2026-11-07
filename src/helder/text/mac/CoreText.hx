@@ -179,6 +179,86 @@ class CoreText implements TextBackend {
 		return true;
 	}
 
+	// glyphs drawn by Core Text into an opaque sRGB bitmap of w x h device
+	// pixels, as macOS draws a window's text: CTFontDrawGlyphs, antialiased,
+	// subpixel positioned and quantised, font smoothing on or off, fg on bg
+	// (0xRRGGBB, sRGB). Each run: a font file's face, its size in points and
+	// its glyphs at their pens (x and the baseline's y in device pixels, y
+	// down, not quantised: Core Text quantises them); scale: device pixels a
+	// point. The bitmap's green channel, rows top down: the text-quality
+	// lane's references (tests/text/TextQuality.hx)
+	public static function sheet(w:Int, h:Int, scale:Float, bg:Int, fg:Int, smooth:Bool, runs:Array<SheetRun>):haxe.io.Bytes {
+		var pool = helder.os.objc.Runtime.objc_autoreleasePoolPush();
+		var n = w * h * 4, px = LibC.malloc((n : hxmc.I64));
+		LibC.memset(px, 0, (n : hxmc.I64));
+		var space = CG.CGColorSpaceCreateWithName(srgb());
+		// (kCGImageAlphaPremultipliedLast: R G B A)
+		var ctx = CG.CGBitmapContextCreate(px, w, h, 8, w * 4, space, 1);
+		inline function channel(c:Int, k:Int):Float
+			return ((c >> k) & 255) / 255;
+		var back = CG.CGColorCreateSRGB(channel(bg, 16), channel(bg, 8), channel(bg, 0), 1);
+		CG.CGContextSetFillColorWithColor(ctx, back);
+		var rect:Ptr<CGRect> = cast LibC.malloc(32);
+		rect.value.origin.x = 0;
+		rect.value.origin.y = 0;
+		rect.value.size.width = w;
+		rect.value.size.height = h;
+		CG.CGContextFillRect(ctx, rect.value);
+		LibC.free(cast rect);
+		// (points: y up from the bottom, as the context's own)
+		CG.CGContextScaleCTM(ctx, scale, scale);
+		CG.CGContextSetAllowsAntialiasing(ctx, true);
+		CG.CGContextSetShouldAntialias(ctx, true);
+		CG.CGContextSetAllowsFontSmoothing(ctx, smooth);
+		CG.CGContextSetShouldSmoothFonts(ctx, smooth);
+		CG.CGContextSetAllowsFontSubpixelPositioning(ctx, true);
+		CG.CGContextSetShouldSubpixelPositionFonts(ctx, true);
+		CG.CGContextSetAllowsFontSubpixelQuantization(ctx, true);
+		CG.CGContextSetShouldSubpixelQuantizeFonts(ctx, true);
+		var ink = CG.CGColorCreateSRGB(channel(fg, 16), channel(fg, 8), channel(fg, 0), 1);
+		CG.CGContextSetFillColorWithColor(ctx, ink);
+		for (r in runs) {
+			var s = ObjC.str(r.path);
+			var url = Msg.idPtr(ObjC.cls("NSURL"), ObjC.sel("fileURLWithPath:"), s);
+			ObjC.release(s);
+			var arr = CT.CTFontManagerCreateFontDescriptorsFromURL(url);
+			if (arr.isNull() || CF.CFArrayGetCount(arr).toInt() <= r.face) throw "CoreText.sheet: no such face in " + r.path;
+			var font = CT.CTFontCreateWithFontDescriptor(CF.CFArrayGetValueAtIndex(arr, (r.face : hxmc.I64)), r.size, Ptr.nil());
+			CF.CFRelease(arr);
+			var k = r.ids.length;
+			var ids:Ptr<UInt16> = cast LibC.malloc((2 * k + 8 : hxmc.I64)), at:Ptr<CGPoint> = cast LibC.malloc((16 * k + 16 : hxmc.I64));
+			for (i in 0...k) {
+				ids[i] = r.ids[i];
+				var p:Ptr<CGPoint> = cast at.add(16 * i);
+				p.value.x = r.xs[i] / scale;
+				p.value.y = (h - r.ys[i]) / scale;
+			}
+			CT.CTFontDrawGlyphs(font, cast ids, cast at, k, ctx);
+			LibC.free(cast ids);
+			LibC.free(cast at);
+			CF.CFRelease(font);
+		}
+		CG.CGContextFlush(ctx);
+		var rgba = haxe.io.Bytes.alloc(n);
+		BytesPtr.copyIn(rgba, 0, px, n);
+		var green = haxe.io.Bytes.alloc(w * h);
+		for (i in 0...w * h)
+			green.set(i, rgba.get(4 * i + 1));
+		CF.CFRelease(ctx);
+		CF.CFRelease(space);
+		CF.CFRelease(back);
+		CF.CFRelease(ink);
+		LibC.free(px);
+		helder.os.objc.Runtime.objc_autoreleasePoolPop(pool);
+		return green;
+	}
+
+	// (kCGColorSpaceSRGB: a CFStringRef the framework exports)
+	static inline function srgb():Ptr {
+		var p:Ptr<Ptr> = cast Posix.dlsym(Ptr.ofI64(-2), Mem.cstr("kCGColorSpaceSRGB"));
+		return p.isNull() ? Ptr.nil() : p.value;
+	}
+
 	// (a font's file and the face in it: by its family and style among the file's faces)
 	function fileOf(font:Ptr, cp:Int):Null<{path:String, index:Int}> {
 		var url = CT.CTFontCopyAttribute(font, constant("kCTFontURLAttribute"));
@@ -319,4 +399,18 @@ class CoreText implements TextBackend {
 	static function CGContextSetShouldSubpixelPositionFonts(ctx:Ptr, v:Bool):Void;
 	static function CGContextSetGrayFillColor(ctx:Ptr, gray:Float, alpha:Float):Void;
 	static function CGContextFlush(ctx:Ptr):Void;
+	// (the text-quality lane's references: CoreText.sheet)
+	static function CGColorSpaceCreateWithName(name:Ptr):Ptr;
+	static function CGColorCreateSRGB(r:Float, g:Float, b:Float, a:Float):Ptr;
+	static function CGContextSetFillColorWithColor(ctx:Ptr, color:Ptr):Void;
+	static function CGContextFillRect(ctx:Ptr, rect:CGRect):Void;
+	static function CGContextScaleCTM(ctx:Ptr, sx:Float, sy:Float):Void;
+	static function CGContextSetAllowsAntialiasing(ctx:Ptr, v:Bool):Void;
+	static function CGContextSetAllowsFontSmoothing(ctx:Ptr, v:Bool):Void;
+	static function CGContextSetAllowsFontSubpixelQuantization(ctx:Ptr, v:Bool):Void;
+	static function CGContextSetShouldSubpixelQuantizeFonts(ctx:Ptr, v:Bool):Void;
 }
+
+// a run of glyphs CoreText.sheet draws: a font file's face at a size
+// (points), each glyph's id and pen (device pixels, y down)
+typedef SheetRun = {path:String, face:Int, size:Float, ids:Array<Int>, xs:Array<Float>, ys:Array<Float>};

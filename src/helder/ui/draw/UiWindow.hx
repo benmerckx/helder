@@ -32,6 +32,10 @@ typedef SurfaceProps = {
 	?ref:UiWindow->Void,
 	// its frames multisampled, 4 samples a pixel (default true; false: one)
 	?antialias:Bool,
+	// helder.text's own engine's font smoothing in this window: "on" (as
+	// macOS draws by default) or "off" ("antialiased", as CSS's
+	// -webkit-font-smoothing); default the app's (helder.text.Shaping.smoothing)
+	?fontSmoothing:helder.view.graph.Read<String>,
 	?children:UiView
 };
 
@@ -499,6 +503,10 @@ class UiWindow {
 			w.ui.requestFrame();
 		});
 		if (props.dark != null) Graph.renderEffect(() -> Render.read(props.dark), v -> w.ui.dark = v);
+		if (props.fontSmoothing != null) Graph.renderEffect(() -> (Render.read(props.fontSmoothing) : String), v -> {
+			w.renderer.atlas.smoothing = helder.text.FontSmoothing.parse(v);
+			w.ui.requestFrame();
+		});
 		if (props.onClose != null) w.onClose = props.onClose;
 		if (props.onDrop != null) w.onDrop = props.onDrop;
 		// (in this owner: what is above the root, contexts, seen inside)

@@ -15,6 +15,11 @@ import haxe.ds.Vector;
 // Per app: Shaping.engine (default SYSTEM; HELDER_TEXT_ENGINE=helder, or
 // the define helder.text.engine=helder, which `helder test` sets: HELDER).
 // Per font: FontFile.engine (DEFAULT follows the app's).
+//
+// helder's engine draws glyphs as macOS's CoreText does (GlyphPipeline),
+// with font smoothing or without (FontSmoothing): per app Shaping.smoothing
+// (HELDER_FONT_SMOOTHING=on|off, or the define helder.text.smoothing; On by
+// default on every OS), per window its atlas's (GlyphAtlas.smoothing).
 class Shaping {
 	public static inline var DEFAULT = 0;
 	public static inline var HELDER = 1;
@@ -37,6 +42,24 @@ class Shaping {
 
 	static function set_engine(v:Int):Int
 		return chosen = v == DEFAULT ? SYSTEM : v;
+
+	public static var smoothing(get, set):FontSmoothing;
+	static var smoothingChosen:Null<FontSmoothing> = null;
+
+	static function get_smoothing():FontSmoothing {
+		if (smoothingChosen == null) {
+			#if (helder.text.smoothing == "off")
+			smoothingChosen = Off;
+			#else
+			var e = FontSmoothing.parse(Sys.getEnv("HELDER_FONT_SMOOTHING"));
+			smoothingChosen = e == null ? On : e;
+			#end
+		}
+		return smoothingChosen;
+	}
+
+	static function set_smoothing(v:FontSmoothing):FontSmoothing
+		return smoothingChosen = v;
 
 	// the platform's back end for a face (null: helder's own engine for it)
 	public static function backendFor(f:FontFile):Null<TextBackend> {

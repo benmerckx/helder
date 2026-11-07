@@ -1147,10 +1147,15 @@ fix.
     instanced pass a frame (rounded rects, borders, shadows, gradients,
     images and glyphs as kinds of one quad), measured against Rune's
     0.13 ms a frame of CPU.
-  - **Text as good as macOS's everywhere**: helder.text's own engine (tests,
+  - **Text as good as macOS's everywhere** (*landed*: helder.text's
+    `GlyphPipeline`, src/helder/text/README.md's "CoreText's look", a port
+    of Rune's): helder.text's own engine (tests,
     stories, games, any platform) rasterised after CoreGraphics' pipeline:
-    pens at its subpixel steps by size, pixel-snapped baselines, the font
-    smoothing's dilation as a mode; measured against CoreText's own.
+    pens at its subpixel steps by size, pixel-snapped baselines, its curve
+    flattening and y autohinter, the font smoothing's dilation as a mode
+    (`Shaping.smoothing`, a window's atlas, `<Surface fontSmoothing>`);
+    its masks within 3 levels of CoreGraphics' own, the text-quality lane
+    measuring it against CoreText's.
   - **Lists of a million rows**: helder.ui's scroll virtualised over a
     height index (a sum tree of rows' measured heights, estimated until
     measured), rows made and recycled as they come into view.
