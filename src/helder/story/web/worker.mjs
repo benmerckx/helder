@@ -22,12 +22,25 @@ const queue = [];
 let current = null;
 let snapshot = null;
 
-self.onmessage = async (e) => {
+// (the page's messages in order, each after the one before is done: a
+// start's program running before the next snapshot or start is handled)
+let turn = Promise.resolve();
+self.onmessage = (e) => {
 	const m = e.data;
 	if (m.type === 'line') return queue.push(m.line);
+	turn = turn.then(() => handle(m));
+};
+
+async function handle(m) {
 	if (m.type === 'stop') return stop();
 	// (a new build coming: the running one's state, helder.dev.Hot's snapshot, posted as {type: 'snapshot'})
-	if (m.type === 'snapshot') return current?.preview?.reload ? current.call(current.preview.reload) : postMessage({ type: 'snapshot', snapshot: null });
+	// (its loop ended there: what it built is disposed)
+	if (m.type === 'snapshot') {
+		if (!current?.preview?.reload) return postMessage({ type: 'snapshot', snapshot: null });
+		current.preview.stop();
+		current.call(current.preview.reload);
+		return;
+	}
 	// (the program's memory: its module's linear memory, bytes)
 	if (m.type === 'stats') return postMessage({ type: 'stats', memory: current?.memory()?.buffer.byteLength ?? 0 });
 	if (m.type !== 'start') return;
@@ -52,7 +65,7 @@ self.onmessage = async (e) => {
 	} catch (err) {
 		postMessage({ type: 'exit', code: 1, stack: String(err?.stack ?? err) });
 	}
-};
+}
 
 function stop() {
 	if (!current) return;
@@ -82,6 +95,13 @@ function dev(host) {
 				postMessage({ type: 'snapshot', snapshot: new TextDecoder().decode(host.bytes(p, n)) });
 			},
 			frame() {},
+			// (Hot's own devtools channel and helder.asset's reloads: the host speaks over its own, Preview's)
+			devtools() {},
+			devtools_take() {},
+			devtools_send() {},
+			asset_register() {},
+			asset_length: () => -1,
+			asset_take() {},
 		},
 	};
 }

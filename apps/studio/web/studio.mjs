@@ -226,10 +226,23 @@ function startPreview(host) {
 			case 'log':
 				preview.events.push([3, host.handles.add(m.text)]);
 				break;
-			case 'exit':
+			case 'exit': {
 				log('studio: the preview ended: ' + m.code + ' ' + (m.stack ?? ''));
+				// (an incremental build's program that ends right after it starts: built again from cold, a new
+				// compiler; the warm server has built a wrong program after some edits, as the desktop studio sees too)
+				const last = preview.lastBuild;
+				if (m.code !== 0 && last && !last.cold && performance.now() - last.at < 5000) {
+					log('studio: the incremental build\'s program ended at its start: building again from cold');
+					preview.lastBuild = null;
+					compiler?.terminate?.();
+					compiler = null;
+					compiled.clear();
+					compile(host, last.req, true);
+					break;
+				}
 				preview.events.push([4, m.code]);
 				break;
+			}
 			case 'snapshot':
 				preview.snapshot?.(m.snapshot);
 				preview.snapshot = null;
@@ -260,12 +273,13 @@ async function compilerClient() {
 	if (compiler !== null) return compiler;
 	compiler = false;
 	try {
-		const r = await fetch('helder/compiler/web/worker.mjs', { method: 'HEAD' });
+		const r = await fetch('compiler-web/manifest.json', { method: 'HEAD' });
 		if (!r.ok) return compiler;
 		const { CompilerClient } = await import('./helder/compiler/web/client.mjs');
 		const c = new CompilerClient(new Worker(new URL('helder/compiler/web/worker.mjs', location.href), { type: 'module' }));
 		c.onLog = (t) => log('[compiler] ' + t);
-		await c.init();
+		const init = await c.init({ assets: { base: new URL('compiler-web/', location.href).href } });
+		state.compilerInit = init.ms;
 		compiler = c;
 	} catch (e) {
 		log('studio: no compiler: ' + e.message);
@@ -275,11 +289,16 @@ async function compilerClient() {
 }
 if (projectName) compilerClient();
 
-// a build of the preview (the request: {entry, args}): the project's files
-// written to the compiler at their paths, built, the preview started again
-// from the running one's state (its snapshot); the answer as event 6
+// a build of the preview (the request: {entry, args}, the project's paths):
+// the project's files written to the compiler under /work/<name> (its
+// projects' place), built, the preview started again from the running
+// one's state (its snapshot); the answer as event 6, with the build's live
+// literals' tables (the studio keeps those of its files' contents)
 let compiles = 0;
-function compile(host, req) {
+const compiled = new Map();
+const work = (p) => (p === dir || p.startsWith(dir + '/') ? '/work/' + projectName + p.slice(dir.length) : p);
+const unwork = (p) => (p && (p === '/work/' + projectName || p.startsWith('/work/' + projectName + '/')) ? dir + p.slice(('/work/' + projectName).length) : p);
+function compile(host, req, cold = false) {
 	const id = ++compiles;
 	const answer = (r) => {
 		preview.events.push([6, id, host.handles.add(JSON.stringify(r))]);
@@ -288,8 +307,20 @@ function compile(host, req) {
 	(async () => {
 		const c = await compilerClient();
 		if (!c) return answer({ ok: false, why: 'no compiler' });
-		await c.write(Object.fromEntries([...files].filter(([k]) => k.startsWith(dir + '/'))));
-		const b = await c.build(req.entry, { dev: true, args: req.args });
+		// (the files changed since the compiler last had them, told as changed: its server's stamps are not trusted)
+		const changed = [...files].filter(([k, v]) => k.startsWith(dir + '/') && compiled.get(k) !== v);
+		await c.write(Object.fromEntries(changed.map(([k, v]) => [work(k), v])));
+		for (const [k, v] of changed) compiled.set(k, v);
+		const b = await c.build(work(req.entry), { dev: true, args: (req.args ?? []).map(work), changed: changed.map(([k]) => work(k)) });
+		const tables = [];
+		if (b.ok) for (const f of await c.list('/out/.literals').catch(() => [])) {
+			if (!f.endsWith('.json')) continue;
+			try {
+				const t = JSON.parse(dec.decode(await c.read(f)));
+				if (t.file?.startsWith('/work/' + projectName + '/')) tables.push({ name: f.split('/').pop().slice(0, -5), file: unwork(t.file), entries: t.entries });
+			} catch {}
+		}
+		log(`studio: built in the browser: ${b.ok ? 'ok' : 'failed'}, ${b.ms} ms, the module ${b.wasm?.byteLength ?? 'not'} bytes, ${tables.length} table(s)`);
 		if (b.ok && b.wasm) {
 			previewBytes = b.wasm;
 			const snapshot = await new Promise((resolve) => {
@@ -300,8 +331,9 @@ function compile(host, req) {
 			});
 			preview.worker.postMessage({ type: 'start', wasm: await WebAssembly.compile(previewBytes), imports: (meta.imports ?? []).map((p) => new URL(`helder/${p}/imports.mjs`, location.href).href),
 				fonts: await previewFonts, gfx, snapshot });
+			preview.lastBuild = { req, at: performance.now(), cold };
 		}
-		answer({ ok: b.ok, diagnostics: b.diagnostics, messages: b.messages, ms: b.ms });
+		answer({ ok: b.ok, diagnostics: (b.diagnostics ?? []).map((d) => ({ ...d, file: unwork(d.file) })), messages: b.messages, ms: b.ms, tables });
 	})().catch((e) => answer({ ok: false, why: String(e?.message ?? e) }));
 	return id;
 }

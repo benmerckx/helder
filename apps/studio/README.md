@@ -117,15 +117,17 @@ node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then s
 - **The devtools protocol as the worker's messages**: Ui.getTree and
   Ui.nodesAt name the screen, Hot.literals patches the one program (every
   screen's next frame shows it). An inspector's colour reaches the
-  preview's frame in 12 to 24 ms, one studio frame.
+  preview's frame in 10 to 25 ms, one or two studio frames.
 - **The preview's module** of an example is built where the page is built
   (`helder studio <project> -- --export-web <dir>`: the screens' program
   for the web, a dev build, with its live literals' tables and the links
   from its build's paths to the project's). A structural edit goes to the
-  compiler's worker (helder.compiler.web, its protocol's `build`: the
-  screens' program written beside the project, the host started again
-  from its state) when the page has one; until it lands such an edit is
-  saved, not built, and the studio says so.
+  compiler's worker (helder.compiler.web, its protocol's `build`, when the
+  site is built with it: `build.mjs --compiler bin/compiler-web`): the
+  project written to the compiler under `/work/<name>`, the screens'
+  program beside it (`.studio/gen`), built, and the preview host started
+  again from the running one's state (Hot's snapshot); the build's live
+  literals' tables come back with it, so the next colour is a patch again.
 - **Touch.** Narrower than 900 points (a phone, a tablet upright) the
   studio is compact: the screens' list a drawer from the header's
   "Screens", the inspector a bottom sheet sliding up when a screen is
@@ -144,12 +146,17 @@ examples/todo, Linux, llvmpipe):
 
 | | open to every first frame | resident (sum) | Pss (sum) |
 |---|---|---|---|
-| one host (helder.story.Host) | 308 ms | 202 MB | 168 MB |
-| a process a screen (today's desktop studio) | 3329 ms | 6147 MB | 2798 MB |
+| one host (helder.story.Host) | 280–310 ms | 202 MB | 168–201 MB |
+| a process a screen (today's desktop studio) | 0.8–3.3 s | 6.1 GB | 2.8 GB |
 
-In Chromium (SwiftShader's WebGPU, the same machine), 50 screens: every
-screen shown 0.7 s after the project opened, the preview's module 78 MB,
-the studio's 27 MB.
+Each screen's first frame in the host is its process's byte for byte. In
+Chromium (SwiftShader's WebGPU, the same machine), 50 screens: every
+screen shown 0.7 to 2.4 s after the project opened, the preview's module
+78 MB, the studio's 27 MB, the page's JavaScript 12 MB. With the
+compiler's worker: started in 0.5 to 0.8 s, a padding added built (its
+first build) and swapped in in 8.8 s, undone (warm) in 0.8 s; when a warm
+build's program ends right after it starts (hxmc's server, as above), the
+page builds it again from cold with a new compiler.
 
 ## Agents over MCP
 
@@ -227,8 +234,8 @@ On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
 - The desktop studio still runs a process a screen: the one-host model with
   shared GPU textures (HostRuntime's native runtime) is next; the host and
   its contexts are ready for it.
-- In the browser: structural edits wait for the compiler's worker
-  (helder.compiler.web); a TypeScript project's screens share its modules'
+- In the browser: a TypeScript project's structural edits are not built
+  there yet (its screens' program for the web is Haxe's alone); its screens share its modules'
   state in one program (a story that sets a module's signal sets it for
   every screen: ts-todo's stories), so only Haxe examples are bundled; the
   screens' input (a click on a screen selects, it is not the app's yet);

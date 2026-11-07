@@ -163,6 +163,7 @@ class WebPreviews {
 		s.version++;
 		s.frames(s.version);
 		s.reloading = false;
+		if (s.crashed) s.crashed = false;
 		if (first) s.shownAt = haxe.Timer.stamp();
 		if (onFrame != null) onFrame(s);
 	}
@@ -254,7 +255,8 @@ class WebPreviews {
 			m = m.substr(0, m.length - 9) + "_story";
 			modules.push(m);
 			studio.Files.save('$gen/$m.hx', studio.Files.read(f));
-			project.links.set('$gen/$m.hx', f);
+			// (the compiler's path of it: /work/<name>/...)
+			project.links.set("/work" + '$gen/$m.hx'.substr(gen.indexOf("/", 1)), f);
 		}
 		if (modules.length == 0) {
 			onLog("studio: a structural edit of a TypeScript project needs its build in the browser (not yet): saved, not built");
@@ -275,6 +277,7 @@ class WebPreviews {
 		var r:Dynamic = compiled.get(id);
 		compiled.remove(id);
 		buildMs(Math.round((haxe.Timer.stamp() - t0) * 1000));
+		helder.view.graph.Graph.flush();
 		var ds:Array<Diagnostic> = r == null || r.diagnostics == null ? [] : r.diagnostics;
 		diagnostics([for (d in ds) d.file == null ? d : {file: project.real(d.file), line: d.line, column: d.column, endColumn: d.endColumn, severity: d.severity, message: d.message}]);
 		if (r == null || r.ok != true) {
@@ -282,10 +285,25 @@ class WebPreviews {
 			onLog('studio: the build failed: ' + (r?.why ?? r?.messages ?? "no answer"));
 			return false;
 		}
-		// (the files built: their live literals' tables are the last build's no longer, so their edits build until tables come with builds)
+		// (the build's paths: the compiler's, /work/<name>/..., for each of the project's files)
+		for (f in project.sources()) {
+			for (k in [for (k => v in project.links) if (v == f) k])
+				project.links.remove(k);
+			project.links.set("/work" + f.substr(f.indexOf("/", 1)), f);
+		}
+		// (the build's live literals' tables: those of the files' contents now, the others the last build's no longer)
 		for (f in changed)
 			built.remove(f);
-		order = [];
+		var tables:Array<Dynamic> = r.tables ?? [];
+		for (t in tables) {
+			var file = project.real(t.file);
+			var text = try studio.Files.read(file) catch (_:Dynamic) null;
+			if (text != null && haxe.crypto.Md5.encode(text) == t.name) {
+				built.set(file, {content: text, entries: t.entries});
+				for (e in (t.entries : Array<helder.markup.Live.Entry>))
+					sent.remove(e.id);
+			}
+		}
 		for (s in screens)
 			s.reloading = true;
 		setStatus("running");

@@ -1,7 +1,7 @@
 // helder studio for the browser: the page, built into a directory to serve
 // as it is (any static host; tests/studio-web serves it):
 //
-//   node apps/studio/web/build.mjs <out> [project[=label]...]
+//   node apps/studio/web/build.mjs <out> [--compiler <dir>] [project[=label]...]
 //
 //   <out>/index.html, studio.mjs          the page (apps/studio/web)
 //   <out>/studio.wasm, helder/...         the studio built for the web, its packages' browser modules
@@ -11,14 +11,20 @@
 //                                         preview.wasm: `helder studio <project> -- --export-web`)
 //
 // The projects bundled: examples/todo by default, else the directories given.
+// --compiler: helder.compiler.web's toolchain (its build.mjs's output, e.g.
+// bin/compiler-web) served as <out>/compiler-web (a link), its worker beside
+// the page's modules: structural edits built in the browser.
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
-const [out, ...given] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const ci = argv.indexOf('--compiler');
+const compilerDir = ci >= 0 ? path.resolve(argv.splice(ci, 2)[1]) : null;
+const [out, ...given] = argv;
 if (!out) {
 	console.error('node apps/studio/web/build.mjs <out> [project...]');
 	process.exit(2);
@@ -48,9 +54,12 @@ for (const p of ['async', 'gfx', 'os', 'text', 'ui', 'image', 'canvas', 'jobs', 
 	for (const f of ['imports.mjs', 'browser.mjs', 'worker.mjs'])
 		if (existsSync(path.join(repo, 'src/helder', p, f))) cpSync(path.join(repo, 'src/helder', p, f), path.join(out, 'helder', p, f));
 
-// the compiler's worker (helder.compiler.web), when helder has one: structural edits built in the browser
-if (existsSync(path.join(repo, 'src/helder/compiler/web/worker.mjs')))
-	for (const f of ['worker.mjs', 'client.mjs']) cpSync(path.join(repo, 'src/helder/compiler/web', f), path.join(out, 'helder/compiler/web', f));
+// the compiler's worker (helder.compiler.web) and its toolchain, when given: structural edits built in the browser
+if (compilerDir) {
+	for (const f of ['worker.mjs', 'client.mjs', 'toolchain.mjs', 'vfs.mjs']) cpSync(path.join(repo, 'src/helder/compiler/web', f), path.join(out, 'helder/compiler/web', f));
+	rmSync(path.join(out, 'compiler-web'), { recursive: true, force: true });
+	symlinkSync(compilerDir, path.join(out, 'compiler-web'));
+}
 
 // the examples
 const index = [];

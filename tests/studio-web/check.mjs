@@ -11,8 +11,10 @@
 //   (Ui.getTree through the worker), its colour changed in the inspector:
 //   a live literal patched in the preview host, the next frames show it
 //   (frames counted, the title's pixels red), the file saved in OPFS; a
-//   structural edit (a padding) needs the compiler's worker: built when the
-//   page has one, else said;
+//   structural edit (a padding added) built by the compiler's worker
+//   (helder.compiler.web: the site built with it, the lane's) and the
+//   preview swapped in with its state, the title's box grown in the new
+//   build's tree (a site without that worker: saved and said);
 // - phone (390 x 844, touch): the same project in the compact layout, a
 //   screen tapped, the inspector a bottom sheet, the title tapped, its
 //   colour patched, a pinch zooming the canvas, the screens' drawer;
@@ -209,15 +211,30 @@ async function recolour(pg, x, y, tap) {
 	check(red(await pixel(pg, 380, 122)), 'the title red in the studio\'s canvas (the preview\'s frame, composited)');
 	await pg.screenshot({ path: path.join(out, 'desktop-colored.png') });
 	// a structural edit: the compiler's worker builds it, or the studio says it cannot yet
+	await pg.waitForFunction(() => window.studioWeb.compiler !== undefined, null, { timeout: 60000 }).catch(() => {});
 	const compiler = await pg.evaluate(() => !!window.studioWeb.compiler);
 	const before = await lastFrame(pg);
 	await pg.mouse.click(1080, 140);
 	await pg.waitForTimeout(200);
 	await pg.keyboard.type('20');
 	await pg.keyboard.press('Enter');
-	const built = await event(pg, 'built', (e) => e.frame >= before, compiler ? 120000 : 10000);
-	if (compiler) check(built && built.ok, `a padding added: built by the compiler's worker in ${built?.ms} ms, the screens reloaded`);
-	else {
+	const built = await event(pg, 'built', (e) => e.frame >= before, compiler ? 180000 : 10000);
+	if (compiler) {
+		check(built && built.ok, `a padding added: built by the compiler's worker in ${built?.ms} ms (${JSON.stringify(built)})`);
+		// (the new build's preview: the title's box grown by its padding, read from its tree again)
+		const grown = await event(pg, 'selection', (e) => e.frame > built.frame && e.rect && e.rect[3] > 35, 30000);
+		check(grown, `the screens reloaded from the new build, the title's box ${JSON.stringify(grown?.rect)}`);
+		// undone: the attribute removed, a warm build
+		const at = await lastFrame(pg);
+		check(await press(pg, 'Undo'), 'the padding undone (the header\'s Undo)');
+		const again = await event(pg, 'built', (e) => e.frame > at, 120000);
+		check(again && again.ok, `the undo built warm in ${again?.ms} ms`);
+		const back = await event(pg, 'selection', (e) => e.frame > again.frame && e.rect && e.rect[3] === 35, 30000);
+		await pg.screenshot({ path: path.join(out, 'desktop-undone.png') });
+		check(back, `the title's box back to 35 high ${JSON.stringify(back?.rect)}` + (back ? '' : ' ' + JSON.stringify((await events(pg)).filter((e) => e.frame >= at).map((e) => [e.event, e.frame, e.rect, e.ok])) + JSON.stringify(await pg.evaluate(() => [window.studioWeb.frames, window.studioWeb.logs.slice(-12)]))));
+		numbers.push(['structural', built, grown, await pg.evaluate(() => window.studioWeb.compilerInit), again]);
+		await pg.screenshot({ path: path.join(out, 'desktop-built.png') });
+	} else {
 		check(built && !built.ok, 'a padding added: saved, not built (no compiler worker on this page yet)');
 		console.log('studio-web: structural edits: skipped, the page has no compiler worker (helder.compiler.web)');
 	}
@@ -299,6 +316,9 @@ for (const n of numbers) {
 	if (n[0] === 'todo (4 screens)') lines.push(`| todo, 4 screens: the preview's worker started (its module instantiated, main run) | ${Math.round(n[2]?.ms)} ms (${n[2]?.backend}) |`, `| todo: the project opened to every screen shown | ${n[3]?.ms} ms |`);
 	else if (n[0] === '50 screens') lines.push(`| 50 screens: the project opened to every screen shown | ${n[3]?.ms} ms (${n[4]} ms from the click, the page loaded again) |`,
 		`| 50 screens: memory: the preview's module, the studio's, the page's JavaScript | ${mb(n[1].preview)}, ${mb(n[1].studio)}, ${mb(n[1].js)} |`);
+	else if (n[0] === 'structural') lines.push(`| the compiler's worker started (helder.compiler.web: downloaded, compiled, warmed) | ${n[3]?.total} ms |`,
+		`| a structural edit (a padding added): built by the compiler's worker (its first build), the preview swapped in with its state | ${n[1]?.ms} ms |`,
+		`| the same undone (the attribute removed): a warm build, swapped in | ${n[4]?.ms} ms |`);
 	else lines.push(`| ${n[0]}: an inspector's colour to the preview's frame (a live literal) | ${n[1]?.ms} ms, ${n[1]?.frames} studio frame(s) |`);
 }
 const table = lines.join('\n');
