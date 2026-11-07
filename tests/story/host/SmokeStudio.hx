@@ -69,6 +69,7 @@ class SmokeStudio {
 				if (StringTools.startsWith(handle, "copy:")) {
 					var file = helder.story.FrameFile.open(handle.substr(5), w * h * 4);
 					if (file == null) return false;
+					file.unlink();
 					var b = Bytes.alloc(w * h * 4);
 					file.read(b, w * h * 4);
 					file.close();

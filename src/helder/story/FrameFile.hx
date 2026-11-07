@@ -4,9 +4,10 @@ package helder.story;
 import haxe.io.Bytes;
 import hxmc.unsafe.*;
 
-// A frame's pixels in shared memory: a file (under /dev/shm on Linux, the
-// studio's) mapped by the preview host, which writes each frame into it,
-// and by the studio, which copies it out into its own texture's upload
+// A frame's pixels in shared memory: a file (in /dev/shm on Linux) mapped
+// by the preview host, which writes each frame into it, and by the studio,
+// which unlinks it once mapped (nothing left behind, whoever ends first)
+// and copies each frame out into its own texture's upload
 // (helder.story.NativeHost's frames where the GPU shares no texture:
 // llvmpipe). On Windows, where the GPU always shares (DXGI), it is a plain
 // file written and read.
@@ -82,6 +83,12 @@ class FrameFile {
 		if (Mem.os() == 2) return;
 		if (mapped()) Posix.munmap(map, size);
 		map = Ptr.nil();
+	}
+
+	// (the studio, once mapped) its name removed: the memory stays both
+	// processes' mappings' until they let go (POSIX; Windows reads it by its name)
+	public function unlink() {
+		if (Mem.os() != 2) try sys.FileSystem.deleteFile(path) catch (_:Dynamic) {}
 	}
 
 	// (the host) unmapped and gone

@@ -88,6 +88,8 @@ class SharedFrames implements HostRuntime {
 	var pixels = Bytes.alloc(0);
 	var nextId = 1;
 	var serial = 0;
+	// (this process's files apart from another host's in the same directory)
+	final session = StringTools.hex(Std.random(0x7FFFFFFF), 8) + StringTools.hex(Std.int(haxe.Timer.stamp() * 1000) & 0xFFFFFF, 6);
 
 	static inline var MAX = 3;
 
@@ -142,7 +144,7 @@ class SharedFrames implements HostRuntime {
 			// (the GPU would not share one: copies from now on)
 			kind = "copy";
 		}
-		var path = (dir ?? haxe.io.Path.directory(Sys.programPath())) + '/frame-${++serial}.rgba';
+		var path = (dir ?? haxe.io.Path.directory(Sys.programPath())) + '/helder-frame-$session-${++serial}.rgba';
 		var file = FrameFile.create(path, width * height * 4);
 		return new Frame(id, width, height, null, "copy:" + path, file);
 	}

@@ -103,11 +103,9 @@ class Previews {
 	public function new(project:Project) {
 		this.project = project;
 		screens = [for (s in project.screens) new Screen(s)];
-		framesDir = FileSystem.exists("/dev/shm") ? '/dev/shm/helder-studio-' + ownPid() : '${project.out}/frames';
+		// (shared memory where there is: each file unlinked once both have it mapped, nothing left behind)
+		framesDir = FileSystem.exists("/dev/shm") ? "/dev/shm" : '${project.out}/frames';
 	}
-
-	static function ownPid():String
-		return Path.withoutDirectory(FileSystem.fullPath("/proc/self"));
 
 	public function screen(name:String):Null<Screen>
 		return Lambda.find(screens, s -> s.info.name == name);
@@ -250,7 +248,7 @@ class Previews {
 			env.remove("HXMC_DEV_SNAPSHOT");
 			try FileSystem.deleteFile(snap) catch (_:Dynamic) {}
 		}
-		helder.cli.TestCommand.mkdirs(framesDir);
+		if (!FileSystem.exists(framesDir)) helder.cli.TestCommand.mkdirs(framesDir);
 		env.set("HELDER_STUDIO_FRAMES", framesDir);
 		// (a project without stories: its own window, offscreen, its frames to a file)
 		// (the studio's own run's options not the host's)
@@ -268,8 +266,11 @@ class Previews {
 		p.closeStdin();
 		process = p;
 		startedAt = haxe.Timer.stamp();
-		// (the last process's frames' targets are not this one's)
+		// (the last process's frames' targets are not this one's; its copies' mappings let go: their pixels copied here)
 		releasing.resize(0);
+		for (f in files)
+			f.close();
+		files.clear();
 		for (s in screens)
 			s.buffer = 0;
 		order = [];
@@ -368,6 +369,8 @@ class Previews {
 				f = FrameFile.open(path, n);
 				if (f == null) return;
 				files.set(path, f);
+				// (mapped by both now: its name goes, its memory stays the two processes')
+				f.unlink();
 			}
 			if (img != null && img.width == w && img.height == h && img.hasPixels && img.shared == null) {
 				f.read(img.pixels, n);
@@ -578,12 +581,6 @@ class Previews {
 		for (f in files)
 			f.close();
 		files.clear();
-		// (the host's copies in shared memory)
-		if (FileSystem.exists(framesDir)) {
-			for (n in FileSystem.readDirectory(framesDir))
-				try FileSystem.deleteFile('$framesDir/$n') catch (_:Dynamic) {}
-			try FileSystem.deleteDirectory(framesDir) catch (_:Dynamic) {}
-		}
 	}
 }
 
