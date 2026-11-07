@@ -2,11 +2,12 @@ package helder.story;
 
 import helder.definition.Kernel;
 
-// story({name, render, seed, store, caption, background, color})'s handler
+// story({name, render, seed, width, height, store, caption, background, color})'s handler
 // (src/helder/compiler/DESIGN.md 4), the same for both languages (Haxe's
 // helder.story.Story.story, TypeScript's helder/story): the fields checked
 // at their positions, each a literal but render, a function of the story's
-// controls making its view. A story with store: true is a store
+// controls making its view; width and height its size in points (the
+// studio's screen, helder.story.Screens; a phone's, 390x844, without). A story with store: true is a store
 // screenshot (helder publish --screenshots), its caption over it and the
 // caption band's colours; seed is Controls.random's (1). What each adapter
 // makes of it is the Story; in a release build (-D helder.release) nothing:
@@ -14,7 +15,7 @@ import helder.definition.Kernel;
 class StoryDefinition implements Definition<Adapter, StoryFields> {
 	public final name = "story";
 
-	static final FIELDS = ["name", "render", "seed", "store", "caption", "background", "color"];
+	static final FIELDS = ["name", "render", "seed", "width", "height", "store", "caption", "background", "color"];
 
 	public function new() {}
 
@@ -42,6 +43,14 @@ class StoryDefinition implements Definition<Adapter, StoryFields> {
 			case {value: KString(s)}: s;
 			case x: a.error('caption is a string literal, not ${x.describe()}', x.pos);
 		}
+		for (f in ["width", "height"]) {
+			var x = r.get(f);
+			if (x != null) switch x.value {
+				case KInt(i) if (i > 0): {}
+				case KFloat(v) if (v > 0 && v == Math.ffloor(v)): {}
+				case _: a.error('$f is a size in points, a whole number above 0, not ${x.describe()}', x.pos);
+			}
+		}
 		for (f in ["caption", "background", "color"]) {
 			var x = r.get(f);
 			if (x != null && !store) a.error('$f is a store screenshot\'s (store: true)', x.pos);
@@ -50,6 +59,8 @@ class StoryDefinition implements Definition<Adapter, StoryFields> {
 			name: name,
 			render: render,
 			seed: int(r, "seed", a) ?? 1,
+			width: int(r, "width", a),
+			height: int(r, "height", a),
 			store: store,
 			caption: caption,
 			background: int(r, "background", a),
@@ -72,6 +83,8 @@ typedef StoryFields = {
 	name:String,
 	render:KFunction,
 	seed:Int,
+	width:Null<Int>,
+	height:Null<Int>,
 	store:Bool,
 	caption:Null<String>,
 	background:Null<Int>,

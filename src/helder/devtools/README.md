@@ -36,7 +36,9 @@ bun run helder inspect --tree --port 4321
   with `HXMC_DEV_PROTOCOL=1`; otherwise (@hxmc/cli's `dev.mjs`) it speaks the
   older `{"type"}` lines: `reload` to it, `saved` and `frame` from it. On
   one connection a line with `jsonrpc` is the protocol's, one with `type`
-  the older one's.
+  the older one's. When the connection closes the program goes on, unless
+  it was started with `HXMC_DEV_EXIT_WITH_SERVER=1` (the studio's screens:
+  apps/studio), which ends it.
 - **Tools and CLI**: a WebSocket at `ws://<host>:<port>/__helder/devtools`,
   the dev server's HTTP port (natively too), one message per text message.
   Several tools at once. `helder dev` writes `bin/dev/devtools.json`

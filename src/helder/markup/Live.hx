@@ -54,15 +54,23 @@ class Live {
 	// --- the tables
 
 	static final tables = new Map<String, {hash:String, entries:Array<Entry>, ids:Map<String, Bool>}>();
-	static final contents = new Map<String, {stamp:Float, content:String, hash:String}>();
+	static final contents = new Map<String, {stamp:Float, read:Float, content:String, hash:String}>();
 
-	// a source's content as the compiler read it (null: not readable)
+	// a source's content as the compiler read it (null: not readable). Kept
+	// across a compile server's builds while its modification time stays,
+	// but read again while that time was within 2 s of the last read: a
+	// time has whole seconds, and two saves in one second (the studio's
+	// inspector: an edit, then its undo) keep it, the second's content
+	// otherwise read as the first's (its literals' ids and anchors off, the
+	// slots of two literals crossed)
 	public static function content(file:String):Null<{content:String, hash:String}> {
 		var stamp = try sys.FileSystem.stat(file).mtime.getTime() catch (_:Dynamic) return null;
 		var c = contents.get(file);
-		if (c == null || c.stamp != stamp) {
+		if (c == null || c.stamp != stamp || c.read - stamp < 2000) {
 			var text = try sys.io.File.getContent(file) catch (_:Dynamic) return null;
-			c = {stamp: stamp, content: text, hash: haxe.crypto.Md5.encode(text)};
+			var now = Date.now().getTime();
+			c = c != null && c.content == text ? {stamp: stamp, read: now, content: text, hash: c.hash} : {stamp: stamp, read: now, content: text,
+				hash: haxe.crypto.Md5.encode(text)};
 			contents.set(file, c);
 		}
 		return c;

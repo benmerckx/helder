@@ -22,6 +22,20 @@ using StringTools;
 // video's frames, which the CLI encodes), the motion trace (JSON lines),
 // keycaps and press ripples drawn over the frames (Overlay). Math.random
 // is seeded (--seed), so the same script gives the same bytes.
+//
+// Holds (hold): a program that waits for work outside it (the studio: its
+// builds, its preview processes' frames) holds the script while it does:
+// the frames go on (each 1/fps later on the virtual clock, a few
+// milliseconds apart on the machine's: its timers and I/O progress), the
+// script's steps and the outputs' times wait, all moved by the time held.
+//
+// Serve (the option {"serve": {"frames": file}}: the studio's previews,
+// helder.story.Screens): no script and no end, the virtual clock the
+// machine's (60 frames a second, paced), each frame drawn written to the
+// file (a header "HLDF", width, height, version as 32-bit little-endian
+// integers, then its RGBA rows; written beside it and renamed over it) and
+// told over the devtools connection in a dev build: the notification
+// `Headless.frame {version, width, height, path}`.
 class Headless {
 	// a tap's press held (s)
 	public static inline var HOLD = 0.05;
@@ -61,6 +75,13 @@ class Headless {
 	final overlay:Null<Overlay>;
 	// when the run ends (s)
 	final end:Float;
+	// serve: the file each frame drawn is written to (null: a run)
+	public final serve:Null<String>;
+	var serveStart = 0.0;
+	var served = 0;
+	// holds: what the script and the outputs wait on, and the time they waited
+	final holds:Array<{done:Void->Bool, why:String, until:Float, since:Float}> = [];
+	var shift = 0.0;
 
 	// the windows opened (the first one's pixels and nodes the outputs')
 	final windows:Array<HeadlessWindow> = [];
@@ -130,6 +151,8 @@ class Headless {
 			sequences.push({dir: s.dir, start: start, count: count, every: every, written: 0, width: 0, height: 0});
 			ends.push(start + (count - 1) / fps);
 		}
+		var sv:Dynamic = Reflect.field(o, "serve");
+		serve = sv == null ? null : sv.frames;
 		trace = Reflect.field(o, "trace");
 		stats = Reflect.field(o, "stats");
 		var keys:Null<String> = Reflect.field(o, "keys"), pointer = Reflect.field(o, "pointer") == true;
@@ -137,8 +160,9 @@ class Headless {
 		var e = 0.0;
 		for (t in ends)
 			if (t > e) e = t;
-		end = ends.length == 0 ? autoEnd() : e;
-		wantsPixels = snaps.length > 0 || sequences.length > 0;
+		end = serve != null ? Math.POSITIVE_INFINITY : ends.length == 0 ? autoEnd() : e;
+		wantsPixels = snaps.length > 0 || sequences.length > 0 || serve != null;
+		serveStart = haxe.Timer.stamp();
 		wantsNodes = trees.length > 0 || trace != null;
 		seed(Std.int(num(o, "seed", 1)));
 		Time.now = 0;
@@ -174,9 +198,37 @@ class Headless {
 	function autoEnd():Float
 		return script.marks.exists("end") ? script.marks.get("end") : script.steps.length > 0 ? script.last + 1 : 1;
 
-	// the frame's time
+	// the frame's time (serve: the machine's since the start)
 	inline function frameTime():Float
-		return frame / fps;
+		return serve != null ? haxe.Timer.stamp() - serveStart : frame / fps;
+
+	// the script's time: the frame's less the time held
+	inline function scriptTime():Float
+		return frameTime() - shift;
+
+	// the script waits until done() (the program's work outside it: a build,
+	// another process's answer), the frames going on; the run fails when a
+	// hold lasts seconds of the machine's time
+	public function hold(done:Void->Bool, why:String, seconds = 120.0) {
+		if (serve != null || done()) return;
+		var now = haxe.Timer.stamp();
+		holds.push({done: done, why: why, until: now + seconds, since: now});
+	}
+
+	// whether a hold is on (its frame waits a little on the machine's clock: what it waits for runs)
+	function held():Bool {
+		if (holds.length == 0) return false;
+		var now = haxe.Timer.stamp();
+		for (h in holds.copy())
+			if (h.done()) {
+				holds.remove(h);
+				if (now - h.since > 0.5) Sys.println('headless: held ${Math.round((now - h.since) * 10) / 10} s (${h.why})');
+			} else if (now > h.until) fail('held for ${Math.round(now - h.since)} s, never done: ${h.why}');
+		if (holds.length == 0) return false;
+		shift += 1 / fps;
+		Sys.sleep(0.003);
+		return true;
+	}
 
 	// (HeadlessWindow's)
 	public function opened(w:HeadlessWindow)
@@ -194,7 +246,13 @@ class Headless {
 	// then) and their acts
 	public function events(onEvent:Event->Void) {
 		if (stats != null) statsBegin();
-		var t = frameTime() + 1e-9;
+		if (held()) {
+			while (posted.length > 0)
+				onEvent(posted.shift());
+			Time.now = frameTime();
+			return;
+		}
+		var t = scriptTime() + 1e-9;
 		while (true) {
 			if (posted.length > 0) {
 				onEvent(posted.shift());
@@ -205,11 +263,11 @@ class Headless {
 			if (st > t && at > t) break;
 			if (st <= at) {
 				var s = script.steps[stepAt++];
-				Time.now = s.t;
+				Time.now = s.t + shift;
 				expand(s);
 			} else {
 				var a = acts.shift();
-				Time.now = a.t;
+				Time.now = a.t + shift;
 				act(a, onEvent);
 			}
 		}
@@ -496,12 +554,40 @@ class Headless {
 			pixelsHeight = h;
 		}
 		read(pixels);
+		if (serve != null) serveFrame();
+	}
+
+	// (serve) the frame drawn, written beside the file and renamed over it, then told
+	function serveFrame() {
+		served++;
+		var head = Bytes.alloc(16);
+		head.blit(0, Bytes.ofString("HLDF"), 0, 4);
+		head.setInt32(4, pixelsWidth);
+		head.setInt32(8, pixelsHeight);
+		head.setInt32(12, served);
+		var tmp = serve + ".tmp";
+		mkdirs(haxe.io.Path.directory(serve));
+		var f = sys.io.File.write(tmp, true);
+		f.writeBytes(head, 0, 16);
+		f.writeBytes(pixels, 0, pixels.length);
+		f.close();
+		sys.FileSystem.rename(tmp, serve);
+		#if hxmc.dev
+		helder.devtools.Agent.notify("Headless.frame", {version: served, width: pixelsWidth, height: pixelsHeight, path: serve});
+		#end
 	}
 
 	// after a frame: its outputs; whether the run goes on
 	public function framed():Bool {
 		if (stats != null) statsEnd();
-		var t = frameTime(), eps = 1e-6;
+		if (serve != null) {
+			// (paced: the next frame 1/fps after the last's, on the machine's clock)
+			frame++;
+			var wait = frame / fps - frameTime();
+			if (wait > 0) Sys.sleep(Math.min(wait, 1 / fps)) else frame = Std.int(frameTime() * fps);
+			return true;
+		}
+		var t = scriptTime(), eps = 1e-6;
 		var nodes:Null<Array<InspectedNode>> = null;
 		if (wantsNodes && inspector != null) nodes = inspector.nodes();
 		for (s in snaps)
@@ -532,7 +618,7 @@ class Headless {
 				last.set(n.id, n);
 		}
 		frame++;
-		if (frameTime() > end + eps) {
+		if (scriptTime() > end + eps) {
 			finish();
 			return false;
 		}

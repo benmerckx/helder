@@ -27,7 +27,9 @@ console.log(tree(plain));
 - **`story({...})`** is a definition (src/helder/compiler/DESIGN.md 4;
   its handler `StoryDefinition`, one for both languages): `name`, `render`
   (a function of the story's controls), `seed` (Controls.random's, 1),
-  `store: true` for a store screenshot with its `caption`, `background`
+  `width` and `height` (its size in points, whole numbers: the studio's
+  screen of it; a phone's, 390x844, without), `store: true` for a store
+  screenshot with its `caption`, `background`
   and `color`. Each is a literal, checked where it is written (a caption
   without `store: true`, a seed that is not an integer, a name that is not
   static: the same diagnostic in both languages). A release build (`-D
@@ -57,6 +59,11 @@ console.log(tree(plain));
   MD5) and the review sheet `bin/store/review.html`. `helder publish
   --listing` sends the changed ones to Google Play's and App Store
   Connect's listings (src/helder/cli/README.md).
+
+- **Screens** (`Screens.run(stories)`; TypeScript's `screens`): the
+  program helder studio builds of a project's stories (apps/studio/README.md,
+  "Screens"): one story, the one `HELDER_STUDIO_SCREEN` names, in a window
+  of its size; over the devtools protocol `Studio.screens` answers which.
 
 Not yet: the stories' editor and panel (phase 3), a story kept across a
 reload, image snapshots and scripted interactions in tests, a virtual

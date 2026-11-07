@@ -371,9 +371,11 @@ class Hot {
 		while (true) {
 			var n = hxmc.NativeNet.recv(socket, buf, 0, buf.length);
 			if (n == 0 || (n < 0 && !hxmc.NativeNet.blocked())) {
-				// (the dev server is gone)
+				// (the dev server is gone; HXMC_DEV_EXIT_WITH_SERVER=1: the program
+				// with it, as the studio's previews are, never orphans)
 				hxmc.NativeNet.close(socket);
 				socket = -1;
+				if (Sys.getEnv("HXMC_DEV_EXIT_WITH_SERVER") == "1") Sys.exit(0);
 				helder.devtools.Agent.end(own);
 				return !done;
 			}

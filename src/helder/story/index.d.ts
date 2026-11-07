@@ -3,14 +3,15 @@
 // fields checked where they are written, as Haxe's helder.story.Story.story;
 // nothing in a release build), each story's view made from its Controls;
 // tree(story), its tree mounted headless as helder test snapshots it
-// (its markup helder.ui's: the neutral elements, its renderer).
+// (its markup helder.ui's: the neutral elements, its renderer); screens
+// (stories), the studio's program of a project's screens (Screens).
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
 import type {Event} from "helder/ui";
 import type {Signal, View} from "helder/view";
 
-declare const __haxe: {Story: "helder.story.Story", Controls: "helder.story.Story.Controls", Stories: "helder.story.Stories", __module: "helder.story.TypeScript"};
+declare const __haxe: {Story: "helder.story.Story", Controls: "helder.story.Story.Controls", Stories: "helder.story.Stories", Screens: "helder.story.Screens", __module: "helder.story.TypeScript"};
 
 export declare class Story {
 	private readonly story: never;
@@ -18,7 +19,7 @@ export declare class Story {
 
 // story({...})'s fields, as a TypeScript program gives them (helder/story:
 // Stories.define, the definition checked them where they are written)
-export type StoryDef = { name: string; render: (arg0: Controls) => View; seed?: number; store?: boolean; caption?: string; background?: number; color?: number };
+export type StoryDef = { name: string; render: (arg0: Controls) => View; seed?: number; width?: number; height?: number; store?: boolean; caption?: string; background?: number; color?: number };
 
 // A story's controls: each a signal its view reads, recorded with its name
 // and kind for an editor (the values a store screenshot uses are their
@@ -55,6 +56,24 @@ export declare class Stories {
 
 export declare const story: typeof Stories.define;
 export declare const tree: typeof Stories.tree;
+
+// A project's stories as the studio's screens (apps/studio): the program
+// the studio builds of a project (a dev build, headless: -D hxmc.dev -D
+// helder.headless) shows one story in a window of the story's size
+// (width, height; a phone's without), the one HELDER_STUDIO_SCREEN names
+// (the first without). The studio starts one such process for each screen,
+// so a screen's state (a TypeScript module's signals) is its own. Over the
+// devtools protocol, `Studio.screens` answers which one this is and the
+// others: {screen, screens: [{name, width, height}]}.
+//
+//   // the studio's generated main (bin/studio/<name>/ScreensMain.hx, screens.tsx)
+//   helder.story.Screens.run(helder.story.Stories.of("Todo_story"));
+//   import { screens } from "helder/story"; screens([empty, items]);
+export declare class Screens {
+	static run(stories: Story[]): void;
+}
+
+export declare const screens: typeof Screens.run;
 
 // a neutral element's attributes: any, its handlers given ui's events (helder.ui.view.NodeEvents)
 export interface NeutralAttributes {
