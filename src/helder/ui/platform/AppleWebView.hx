@@ -50,7 +50,7 @@ class AppleWebView implements PlatformWebView {
 	var lastY = -1.0;
 	var lastW = -1.0;
 	var lastH = -1.0;
-	var lastShown = true;
+	var lastShown = false;
 
 	// a web view in parent (iOS: the window's UIView; macOS: its NSView,
 	// whose window's content view takes it); queued: an event waits for poll

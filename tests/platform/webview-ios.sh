@@ -54,7 +54,7 @@ run() {
 	xcrun simctl install "$udid" "$out/$name.app"
 	check "simctl install $name.app" $?
 	: > "$out/$base.txt"
-	SIMCTL_CHILD_HELDER_WEBVIEW_LOCAL=${2:-0} SIMCTL_CHILD_HELDER_WEB_DIR="$out/todo" xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" > "$out/$base.txt" 2>&1 &
+	SIMCTL_CHILD_HELDER_WEBVIEW_LOCAL=${2:-} SIMCTL_CHILD_HELDER_WEB_DIR="$out/todo" xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" > "$out/$base.txt" 2>&1 &
 	console=$!
 	i=0
 	shot=0
