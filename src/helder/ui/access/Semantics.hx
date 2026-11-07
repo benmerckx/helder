@@ -3,7 +3,7 @@ package helder.ui.access;
 // What a node declares about itself for assistive technology (Node.semantics;
 // in markup, the attributes role, label, description, href, checked, selected,
 // expanded, level, disabled, value-now, value-min, value-max, value-text,
-// multiselectable, live, current, hidden). Unset
+// multiselectable, live, current, hidden, pos-in-set, set-size). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
 // Image, a focusable node a Group.
 @:structInit class Semantics {
@@ -37,6 +37,11 @@ package helder.ui.access;
 	public var current(default, set):Bool = false;
 	// left out with its subtree (decoration)
 	public var hidden(default, set):Bool = false;
+	// an item's place in its set (from 1) and the set's size, when not all of
+	// the set is in the tree (a virtual list's rows: VirtualScroll's); 0: counted
+	// among its siblings (AccessTree)
+	public var posInSet(default, set):Int = 0;
+	public var setSize(default, set):Int = 0;
 
 	// (a change: the accessibility trees built again)
 	function set_role(v:Null<Role>):Null<Role> {
@@ -127,6 +132,16 @@ package helder.ui.access;
 	function set_valueText(v:Null<String>):Null<String> {
 		if (v != valueText) helder.ui.Ui.accessEpoch++;
 		return valueText = v;
+	}
+
+	function set_posInSet(v:Int):Int {
+		if (v != posInSet) helder.ui.Ui.accessEpoch++;
+		return posInSet = v;
+	}
+
+	function set_setSize(v:Int):Int {
+		if (v != setSize) helder.ui.Ui.accessEpoch++;
+		return setSize = v;
 	}
 
 	function set_hidden(v:Bool):Bool {

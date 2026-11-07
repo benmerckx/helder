@@ -36,7 +36,7 @@ import helder.image.AnimatedImage;
 // prevented the default), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
 // role, label, description, href, checked, selected, expanded, level, disabled,
-// value-now, value-min, value-max, value-text, hidden), and what a theme
+// value-now, value-min, value-max, value-text, pos-in-set, set-size, hidden), and what a theme
 // styles it as (Rule: slot, variant, size, data-* and aria-* attributes,
 // data-state="checked"). A text node holds
 // text: its text children are its text, its elements its spans.
@@ -337,6 +337,12 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 
 	@:attribute static function level(n:Node, name:String, v:Dynamic)
 		semantics(n).level = v == null ? null : Std.int(number(v));
+
+	@:attribute static function posInSet(n:Node, name:String, v:Dynamic)
+		semantics(n).posInSet = v == null ? 0 : Std.int(number(v));
+
+	@:attribute static function setSize(n:Node, name:String, v:Dynamic)
+		semantics(n).setSize = v == null ? 0 : Std.int(number(v));
 
 	@:attribute static function disabled(n:Node, name:String, v:Dynamic)
 		semantics(n).disabled = v == true || v == "true";

@@ -663,6 +663,12 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	// (Ui.update's, after the layout, for the nodes that joined Ui.natives: a platform's view kept in step)
 	@:allow(helder.ui.Ui) function syncNative() {}
 
+	// (Ui.update's, after each layout, for the nodes that joined Ui.settlers (a
+	// VirtualScroll: its rows measured, its window moved): whether it changed
+	// the tree, laid out again then)
+	@:allow(helder.ui.Ui) function settle():Bool
+		return false;
+
 	// (the window took the keyboard's focus from its platform view: given back)
 	function refocusNative() {}
 

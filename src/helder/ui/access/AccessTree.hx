@@ -74,6 +74,9 @@ class AccessTree {
 					}
 				} else
 					for (x in 0...run.length) {
+						// (given by its node: a set not all in the tree)
+						var sem = byId.get(run[x].id).semantics;
+						if (sem != null && sem.setSize > 0) continue;
 						run[x].posInSet = x + 1;
 						run[x].setSize = run.length;
 					}
@@ -229,6 +232,10 @@ class AccessTree {
 				a.valueMin = sem.valueMin;
 				a.valueMax = sem.valueMax;
 				a.valueText = sem.valueText;
+				if (sem.setSize > 0) {
+					a.posInSet = sem.posInSet;
+					a.setSize = sem.setSize;
+				}
 			}
 			a.name = sem != null && sem.label != null ? sem.label : role == Label ? (cast n : TextNode).allText() : role.namedByContent() ? textOf(n) : "";
 			var own = Std.isOfType(n, TextNode) ? null : n.accessValue();

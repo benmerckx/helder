@@ -254,8 +254,9 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   a `<Surface>`'s children, a component returning one pinned to ui), the markup's attributes (`StyleAttrs`, generated
   from `Style`'s properties: a property added to `Style` is an
   attribute), and what is ui's own: the control flow components
-  `VirtualList` (only the rows in view made: a list of 100000 rows scrolls
-  as one of 20), `Popover` (`UiFlow`), and `Motion`:
+  `VirtualList` (a `VirtualScroll`: only the rows in view made, each of
+  its own height in a `HeightIndex`; a million rows scroll as twenty, below),
+  `Popover` (`UiFlow`), and `Motion`:
   `transition`, `spring` and `color` are signals moving toward a target
   as the `Clock` ticks (a window ticks it each frame and keeps drawing
   while anything moves; `Clock.finish()` ends every animation, for tests). Signals (`signal`,

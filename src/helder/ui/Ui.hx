@@ -247,6 +247,13 @@ class Ui {
 			dirtyAll(overlay);
 		}
 		Layout.run(root, width, height, text, rounded);
+		// (the nodes placing what they show by its laid out sizes: laid out again while one changes it)
+		var settled = 0;
+		while (settlers.length > 0 && settled++ < SETTLES && settle()) {
+			helder.view.graph.Graph.flush();
+			flushRestyles();
+			Layout.run(root, width, height, text, rounded);
+		}
 		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {
 			Layout.run(overlay, width, height, text, rounded);
@@ -275,6 +282,18 @@ class Ui {
 
 	// the nodes that may be native (EditableText: they join while in the tree)
 	var natives:Array<Node> = [];
+
+	// the nodes settled after each layout (VirtualScroll: they join while in
+	// the tree), the tree laid out again while one changes it, SETTLES times at most
+	@:allow(helder.ui) final settlers:Array<Node> = [];
+	static inline var SETTLES = 8;
+
+	function settle():Bool {
+		var any = false;
+		for (i in 0...settlers.length)
+			if (@:privateAccess settlers[i].settle()) any = true;
+		return any;
+	}
 
 	// the nodes laid out at a size their onResize was not told (Node.setLayout)
 	final resized:Array<Node> = [];

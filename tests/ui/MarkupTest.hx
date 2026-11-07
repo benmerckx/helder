@@ -21,7 +21,9 @@ import helder.image.Image;
 // accessibility tree of plain controls in markup (Plain), its actions and
 // changes; a Popover; the neutral elements; a field's
 // password, right to left; a part's states as signals; a VirtualList of
-// 100000 rows scrolled
+// 100000 rows scrolled, one of a million rows of their own heights
+// (anchored, jumped, put in and taken out, the keyboard, the selection,
+// the accessibility tree), one keyed by id
 class MarkupTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -415,8 +417,9 @@ class MarkupTest implements Markup {
 			}}</VirtualList></view>, ui.root);
 		ui.update();
 		var list = ui.root.find("list");
+		// (the rows shown: made and in the window; those that left it hidden and kept)
 		function rows():Array<String>
-			return [for (c in list.children) if (c.tag == "row") (cast c.children[0] : TextNode).text];
+			return [for (c in list.children) if (c.tag == "row" && c.style.display != None) (cast c.children[0] : TextNode).text];
 		check("virtual: only the rows in view (and 3 more)", rows().length == 14 && rows()[0] == "item 0" && made == 14, rows().join(","));
 		check("virtual: scrolls the whole list", list.contentHeight == 2000000, '${list.contentHeight}');
 		ui.wheel(list.absX + 5, list.absY + 5, 0, 1000);
@@ -425,13 +428,182 @@ class MarkupTest implements Markup {
 		check("virtual: rows made as it scrolls", r.length == 17 && r.indexOf("item 47") >= 0 && r.indexOf("item 63") >= 0 && r.indexOf("item 0") < 0, r.join(","));
 		var at = [for (c in list.children) if (c.tag == "row") c].filter(c -> (cast c.children[0] : TextNode).text == "item 50")[0];
 		check("virtual: a row at its index's height", at != null && at.y == 1000, at == null ? "none" : '${at.y}');
+		ui.wheel(list.absX + 5, list.absY + 5, 0, -1000);
+		ui.update();
+		check("virtual: rows made before shown again, not made anew", rows()[0] == "item 0" && made == 31, '$made');
 		items([for (i in 0...60) "new " + i]);
 		flush();
+		ui.update();
+		ui.wheel(list.absX + 5, list.absY + 5, 0, 2000);
 		ui.update();
 		r = rows();
 		check("virtual: a shorter list: its rows, the scroll clamped", r.length > 0 && r.indexOf("new 59") >= 0 && list.scrollY == 60 * 20 - 200, r.join(",") + " " + list.scrollY);
 		dispose();
 		check("virtual: disposed", ui.root.find("list") == null);
+		virtualRows();
+		virtualItems();
+	}
+
+	// (a row's height in the million: 20 to 60 pixels)
+	static function rowHeight(id:Int):Int
+		return 20 + ((id * 7) % 5) * 10;
+
+	// a million rows of their own heights: measured as they are shown, the
+	// scroll anchored through the measures, a jump to the end, rows put in
+	// and taken out above the view, the keyboard onto rows not made,
+	// the selection kept, the accessibility tree's places
+	static function virtualRows() {
+		var ui = new Ui(new MonoText(), 300, 340);
+		var items = signal([for (i in 0...1000000) i]);
+		var sel:Signal<Dynamic> = signal((null : Dynamic));
+		var list:Null<VirtualScroll> = null;
+		var dispose = Render.render(<view><VirtualList tag="rows" each={items} estimate={30} height={300} selected={sel} label="Rows"
+			ref={l -> list = l}>{(id:Read<Int>, i:Int) -> <view tag="cell" height={rowHeight(id())}><text>{"row " + id()}</text></view>}</VirtualList></view>, ui.root);
+		ui.update();
+		var l = list;
+		// (the rows shown, in order; each drawn where: its top in the view)
+		function shown():Array<Node>
+			return [for (c in l.children) if (c.tag == "row" && c.style.display != None) c];
+		function idOf(n:Node):Int
+			return Std.parseInt((cast n.children[0].children[0] : TextNode).text.substr(4));
+		function drawnY(n:Node):Float
+			return n.absY - l.scrollY - l.absY;
+		// (no gap: the rows shown in order, each after the last, covering the view)
+		function covers():Bool {
+			var s = shown();
+			if (s.length == 0) return false;
+			for (k in 1...s.length)
+				if (s[k].y != s[k - 1].y + s[k - 1].height || l.rowOf(s[k]).index != l.rowOf(s[k - 1]).index + 1) return false;
+			return drawnY(s[0]) <= 0 && drawnY(s[s.length - 1]) + s[s.length - 1].height >= 300;
+		}
+		var s = shown();
+		check("virtual rows: few made of a million", s.length > 8 && s.length < 30 && l.rows().length <= s.length + 8 && idOf(s[0]) == 0, '${s.length} ${l.rows().length}');
+		check("virtual rows: measured at their heights", [for (n in s) n.height == rowHeight(idOf(n))].indexOf(false) < 0 && l.heights.isMeasured(0)
+			&& l.heights.heightOf(1) == rowHeight(1));
+		check("virtual rows: the view covered", covers());
+		check("virtual rows: the extent all rows' (the estimate's for those not measured)", Math.abs(l.contentHeight - l.heights.total()) < 1,
+			'${l.contentHeight} ${l.heights.total()}');
+		var t = ui.accessTree(), box = null;
+		for (id in t.order)
+			if (t.nodes.get(id).role == ListBox) box = t.nodes.get(id);
+		var opts = box == null ? [] : [for (k in box.children) t.nodes.get(k)];
+		check("virtual rows: a listbox of the rows shown, each its place among a million", box != null && box.name == "Rows" && opts.length == s.length
+			&& opts[0].role == ListBoxOption && opts[0].setSize == 1000000 && opts[3].posInSet == 4 && opts[3].name == "row 3",
+			box == null ? "none" : [for (o in opts) '${o.role.aria()}:${o.posInSet}/${o.setSize}:${o.name}'].join(","));
+		// (the wheel: rows measured as they come, the view covered)
+		for (_ in 0...20) {
+			ui.wheel(l.absX + 5, l.absY + 5, 0, 97);
+			ui.update();
+		}
+		check("virtual rows: scrolled, the view covered", covers() && l.scrollY == 1940, '${l.scrollY}');
+		var top = shown().filter(n -> drawnY(n) <= 0 && drawnY(n) + n.height > 0)[0];
+		check("virtual rows: the row at the top the index's", top != null && idOf(top) == l.heights.rowAt(l.scrollY));
+		// (rows put in above the view: nothing moves)
+		var topId = idOf(top), topY = drawnY(top), before = l.scrollY;
+		var next = items().copy();
+		for (k in 0...5)
+			next.insert(3, 2000000 + k);
+		items(next);
+		flush();
+		ui.update();
+		var again = shown().filter(n -> idOf(n) == topId)[0];
+		check("virtual rows: rows put in above the view: nothing moves", again != null && drawnY(again) == topY && covers() && l.count == 1000005,
+			again == null ? "gone" : '${drawnY(again)} $topY ${l.scrollY} $before');
+		next = items().copy();
+		next.splice(1, 4);
+		items(next);
+		flush();
+		ui.update();
+		again = shown().filter(n -> idOf(n) == topId)[0];
+		check("virtual rows: rows taken out above the view: nothing moves", again != null && drawnY(again) == topY && l.count == 1000001,
+			again == null ? "gone" : '${drawnY(again)} $topY');
+		// (a jump to the last row: made, measured, its end at the view's)
+		l.scrollToIndex(l.count - 1, "end");
+		ui.update();
+		s = shown();
+		var last = s[s.length - 1];
+		check("virtual rows: a jump to the last row, at the view's end", idOf(last) == 999999 && drawnY(last) + last.height == 300 && covers()
+			&& l.rows().length < 90, '${idOf(last)} ${drawnY(last) + last.height} ${l.rows().length}');
+		// (one far in: the estimate made real, the row still at the top)
+		l.scrollToIndex(500000, "start");
+		ui.update();
+		var mid = shown().filter(n -> idOf(n) == 499999)[0];
+		check("virtual rows: a jump to a row: at the view's top once measured", mid != null && drawnY(mid) == 0 && covers(),
+			mid == null ? "none" : '${drawnY(mid)}');
+		// (the keyboard: onto rows not made, the selection following)
+		l.focusIndex(500000);
+		check("virtual rows: focusIndex: the row made and focused", ui.focus != null && l.rowOf(ui.focus).index == 500000);
+		for (_ in 0...12)
+			ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		var f = l.rowOf(ui.focus);
+		check("virtual rows: Down twelve times: the focus there, in view, selected", f != null && f.index == 500012 && sel() == idOf(f.node)
+			&& drawnY(f.node) + f.node.height <= 300 && drawnY(f.node) >= 0 && f.node.semantics.selected == true,
+			f == null ? "none" : '${f.index} ${sel()} ${drawnY(f.node)}');
+		ui.keyDown(Key.PAGE_DOWN, 0);
+		ui.update();
+		f = l.rowOf(ui.focus);
+		check("virtual rows: Page Down: a view further", f != null && f.index > 500017 && f.index < 500030 && covers(), f == null ? "none" : '${f.index}');
+		var chosen:Dynamic = sel();
+		ui.keyDown(Key.END, 0);
+		ui.update();
+		f = l.rowOf(ui.focus);
+		check("virtual rows: End: the last row, made, focused", f != null && f.index == l.count - 1 && sel() == 999999 && covers());
+		ui.keyDown(Key.HOME, 0);
+		ui.update();
+		f = l.rowOf(ui.focus);
+		check("virtual rows: Home: the first", f != null && f.index == 0 && l.scrollY == 0 && covers());
+		// (the selection kept through the rows' recycling)
+		sel(chosen);
+		flush();
+		l.scrollToIndex(l.heights.length - 1);
+		ui.update();
+		l.scrollToIndex(chosen + 1, "center");
+		ui.update();
+		var r = shown().filter(n -> idOf(n) == chosen)[0];
+		check("virtual rows: the selection kept as its row comes back", r != null && r.semantics.selected == true
+			&& shown().filter(n -> n.semantics.selected == true).length == 1);
+		t = ui.accessTree();
+		var o = t.nodes.get(@:privateAccess r.accessId);
+		check("virtual rows: its place and selection to assistive technology", o != null && o.selected == true && o.posInSet == l.rowOf(r).index + 1
+			&& o.setSize == l.count);
+		var kept = l.rows().length;
+		check("virtual rows: the rows made stay few", kept <= l.keep + 40, '$kept');
+		dispose();
+		check("virtual rows: disposed", ui.root.find("rows") == null);
+	}
+
+	// rows keyed by an id: an item changed changes its row alone, rows moved
+	// keep their rows and heights
+	static function virtualItems() {
+		var ui = new Ui(new MonoText(), 300, 300);
+		var items = signal([for (i in 0...1000) {id: i, label: "item " + i}]);
+		var renders = 0;
+		var list:Null<VirtualScroll> = null;
+		function label(r:Read<{id:Int, label:String}>):String {
+			renders++;
+			return r().label;
+		}
+		var dispose = Render.render(<view><VirtualList tag="items" each={items} by={r -> r.id} estimate={20} height={200} ref={l -> list = l}>{(r:Read<{id:Int, label:String}>, i:Int) -> <text>{label(r)}</text>}</VirtualList></view>, ui.root);
+		ui.update();
+		var l = list, made = l.made, before = renders;
+		var next = items().copy();
+		next[2] = {id: 2, label: "changed"};
+		items(next);
+		flush();
+		ui.update();
+		var row = l.rowAt(2);
+		check("virtual items: an item changed: its row alone", l.made == made && renders == before + 1 && row != null
+			&& (cast row.node.children[0] : TextNode).text == "changed", '${l.made} $made $renders $before');
+		var node4 = l.rowAt(4).node;
+		next = items().copy();
+		var moved = next.splice(4, 1)[0];
+		next.insert(1, moved);
+		items(next);
+		flush();
+		ui.update();
+		check("virtual items: a row moved keeps its node", l.rowAt(1) != null && l.rowAt(1).node == node4 && l.made == made);
+		dispose();
 	}
 
 	static function access() {
