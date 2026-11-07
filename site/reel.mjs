@@ -5,8 +5,9 @@
 // <out>/media/<id>.mp4, with a poster (<id>.jpg) from a frame chosen for
 // it. The frames stream into ffmpeg as the run writes them and are deleted
 // as they go, so a minute of 1280×720 needs a few frames' disk, not
-// gigabytes. Not in git: pages.yml runs this before deploying, and the
-// page shows the posters (and no player) where a video is missing.
+// gigabytes (REEL_TMP: where they pass through, bin/reel by default; a
+// tmpfs such as /dev/shm on a full disk). Not in git: pages.yml runs this
+// before deploying, and the page shows a note where a video is missing.
 //
 //   node site/reel.mjs [out] [ids...]      (default bin/site; every clip)
 import { spawn } from 'node:child_process';
@@ -40,7 +41,7 @@ function ffmpeg(args) {
 
 async function record(clip) {
 	const t0 = Date.now();
-	const frames = path.join('bin/reel', clip.id);
+	const frames = path.join(process.env.REEL_TMP ?? 'bin/reel', clip.id);
 	fs.rmSync(frames, { recursive: true, force: true });
 	fs.mkdirSync(frames, { recursive: true });
 	fs.mkdirSync(out, { recursive: true });

@@ -6,12 +6,12 @@ import helder.view.graph.Read;
 
 // Type set at many sizes: Inter's variable weight axis swept on a glyph
 // pair three hundred points tall (helder.text's outlines, its avar and
-// gvar deltas applied), a waterfall of a line from 13 to 72 points coming
+// gvar deltas applied), a waterfall of a line from 13 to 60 points coming
 // in, and a paragraph justified, its figures tabular.
 class Specimen implements Markup {
 	public static final scene:SceneDef = {name: "type", title: "Type at every size", duration: 7.0, view: view};
 
-	static final SIZES = [13, 17, 23, 32, 46, 66];
+	static final SIZES = [13, 17, 23, 32, 44, 60];
 
 	// the swept weight at t (steps of 10: the glyphs kept in the atlas)
 	static function weight(t:Float):Int {
@@ -35,7 +35,7 @@ class Specimen implements Markup {
 				<Repeat count={6}>{i -> <Show when={() -> at(t(), 0.3 + i * 0.22)}>
 					<view direction="row" align-items="baseline" column-gap={16} transition="fade slide-up(18)">
 						<text width={36} font-size={12} color={MUTED} font-variant-numeric="tabular-nums">{SIZES[i] + "pt"}</text>
-						<text grow={1} min-width={0} font-family={SIZES[i] >= 32 ? "Inter Display" : "Inter"} font-size={SIZES[i]} font-weight={SIZES[i] >= 46 ? 700 : 500}
+						<text grow={1} min-width={0} font-family={SIZES[i] >= 32 ? "Inter Display" : "Inter"} font-size={SIZES[i]} font-weight={SIZES[i] >= 44 ? 700 : 500}
 							letter-spacing={SIZES[i] >= 32 ? -SIZES[i] * 0.025 : 0} text-wrap="nowrap" text-overflow="ellipsis">Sphinx of black quartz</text>
 					</view>
 				</Show>}</Repeat>
