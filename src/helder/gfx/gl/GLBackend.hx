@@ -101,6 +101,7 @@ class GLBackend {
 	var framed = false;
 	final images = new Map<Int, {image:Ptr, fd:Int}>();
 	var dmabuf:Null<Bool> = null;
+	var modifiers = false;
 	var pCreateImage = Ptr.nil();
 	var pDestroyImage = Ptr.nil();
 	var pExportQuery = Ptr.nil();
@@ -594,6 +595,7 @@ class GLBackend {
 				ok = !pCreateImage.isNull() && !pDestroyImage.isNull() && !pExportQuery.isNull() && !pExport.isNull() && !pImageTarget.isNull();
 			}
 			dmabuf = ok;
+			modifiers = ext.indexOf("EGL_EXT_image_dma_buf_import_modifiers") >= 0;
 		}
 		return dmabuf ? "dmabuf" : null;
 	}
@@ -646,8 +648,8 @@ class GLBackend {
 			EGL.WIDTH, w, EGL.HEIGHT, h, EGL.LINUX_DRM_FOURCC_EXT, f[2], EGL.DMA_BUF_PLANE0_FD_EXT, fd, EGL.DMA_BUF_PLANE0_OFFSET_EXT, f[4],
 			EGL.DMA_BUF_PLANE0_PITCH_EXT, f[3]
 		];
-		// (DRM_FORMAT_MOD_INVALID, 0x00ffffffffffffff: none said)
-		if (!(f[5] == 0xFFFFFF && f[6] == -1)) attribs = attribs.concat([EGL.DMA_BUF_PLANE0_MODIFIER_LO_EXT, f[6], EGL.DMA_BUF_PLANE0_MODIFIER_HI_EXT, f[5]]);
+		// (DRM_FORMAT_MOD_INVALID, 0x00ffffffffffffff: none said; an EGL without modifiers: the layout implied)
+		if (modifiers && !(f[5] == 0xFFFFFF && f[6] == -1)) attribs = attribs.concat([EGL.DMA_BUF_PLANE0_MODIFIER_LO_EXT, f[6], EGL.DMA_BUF_PLANE0_MODIFIER_HI_EXT, f[5]]);
 		attribs.push(EGL.NONE);
 		var image = Arena.scopedValue(a -> EglImage.create(pCreateImage, display, Ptr.nil(), EGL.LINUX_DMA_BUF_EXT, Ptr.nil(), ints(a, attribs)));
 		// (EGL keeps its own reference to the buffer)

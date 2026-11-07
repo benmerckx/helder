@@ -202,6 +202,26 @@ across a reload). The method exists only in a program with helder.ui:
 `helder.ui.DevTree`, which each `Ui` registers with (in dev builds), the
 last 8 kept; helder.devtools does not depend on ui.
 
+### Host (helder.story's preview host)
+
+The studio's preview host (helder.story.Host, every story of a project in
+one program: natively a process of its own, helder.story.NativeHost; in
+the browser a worker, helder.story.web.Preview) speaks this to helder
+studio, a request about a screen naming it (`screen`); `Ui.getTree` and
+`Ui.nodesAt` with a `screen` are that screen's (helder.story.HostAgent).
+
+| method | params | result |
+| --- | --- | --- |
+| `Host.show` | `{screens, focused, scale}` | `{}`: the screens in view (the others suspended), the one zoomed into and its pixels a point |
+| `Host.release` | `{screen, buffer}` | `{}`: a frame's target the studio no longer shows (natively: drawn into again) |
+| `Host.snap` | `{screen, path}` | `{path, width, height}`: the screen's last frame read back into a file (natively) |
+| `Studio.screens` | `{}` | `{screens: [{name, width, height}]}` |
+
+| notification | from | params |
+| --- | --- | --- |
+| `Host.ready` | host | `{screens, sharing}`: running; how frames come (`iosurface`, `dxgi`, `dmabuf`: shared GPU textures; `copy`: shared memory) |
+| `Host.frame` | host | `{screen, version, width, height, pixelWidth, pixelHeight, buffer, handle}` (natively): a screen's frame, the texture to open (helder.gfx's `Device.openShared`) or `copy:<file>`; in a worker the frame is an ImageBitmap beside the message |
+
 ## The agent
 
 `Agent` (the dispatch, Runtime and Log), `Frames` (the Frame domain) and
