@@ -111,7 +111,9 @@ node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then s
   drawn on the worker's OffscreenCanvas and posted as an ImageBitmap; the
   studio's renderer uploads it (copyExternalImageToTexture) and composites
   it like any image, so the studio owns its pixels
-  (helder.story.web.Preview, `studio.web.WebPreviews`).
+  (helder.story.web.Preview, `studio.web.WebPreviews`). The screen zoomed
+  into draws at the canvas' scale (its pixels a point in halves, up to 3),
+  the others at 1x.
 - **The devtools protocol as the worker's messages**: Ui.getTree and
   Ui.nodesAt name the screen, Hot.literals patches the one program (every
   screen's next frame shows it). An inspector's colour reaches the
@@ -229,8 +231,8 @@ On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
   (helder.compiler.web); a TypeScript project's screens share its modules'
   state in one program (a story that sets a module's signal sets it for
   every screen: ts-todo's stories), so only Haxe examples are bundled; the
-  screens' frames are drawn at 1x and scaled; MCP has no server there
-  (WebMCP is the plan's).
+  screens' input (a click on a screen selects, it is not the app's yet);
+  MCP has no server there (WebMCP is the plan's).
 - Opening apps/studio in itself works crudely: its stories show the shell
   without a project and with examples/todo not started, at the window's
   size, without the camera fitted.

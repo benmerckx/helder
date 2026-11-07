@@ -395,7 +395,7 @@ class Previews {
 	}
 
 	// the screens in view and the one zoomed into (a process a screen: each draws its own, as it always has)
-	public function show(names:Array<String>, focused:Null<String>) {}
+	public function show(names:Array<String>, focused:Null<String>, scale = 1.0) {}
 
 	// a devtools request to a screen's program (false: none connected)
 	public function request(s:Screen, method:String, params:Dynamic, done:Dynamic->Void):Bool {

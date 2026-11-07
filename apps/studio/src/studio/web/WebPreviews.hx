@@ -45,7 +45,7 @@ class WebPreviews {
 	// the screens in view and the one focused, last told
 	var shown = "";
 	// (the last show asked: told again to a host once it is ready, a new build's too)
-	var showWanted:Null<{names:Array<String>, focused:Null<String>}> = null;
+	var showWanted:Null<{names:Array<String>, focused:Null<String>, scale:Float}> = null;
 	final pending = new Map<Int, Dynamic->Void>();
 	var nextId = 1;
 	// the live literals' tables the preview was built with, by the project's path; the patches sent since
@@ -137,7 +137,7 @@ class WebPreviews {
 			case "Host.ready":
 				var list:Array<Dynamic> = m.params.screens;
 				order = [for (x in list) screen(x.name)];
-				if (showWanted != null) send("Host.show", {screens: showWanted.names, focused: showWanted.focused}, null);
+				if (showWanted != null) send("Host.show", {screens: showWanted.names, focused: showWanted.focused, scale: showWanted.scale}, null);
 			case "Hot.patched":
 				for (s in screens)
 					s.patchedMs = m.params.ms;
@@ -167,13 +167,15 @@ class WebPreviews {
 		if (onFrame != null) onFrame(s);
 	}
 
-	// the screens in view (the others suspended in the host, their last frames kept) and the one zoomed into
-	public function show(names:Array<String>, focused:Null<String>) {
-		var key = names.join("\n") + "\t" + (focused ?? "");
+	// the screens in view (the others suspended in the host, their last
+	// frames kept) and the one zoomed into, drawn at scale pixels a point
+	// (the canvas' zoom: its frames as sharp as the studio shows them)
+	public function show(names:Array<String>, focused:Null<String>, scale = 1.0) {
+		var key = names.join("\n") + "\t" + (focused ?? "") + "\t" + scale;
 		if (key == shown) return;
 		shown = key;
-		showWanted = {names: names, focused: focused};
-		if (order.length > 0) send("Host.show", {screens: names, focused: focused}, null);
+		showWanted = {names: names, focused: focused, scale: scale};
+		if (order.length > 0) send("Host.show", {screens: names, focused: focused, scale: scale}, null);
 	}
 
 	function send(method:String, params:Dynamic, done:Null<Dynamic->Void>) {

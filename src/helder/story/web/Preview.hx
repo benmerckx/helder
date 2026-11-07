@@ -17,7 +17,7 @@ import hxmc.unsafe.*;
 // worker's messages (src/helder/devtools/README.md, JSON-RPC lines), each
 // request about a screen naming it (params.screen):
 //
-//   Host.show {screens, focused}     the screens in view, the one zoomed into (drawn every frame)
+//   Host.show {screens, focused, scale}  the screens in view, the one zoomed into (drawn every frame, at scale pixels a point)
 //   Studio.screens {}                {screens: [{name, width, height}]}
 //   Ui.getTree {screen}              that screen's tree ({uis: [{root}]}, as a program's)
 //   Ui.nodesAt {screen, file, line, col}
@@ -75,7 +75,7 @@ class Preview {
 			case "Host.show":
 				var names:Array<String> = p.screens == null ? [] : [for (x in (p.screens : Array<Dynamic>)) Std.string(x)];
 				host.show(names);
-				host.focus(p.focused);
+				host.focus(p.focused, p.scale == null ? null : (p.scale : Float));
 				answer({});
 			case "Studio.screens":
 				answer({screens: list()});

@@ -187,8 +187,15 @@ class Studio {
 				var x0 = camera.sx(r.x), y0 = camera.sy(r.y), x1 = camera.sx(r.x + r.w), y1 = camera.sy(r.y + r.h);
 				if (x1 > 0 && y1 > 0 && x0 < stageWidth && y0 < stageHeight) names.push(r.name);
 			}
-		pr.show(names, mode.peek() == "stories" ? null : focused.peek());
+		// (the zoomed screen's pixels a point: the canvas' scale on the display, in halves, from 1 to 3; kept while the camera flies)
+		if (!camera.flying) {
+			var px = camera.k * (Main.window == null ? 1.0 : Main.window.renderer.scale);
+			focusScale = Math.max(1, Math.min(3, Math.ceil(px * 2 - 0.05) / 2));
+		}
+		pr.show(names, mode.peek() == "stories" ? null : focused.peek(), focused.peek() == null ? 1 : focusScale);
 	}
+
+	var focusScale = 1.0;
 
 	// ---- the canvas: focus and views
 

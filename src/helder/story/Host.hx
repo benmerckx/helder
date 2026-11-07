@@ -78,10 +78,20 @@ class Host {
 		}
 	}
 
-	// the screen drawn every frame (null: none; every one shown draws on change)
-	public function focus(name:Null<String>) {
-		focused = name == null ? null : screen(name);
-		if (focused != null) focused.redraw = true;
+	// the screen drawn every frame (null: none; every one shown draws on
+	// change), at its own pixels per point (the studio's zoom into it: its
+	// frames sharp at the canvas' scale; the others at the host's)
+	public function focus(name:Null<String>, ?scale:Float) {
+		var next = name == null ? null : screen(name);
+		if (focused != null && focused != next && focused.scale != this.scale) {
+			focused.scale = this.scale;
+			focused.redraw = true;
+		}
+		focused = next;
+		if (focused == null) return;
+		var k = scale ?? this.scale;
+		if (k != focused.scale) focused.scale = k;
+		focused.redraw = true;
 	}
 
 	// one turn at now (seconds): each screen shown built the first time,
@@ -124,6 +134,7 @@ class Host {
 	// a screen's frame: the target at its size, its tree painted, handed over
 	// (changed: something in it changed since its last frame; else the focused one's frame of every turn)
 	function draw(s:HostScreen, changed:Bool) {
+		var scale = s.scale;
 		var w = Math.round(s.width * scale), h = Math.round(s.height * scale);
 		runtime.size(w, h);
 		var enc = device.beginFrame();
@@ -167,6 +178,8 @@ class HostScreen {
 	public var ui(default, null):Null<Ui> = null;
 	public var controls(default, null):Null<Controls> = null;
 	public var visible = false;
+	// its frames' pixels per point (the host's, or its focus's)
+	public var scale:Float;
 	// frames drawn
 	@:allow(helder.story.Host) public var version(default, null) = 0;
 	// (shown again, focused: a frame due whatever changed)
@@ -181,6 +194,7 @@ class HostScreen {
 		width = story.width ?? Stories.WIDTH;
 		height = story.height ?? Stories.HEIGHT;
 		context = new ScreenContext(name);
+		scale = host.scale;
 	}
 
 	// built: its Ui made in its context, its story's view rendered into the root

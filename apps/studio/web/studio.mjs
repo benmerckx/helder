@@ -217,7 +217,7 @@ function startPreview(host) {
 				const h = host.handles.add({ file: null, premultiply: true, state: 1, width: m.bitmap.width, height: m.bitmap.height, bitmap: m.bitmap, decoding: null });
 				state.frames++;
 				state.framesByScreen[m.screen] = (state.framesByScreen[m.screen] ?? 0) + 1;
-				preview.events.push([2, m.screen, h, m.width, m.height, m.version]);
+				preview.events.push([2, m.screen, h, m.bitmap.width, m.bitmap.height, m.version]);
 				break;
 			}
 			case 'line':
