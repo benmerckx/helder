@@ -1,0 +1,19 @@
+{
+  "events": [
+    {"t": 0.8, "type": "tap", "tag": "night"},
+    {"t": 2.4, "type": "tap", "tag": "shuffle"},
+    {"t": 3.6, "type": "mark", "name": "shuffled"},
+    {"t": 3.8, "type": "tap", "tag": "rtl"},
+    {"t": 5.0, "type": "mark", "name": "rtl"},
+    {"t": 5.2, "type": "tap", "tag": "rtl"},
+    {"t": 6.2, "type": "tap", "tag": "freeze"},
+    {"t": 8.0, "type": "mark", "name": "frozen"},
+    {"t": 8.2, "type": "tap", "tag": "shuffle"},
+    {"t": 10.4, "type": "tap", "tag": "freeze"},
+    {"t": 11.4, "type": "tap", "tag": "gravity"},
+    {"t": 13.0, "type": "mark", "name": "fallen"},
+    {"t": 13.2, "type": "tap", "tag": "gravity"},
+    {"t": 14.4, "type": "tap", "tag": "night"},
+    {"t": 16.0, "type": "mark", "name": "end"}
+  ]
+}
