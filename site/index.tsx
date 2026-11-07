@@ -77,7 +77,22 @@ interface Example {
 	dataBytes: number;
 }
 
+// a video site/reel.mjs records (media/<id>.mp4 and its poster): the showreel, then a clip of each showcase demo
+interface Clip {
+	id: string;
+	// the example it shows (its card's id)
+	example: string;
+	title: string;
+	summary: string;
+	video: string;
+	poster: string;
+	seconds: number;
+}
+
 const examples = site.examples as Example[];
+const clips = site.clips as Clip[];
+const reel = clips.filter(c => c.id === "showreel");
+const demoClips = clips.filter(c => c.id !== "showreel");
 const playable = examples.filter(e => e.demo !== null).length;
 // the demos with a page of their own (page.json), linked from the top of the index
 // (the most striking first; any other after them, in the index's order)
@@ -155,6 +170,18 @@ code { font-size: 0.92em; }
 .showcase span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted);
 	font-size: 0.88rem; line-height: 1.35; }
 main.page { display: block; max-width: 1000px; }
+.reel { max-width: 1240px; margin: 0 auto; padding: 18px 16px 0; }
+.reel h2, .demos h2 { font-size: 1rem; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+.video { position: relative; background: #07080d; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 16 / 9; }
+.video video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.video.missing::after { content: "This build has no recording (node site/reel.mjs makes them)"; position: absolute; left: 12px; bottom: 10px; color: #c9cede;
+	font-size: 0.85rem; background: #000a; padding: 4px 10px; border-radius: 999px; }
+.reel p { margin: 10px 0 0; color: var(--muted); max-width: 80ch; }
+.demos { max-width: 1240px; margin: 0 auto; padding: 22px 16px 0; }
+.demos ul { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0; padding: 0; list-style: none; }
+@media (min-width: 760px) { .demos ul { grid-template-columns: repeat(3, 1fr); } }
+.demos h3 { font-size: 1.05rem; margin: 10px 0 2px; }
+.demos p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.4; }
 .page h2 { margin-top: 22px; }
 .muted { color: var(--muted); font-size: 0.92rem; }
 .numbers { width: 100%; border-collapse: collapse; font-size: 0.92rem; display: block; overflow-x: auto; }
@@ -303,11 +330,26 @@ Static.write(site.out, Static.document(<html lang="en">
 				<ul>{showcase.map(ex => <li><a href={ex.id + ".html"}><strong>{ex.title}</strong><span>{ex.summary}</span></a></li>)}</ul>
 			</nav>
 		</header>
+		{reel.map(c => <section class="reel" aria-label="Showreel">
+			<h2>Showreel</h2>
+			<div class="video"><video data-clip={c.id} src={c.video} poster={c.poster} controls muted loop playsinline preload="none"
+				aria-label={c.title}></video></div>
+			<p>{c.summary + ". Recorded headless, frame-exact, from "}<a href={"#" + c.example}>its example</a>{", which also runs here."}</p>
+		</section>)}
+		<section class="demos" aria-label="Demos">
+			<h2>Demos</h2>
+			<ul>{demoClips.map(c => <li>
+				<div class="video"><video data-clip={c.id} src={c.video} poster={c.poster} controls muted loop playsinline preload="none" aria-label={c.title}></video></div>
+				<h3><a href={"#" + c.example}>{c.title}</a></h3>
+				<p>{c.summary}</p>
+			</li>)}</ul>
+		</section>
 		<main>
 			{examples.map(ex => <Card ex={ex} />)}
 		</main>
 		<footer>
-			<p>This page is <code>site/index.tsx</code>: TSX through helder's TypeScript frontend, rendered to HTML by helder.web's static renderer.</p>
+			<p>This page is <code>site/index.tsx</code>: TSX through helder's TypeScript frontend, rendered to HTML by helder.web's static renderer.
+				Its videos are <code>site/reel.mjs</code>'s: each demo run by <code>helder run --headless</code> on its virtual clock, every frame streamed to ffmpeg.</p>
 		</footer>
 	</body>
 </html>));

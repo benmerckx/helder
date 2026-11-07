@@ -83,6 +83,7 @@ class Run {
 		{name: "syntax", about: "helder.syntax, the syntax trees the studio edits (src/helder/syntax; its edits' tests are the test lane's, Syntax.test.hx): every .ts and .tsx file, and every .hx file with markup, of the repository read and printed back byte for byte, read structurally, each Haxe markup literal read as the macro's parser reads it (tests/syntax/Check.hx, on Eval and natively: the read of the largest file timed)", run: syntaxLane},
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
 		{name: "studio", about: "helder studio (apps/studio; Linux: Mesa's llvmpipe, no display) run headless on copies of examples/todo and examples/ts-todo by tests/studio/edit.json: every screen shown (each story a dev build in a process of its own), one zoomed into, its title clicked and selected, its colour changed in the inspector (the value's span alone, a live literal patched, the program's frame showing it within 3 frames), a padding added and undone (built twice), tag=\"title\" typed into the code view (built, the node tagged), the prompt bar's /tree; the files at the end and every edit's span checked, the overview, zoomed and selected frames against tests/studio's goldens, the times printed (tests/studio/Check.hx); `helder studio --help`", run: studioLane},
+		{name: "demos", about: "the showcase demos run headless (Linux: Mesa's llvmpipe, no display) at half scale: examples/showreel's scenes each by --scene, examples/fx's gallery, its --tour with an effect open and its reduced-motion stills, examples/literal's and examples/notes' demo scripts (their pointer and keys); each one's stills at a few times against tests/demos's goldens, within a tolerance (tests/demos/Check.hx)", run: demosLane},
 		{name: "motion-bench", about: "helder.ui.motion's budget measured (Linux: Mesa's llvmpipe, no display): tests/bench/MotionStress.hx, 1,000 boxes under motion retargeted every 0.25 s, run headless with --stats, against the same boxes drawn each frame without motion: ms a frame (median, p95) between retargets and at them, GC bytes a frame (checked: as many moving as still, no allocation in the steady state): bin/motion-bench/results.md", run: motionBench},
 		{name: "code-bench", about: "helder.ui.code's budgets measured, not checked (Linux: Mesa's llvmpipe, no display): examples/code-editor on a 10,000-line TSX file run headless with --stats (tests/bench/code.mjs: keystrokes, the wheel down and back up, idle frames: ms against the 8 ms budget, GC bytes a frame), and the editor's own work without the renderer (tests/bench/CodeBench.hx, natively)", run: codeBench},
 		{name: "million-bench", about: "helder.ui's VirtualList measured, not checked (Linux: Mesa's llvmpipe, no display): examples/million (a million rows of their own heights) run headless with --stats on a script of the wheel over new rows and over rows made before, jumps to the end and back, rows put in above the view and the keyboard (tests/bench/million.mjs: each phase's ms and GC bytes a frame against the 8 ms budget), then tests/bench/MillionBench.hx: the list's own work a frame natively without the renderer, and what it holds (tests/bench/results/million.md)", run: millionBench},
@@ -1071,6 +1072,40 @@ class Run {
 			]);
 		}
 		exe('$b/Check', cps(["src", "tests/studio"]).concat(["-main", "Check"]));
+		run(exePath('$b/Check', HOST), [b].concat(BLESS ? ["--bless"] : []));
+	}
+
+	// the demos' stills: [name, entry, script or "", the program's arguments, times (seconds or mark:<name>)]
+	static final DEMO_SHOTS:Array<{name:String, entry:String, script:String, flags:Array<String>, args:Array<String>, at:Array<String>}> = [
+		{name: "showreel-title", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "title"], at: ["3.4"]},
+		{name: "showreel-launch", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "launch"], at: ["1.0", "7.0"]},
+		{name: "showreel-zoom", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "zoom"], at: ["2.4"]},
+		{name: "showreel-odometer", entry: "examples/showreel", script: "", flags: ["--reduced-motion"], args: ["--scene", "odometer"], at: ["0.5"]},
+		{name: "showreel-million", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "million"], at: ["2.2"]},
+		{name: "showreel-type", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "type"], at: ["3.0"]},
+		{name: "showreel-material", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "material"], at: ["4.0"]},
+		{name: "showreel-canvas", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "canvas"], at: ["3.0"]},
+		{name: "showreel-theme", entry: "examples/showreel", script: "", flags: [], args: ["--scene", "theme"], at: ["3.6"]},
+		{name: "fx", entry: "examples/fx", script: "", flags: [], args: [], at: ["1.0"]},
+		{name: "fx-tour", entry: "examples/fx", script: "", flags: [], args: ["--tour"], at: ["9.6"]},
+		{name: "fx-reduced", entry: "examples/fx", script: "", flags: ["--reduced-motion"], args: [], at: ["0.5"]},
+		{name: "literal", entry: "examples/literal", script: "examples/literal/demo.json", flags: ["--pointer"], args: [], at: ["mark:frozen", "mark:fallen"]},
+		{name: "notes", entry: "examples/notes", script: "examples/notes/demo.json", flags: ["--pointer", "--keys"], args: [], at: ["mark:launcher", "mark:end"]}
+	];
+
+	// each demo run headless (it runs: its exit status), its stills against the goldens
+	static function demosLane() {
+		var h = helderCli(), b = "bin/demos";
+		rmrf(b);
+		mkdirs(b);
+		for (d in DEMO_SHOTS) {
+			var args = ["run", "--headless", d.entry, "--scale", "0.5"].concat(d.flags);
+			if (d.script != "") args = args.concat(["--script", d.script]);
+			for (t in d.at)
+				args = args.concat(["--snap", '$b/${d.name}-${t.replace("mark:", "")}.png', "--at", t]);
+			run(h, d.args.length > 0 ? args.concat(["--"]).concat(d.args) : args);
+		}
+		exe('$b/Check', cps(["src", "tests/demos"]).concat(["-main", "Check"]));
 		run(exePath('$b/Check', HOST), [b].concat(BLESS ? ["--bless"] : []));
 	}
 

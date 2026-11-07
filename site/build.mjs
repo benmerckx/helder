@@ -20,6 +20,10 @@
 //    slots: site/numbers.mjs measures them into <out>/numbers.json, which
 //    the page reads; real devices', three.js' for the same scene, credits).
 //
+// 5. the videos are not built here: site/reel.mjs records them into
+// <out>/media afterwards (pages.yml runs both); the page links them, and
+// stage.js shows a note where one is missing.
+//
 // `// data: <folder>`: files the example fetches at run time, not bundled
 // (tens of MB of models): its fetch.mjs run first (downloading them into
 // examples/<dir>/<folder>), the folder copied beside its module and its
@@ -30,6 +34,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { CLIPS } from './reel.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(root);
@@ -207,7 +212,13 @@ for (const e of all) {
 fs.copyFileSync('src/helder/web/loader.js', `${out}/loader.js`);
 fs.copyFileSync('site/stage.js', `${out}/stage.js`);
 fs.copyFileSync('site/numbers.js', `${out}/numbers.js`);
-fs.writeFileSync(`${work}/examples.json`, JSON.stringify({ out: `${out}/index.html`, dir: out, repository: REPO, examples: site }, null, '\t') + '\n');
+// the videos site/reel.mjs records into <out>/media after this (the showreel first): each clip's example
+const clips = CLIPS.map((c) => {
+	const e = site.find((x) => x.source.endsWith('/' + c.entry));
+	return { id: c.id, example: e ? e.id : '', title: e ? e.title : c.id, summary: e ? e.summary : '', video: `media/${c.id}.mp4`, poster: `media/${c.id}.jpg`,
+		seconds: c.seconds };
+});
+fs.writeFileSync(`${work}/examples.json`, JSON.stringify({ out: `${out}/index.html`, dir: out, repository: REPO, examples: site, clips }, null, '\t') + '\n');
 
 // the page: index.tsx built natively, then run
 const page = await run([...cli, 'build', 'site/index.tsx', '-o', `${work}/page`], `${work}/page.log`);

@@ -80,3 +80,11 @@
 	for (const s of document.querySelectorAll('.stage[data-one-pixel] hxmc-island')) options[s.id] = { ...options[s.id], antialias: false, maxPixelRatio: 1 };
 	globalThis.hxmcStage = { enter, leave };
 })();
+
+// (the recorded videos, site/reel.mjs's: where a build has none, its poster and player give way to a note)
+(() => {
+	for (const v of document.querySelectorAll('video[data-clip]'))
+		fetch(v.getAttribute('src'), { method: 'HEAD' }).then((r) => {
+			if (!r.ok) v.parentElement.classList.add('missing');
+		}, () => v.parentElement.classList.add('missing'));
+})();

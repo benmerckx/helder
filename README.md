@@ -1188,14 +1188,29 @@ fix.
     above it, the keyboard onto rows not made, each row's place among all
     to assistive technology; a scroll frame 0.04-0.1 ms, a jump to the
     end 0.5 ms. Next: sticky headers across rows, horizontal lists.
-  - **Demos that show off**: purpose-made showcase scenes, each animating
-    itself from the virtual clock so a headless `--video` records it frame
-    exact (a showreel for the site); an effects gallery (liquid metal, glass,
-    glow, fire, mesh gradients, grain) on canvas and gfx shaders as
-    definitions; playful demos where the UI does what it says (a firewall
-    switch that builds a wall of fire); and one real app recreated whole
-    (a settings window, a notes app with a launcher) instead of widget
-    lists. The site's demos page leads with these.
+  - **Demos that show off** (*landed*: examples/showreel, fx, literal and
+    notes; site/reel.mjs; the demos lane): a showreel of nine
+    purpose-made 1280×720 scenes (a launch dashboard assembling on
+    springs, a matched-element photo zoom, rolling odometer numbers, a
+    million rows flung end to end, Inter's variable weight and a waterfall
+    of sizes, a torus knot whose emissive slot runs light along it under
+    HDR bloom, a generative canvas of 1,400 threads, a theme where colours,
+    radii and spacing morph), each a function of its own time on ui's
+    Clock, so a headless `--video` records it frame-exact (`-- --scene
+    <name>` plays one); an effects gallery, eight shader definitions with
+    four knobs and two colours each (liquid metal, glass and frost, glow,
+    fire, a mesh gradient, grain, Bayer dither, electric arcs) and a neon
+    sign on helder.canvas's filters, opened by a matched zoom, tuned by
+    sliders or the keyboard, still under reduced motion; a playful one
+    where the UI does what it says (Gravity piles the rows on the floor,
+    Night shift sets the sun, Freeze frosts the glass and slows every
+    spring); and a notes app recreated whole (folders, a list moving as
+    notes are pinned, added and deleted, a command launcher on Ctrl/Cmd+K,
+    the keyboard throughout). The site leads with the showreel and the
+    demos' clips, recorded by site/reel.mjs in the pages workflow (the
+    frames streamed into ffmpeg as the run writes them; the videos are not
+    in git); the demos lane checks their stills against goldens. Not yet:
+    the effects as a library of their own, sound for the reel.
 - **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**
   (*phase 1 landed*, src/helder/canvas/README.md: the core API and its CPU
   back end, analytic coverage into premultiplied RGBA8, typed so `-dce

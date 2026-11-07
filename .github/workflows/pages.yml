@@ -1,6 +1,9 @@
 # The examples' page (site/, bun run site) on GitHub Pages: on pushes to
 # main, bin/site built (each example that runs in a browser built for the
-# web, golf's APK for Android, the page's TSX built and run), checked in headless Chromium (bun run
+# web, golf's APK for Android, the page's TSX built and run), the showreel
+# and the demos' clips recorded headless into bin/site/media (bun run
+# site:reel: helder run --headless's frames streamed to ffmpeg; the videos
+# are not in git), checked in headless Chromium (bun run
 # site:check: every card, every demo played), the demos' numbers measured
 # (bun run site:numbers), then deployed as the Pages
 # artifact (the repository's Pages source: GitHub Actions).
@@ -45,6 +48,12 @@ jobs:
           SITE_APK: 1
           HELDER_ANDROID_KEY: ${{ secrets.HELDER_ANDROID_KEY }}
         run: bun run site
+      - name: "Videos (the showreel and the demos' clips: headless, frame-exact, into bin/site/media)"
+        # (not required: the page shows a note where a video is missing)
+        continue-on-error: true
+        run: |
+          sudo apt-get install -qqy --no-install-recommends ffmpeg libegl1 libegl-mesa0 libgl1-mesa-dri
+          bun run site:reel
       - name: Check (the page in Chromium)
         # (not required: the page is deployed without it)
         continue-on-error: true
