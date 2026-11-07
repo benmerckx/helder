@@ -693,13 +693,19 @@ WebShell.run({content: content, src: "index.html"}, (shell, e) -> if (e.kind == 
 - **Its own origin**: a `WebContent` serves the bundle's files
   (`bundle(prefix)`: helder.asset's keys, which the program names), a
   directory's (`directory(dir)`) or a function's (`handler(path ->
-  WebResponse)`), through the platform's scheme handler: WKURLSchemeHandler
-  for `app://localhost/` on Apple's systems, `shouldInterceptRequest` for
-  `https://appassets.androidplatform.net/` on Android (as
-  WebViewAssetLoader), so the page is a secure context. Every response has
+  WebResponse)`). On iOS and macOS by a server of the app's own on the
+  loopback address (`WebServer`: `http://127.0.0.1:<port>/`, a potentially
+  trustworthy origin; WebKit isolates HTTP origins only, never a custom
+  scheme's page, as CI's simulator shows), or with `local = false` by
+  WKURLSchemeHandler for `app://localhost/`; on Android by
+  `shouldInterceptRequest` for `https://appassets.androidplatform.net/` (as
+  WebViewAssetLoader). The page is a secure context. Every response has
   COOP `same-origin`, COEP `require-corp` and CORP `same-origin` (its
-  `headers`: cross-origin isolation, SharedArrayBuffer and wasm threads),
-  and a MIME type by extension (`.wasm`: `application/wasm`). `src` may be
+  `headers`), and a MIME type by extension (`.wasm`: `application/wasm`):
+  `crossOriginIsolated`, SharedArrayBuffer and wasm threads on Apple's;
+  Android's WebView (Chrome 113 on CI's emulator) isolates no page, the
+  headers notwithstanding. The loopback server answers any process of the
+  machine: what it serves is the app's public files. `src` may be
   a path of it.
 - **The bridge** (`WebBridge`): the page has `window.helder` before its own
   scripts (Apple: a WKUserScript at the document's start; Android: put in

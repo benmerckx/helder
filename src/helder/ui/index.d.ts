@@ -229,9 +229,10 @@ export declare class WebViewEvent {
 // wasm threads), never cached, and a .wasm is application/wasm (what
 // WebAssembly.instantiateStreaming asks for).
 //
-// The origin is the platform's: on iOS and macOS a custom scheme
-// (WKURLSchemeHandler: `app://localhost/`, the scheme WebContent.scheme),
-// on Android https on a host of its own (shouldInterceptRequest, as
+// The origin is the platform's: on iOS and macOS http://127.0.0.1:<port>,
+// a loopback server of the app's own (WebServer: WebKit isolates HTTP
+// origins only), or, with local false, a custom scheme (WKURLSchemeHandler:
+// `app://localhost/`, the scheme WebContent.scheme); on Android https on a host of its own (shouldInterceptRequest, as
 // WebViewAssetLoader does: `https://appassets.androidplatform.net/`), so
 // the page is a secure context everywhere. `url(path)` is a path's URL
 // there; a web view's src may be a path, resolved against it.
@@ -243,6 +244,8 @@ export declare class WebContent {
 	constructor(serve: (arg0: string) => WebResponse | null);
 	// the bundle's files under prefix (helder.asset's keys: each must be
 	// named by the program, Asset.bytes(prefix + path), to be bundled)
+	// (none in a browser: a page has no web view of its own here, and its
+	// program does not take helder.asset's fetches for it)
 	static bundle(prefix?: string): WebContent;
 	// the files of a directory on disk
 	static directory(dir: string): WebContent;
@@ -256,6 +259,12 @@ export declare class WebContent {
 	readonly headers: unknown;
 	// the path a directory's request gets (a path ending in /)
 	index: string;
+	// served over HTTP on the loopback address instead of a scheme
+	// (WebServer: http://127.0.0.1:<port>), set before its first use: by
+	// default on Apple's systems, whose WebKit isolates (crossOriginIsolated,
+	// SharedArrayBuffer) an HTTP origin, never a custom scheme's; Android's
+	// scheme (https, intercepted) puts the bridge in its pages first
+	local: boolean;
 	// the origin, without a slash at the end
 	origin(): string;
 	// a path's URL at the origin

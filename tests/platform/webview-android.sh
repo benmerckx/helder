@@ -57,6 +57,11 @@ run() {
 			adb exec-out screencap -p > "$out/$name.png"
 			shot=1
 		fi
+		if [ $shot = 1 ] && seen "the helder web build ran"; then
+			sleep 1
+			adb exec-out screencap -p > "$out/$name-todo.png"
+			shot=2
+		fi
 		sleep 1
 		i=$((i + 1))
 	done

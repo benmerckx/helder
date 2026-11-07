@@ -11,9 +11,10 @@ import haxe.io.Bytes;
 // wasm threads), never cached, and a .wasm is application/wasm (what
 // WebAssembly.instantiateStreaming asks for).
 //
-// The origin is the platform's: on iOS and macOS a custom scheme
-// (WKURLSchemeHandler: `app://localhost/`, the scheme WebContent.scheme),
-// on Android https on a host of its own (shouldInterceptRequest, as
+// The origin is the platform's: on iOS and macOS http://127.0.0.1:<port>,
+// a loopback server of the app's own (WebServer: WebKit isolates HTTP
+// origins only), or, with local false, a custom scheme (WKURLSchemeHandler:
+// `app://localhost/`, the scheme WebContent.scheme); on Android https on a host of its own (shouldInterceptRequest, as
 // WebViewAssetLoader does: `https://appassets.androidplatform.net/`), so
 // the page is a secure context everywhere. `url(path)` is a path's URL
 // there; a web view's src may be a path, resolved against it.
@@ -36,8 +37,11 @@ class WebContent {
 	// the path a directory's request gets (a path ending in /)
 	public var index = "index.html";
 	// served over HTTP on the loopback address instead of a scheme
-	// (WebServer: http://127.0.0.1:<port>), set before its first use
-	public var local = false;
+	// (WebServer: http://127.0.0.1:<port>), set before its first use: by
+	// default on Apple's systems, whose WebKit isolates (crossOriginIsolated,
+	// SharedArrayBuffer) an HTTP origin, never a custom scheme's; Android's
+	// scheme (https, intercepted) puts the bridge in its pages first
+	public var local = #if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64" || hxmc.target == "macos-arm64" || hxmc.target == "macos-x86_64") true #else false #end;
 	var server:Null<WebServer> = null;
 
 	final serve:String->Null<WebResponse>;

@@ -80,8 +80,9 @@ class WebViewCheck implements Markup {
 			}
 			return @:privateAccess bundled.serve("webview/" + path);
 		});
-		// (HELDER_WEBVIEW_LOCAL=1: over HTTP on the loopback address, WebServer, not a scheme)
-		content.local = Sys.getEnv("HELDER_WEBVIEW_LOCAL") == "1";
+		// (HELDER_WEBVIEW_LOCAL: 1 over HTTP on the loopback address, WebServer; 0 the scheme; else the platform's default)
+		var local = Sys.getEnv("HELDER_WEBVIEW_LOCAL");
+		if (local == "1" || local == "0") content.local = local == "1";
 		Sys.println("webview: content at " + content.origin());
 	}
 
@@ -136,9 +137,12 @@ class WebViewCheck implements Markup {
 				// headers it is sent notwithstanding; reported, not checked)
 				Sys.println('webview: android: crossOriginIsolated ${r.isolated}, SharedArrayBuffer ${r.sab}, a shared memory ${r.shared} (not cross-origin isolated in Android\'s WebView)');
 				#else
-				check("crossOriginIsolated === true (COOP, COEP from the scheme handler)", r.isolated == true);
+				// (WebKit isolates an HTTP origin only: a custom scheme's page is not, its headers notwithstanding)
+				if (!content.local) Sys.println('webview: the scheme: crossOriginIsolated ${r.isolated}, SharedArrayBuffer ${r.sab} (WebKit isolates HTTP origins only)') else {
+				check("crossOriginIsolated === true (COOP, COEP from its WebContent)", r.isolated == true);
 				check("SharedArrayBuffer there", r.sab == true);
 				check("a shared wasm memory", r.shared == true);
+				}
 				#end
 				Sys.println("webview: user agent: " + r.ua);
 				step = 1;
@@ -160,37 +164,60 @@ class WebViewCheck implements Markup {
 						}
 				check("bytes there and back (an ArrayBuffer to the page, base64 from it)", ok, e.bytes == null ? "none" : '${e.bytes.length}');
 				step = 3;
-				snapshot(shot -> {
-					var distinct = new Map<Int, Bool>(), n = 0;
-					if (shot != null) {
-						var i = 0;
-						while (i < shot.pixels.length && n < 8) {
-							var c = shot.pixels.getInt32(i);
-							if (!distinct.exists(c)) {
-								distinct.set(c, true);
-								n++;
-							}
-							i += 4 * 97;
-						}
-					}
-					check("a snapshot of the page", shot != null && shot.width > 0 && n >= 2, shot == null ? "none" : '${shot.width}x${shot.height}, $n colours');
-					step = 4;
-					if (webDir == null) {
-						Sys.println("webview: no helder web build to load: skipped");
-						end();
-					} else {
-						step = 5;
-						load(content.url("todo/Todo.html"));
-					}
-				});
+				shoot(0);
+			case 3:
+				if (e.text == "again") shoot(shots);
+			case 4:
+				// (a pause for the screenshot, then the web build)
+				if (e.text != "continue") return;
+				if (webDir == null) {
+					Sys.println("webview: no helder web build to load: skipped");
+					end();
+				} else {
+					step = 5;
+					load(content.url("todo/Todo.html"));
+				}
 			case 5:
 				var r:Dynamic = e.json();
 				if (r.kind != "web") return;
 				check("the helder web build ran in the web view (its canvas " + r.canvas + ", its module's host)", r.running == true, haxe.Json.stringify(r.log));
-				end();
+				step = 6;
+				later("end", 3000);
+			case 6:
+				if (e.text == "end") end();
 			case _:
 		}
 	}
+
+	static var shots = 0;
+
+	// a still of the page: distinct colours in it (tried again a second later, three times at most)
+	static function shoot(n:Int) {
+		shots = n + 1;
+		snapshot(shot -> {
+			var distinct = [];
+			if (shot != null) {
+				var i = 0;
+				while (i < shot.pixels.length && distinct.length < 8) {
+					var c = shot.pixels.getInt32(i);
+					if (distinct.indexOf(c) < 0) distinct.push(c);
+					i += 4 * 97;
+				}
+			}
+			if (distinct.length < 2 && shots < 3) {
+				later("again", 1000);
+				return;
+			}
+			check("a snapshot of the page", shot != null && shot.width > 0 && distinct.length >= 2,
+				shot == null ? "none" : '${shot.width}x${shot.height}, ${distinct.length} colours: ' + [for (c in distinct) StringTools.hex(c, 8)].join(" "));
+			step = 4;
+			later("continue", 3000);
+		});
+	}
+
+	// the page posts text after ms (the shell's loop has no timers of its own)
+	static function later(text:String, ms:Int)
+		evalJs('setTimeout(function(){helder.post("' + text + '");},' + ms + ');');
 
 	// (the web build: its canvas laid out, its module's host made and nothing uncaught,
 	// page.html's window.hxmcDev; polled in the page, for 60 s at most)

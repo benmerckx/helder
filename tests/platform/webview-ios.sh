@@ -50,7 +50,7 @@ xcrun simctl bootstatus "$udid" -b > /dev/null 2>&1
 run() {
 	name=$1
 	id=org.helder.$name
-	base=$name${2:+-local}
+	base=$name${2:+-scheme}
 	xcrun simctl install "$udid" "$out/$name.app"
 	check "simctl install $name.app" $?
 	: > "$out/$base.txt"
@@ -60,8 +60,14 @@ run() {
 	shot=0
 	while [ $i -lt 150 ] && ! grep -q "webview: [a-z]*: [0-9]* checks" "$out/$base.txt"; do
 		if [ $shot = 0 ] && grep -q "a snapshot of the page" "$out/$base.txt"; then
+			sleep 1
 			xcrun simctl io "$udid" screenshot "$out/$base.png" > /dev/null 2>&1
 			shot=1
+		fi
+		if [ $shot = 1 ] && grep -q "the helder web build ran" "$out/$base.txt"; then
+			sleep 1
+			xcrun simctl io "$udid" screenshot "$out/$base-todo.png" > /dev/null 2>&1
+			shot=2
 		fi
 		sleep 1
 		i=$((i + 1))
@@ -75,6 +81,6 @@ run() {
 }
 run WebViewCheck
 run WebShellCheck
-# (the same, served over HTTP on the loopback address: WebContent.local)
-run WebShellCheck 1
+# (the same through WKURLSchemeHandler's app:// instead of the loopback's HTTP: WebContent.local false)
+run WebShellCheck 0
 exit $failed

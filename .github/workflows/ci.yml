@@ -23,7 +23,8 @@
 #   throwaway identity, checked by codesign and assetutil on a macOS runner.
 # - desktop-macos, desktop-windows: the window lane (and helder's viewer,
 #   apps/viewer), and helder/native from TypeScript (typescript-native:
-#   Objective-C, COM) on a macOS and a Windows runner;
+#   Objective-C, COM) on a macOS and a Windows runner; on macOS the web
+#   view too (tests/platform/webview-macos.sh);
 # - the viewer's releases are release.yml's (a tag viewer-v<version>);
 # - publish-npm: on pushes to main once headless passes, the package as a
 #   nightly (<version>-nightly.<date>.<commit>, npm's tag nightly), as
@@ -285,6 +286,11 @@ jobs:
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
       - name: window, the viewer (its tests, its builds, a real window, its app bundle, its release packages), helder/native from TypeScript (Core Foundation, Objective-C)
         run: bun run test -k window viewer viewer-window viewer-app viewer-package system-images system-text typescript-native
+      - name: The web view (tests/platform/webview-macos.sh, WKWebView in a drawn window)
+        if: ${{ !cancelled() }}
+        run: |
+          node src/helder/cli/run.mjs help > /dev/null
+          sh tests/platform/webview-macos.sh bin/cli/helder bin/pack/macos-webview
       - uses: actions/upload-artifact@v7
         if: always()
         # (and CoreText's sheets for the text-quality lane: tests/text/coretext/sheets is a copy of bin/text/coretext)
