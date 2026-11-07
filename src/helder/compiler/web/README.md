@@ -96,3 +96,21 @@ builds todo and ts-todo in node (tests/compiler-web/node.mjs) and in
 headless Chromium (tests/compiler-web/browser.mjs: the worker, the
 preview in a frame, a literal edit patched and a structural one built and
 swapped in), and prints the numbers.
+
+## Numbers
+
+Headless Chromium 156 on a Linux x86-64 CI-class machine (the lane's
+numbers, 2026-11-07), against the native compiler on the same machine:
+
+| | in the browser | native |
+| --- | --- | --- |
+| download (brotli; raw) | 13.8 MB: compiler 2.2, tsc.wasm 9.5, sources 2.0 (81 MB: 17.4, 52.8, 10.8) | |
+| cold start, served locally | 0.6–0.9 s (download 0.3–0.4, compile 0.1, warm-up 0.2–0.3) | |
+| todo, first build | 5.9–7.6 s | 2.8 s (server), 2.7 s (one-shot) |
+| ts-todo, first build | 7.1–8.6 s | 3.5 s (server), 3.2 s (one-shot) |
+| a structural edit, warm build | todo 0.74–0.81 s, ts-todo 1.4–1.9 s (and 25–35 ms to swap it in) | 0.3–0.4 s |
+| a literal edit | 1–8 ms, patched, no build | |
+| memory | the compiler's 1.8 GB after both, tsgo's 55 MB | 1.3 GB (the server's peak RSS) |
+
+The compiler's linear memory only grows: two projects built in one worker
+reach ~1.8 GB of the 4 GB wasm32 allows (a nursery of 32 MB, `RT_MINOR_KB`).
