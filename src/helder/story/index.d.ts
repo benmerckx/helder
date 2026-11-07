@@ -58,17 +58,16 @@ export declare const story: typeof Stories.define;
 export declare const tree: typeof Stories.tree;
 
 // A project's stories as the studio's screens (apps/studio): the program
-// the studio builds of a project (a dev build, headless: -D hxmc.dev -D
-// helder.headless) shows one story in a window of the story's size
-// (width, height; a phone's without), the one HELDER_STUDIO_SCREEN names
-// (the first without). The studio starts one such process for each screen,
-// so a screen's state (a TypeScript module's signals) is its own. Over the
-// devtools protocol, `Studio.screens` answers which one this is and the
-// others: {screen, screens: [{name, width, height}]}. Built for the web
-// (wasm32-wasi) it is the studio's preview host there instead: every story
-// in one program (helder.story.Host) in a worker (helder.story.web.Preview).
+// the studio builds of a project (a dev build, -D hxmc.dev) runs every
+// story in one program, the studio's preview host (helder.story.Host: each
+// story a root of its own with a context of its own): natively one process
+// (helder.story.NativeHost: its frames GPU textures the studio's process
+// opens, or shared memory where the GPU shares none), built for the web
+// (wasm32-wasi) a worker (helder.story.web.Preview). Over the devtools
+// protocol `Studio.screens` answers the screens: {screens: [{name, width,
+// height}]}.
 //
-//   // the studio's generated main (bin/studio/<name>/ScreensMain.hx, screens.tsx)
+//   // the studio's generated main (bin/studio/<name>/gen/StudioScreens.hx, screens.tsx)
 //   helder.story.Screens.run(helder.story.Stories.of("Todo_story"));
 //   import { screens } from "helder/story"; screens([empty, items]);
 export declare class Screens {
