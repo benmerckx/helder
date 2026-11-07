@@ -81,6 +81,7 @@ class Run {
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
+		{name: "edit-loop", about: "the edit loop's times (tests/edit-loop/edit-loop.mjs): `helder dev` warm on copies of examples/todo and examples/ts-todo in a window (Linux: Xvfb), a literal, a component's body and a new component edited, each timed from the save to the new frame and split by where the time went (the watcher, tsgo, typing, lowering, codegen, link, the reload, the first frame): bin/edit-loop/results.md", run: editLoop},
 		{name: "dev-host", about: "helder dev's host (helder.dev.DevHost): three builds of a program as shared libraries swapped in one process and window (tests/os/dev/dev-host.mjs); DEV_HOST_TARGETS (comma-separated) cross-compiles for others too (windows-x86_64: run under Wine; macos-*: built only)", run: devHost},
 	];
 
@@ -944,6 +945,9 @@ class Run {
 	}
 
 	// (each run twice, into bin/headless-run/1 and 2: the same bytes)
+	static function editLoop()
+		run(NODE, ["tests/edit-loop/edit-loop.mjs", helderCli(), "bin/edit-loop"]);
+
 	static function headlessRun() {
 		var h = helderCli(), b = "bin/headless-run";
 		rmrf(b);

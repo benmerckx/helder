@@ -91,6 +91,12 @@ class Manifest {
 		// (what the TypeScript lowering builds itself: Views, its runtime's helpers)
 		keep.push(macro keep.push(helder.view.View.new));
 		keep.push(macro keep.push(helder.view.Render.pass));
+		// (dev builds and headless runs: the source map's, helder.view.Source)
+		if (Context.defined("hxmc.dev") || Context.defined("helder.headless")) {
+			keep.push(macro keep.push(helder.view.Sources.span));
+			keep.push(macro keep.push(helder.view.Sources.element));
+			keep.push(macro keep.push(helder.view.Sources.enter));
+		}
 		switch Context.getType("helder.typescript.js.Interop") {
 			case TInst(c, _):
 				for (f in c.get().statics.get())

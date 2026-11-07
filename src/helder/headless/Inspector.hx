@@ -22,7 +22,8 @@ interface Inspector {
 // scrolling and transforms), how (its opacity through its ancestors', its
 // fill and text colours as "#rrggbb" or "#rrggbbaa"), what assistive
 // technology reads of it (role: ARIA's; label; checked, value), its state
-// (hovered, pressed, focused) and whether a transition is moving it
+// (hovered, pressed, focused), whether a transition is moving it, and
+// where its markup is (its tag's span, the component mounting it)
 @:structInit class InspectedNode {
 	// (the same node, the same id, for the run's life)
 	public var id:Int;
@@ -48,4 +49,7 @@ interface Inspector {
 	public var press:Bool = false;
 	public var focus:Bool = false;
 	public var transitioning:Bool = false;
+	// where markup wrote it, and the component mounting it (helder.view.Source)
+	public var source:Null<helder.view.Source> = null;
+	public var component:Null<helder.view.Source.SourceComponent> = null;
 }

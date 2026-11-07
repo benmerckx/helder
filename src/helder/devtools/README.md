@@ -95,9 +95,9 @@ source.
 
 | notification | from | params |
 | --- | --- | --- |
-| `Runtime.ready` | program | `{}`: its first frame (the reload's time) |
+| `Runtime.ready` | program | `{startedAt, ms}`: its first frame (the reload's time); when the build started (wall clock seconds) and the ms from there to the frame |
 | `Runtime.connected` | CLI | `{program, protocol}`: a build said hello |
-| `Runtime.built` | CLI | `{ok: true, ms, size}` |
+| `Runtime.built` | CLI | `{ok: true, ms, size, phases?}`; `phases` with HELDER_DEV_PHASES=1 (the edit-loop lane): `{phases: [{name, ms}], ms, hxmc: {prepare, codegen, data, link, modules, compiled, ...}, changedAt, startedAt, endedAt}` (helder.compiler.Phases, helder.cli.BuildPhases) |
 | `Runtime.buildError` | CLI | `{ms, message}`: the errors; the last good build keeps running |
 | `Runtime.reloaded` | CLI | `{ms, build}`: from the change seen to the new build's first frame, and the build's part |
 | `Runtime.exited` | CLI | `{code}`: the program ended by itself |
@@ -163,11 +163,21 @@ and hands the key to the module.
 | method | params | result |
 | --- | --- | --- |
 | `Ui.getTree` | `{}` | `{uis: [{width, height, root: node, overlay: node}]}` |
+| `Ui.nodesAt` | `{file, line, col?}` | `{nodes: [{id, tag, source, component}]}` |
 
 A node is `{id, tag, x, y, width, height, style: {display, direction,
-grow, opacity, background, color, fontSize}, text, children}`: `x`, `y` in
-window pixels and the size after the last layout, colours `#aarrggbb`,
-`text` a text node's. An id stays the node's while it is in a tree (not
+grow, opacity, background, color, fontSize}, text, source, component,
+children}`: `x`, `y` in window pixels and the size after the last layout,
+colours `#aarrggbb`, `text` a text node's, `source` where markup wrote it
+(`{file, line, col, end: {line, col}, offsets: [start, end]}`: its tag,
+`<` to its closing `>`, the file's full path, byte offsets, 1-based lines
+and columns; null for a node made by code) and `component` the innermost
+component mounting it (`{name, call, definition}`, two such spans:
+helder.view.Source). `Ui.nodesAt` is the reverse: the nodes made from a
+place (a file's full path or the end of one, a line and a column): the
+innermost element or component call there, an element's every node (a
+For's rows), a component's top ones. `helder inspect --at file:line[:col]`
+prints them. An id stays the node's while it is in a tree (not
 across a reload). The method exists only in a program with helder.ui:
 `helder.ui.DevTree`, which each `Ui` registers with (in dev builds), the
 last 8 kept; helder.devtools does not depend on ui.

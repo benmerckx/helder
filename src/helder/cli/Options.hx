@@ -138,7 +138,8 @@ class Options {
 			entry: false,
 			common: [],
 			own: [
-				{key: "tree", names: ["--tree"], about: "the ui tree (Ui.getTree), once"},
+				{key: "tree", names: ["--tree"], about: "the ui tree (Ui.getTree), once, each node with where markup wrote it"},
+				{key: "at", names: ["--at"], value: "<file:line[:col]>", about: "the nodes made from that place in the source (Ui.nodesAt), once"},
 				{key: "state", names: ["--state"], about: "the keys helder.dev.Hot keeps (Runtime.state), once"},
 				{key: "log", names: ["--log"], about: "the log, then each entry as it comes (the default)"},
 				{key: "frames", names: ["--frames"], about: "the frames' stats, a line per batch"},
@@ -384,7 +385,7 @@ class Options {
 				"the commands' own: dev --port, --host; run --headless and its (helder run --help);",
 				"test -t, -w, -u, --timeout (its --target",
 				"takes host, wasm, all: both, or interp: the files with @:test.interp, or several:",
-				"host,interp); inspect --tree, --state, --log, --frames, --port",
+				"host,interp); inspect --tree, --at, --state, --log, --frames, --port",
 			]);
 			return out.join("\n");
 		}

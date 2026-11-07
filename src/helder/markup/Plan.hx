@@ -168,6 +168,8 @@ class Plan<E> {
 			target.declare(v, neutral ? target.call(Neutral, "element", [target.string(name)], null) : target.call(Host, "createElement", [target.string(name)], null), null),
 			top ? target.call(Runtime, "put", [parent, e, target.ident("__b"), target.ident("__o")], null) : target.call(Host, "insert", [parent, e, target.nil()], null)
 		];
+		var located = target.located(e, at);
+		if (located != null) out.push(located);
 		for (a in attrs) {
 			var s = attr(e, a, neutral ? name : null);
 			if (s != null) out.push(s);
@@ -418,6 +420,11 @@ interface Target<E> {
 	function handler(e:E, name:String, renderer:Null<String>, neutral:Bool, where:Where):E;
 	// whether components are mounted with fast refresh's keys (hxmc.dev)
 	function devKeys():Bool;
+	// the source map of dev builds and headless runs (helder.view.Source):
+	// the statement telling element, made by the tag at at, where it is
+	// written; null in a build that keeps none (a component's call and
+	// definition: its factory's, the target's own)
+	function located(element:E, at:Int):Null<E>;
 	// a component's tag at an offset, for a literal of renderer: its callee
 	// (Pick's choice for that renderer), the renderer its children are for
 	// (null: the literal's); its checks failing an error

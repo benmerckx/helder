@@ -222,9 +222,15 @@ class Hot {
 	static function log(s:String)
 		Sys.stderr().writeString("helder.dev: " + s + "\n");
 
+	// (this build's start: Runtime.ready's startedAt, wall clock seconds, and ms to its first frame)
+	static var startedAt = 0.0;
+	static var startStamp = 0.0;
+
 	static function init() {
 		if (started) return;
 		started = true;
+		startedAt = Sys.time();
+		startStamp = haxe.Timer.stamp();
 		var data:Null<String> = null;
 		#if (target.name != "hxmc")
 		// (another target: a snapshot file only, no dev server)
@@ -454,7 +460,7 @@ class Hot {
 			restored = new Map();
 		}
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 3) DevWeb.frame() else if (helder.devtools.Agent.on) helder.devtools.Agent.notify("Runtime.ready", {}) else send('{"type":"frame"}');
+		if (hxmc.unsafe.Mem.os() == 3) DevWeb.frame() else if (helder.devtools.Agent.on) helder.devtools.Agent.notify("Runtime.ready", {startedAt: startedAt, ms: Math.round((haxe.Timer.stamp() - startStamp) * 10000) / 10}) else send('{"type":"frame"}');
 		#end
 	}
 

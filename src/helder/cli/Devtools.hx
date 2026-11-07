@@ -95,8 +95,9 @@ class Devtools {
 	}
 
 	// the CLI's notifications: a build, its errors, a reload, the program's end
-	@:coroutine public static function built(ms:Int, size:String) {
+	@:coroutine public static function built(ms:Int, size:String, ?phases:Dynamic) {
 		build = {ok: true, ms: ms, size: size};
+		if (phases != null) build.phases = phases;
 		broadcast("Runtime", notification("Runtime.built", build));
 	}
 

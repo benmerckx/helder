@@ -199,6 +199,12 @@ class SourceFile {
 		return lo + 1;
 	}
 
+	// The 1-based column of a position, in bytes of its line's UTF-8 text.
+	public function column(pos:Int):Int {
+		var l = line(pos);
+		return byte(pos) - lines[l - 1] + 1;
+	}
+
 	public function text():String return string(extendedData(1, 0));
 
 	public function fileName():String return string(extendedData(1, 4));

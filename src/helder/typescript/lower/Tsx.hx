@@ -37,6 +37,8 @@ enum TsMarkup {
 	// a component's function: one of helder's statics, or the program's value (its tag)
 	MHaxeComponent(c:MClass, m:MMember);
 	MScriptComponent(tag:Node);
+	// (dev builds, headless runs: the element made by the tag at at told where it is written, helder.view.Sources)
+	MLocated(el:TsMarkup, at:Int);
 }
 
 // TSX through helder.markup's planner (DESIGN.md 7.2): the same decisions
@@ -64,14 +66,17 @@ class Tsx {
 	// (the get accessors of the program's classes, by their names' symbols: a read through one may read, 3.3)
 	final getters:Map<String, Bool> = [];
 	public final dev:Bool;
+	// (dev builds and headless runs: elements and components told where they are written, helder.view.Source)
+	public final sources:Bool;
 	var serial = 0;
 
-	public function new(f:Frontend, bridge:Haxe, api:Api, dev:Bool) {
+	public function new(f:Frontend, bridge:Haxe, api:Api, dev:Bool, sources = false) {
 		this.f = f;
 		this.bridge = bridge;
 		this.manifest = bridge.manifest;
 		this.api = api;
 		this.dev = dev;
+		this.sources = sources && bridge.hasFn("helder_view_Sources_element");
 		for (sf in f.src.files) for (i in 1...sf.count) if (sf.kindAt(i) == KindGetAccessor) {
 			var name = sf.node(i).name();
 			if (name != null && name.symbol != null) getters.set(name.symbol, true);
@@ -440,7 +445,10 @@ class Tsx {
 		case MHandler(inner):
 			any(bridge.adapter(script(inner), f.p.sig([TRef(RAny)], TVoid), [{name: "event", opt: false, t: HDynamic}], HVoid, f.where()));
 		case MFactory(c, props, content, agnostic, at):
-			bridge.adapter(arrow(() -> any(factoryCall(c, props, content, agnostic, nodes[at]))), f.p.sig([], TRef(RAny)), [], HDynamic, f.where());
+			bridge.adapter(arrow(() -> {
+				entering(c, nodes[at]);
+				any(factoryCall(c, props, content, agnostic, nodes[at]));
+			}), f.p.sig([], TRef(RAny)), [], HDynamic, f.where());
 		case _: throw "TSHX004: unexpected hole " + e;
 	}
 
@@ -520,6 +528,36 @@ class Tsx {
 		}
 	}
 
+	// ---- the source map (dev builds, headless runs: helder.view.Source)
+
+	// (a file's full path, "/" between its directories)
+	final fullPaths = new Map<String, String>();
+
+	// Sources.span(file, start, end, line, col, endLine, endCol) of a node (its trivia aside)
+	function span(n:Node):Ex {
+		var file = n.file, path = fullPaths.get(file.path);
+		if (path == null) {
+			path = (try sys.FileSystem.fullPath(file.path) catch (_:Dynamic) file.path).split("\\").join("/");
+			fullPaths.set(file.path, path);
+		}
+		var start = file.skipTrivia(n.pos), end = n.end;
+		return bridge.call(bridge.fn("helder_view_Sources_span"), [
+			EStr(path), EInt(file.offset(start)), EInt(file.offset(end)), EInt(file.line(start)), EInt(file.column(start)), EInt(file.line(end)), EInt(file.column(end))
+		]);
+	}
+
+	// a component's factory starting: Sources.enter(its tag, its call's span, its function's: the program's, or none for helder's)
+	function entering(c:Component<TsMarkup>, at:Node) {
+		if (!sources) return;
+		var tag = at.kind == KindJsxElement ? at.openingElement().tagName() : at.tagName();
+		var decl = switch c.callee {
+			case MScriptComponent(t): declarationOf(t);
+			case _: null;
+		}
+		var name = try tagOf(tag) catch (_:Dynamic) "component";
+		bridge.call(bridge.fn("helder_view_Sources_enter"), [EStr(name), span(at), decl == null ? ENull(TRef(RAny)) : span(decl)]);
+	}
+
 	// ---- lowering: the mount, on Haxe values
 
 	// a mount's statements for renderer r: (parent, before, out) its arguments, refs the holes' values
@@ -572,6 +610,8 @@ class Tsx {
 		case MCallValue(fh):
 			var s = f.p.sig([], TRef(RAny));
 			b.temp(ECallClos(s, b.coerce(mountExpr(fh, ctx, refs), TRef(RClos(s))), new Vector(0)));
+		case MLocated(el, at):
+			bridge.call(bridge.fn("helder_view_Sources_element"), [any(mountExpr(el, ctx, refs)), span(nodes[at])]);
 		case _: throw "TSHX004: unexpected markup in a mount: " + e;
 	}
 
@@ -791,6 +831,8 @@ class TsTarget implements Target<TsMarkup> {
 	public function handler(e:TsMarkup, name:String, renderer:Null<String>, neutral:Bool, where:Where):TsMarkup return MHandler(e);
 
 	public function devKeys():Bool return tsx.dev;
+
+	public function located(element:TsMarkup, at:Int):Null<TsMarkup> return tsx.sources ? MLocated(element, at) : null;
 
 	public function component(name:String, at:Int, renderer:Null<String>):Component<TsMarkup>
 		return tsx.component(name, tsx.nodes[at], renderer, m -> error(m, {at: at, length: name.length}));

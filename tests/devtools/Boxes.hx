@@ -1,8 +1,10 @@
 import helder.ui.*;
 
 // A ui program without a window for the devtools lane: a Ui of a few boxes
-// laid out each frame (no text engine: no text), as App's loop has it.
-class Boxes {
+// laid out each frame (no text engine: no text), as App's loop has it; a
+// second row by markup, its nodes told where they are written (the
+// source map: Ui.getTree's source, Ui.nodesAt)
+class Boxes implements helder.view.Markup {
 	static function main() {
 		var ui = new Ui(new NoText(), 320, 200);
 		var row = new Node("row");
@@ -16,6 +18,9 @@ class Boxes {
 			row.append(b);
 		}
 		ui.root.append(row);
+		helder.view.Render.render(<view tag="marked" direction="row">
+			<view tag="cell" width={20} height={20}/><view tag="cell" width={20} height={20}/>
+		</view>, ui.root);
 		trace("v1 boxes");
 		#if hxmc.dev
 		while (helder.dev.Hot.poll()) {

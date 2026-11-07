@@ -6,7 +6,8 @@
 //   frame stats (no GC bytes while it allocates nothing, bytes in every
 //   frame once an edit makes it allocate), Runtime.state, a reload with the
 //   tool connected (the stats on again in the new build), a build error;
-// - ui: tests/devtools/Boxes.hx: Ui.getTree, before and after a reload.
+// - ui: tests/devtools/Boxes.hx: Ui.getTree, before and after a reload;
+//   the source map (a markup node's source, Ui.nodesAt, inspect --at).
 //   node tests/devtools/devtools.mjs <helder> <work dir> console|ui
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -213,6 +214,16 @@ async function ui() {
 	check('Ui.getTree: tags, boxes, style', row?.tag === 'row' && row.style.direction === 'row' && row.style.background === '#ff18181b' && row.children.length === 3
 		&& row.children.every((b) => b.tag === 'box' && b.width === 60 && b.height === 40) && row.children[1].x === 68 && row.children[1].y === 8,
 		JSON.stringify(row).slice(0, 400));
+	// the source map: where markup wrote a node, and back
+	const marked = ui?.root?.children?.[1], line = fs.readFileSync(file, 'utf8').split('\n').findIndex((l) => l.includes('<view tag="cell"')) + 1;
+	check('Ui.getTree: a markup node\'s source', marked?.tag === 'marked' && marked.source?.file === fs.realpathSync(file).split(path.sep).join('/')
+		&& marked.source.line === line - 1 && marked.source.end.line === line + 1 && marked.children.every((c) => c.source?.line === line) && row.source == null,
+		JSON.stringify(marked).slice(0, 600));
+	const cells = marked?.children ?? [];
+	const at = (await t.call('Ui.nodesAt', { file: 'app/Boxes.hx', line, col: cells[1]?.source?.col + 1 })).result;
+	check('Ui.nodesAt: the node made there', at?.nodes?.length === 1 && at.nodes[0].id === cells[1]?.id && at.nodes[0].source.col === cells[1].source.col, JSON.stringify(at).slice(0, 400));
+	const outer = (await t.call('Ui.nodesAt', { file: 'app/Boxes.hx', line: line - 1, col: 200 })).result;
+	check('Ui.nodesAt: the innermost span (the row, outside its cells)', outer?.nodes?.length === 1 && outer.nodes[0].id === marked?.id, JSON.stringify(outer).slice(0, 400));
 	const again = (await t.call('Ui.getTree')).result.uis[0].root.children[0];
 	check('Ui.getTree: the same nodes, the same ids', again.id === row.id && again.children.map((c) => c.id).join() === row.children.map((c) => c.id).join());
 	const inspect = spawn(path.resolve(helder), ['inspect', '--tree', '--port', String(port)], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -220,6 +231,12 @@ async function ui() {
 	const printed = lines(inspect);
 	await new Promise((r) => inspect.on('exit', r));
 	check('helder inspect --tree', printed.some((l) => /^ {4}box #\d+ 68,8 60x40/.test(l)), printed.join('\n'));
+	check('helder inspect --tree: where markup wrote a node', printed.some((l) => new RegExp(`^ {4}cell #\\d+ .* at .*Boxes\\.hx:${line}:\\d+$`).test(l)), printed.join('\n'));
+	const atInspect = spawn(path.resolve(helder), ['inspect', '--at', `app/Boxes.hx:${line}:${cells[0]?.source?.col}`, '--port', String(port)], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] });
+	inspects.push(atInspect);
+	const atPrinted = lines(atInspect);
+	await new Promise((r) => atInspect.on('exit', r));
+	check('helder inspect --at', atPrinted.some((l) => /^cell #\d+ at .*Boxes\.hx:\d+:\d+$/.test(l)), atPrinted.join('\n'));
 	const from = t.notes.length;
 	edit((s) => s.replace('b.style.width = 60;', 'b.style.width = 70;').replace('"v1 boxes"', '"v2 boxes"'));
 	await t.note((m) => m.method === 'Runtime.connected', from, 60000);

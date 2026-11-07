@@ -596,10 +596,19 @@ class Headless {
 			if (n.fill != null) b.add(', "fill": ${str(n.fill)}');
 			if (n.color != null) b.add(', "color": ${str(n.color)}');
 			b.add(', "hover": ${n.hover}, "press": ${n.press}, "focus": ${n.focus}');
+			if (n.source != null) b.add(', "source": ${sourceJson(n.source)}');
+			if (n.component != null) {
+				var c = n.component;
+				b.add(', "component": {"name": ${str(c.name)}, "call": ${sourceJson(c.call)}, "definition": ${c.definition == null ? "null" : sourceJson(c.definition)}}');
+			}
 		}
 		b.add(', "moving": ${moving(n)}}');
 		return b.toString();
 	}
+
+	// {"file", "line", "col", "end": {"line", "col"}, "offsets": [start, end]}
+	static function sourceJson(s:helder.view.Source):String
+		return '{"file": ${str(s.file)}, "line": ${s.line}, "col": ${s.col}, "end": {"line": ${s.endLine}, "col": ${s.endCol}}, "offsets": [${s.start}, ${s.end}]}';
 
 	function traceFrame(t:Float, nodes:Null<Array<InspectedNode>>) {
 		if (traceOut == null) {

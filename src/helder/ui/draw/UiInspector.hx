@@ -71,7 +71,9 @@ class UiInspector implements Inspector {
 			hover: n.hovered,
 			press: n.pressed,
 			focus: n.focused,
-			transitioning: themed != null && themed.moving != null
+			transitioning: themed != null && themed.moving != null,
+			source: n.source,
+			component: n.sourceComponent
 		};
 		out.push(node);
 		for (c in n.children)
