@@ -79,6 +79,7 @@ class FrameFile {
 	}
 
 	public function close() {
+		if (Mem.os() == 2) return;
 		if (mapped()) Posix.munmap(map, size);
 		map = Ptr.nil();
 	}
