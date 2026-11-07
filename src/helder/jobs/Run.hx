@@ -59,10 +59,20 @@ class Run implements IDispatchObject {
 	function start() {
 		// (held first: the worker's post may come at once)
 		loop.hold();
-		if (#if (hxmc.target == "wasm32-wasi") WebJobs.submit(this) #else Pool.submit(this) #end) {
+		#if (hxmc.target == "wasm32-wasi")
+		if (WebJobs.submit(this)) {
 			held = true;
 			return;
 		}
+		#else
+		// (its end promised first, as the worker may post it at once)
+		loop.promise();
+		if (Pool.submit(this)) {
+			held = true;
+			return;
+		}
+		loop.unpromise();
+		#end
 		loop.release();
 		// (no workers: on the loop, at its next turn)
 		loop.dispatch(this);

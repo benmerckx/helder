@@ -195,6 +195,13 @@ class App {
 		}
 		Pointers.step();
 		helder.headless.Headless.run.events(onEvent);
+		// (a run on the virtual clock: the jobs handed to the pool so far land
+		// in this frame, whatever the machine's speed, not when their threads
+		// happen to end; serve's frames are the machine's clock's)
+		if (helder.headless.Headless.run.serve == null) {
+			var l = MainLoop.main;
+			if (l != null) l.settle();
+		}
 		loopTurn();
 		if (running && windows.length > 0) {
 			frame.tick(helder.headless.Time.now, false);

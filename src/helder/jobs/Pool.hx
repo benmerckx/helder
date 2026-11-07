@@ -32,7 +32,8 @@ class Pool {
 			var r = q.pop(true);
 			if (r == null) continue;
 			r.execute();
-			r.loop.post(r.finish);
+			// (the promise Run.start made: a headless run's frame waits for it, Loop.settle)
+			r.loop.postPromised(r.finish);
 		}
 	}
 }

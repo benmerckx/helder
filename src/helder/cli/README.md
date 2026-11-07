@@ -697,8 +697,10 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   (helder.canvas) over the frame after the app's, so they are in `--snap`,
   the frames and the video, never in `--tree` or `--trace`.
 - **Determinism**: the same script gives byte-identical outputs on one
-  machine (the headless-run lane checks it): the virtual clock;
-  Math.random and Std.random seeded (`--seed`, 1: hxmc's xoshiro256**
+  machine (the headless-run lane checks it): the virtual clock; the
+  jobs on helder.jobs' threads awaited at each frame (every run handed to
+  the pool by then lands in that frame, `Loop.settle`, not whenever its
+  thread ends: the viewer's decodes); Math.random and Std.random seeded (`--seed`, 1: hxmc's xoshiro256**
   state from it); text by helder's own engine (helder.text, the fonts
   found on the machine: DejaVu Sans for the examples); Linux's GL forced
   to llvmpipe (`LIBGL_ALWAYS_SOFTWARE`), no `DISPLAY`; `LC_ALL` and `LANG`

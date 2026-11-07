@@ -51,6 +51,8 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	final lock = new sys.thread.Mutex();
 	#end
 	var held = 0;
+	// posts promised and not yet come (promise, postPromised: under lock)
+	var promised = 0;
 	var stopped = false;
 	// (the browser: in a turn the page runs, which asks for the next itself;
 	// in another (App.run's frames) a dispatch or a timer asks the page)
@@ -140,6 +142,51 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		#end
 		#else
 		dispatch(new Call(f));
+		#end
+	}
+
+	// (this thread) a post to come from another thread once, soon: work
+	// handed to it (a job's run on the pool), its end posted by postPromised
+	public function promise() {
+		#if target.threaded
+		lock.acquire();
+		promised++;
+		lock.release();
+		#end
+	}
+
+	// (this thread) a promise withdrawn: the work was not handed over after all
+	public function unpromise() {
+		#if target.threaded
+		lock.acquire();
+		promised--;
+		lock.release();
+		#end
+	}
+
+	// (from any thread) f posted, the promise kept
+	public function postPromised(f:Void->Void) {
+		post(f);
+		#if target.threaded
+		lock.acquire();
+		promised--;
+		lock.release();
+		#end
+	}
+
+	// (this thread) until every promised post has come: the next turn runs
+	// them all (at most a minute: a job that never ends does not stop the loop)
+	public function settle() {
+		#if target.threaded
+		var spins = 0, until = haxe.Timer.stamp() + 60;
+		while (true) {
+			lock.acquire();
+			var p = promised;
+			lock.release();
+			if (p <= 0 || (spins > 200 && haxe.Timer.stamp() > until)) return;
+			// (a short spin, then naps: a job is a decode, a parse, milliseconds)
+			if (++spins > 200) Sys.sleep(0.0005);
+		}
 		#end
 	}
 

@@ -17,6 +17,11 @@ interface Driven {
 	function bound(seconds:Float):Float;
 	// inside turn: what runs there may not turn it again (helder.asset's Assets.poll)
 	var turning(default, null):Bool;
+	// a wait until every post promised by work on another thread has come
+	// (a job's run on the pool, Loop.promise): a headless run's frame
+	// boundary, so what lands in a frame is the same whatever the machine's
+	// speed; nothing runs (the next turn runs them)
+	function settle():Void;
 }
 
 class MainLoop {
