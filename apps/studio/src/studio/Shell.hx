@@ -6,6 +6,7 @@ import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 import helder.view.graph.Read;
+import helder.ui.view.UiFlow.VirtualList;
 import studio.Theme.c;
 
 using StringTools;
@@ -58,25 +59,32 @@ class Shell implements Markup {
 				studio.focus(null);
 			})}
 			{nav(studio, "nav-stories", "Stories", () -> studio.mode() == "stories", () -> studio.setMode("stories"))}
-			<scroll tag="screens" grow={1} min-height={0} row-gap={1}>
-				<For each={p == null ? [] : p.flows()}>{(f:Read<{name:String, screens:Array<Project.ScreenInfo>}>) -> {
-					var flow = f();
-					<view row-gap={1}>
-						<text padding="14 8 4" color={c("fg3")} font-size={Theme.SMALL}>{flow.name}</text>
-						<For each={flow.screens}>{(s:Read<Project.ScreenInfo>) -> {
-							var info = s();
-							<view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" role="button" label={info.name} focusable
-								data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
-									if (studio.mode() == "stories") studio.setMode("design");
-									studio.focus(info.name);
-								}}>
-								<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
-							</view:button>;
-						}}</For>
-					</view>;
-				}}</For>
-			</scroll>
+			<VirtualList tag="screens" each={sidebarRows(p)} by={(r:SidebarRow) -> r.key} estimate={26} label="Screens">{(r:Read<SidebarRow>, i:Int) -> {
+				// (a row each: a flow's name, a screen; 1 pixel between them)
+				var row = r(), info = row.screen;
+				<view padding="0 0 1">{info == null ? <text padding="14 8 4" color={c("fg3")} font-size={Theme.SMALL}>{row.flow}</text> :
+					<view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" role="button" label={info.name} focusable
+						data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
+							if (studio.mode() == "stories") studio.setMode("design");
+							studio.focus(info.name);
+						}}>
+						<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
+					</view:button>}</view>;
+			}}</VirtualList>
 		</view>;
+	}
+
+	// the sidebar's rows: each flow's name, then its screens (a project of
+	// thousands of screens makes the rows in view only: a VirtualList)
+	static function sidebarRows(p:Null<Project>):Array<SidebarRow> {
+		var out:Array<SidebarRow> = [];
+		if (p != null)
+			for (f in p.flows()) {
+				out.push({key: "flow:" + f.name, flow: f.name, screen: null});
+				for (s in f.screens)
+					out.push({key: "screen:" + s.name, flow: f.name, screen: s});
+			}
+		return out;
 	}
 
 	static function nav(studio:Studio, tag:String, label:String, on:Void->Bool, press:Void->Void):View
@@ -143,4 +151,11 @@ enum StudioAction {
 	Undo;
 	Redo;
 	Overview;
+}
+
+// (a sidebar's row: a flow's name, or one of its screens)
+@:structInit class SidebarRow {
+	public final key:String;
+	public final flow:String;
+	public final screen:Null<Project.ScreenInfo>;
 }
