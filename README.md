@@ -1156,9 +1156,16 @@ fix.
     (`Shaping.smoothing`, a window's atlas, `<Surface fontSmoothing>`);
     its masks within 3 levels of CoreGraphics' own, the text-quality lane
     measuring it against CoreText's.
-  - **Lists of a million rows**: helder.ui's scroll virtualised over a
-    height index (a sum tree of rows' measured heights, estimated until
-    measured), rows made and recycled as they come into view.
+  - **Lists of a million rows** (*landed*: helder.ui's `VirtualScroll`,
+    markup's `VirtualList`, src/helder/ui/README.md's "Long lists";
+    examples/million and ts-million; tests/bench/results/million.md):
+    helder.ui's scroll virtualised over a height index (`HeightIndex`: a
+    sum tree of rows' measured heights, estimated until measured, under
+    half a byte a row), rows made and recycled by key as they come into
+    view, the scroll anchored to its row through measures and rows put in
+    above it, the keyboard onto rows not made, each row's place among all
+    to assistive technology; a scroll frame 0.04-0.1 ms, a jump to the
+    end 0.5 ms. Next: sticky headers across rows, horizontal lists.
   - **Demos that show off**: purpose-made showcase scenes, each animating
     itself from the virtual clock so a headless `--video` records it frame
     exact (a showreel for the site); an effects gallery (liquid metal, glass,
