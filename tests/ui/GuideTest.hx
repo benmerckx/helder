@@ -4,6 +4,7 @@ import helder.ui.view.*;
 import helder.ui.view.UiFlow.*;
 import helder.view.graph.Graph.*;
 import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import helder.view.Flow.*;
 import UiTest.Recording;
 
@@ -88,7 +89,12 @@ class GuideTest implements Markup {
 			<Match when={props.tab() == "settings"}><text tag="settings">Settings</text></Match>
 		</Switch>;
 
-	// "Context"
+	// "A long list belongs in a VirtualList"
+	static function Messages(props:{messages:Signal<Array<{id:Int, text:String}>>, selected:Signal<Dynamic>, ref:VirtualScroll->Void}):View
+		return <view height={200}><VirtualList each={props.messages} by={m -> m.id} estimate={52} selected={props.selected} label="Messages"
+			ref={props.ref}>{(m:Read<{id:Int, text:String}>, i:Int) -> <text padding="8 16">{m().text}</text>}</VirtualList></view>;
+
+		// "Context"
 	static final Brand = context({accent: "#3b82f6"});
 
 	static function Accent(props:{label:String}):View {
@@ -184,6 +190,16 @@ class GuideTest implements Markup {
 		flush();
 		ui2.update();
 		check("lists: Switch picks the first Match that holds", text(ui2, "settings") == "Settings" && ui2.root.find("home") == null);
+		var messages = signal([for (i in 0...10000) {id: i, text: "message " + i}]), selected:Signal<Dynamic> = signal((null : Dynamic));
+		var list:Null<VirtualScroll> = null;
+		var ui3 = window();
+		Render.render(<Messages messages={messages} selected={selected} ref={l -> list = l}/>, ui3.root);
+		ui3.update();
+		check("lists: a VirtualList makes the rows in view", list.rows().length < 30 && list.count == 10000);
+		list.focusIndex(9000);
+		ui3.keyDown(Key.DOWN, 0);
+		ui3.update();
+		check("lists: focusIndex reaches a row not made, the arrows move the selection", selected() == 9001 && list.rowOf(ui3.focus).index == 9001);
 	}
 
 	static function contexts() {

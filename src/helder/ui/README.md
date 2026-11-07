@@ -309,6 +309,28 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   window), in a corner of the window (notifications), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
   Escape asks them to close. In markup, `UiFlow.Popover` puts its children
   in one while `open` is true.
+- **Long lists**: `VirtualScroll` (markup's `VirtualList`, `UiFlow`)
+  makes only the rows in view and an overscan more, in the flow between
+  two spacers; a `HeightIndex` (a sum tree over leaves of 128 rows: 4
+  bytes a measured row, under one for the rest) holds every row's height,
+  estimated until the row is shown and measured (whole pixels: a row's
+  height taken up to the next, so rows above changing move no edge), the
+  estimate following the measured mean. Each layout ends with the rows
+  shown measured and the window moved (`Ui.update` settles its settlers,
+  laid out again while one changes), so no frame shows a gap. The scroll
+  is anchored to the row at its top: measures, the estimate, rows put in
+  or taken out above it (`splice`; VirtualList diffs its list by key into
+  them) move nothing in view. Rows leaving the window are hidden and kept
+  by key (`keep`, the farthest let go), coming back made already;
+  `scrollToIndex` and `focusIndex` reach rows not made, the arrows, Page
+  Up and Down, Home and End move the focus (and `selected`, a key that
+  outlives its row's node) onto them; a listbox to assistive technology,
+  each made row's place among all (`Semantics.posInSet`, `setSize`).
+  examples/million and ts-million (a million messages); tests: MarkupTest,
+  `HeightIndex.test.hx`, the headless-run lane, the million-bench lane
+  (tests/bench/results/million.md). Not yet: sticky headers across rows
+  (a header sticks within its own row), horizontal lists, the code
+  editor's lines on the index (fixed height: a multiplication is all it needs).
 - **Shortcuts**: the keymap's bindings to actions (below), run when the
   focused node does not take the key; menu items show them.
 

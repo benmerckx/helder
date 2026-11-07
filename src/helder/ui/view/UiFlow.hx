@@ -39,7 +39,7 @@ class UiFlow {
 	// own, estimated (estimate, 44 pixels) until each is measured, the scroll
 	// anchored to the row in view (an estimate made real, rows put in or
 	// taken out above it: nothing moves); itemHeight: every row that high.
-	// height pixels high, else it grows in its parent (min-height 0). A
+	// height pixels high, else it grows in its parent from 0 (flex: 1). A
 	// listbox of options to assistive technology (label: its name), each
 	// with its place among all of them; Up, Down, Page Up and Down, Home
 	// and End move the focus to a row (made if need be), selected (the key
@@ -129,7 +129,9 @@ class VirtualRows<T> implements Mountable<Node> {
 		var p = props;
 		var v = new VirtualScroll(p.tag, p.estimate != null ? p.estimate : p.itemHeight != null ? p.itemHeight : 44);
 		if (p.itemHeight != null) v.fixedHeight = p.itemHeight;
+		// (growing from 0: its rows' extent no part of its parent's size)
 		if (p.height != null) v.style.height = p.height else {
+			v.style.height = 0;
 			v.style.grow = 1;
 			v.style.minHeight = 0;
 		}
@@ -150,7 +152,7 @@ class VirtualRows<T> implements Mountable<Node> {
 				// (selected: its row's key's)
 				if (selected != null) Graph.renderEffect(() -> selected() == k, (on:Bool) -> row.semantics.selected = on);
 			});
-			return new RowCell<T>(o, cell);
+			return new RowCell<T>(o, cell, items[i]);
 		};
 		v.onDropRow = (row, d) -> (d : RowCell<T>).owner.dispose();
 		v.onRowActive = i -> if (selected != null) selected(keyOf(i));
@@ -176,12 +178,17 @@ class VirtualRows<T> implements Mountable<Node> {
 				v.splice(c, n - c, m - c);
 			} else {
 				// (a common start and end; the middle's rows matched by key)
-				var lo = 0;
-				while (lo < n && lo < m && same(old[lo], next[lo]))
-					lo++;
+				var lo = 0, most = n < m ? n : m;
+				while (true) {
+					lo += identical(old, next, lo, most - lo, false);
+					if (lo < most && same(old[lo], next[lo])) lo++ else break;
+				}
 				var s = 0;
-				while (s < n - lo && s < m - lo && same(old[n - 1 - s], next[m - 1 - s]))
-					s++;
+				most -= lo;
+				while (true) {
+					s += identical(old, next, s, most - s, true);
+					if (s < most && same(old[n - 1 - s], next[m - 1 - s])) s++ else break;
+				}
 				var removed = n - s - lo, inserted = m - s - lo;
 				var moved:Null<Array<Int>> = null;
 				if (removed > 0 && inserted > 0) {
@@ -195,7 +202,11 @@ class VirtualRows<T> implements Mountable<Node> {
 			// (the rows made: their key's item now)
 			for (r in v.rows()) {
 				var c:Null<RowCell<T>> = r.data;
-				if (c != null && r.index < items.length) c.cell.write(items[r.index]);
+				if (c != null && r.index < items.length && c.item != items[r.index]) {
+					c.item = items[r.index];
+					c.cell.write(c.item);
+					v.remeasure(r.index);
+				}
 			}
 		});
 		var i = before == null ? parent.children.length : parent.indexOf(before);
@@ -209,14 +220,38 @@ class VirtualRows<T> implements Mountable<Node> {
 	}
 }
 
+// how many items of a and b are the same from at on (from the end, back:
+// the at'th from each one's end), up to max: a loop typed for numbers (a
+// list of numbers: its ends' and middle's items numbers) and for objects,
+// a million compared in about a millisecond
+function identical<T>(a:Array<T>, b:Array<T>, at:Int, max:Int, back:Bool):Int {
+	if (max <= 0) return 0;
+	var k = 0, n = a.length - 1, m = b.length - 1;
+	var first:Dynamic = back ? a[n - at] : a[at];
+	inline function int(v:Dynamic):Bool
+		return Std.isOfType(v, Int);
+	if (int(first) && int(a[0]) && int(a[n]) && int(a[n >> 1]) && int(b[0]) && int(b[m]) && int(b[m >> 1])) {
+		var x:Array<Int> = cast a, y:Array<Int> = cast b;
+		if (back) while (k < max && x[n - at - k] == y[m - at - k]) k++ else while (k < max && x[at + k] == y[at + k]) k++;
+	} else if (first != null && !int(first) && !Std.isOfType(first, Float) && !Std.isOfType(first, Bool) && !Std.isOfType(first, String)) {
+		var x:Array<{}> = cast a, y:Array<{}> = cast b;
+		if (back) while (k < max && x[n - at - k] == y[m - at - k]) k++ else while (k < max && x[at + k] == y[at + k]) k++;
+	} else {
+		if (back) while (k < max && a[n - at - k] == b[m - at - k]) k++ else while (k < max && a[at + k] == b[at + k]) k++;
+	}
+	return k;
+}
+
 // (a VirtualList's row: its owner, its item)
 private class RowCell<T> {
 	public final owner:Owner;
 	public final cell:helder.view.graph.Node<T>;
+	public var item:T;
 
-	public function new(owner, cell) {
+	public function new(owner, cell, item) {
 		this.owner = owner;
 		this.cell = cell;
+		this.item = item;
 	}
 }
 

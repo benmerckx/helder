@@ -5,9 +5,9 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
-import type {Read, RootView, View} from "helder/view";
+import type {Read, RootView, Signal, View} from "helder/view";
 
-declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", __module: "helder.ui.TypeScript"};
+declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", UiFlow: "helder.ui.view.UiFlow", __module: "helder.ui.TypeScript"};
 
 // a menu of the menu bar; role Window: the window menu (macOS's: its own
 // items after Minimize, Zoom and Close)
@@ -144,6 +144,68 @@ export declare class Key {
 	static readonly MOD_ALT: number;
 	static readonly MOD_META: number;
 }
+
+// A scroller over a long list's rows, only those in view made
+// (UiFlow.VirtualList's; usable alone): count rows, their heights in a
+// HeightIndex (estimated until measured), the rows of the window (the view
+// and overscan more on each side) made by onMakeRow into a row node each and
+// shown in the flow between two spacers as tall as the rows before and
+// after them; rows that leave the window are hidden and kept (keep of them,
+// the farthest from the window let go first, onDropRow), shown again as they
+// were when they come back. After each layout (Ui.update: settle) the rows
+// shown are measured and the window moved, laid out again while that
+// changes it, so a frame never shows a gap or the estimates.
+//
+// The scroll is anchored to a row: the first in view and how far into it,
+// kept through measures, a new estimate and rows put in or taken out
+// before it (splice), so the content does not move. scrollToIndex (start,
+// center, end or the nearest edge: auto) goes to a row made or not, held
+// there while its rows are measured; focusIndex makes the row, scrolls to
+// it and focuses it. The rows are a listbox's options to assistive
+// technology (rowRole), each its place among all (posInSet, setSize). The
+// keyboard on a row (its focus within the list): Up and Down, Page Up and
+// Down, Home and End move the focus onto that row (made if need be, onRowActive
+// told: a selection follows it); Enter and Space are onRowActivate's; the row
+// focused or last moved to is the one Tab stops on (the others -1).
+// Rows should not have margins: their measure is their border box.
+export declare class VirtualScroll {
+	// the first and last rows in view (-1: none)
+	firstVisible(): number;
+	lastVisible(): number;
+	// scrolls to row index ("start", "center", "end"; "auto": as little as
+	// shows it), made or not, held there while the rows are measured
+	scrollToIndex(index: number, align?: string): void;
+	// focuses row index (made, scrolled into view first), the focus ring shown
+	focusIndex(index: number): void;
+}
+
+// helder.ui's own control flow components for markup (import
+// helder.ui.view.UiFlow.*), beside helder.view.Flow's:
+//
+//   <Popover open={open} placement="below">{...}</Popover>
+//   <VirtualList each={rows} by={r -> r.id} estimate={44} selected={sel}>{(row, i) -> ...}</VirtualList>
+export declare class UiFlow {
+	// a long list in a scroller (helder.ui.VirtualScroll): only the rows in
+	// view are made, and overscan more on each side (3); rows that leave are
+	// hidden and kept (keep of them, 64, the farthest let go first), by key
+	// as For keeps them: by the item itself, by what by gives for it (a
+	// row's Read then its key's latest item: a change to one item changes
+	// its row alone), or keyed={false} by index. Its rows' heights are their
+	// own, estimated (estimate, 44 pixels) until each is measured, the scroll
+	// anchored to the row in view (an estimate made real, rows put in or
+	// taken out above it: nothing moves); itemHeight: every row that high.
+	// height pixels high, else it grows in its parent from 0 (flex: 1). A
+	// listbox of options to assistive technology (label: its name), each
+	// with its place among all of them; Up, Down, Page Up and Down, Home
+	// and End move the focus to a row (made if need be), selected (the key
+	// of the row selected: written as the focus moves, a row pressed) and
+	// onActivate (Enter, Space) given its item. Its child function gets a
+	// row's item (a Read) and its index when made; ref the VirtualScroll
+	// (scrollToIndex, focusIndex, the window).
+	static VirtualList<T>(props: { each: Read<T[]>; children: (arg0: Read<T>, arg1: number) => unknown; by?: (arg0: T) => any; keyed?: boolean; estimate?: number; itemHeight?: number; height?: number; overscan?: number; keep?: number; selected?: Signal<any>; onActivate?: (arg0: T) => void; label?: string; ref?: (arg0: VirtualScroll) => void; tag?: string }): unknown;
+}
+
+export declare const VirtualList: typeof UiFlow.VirtualList;
 
 // a neutral element's attributes: any, its handlers given ui's events (helder.ui.view.NodeEvents)
 export interface NeutralAttributes {

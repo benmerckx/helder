@@ -84,7 +84,8 @@ class Run {
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
 		{name: "studio", about: "helder studio (apps/studio; Linux: Mesa's llvmpipe, no display) run headless on copies of examples/todo and examples/ts-todo by tests/studio/edit.json: every screen shown (each story a dev build in a process of its own), one zoomed into, its title clicked and selected, its colour changed in the inspector (the value's span alone, a live literal patched, the program's frame showing it within 3 frames), a padding added and undone (built twice), tag=\"title\" typed into the code view (built, the node tagged), the prompt bar's /tree; the files at the end and every edit's span checked, the overview, zoomed and selected frames against tests/studio's goldens, the times printed (tests/studio/Check.hx); `helder studio --help`", run: studioLane},
 		{name: "code-bench", about: "helder.ui.code's budgets measured, not checked (Linux: Mesa's llvmpipe, no display): examples/code-editor on a 10,000-line TSX file run headless with --stats (tests/bench/code.mjs: keystrokes, the wheel down and back up, idle frames: ms against the 8 ms budget, GC bytes a frame), and the editor's own work without the renderer (tests/bench/CodeBench.hx, natively)", run: codeBench},
-		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; examples/code-editor (helder.ui.code) on a 2,000-line TSX file (tests/headless/code-editor.json: a word double-clicked and typed over, go to line, three cursors by secondary-D, undo and redo, find and replace all, a drag), its text and status bar at each mark and its last frame against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); examples/todo's and ts-todo's dev builds with a live literal's colour and a text patched by the script (tests/headless/literals.json: helder.dev.Literals), the frame after showing them; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
+		{name: "million-bench", about: "helder.ui's VirtualList measured, not checked (Linux: Mesa's llvmpipe, no display): examples/million (a million rows of their own heights) run headless with --stats on a script of the wheel over new rows and over rows made before, jumps to the end and back, rows put in above the view and the keyboard (tests/bench/million.mjs: each phase's ms and GC bytes a frame against the 8 ms budget), then tests/bench/MillionBench.hx: the list's own work a frame natively without the renderer, and what it holds (tests/bench/results/million.md)", run: millionBench},
+		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; examples/million and ts-million (a VirtualList of a million rows of their own heights, tests/headless/million.json: the wheel, End, the keyboard, the selection through recycling, rows put in above the view; their trees' options, places and rects at each mark, their last frame against its golden); examples/code-editor (helder.ui.code) on a 2,000-line TSX file (tests/headless/code-editor.json: a word double-clicked and typed over, go to line, three cursors by secondary-D, undo and redo, find and replace all, a drag), its text and status bar at each mark and its last frame against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); examples/todo's and ts-todo's dev builds with a live literal's colour and a text patched by the script (tests/headless/literals.json: helder.dev.Literals), the frame after showing them; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
 		{name: "ui-web", about: "the todo example, text editors and the accessibility fixture's ARIA mirror (web-access.mjs) as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
@@ -1018,6 +1019,13 @@ class Run {
 					"--snap", '$o/$app-literal-after.png', "--tree", '$o/$app-literal.json', "--at", "mark:patched"
 				]);
 			run(h, ["run", "--headless", "examples/glow", "--size", "320x240", "--snap", '$o/glow.png', "--at", "0.5"]);
+			// (a million rows: tests/headless/million.json's marks)
+			for (app in ["million", "ts-million"]) {
+				var args = ["run", "--headless", 'examples/$app', "--script", "tests/headless/million.json", "--size", "480x640"];
+				for (m in ["start", "down", "up", "end", "keys", "kept", "before", "inserted"])
+					args = args.concat(["--tree", '$o/$app-$m.json', "--at", 'mark:$m']);
+				run(h, args.concat(["--snap", '$o/$app-last.png', "--at", "mark:last"]));
+			}
 			run(h, [
 				"run", "--headless", "apps/viewer", "--script", "tests/headless/viewer.json", "--size", "480x360", "--tree", '$o/viewer-menu.json', "--at", "mark:menu",
 				"--tree", '$o/viewer-end.json'
@@ -1091,6 +1099,53 @@ class Run {
 		run(NODE, ["tests/bench/code.mjs", '$b/stats.json', '$b/phases.json']);
 		exe('$b/CodeBench', cps(["src", "tests/bench"]).concat(["-main", "CodeBench", "-D", "hxmc.libc=glibc"]));
 		run(exePath('$b/CodeBench', HOST), ['$b/code.tsx']);
+	}
+
+	static function millionBench() {
+		var h = helderCli(), b = "bin/million-bench";
+		mkdirs(b);
+		// (the wheel down 400 frames (rows new), back and forth over 1,200 px
+		// 10 times (rows made before), End and Top 10 times, a row put in
+		// above the view 30 times, Down 120 times, idle)
+		var ev:Array<Dynamic> = [], t = 0.5, dt = 1 / 60;
+		function at(name:String) {
+			ev.push({t: t, type: "mark", name: name});
+		}
+		at("down");
+		for (_ in 0...400) {
+			ev.push({t: t, type: "wheel", x: 240, y: 300, dy: 60});
+			t += dt;
+		}
+		at("again");
+		for (k in 0...400) {
+			ev.push({t: t, type: "wheel", x: 240, y: 300, dy: k % 40 < 20 ? 60 : -60});
+			t += dt;
+		}
+		at("jumps");
+		for (k in 0...20) {
+			ev.push({t: t, type: "tap", tag: k % 2 == 0 ? "end" : "top"});
+			t += 0.2;
+		}
+		at("inserts");
+		for (_ in 0...30) {
+			ev.push({t: t, type: "tap", tag: "insert"});
+			t += 0.1;
+		}
+		ev.push({t: t, type: "tap", tag: "top"});
+		t += 0.2;
+		at("keys");
+		for (_ in 0...120) {
+			ev.push({t: t, type: "key", name: "ArrowDown"});
+			t += dt * 2;
+		}
+		at("idle");
+		t += 1;
+		at("end");
+		File.saveContent('$b/script.json', haxe.Json.stringify({events: ev}));
+		run(h, ["run", "--headless", "examples/million", "--size", "480x640", "--script", '$b/script.json', "--stats", '$b/stats.json']);
+		run(NODE, ["tests/bench/million.mjs", '$b/stats.json', '$b/script.json']);
+		exe('$b/MillionBench', cps(["src", "tests/bench", "examples/million"]).concat(["-main", "MillionBench", "-D", "hxmc.libc=glibc"]));
+		run(exePath('$b/MillionBench', HOST), []);
 	}
 
 	// a file's lines repeated to n lines (and a last line break); unique:

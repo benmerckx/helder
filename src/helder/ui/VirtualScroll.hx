@@ -62,8 +62,8 @@ class VirtualScroll extends Node {
 
 	// (the rows made, by index; spacers before and after the window)
 	final slots:Array<VirtualRow> = [];
-	final before:Node;
-	final after:Node;
+	final before:Spacer;
+	final after:Spacer;
 	// (the anchor: a row and the offset into it at the view's top; the scroll it was taken at)
 	var anchorRow = 0;
 	var anchorDelta = 0.0;
@@ -76,13 +76,10 @@ class VirtualScroll extends Node {
 		super(tag ?? "virtual-list");
 		heights = new HeightIndex(estimate);
 		style.overflow = Scroll;
-		before = new Node("before");
-		after = new Node("after");
-		for (s in [before, after]) {
-			s.style.shrink = 0;
-			s.style.height = 0;
-			append(s);
-		}
+		before = new Spacer("before");
+		after = new Spacer("after");
+		append(before);
+		append(after);
 		semantics = ({role: ListBox} : Semantics);
 		onKeyDown = key;
 		onFocusIn = e -> {
@@ -180,6 +177,13 @@ class VirtualScroll extends Node {
 	public function rows():Array<VirtualRow>
 		return slots;
 
+	// row index measured again when next shown (its content changed: it
+	// may be shorter than it was)
+	public function remeasure(index:Int) {
+		var r = rowAt(index);
+		if (r != null && Math.isNaN(fixedHeight)) r.node.style.minHeight = 0;
+	}
+
 	// the made row of index (null: not made)
 	public function rowAt(index:Int):Null<VirtualRow> {
 		var k = seek(index);
@@ -197,10 +201,10 @@ class VirtualScroll extends Node {
 	}
 
 	// the first and last rows in view (-1: none)
-	public function firstVisible():Int
+	@:typescript public function firstVisible():Int
 		return count == 0 ? -1 : heights.rowAt(scrollY);
 
-	public function lastVisible():Int {
+	@:typescript public function lastVisible():Int {
 		if (count == 0) return -1;
 		var y = scrollY + viewHeight();
 		var r = heights.rowAt(y);
@@ -212,7 +216,7 @@ class VirtualScroll extends Node {
 
 	// scrolls to row index ("start", "center", "end"; "auto": as little as
 	// shows it), made or not, held there while the rows are measured
-	public function scrollToIndex(index:Int, align = "auto") {
+	@:typescript public function scrollToIndex(index:Int, align = "auto") {
 		if (count == 0) return;
 		index = index < 0 ? 0 : index >= count ? count - 1 : index;
 		var a = switch align {
@@ -232,7 +236,7 @@ class VirtualScroll extends Node {
 	}
 
 	// focuses row index (made, scrolled into view first), the focus ring shown
-	public function focusIndex(index:Int) {
+	@:typescript public function focusIndex(index:Int) {
 		if (count == 0) return;
 		index = index < 0 ? 0 : index >= count ? count - 1 : index;
 		scrollToIndex(index);
@@ -275,9 +279,12 @@ class VirtualScroll extends Node {
 	// --- the window
 
 	// (the view's height: its content box)
+	// (the view's height: its content box; no more than the window's, a list
+	// as tall as its rows (not bounded by its parent) making no more than fill it)
 	function viewHeight():Float {
 		var s = style;
 		var h = height - s.borderEdges.vertical - s.padding.vertical;
+		if (ui != null && h > ui.height) h = ui.height;
 		return h > 0 ? h : 0;
 	}
 
@@ -377,12 +384,10 @@ class VirtualScroll extends Node {
 		return changed;
 	}
 
-	static function setHeight(n:Node, h:Float):Bool {
-		switch (n.style.height : DimValue) {
-			case Px(v) if (v == h): return false;
-			case _:
-		}
-		n.style.height = h;
+	static function setHeight(n:Spacer, h:Float):Bool {
+		if (n.extent == h) return false;
+		n.extent = h;
+		n.markDirty();
 		return true;
 	}
 
@@ -460,7 +465,15 @@ class VirtualScroll extends Node {
 		if (Math.isNaN(fixedHeight))
 			for (s in slots) {
 				if (!s.shown) continue;
-				var h = s.node.height;
+				// (whole pixels: a row's height taken up to the next (its
+				// min-height), so that the rows' edges are whole pixels apart
+				// and stay where they are as rows above change, the layout
+				// rounding each edge where it is drawn)
+				var raw = @:privateAccess s.node.lh, h = Math.fceil(raw - 1 / 128);
+				if (h != raw) {
+					s.node.style.minHeight = h;
+					changed = true;
+				}
 				if (!heights.isMeasured(s.index) || heights.heightOf(s.index) != h) {
 					heights.set(s.index, h);
 					changed = true;
@@ -506,4 +519,21 @@ class VirtualRow {
 		this.index = index;
 		this.node = node;
 	}
+}
+
+// (a spacer as tall as the rows it stands for: its content's height, set
+// without a style's value made each time)
+private class Spacer extends Node {
+	public var extent = 0.0;
+
+	public function new(tag:String) {
+		super(tag);
+		style.shrink = 0;
+	}
+
+	override public function hasContent():Bool
+		return true;
+
+	override public function measureContent(text:TextEngine, knownWidth:Float, knownHeight:Float, availWidth:Float, availHeight:Float):Size
+		return new Size(0, extent);
 }

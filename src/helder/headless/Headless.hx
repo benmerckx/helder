@@ -747,6 +747,8 @@ class Headless {
 			if (n.text != null) b.add(', "text": ${str(n.text)}');
 			if (n.value != null) b.add(', "value": ${str(n.value)}');
 			if (n.checked != null) b.add(', "checked": ${n.checked}');
+			if (n.selected != null) b.add(', "selected": ${n.selected}');
+			if (n.setSize > 0) b.add(', "posinset": ${n.posInSet}, "setsize": ${n.setSize}');
 			if (n.disabled) b.add(', "disabled": true');
 		}
 		b.add(', "rect": [${num2(n.x)}, ${num2(n.y)}, ${num2(n.width)}, ${num2(n.height)}], "opacity": ${num2(n.opacity)}');

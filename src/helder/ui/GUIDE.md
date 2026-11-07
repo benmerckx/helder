@@ -183,7 +183,17 @@ static function Page(props:{tab:Signal<String>}):View
 	</Switch>;
 ```
 
-A long list belongs in a `VirtualList`, which makes only the rows in view.
+A long list belongs in a `VirtualList`, which makes only the rows in view,
+each as tall as its content (estimated until it is shown), kept by key as
+`For` keeps them:
+
+```haxe
+<VirtualList each={messages} by={m -> m.id} estimate={52} selected={selected} label="Messages" ref={l -> list = l}>{(m:Read<Message>, i:Int) ->
+	<text padding="8 16">{m().text}</text>}</VirtualList>
+```
+
+`list.scrollToIndex(i)` and `list.focusIndex(i)` reach a row that is not
+made yet; the arrow keys move the focus and the selection over the rows.
 
 ## Layout and style
 

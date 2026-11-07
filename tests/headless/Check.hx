@@ -10,7 +10,9 @@ using StringTools;
 // added by Enter and by the Add button, one toggled by its role and
 // label, a filter), their frames and the glow scene's against the goldens
 // here (Linux: llvmpipe, DejaVu Sans; within a tolerance),
-// the viewer's file dialog and context menu answered by its script, the
+// the viewer's file dialog and context menu answered by its script, a
+// VirtualList of a million rows (examples/million and ts-million: scrolled,
+// jumped, the keyboard, the selection, rows put in above the view), the
 // trace's lines, the frames written, and each output of the second run
 // byte for byte the first's.
 //   Check <dir> [--bless]
@@ -41,6 +43,8 @@ class Check {
 			literals(app, '$one/$app-literal-before.png', '$one/$app-literal-after.png', tree('$one/$app-literal.json'));
 		}
 		image("glow.png", '$one/glow.png', bless);
+		for (app in ["million", "ts-million"])
+			million(app, one, bless);
 		codeEditor(dir, one, bless);
 		viewer(tree('$one/viewer-menu.json'), tree('$one/viewer-end.json'));
 		var frames = [for (f in FileSystem.readDirectory('$one/frames')) f];
@@ -56,6 +60,65 @@ class Check {
 		check("both runs' outputs compared", same >= 12, '$same');
 		Sys.println('headless-run: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// examples/million and ts-million (a VirtualList of a million messages,
+	// tests/headless/million.json): few rows made, each its place among a
+	// million to assistive technology; the wheel down and back, End to the
+	// last row (focused, its end at the view's), Top and the keyboard (the
+	// selection following the focus), the selection kept through its row's
+	// recycling, three rows put in above the view (no row moved); the last
+	// frame against the golden
+	static function million(app:String, one:String, bless:Bool) {
+		function options(nodes:Array<Dynamic>):Array<Dynamic>
+			return [for (n in nodes) if (n.role == "option") n];
+		function idOf(o:Dynamic):Int {
+			var r = ~/#([0-9,]+)/;
+			return o.label != null && r.match(o.label) ? Std.parseInt(r.matched(1).split(",").join("")) : -1;
+		}
+		function status(nodes:Array<Dynamic>):String
+			return byTag(nodes, "status-text")?.text ?? "";
+		// (the list's view: its top and bottom, in points)
+		var start = tree('$one/$app-start.json');
+		var box = [for (n in start) if (n.role == "listbox") n][0];
+		var top:Float = box.rect[1], bottom:Float = box.rect[1] + box.rect[3];
+		var o = options(start);
+		check('$app: a listbox named Messages', box.label == "Messages");
+		check('$app: few rows of a million made', o.length > 5 && o.length < 30, '${o.length}');
+		check('$app: the first row first of a million', o[0].posinset == 1 && o[0].setsize == 1000000 && o[0].rect[1] == top, '${o[0].posinset}/${o[0].setsize}');
+		check('$app: the rows in order', [for (k in 1...o.length) o[k].posinset == o[k - 1].posinset + 1 && o[k].rect[1] == o[k - 1].rect[1] + o[k - 1].rect[3]].indexOf(false) < 0);
+		check('$app: rows of their own heights', [for (x in o) x.rect[3]].filter(h -> h != o[1].rect[3]).length > 2);
+		var down = options(tree('$one/$app-down.json'));
+		check('$app: the wheel down: rows further made', down[0].posinset > 20 && down.length < 30, '${down[0].posinset}');
+		var up = options(tree('$one/$app-up.json'));
+		check('$app: the wheel back up: the first row at the top again', up[0].posinset == 1 && up[0].rect[1] == top);
+		var end = tree('$one/$app-end.json'), eo = options(end), last = eo[eo.length - 1];
+		check('$app: End: the last row made and focused, its end at the view\'s', last.posinset == 1000000 && last.focus == true
+			&& last.rect[1] + last.rect[3] == bottom && idOf(last) == 999999, '${last.posinset} ${last.rect[1] + last.rect[3]} $bottom');
+		check('$app: End: few rows made', eo.length < 30, '${eo.length}');
+		var keys = tree('$one/$app-keys.json'), ko = options(keys);
+		var f = [for (x in ko) if (x.focus == true) x][0];
+		check('$app: Top, Down five times, Page Down, Up: the focus on a row, selected, in view', f != null && f.selected == true && f.posinset > 6
+			&& f.rect[1] >= top && f.rect[1] + f.rect[3] <= bottom && [for (x in ko) if (x.selected == true) x].length == 1);
+		var chosen = f == null ? -2 : idOf(f);
+		check('$app: the status shows the row selected', status(keys).indexOf('#$chosen selected') >= 0, status(keys));
+		var keptTree = tree('$one/$app-kept.json'), kept = options(keptTree);
+		var again = [for (x in kept) if (idOf(x) == chosen) x][0];
+		var shaded = [for (n in keptTree) if (n.fill == "#dbeafe") n];
+		check('$app: the selection kept through End and back', again != null && again.selected == true && shaded.length == 1
+			&& shaded[0].rect[1] == again.rect[1] && [for (x in kept) if (x.selected == true) x].length == 1);
+		var before = options(tree('$one/$app-before.json')), after = tree('$one/$app-inserted.json'), ao = options(after);
+		var moved = 0, same = 0;
+		for (b in before) {
+			var a = [for (x in ao) if (idOf(x) == idOf(b) && idOf(b) >= 0) x][0];
+			if (a == null) continue;
+			same++;
+			if (a.rect[1] != b.rect[1] || a.rect[3] != b.rect[3]) moved++;
+		}
+		check('$app: rows put in above the view: none of those in it moved', same >= 8 && moved == 0, '$same compared, $moved moved');
+		check('$app: three rows put in', ao[0].setsize == 1000003 && status(after).indexOf("1,000,003 rows") == 0, status(after));
+		check('$app: the rows put in above the first in view', [for (x in ao) if (x.rect[1] + x.rect[3] <= top && idOf(x) >= 1000000) x].length == 3);
+		image("million.png", '$one/$app-last.png', bless && app == "million");
 	}
 
 	// examples/code-editor on a 2,000-line TSX file (tests/headless/code-editor.json):

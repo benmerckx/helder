@@ -799,7 +799,7 @@ class Style {
 	function set_display(v:Display):Display {
 		if (v == display) return v;
 		display = v;
-		node.styleChanged(true);
+		node.styleChanged(true, false);
 		return v;
 	}
 

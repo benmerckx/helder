@@ -745,11 +745,14 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 		}
 	}
 
-	@:allow(helder.ui.Style) function styleChanged(layout:Bool) {
+	// (inherited: a property its descendants' text may inherit; display not one,
+	// a row shown and hidden again (VirtualScroll) keeping its text laid out)
+	@:allow(helder.ui.Style) function styleChanged(layout:Bool, inherited = true) {
 		if (layout) {
 			markDirty();
 			// (its parent's layout reads its style: margins, flex, position...)
 			if (parent != null && ui != null) ui.changed(parent);
+			if (!inherited) return;
 			// (an inherited text property: the descendants' text changes too, the body's: the layers' too)
 			for (c in children)
 				c.inheritedChanged();

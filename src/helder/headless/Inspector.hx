@@ -21,7 +21,8 @@ interface Inspector {
 // A node as presented: where it is drawn (points, through its ancestors'
 // scrolling and transforms), how (its opacity through its ancestors', its
 // fill and text colours as "#rrggbb" or "#rrggbbaa"), what assistive
-// technology reads of it (role: ARIA's; label; checked, value), its state
+// technology reads of it (role: ARIA's; label; checked, selected, value; its
+// place in its set), its state
 // (hovered, pressed, focused), whether a transition is moving it, and
 // where its markup is (its tag's span, the component mounting it)
 @:structInit class InspectedNode {
@@ -37,6 +38,10 @@ interface Inspector {
 	public var text:Null<String> = null;
 	public var value:Null<String> = null;
 	public var checked:Null<Bool> = null;
+	public var selected:Null<Bool> = null;
+	// an item's place in its set, from 1, and the set's size (0: none)
+	public var posInSet:Int = 0;
+	public var setSize:Int = 0;
 	public var disabled:Bool = false;
 	public var x:Float;
 	public var y:Float;

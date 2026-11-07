@@ -641,7 +641,9 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   nodes}`, each node displayed in tree order (the root's children, then
   the overlay's popups): `id` (stable for the run), `tag`, `path` (its
   tags from the root down), `parent`, `depth`, `role`, `label`, `text`,
-  `value`, `checked`, `disabled` (the accessibility tree's), `rect`
+  `value`, `checked`, `selected`, `posinset` and `setsize` (an item's place
+  in its set: a virtual list's rows among all of them), `disabled` (the
+  accessibility tree's), `rect`
   ([x, y, width, height] where it is drawn, in points: through its
   ancestors' scrolling and transforms), `opacity` (through its
   ancestors'), `fill` and `color` (`#rrggbb`, `#rrggbbaa`), `hover`,
