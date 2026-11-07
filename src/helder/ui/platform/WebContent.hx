@@ -43,6 +43,8 @@ class WebContent {
 	// scheme (https, intercepted) puts the bridge in its pages first
 	public var local = #if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64" || hxmc.target == "macos-arm64" || hxmc.target == "macos-x86_64") true #else false #end;
 	var server:Null<WebServer> = null;
+	// (WebServer's POSTs to /__helder/post: a bridge's messages, on its threads)
+	@:allow(helder.ui.platform) var onPost:Null<String->Void> = null;
 
 	final serve:String->Null<WebResponse>;
 	// bytes posted to the page (WebView.postBytes): fetched once from /__helder/bytes/<id>

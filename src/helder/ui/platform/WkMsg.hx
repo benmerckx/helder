@@ -12,6 +12,7 @@ class WkMsg {
 	static function vPtrPtrIntPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Int64, d:Ptr):Void;
 	static function idFloat4(self:Ptr, sel:Ptr, a:Float, b:Float, c:Float, d:Float):Ptr;
 	static function f(self:Ptr, sel:Ptr):Float;
+	static function vPtrPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Bool):Void;
 }
 
 // The Objective-C runtime's protocols, and blocks (a completion handler:

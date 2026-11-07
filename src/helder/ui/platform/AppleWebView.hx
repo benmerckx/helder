@@ -43,6 +43,9 @@ class AppleWebView implements PlatformWebView {
 	final options:WebViewOptions;
 	final content:Null<WebContent>;
 	final queue:Array<WebViewEvent> = [];
+	// (macOS: the server's messages, from its threads, until the main thread takes them)
+	final posted:Array<String> = [];
+	final lock = new sys.thread.Mutex();
 	final queued:Void->Void;
 	var listener:Null<WebViewListener> = null;
 	var disposed = false;
@@ -66,7 +69,19 @@ class AppleWebView implements PlatformWebView {
 		var name = ObjC.str("helder");
 		Msg.vPtrPtr(ucc, ObjC.sel("addScriptMessageHandler:name:"), delegate, name);
 		ObjC.release(name);
-		var js = WebBridge.script(ios ? "ios" : "macos", "function(s){window.webkit.messageHandlers.helder.postMessage(s);}", true);
+		// (macOS: through the content's own server where it has one, in order: WebKit's
+		// script messages make a JSContext, whose stack check fails on helder's main stack there)
+		var viaServer = !ios && content != null && content.local;
+		var send = viaServer ? 'function(){var q=Promise.resolve(),u=${WebBridge.quote(content.url("__helder/post"))};'
+			+ 'return function(s){q=q.then(function(){return fetch(u,{method:"POST",body:s,mode:"no-cors"});}).catch(function(){});};}()'
+			: "function(s){window.webkit.messageHandlers.helder.postMessage(s);}";
+		var js = WebBridge.script(ios ? "ios" : "macos", send, true);
+		if (viaServer) content.onPost = s -> {
+			lock.acquire();
+			posted.push(s);
+			lock.release();
+			WkMsg.vPtrPtrBool(delegate, ObjC.sel("performSelectorOnMainThread:withObject:waitUntilDone:"), ObjC.sel("hxmcPosted:"), Ptr.nil(), false);
+		};
 		if (options.zoom != true)
 			js += 'document.addEventListener("DOMContentLoaded",function(){var m=document.querySelector("meta[name=viewport]");'
 				+ 'if(!m){m=document.createElement("meta");m.name="viewport";m.content="width=device-width, initial-scale=1";document.head.appendChild(m);}'
@@ -303,6 +318,7 @@ class AppleWebView implements PlatformWebView {
 		Runtime.class_replaceMethod(d, ObjC.sel("webViewWebContentProcessDidTerminate:"), Callback.addr(terminated), Mem.cstr("v@:@"));
 		Runtime.class_replaceMethod(d, ObjC.sel("webView:startURLSchemeTask:"), Callback.addr(startTask), Mem.cstr("v@:@@"));
 		Runtime.class_replaceMethod(d, ObjC.sel("webView:stopURLSchemeTask:"), Callback.addr(stopTask), Mem.cstr("v@:@@"));
+		Runtime.class_replaceMethod(d, ObjC.sel("hxmcPosted:"), Callback.addr(postedOnMain), Mem.cstr("v@:@"));
 		Runtime.class_replaceMethod(d, ObjC.sel("observeValueForKeyPath:ofObject:change:context:"), Callback.addr(observed), Mem.cstr("v@:@@@^v"));
 		for (p in ["WKNavigationDelegate", "WKScriptMessageHandler", "WKURLSchemeHandler"]) {
 			var proto = Arena.scopedValue(a -> ObjcProtocols.objc_getProtocol(a.cstring(p)));
@@ -320,6 +336,16 @@ class AppleWebView implements PlatformWebView {
 		var s = body.isNull() ? "" : ObjC.string(Msg.id(body, ObjC.sel("description"))) ?? "";
 		v.push(WebViewEvent.message(s));
 	}
+
+	// (the main thread: the server's messages into each view's queue)
+	@:hxmc.callback static function postedOnMain(self:Ptr, cmd:Ptr, o:Ptr):Void
+		for (v in views) {
+			v.lock.acquire();
+			var ms = v.posted.splice(0, v.posted.length);
+			v.lock.release();
+			for (m in ms)
+				v.push(WebViewEvent.message(m));
+		}
 
 	@:hxmc.callback static function started(self:Ptr, cmd:Ptr, web:Ptr, nav:Ptr):Void {
 		var v = of(web);

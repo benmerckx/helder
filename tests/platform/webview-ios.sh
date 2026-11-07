@@ -46,6 +46,12 @@ trap cleanup EXIT
 xcrun simctl boot "$udid"
 xcrun simctl bootstatus "$udid" -b > /dev/null 2>&1
 
+# the newest crash report of the apps here: its exception, the crashed thread's frames
+report() {
+	r=$(ls -t ~/Library/Logs/DiagnosticReports/WebViewCheck*.ips ~/Library/Logs/DiagnosticReports/WebShellCheck*.ips 2> /dev/null | head -1)
+	[ -n "$r" ] && python3 -c 'import json,sys; t=open(sys.argv[1]).read().split("\n",1)[1]; d=json.loads(t); th=[x for x in d["threads"] if x.get("triggered")][0]; im=d["usedImages"]; print(d.get("exception")); [print(f.get("imageOffset"), im[f["imageIndex"]].get("name"), f.get("symbol")) for f in th["frames"][:30]]' "$r"
+}
+
 # one app: installed, launched with its output in <out>/<name>.txt, its last line awaited
 run() {
 	name=$1
@@ -54,8 +60,24 @@ run() {
 	xcrun simctl install "$udid" "$out/$name.app"
 	check "simctl install $name.app" $?
 	: > "$out/$base.txt"
-	SIMCTL_CHILD_HELDER_WEBVIEW_LOCAL=${2:-} SIMCTL_CHILD_HELDER_WEB_DIR="$out/todo" xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" > "$out/$base.txt" 2>&1 &
-	console=$!
+	launch() {
+		SIMCTL_CHILD_HELDER_WEBVIEW_LOCAL=${2:-} SIMCTL_CHILD_HELDER_WEB_DIR="$out/todo" xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" > "$out/$base.txt" 2>&1 &
+		console=$!
+	}
+	launch "$@"
+	# (nothing from it within 30 s, as a first launch on a just booted simulator may: its crash
+	# report, then once more)
+	i=0
+	while [ $i -lt 30 ] && ! grep -q "webview:" "$out/$base.txt"; do
+		sleep 1
+		i=$((i + 1))
+	done
+	if ! grep -q "webview:" "$out/$base.txt"; then
+		echo "webview-ios.sh: $base: no output; launched again"
+		report
+		kill $console > /dev/null 2>&1
+		launch "$@"
+	fi
 	i=0
 	shot=0
 	while [ $i -lt 150 ] && ! grep -q "webview: [a-z]*: [0-9]* checks" "$out/$base.txt"; do
@@ -75,7 +97,9 @@ run() {
 	[ $shot = 0 ] && xcrun simctl io "$udid" screenshot "$out/$base.png" > /dev/null 2>&1
 	grep "webview:" "$out/$base.txt"
 	grep -q "webview: [a-z]*: [0-9]* checks, ok" "$out/$base.txt"
-	check "$base: its checks" $?
+	r=$?
+	check "$base: its checks" $r
+	[ $r = 0 ] || report
 	xcrun simctl terminate "$udid" "$id" > /dev/null 2>&1
 	kill $console > /dev/null 2>&1
 }
