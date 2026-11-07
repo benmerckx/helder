@@ -118,7 +118,7 @@ class HeadlessCommand {
 		}
 		if (videoFrames != null) sequences.push({dir: videoFrames, start: start, duration: o.has("frames") ? null : o.value("duration") ?? "auto", count: o.has("frames") ? Std.parseInt(o.value("frames")) : null});
 		if (sequences.length > 0) cfg.sequences = sequences;
-		for (k in ["script", "trace", "size", "theme", "keys-theme"])
+		for (k in ["script", "trace", "stats", "size", "theme", "keys-theme"])
 			if (o.value(k) != null) Reflect.setField(cfg, k == "keys-theme" ? "keysTheme" : k, o.value(k));
 		for (k in ["scale", "fps", "seed"])
 			if (o.value(k) != null) Reflect.setField(cfg, k, Std.parseFloat(o.value(k)));

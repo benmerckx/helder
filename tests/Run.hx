@@ -81,6 +81,7 @@ class Run {
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
 		{name: "syntax", about: "helder.syntax, the syntax trees the studio edits (src/helder/syntax; its edits' tests are the test lane's, Syntax.test.hx): every .ts and .tsx file, and every .hx file with markup, of the repository read and printed back byte for byte, read structurally, each Haxe markup literal read as the macro's parser reads it (tests/syntax/Check.hx, on Eval and natively: the read of the largest file timed)", run: syntaxLane},
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
+		{name: "code-bench", about: "helder.ui.code's budgets measured, not checked (Linux: Mesa's llvmpipe, no display): examples/code-editor on a 10,000-line TSX file run headless with --stats (tests/bench/code.mjs: keystrokes, the wheel down and back up, idle frames: ms against the 8 ms budget, GC bytes a frame), and the editor's own work without the renderer (tests/bench/CodeBench.hx, natively)", run: codeBench},
 		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; examples/code-editor (helder.ui.code) on a 2,000-line TSX file (tests/headless/code-editor.json: a word double-clicked and typed over, go to line, three cursors by secondary-D, undo and redo, find and replace all, a drag), its text and status bar at each mark and its last frame against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); examples/todo's and ts-todo's dev builds with a live literal's colour and a text patched by the script (tests/headless/literals.json: helder.dev.Literals), the frame after showing them; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
 		{name: "ui-web", about: "the todo example, text editors and the accessibility fixture's ARIA mirror (web-access.mjs) as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
@@ -1018,12 +1019,57 @@ class Run {
 		} else Sys.println("headless-run: no ffmpeg: --video not checked");
 	}
 
-	// a file's lines repeated to n lines (and a last line break)
-	static function repeatedLines(path:String, n:Int):String {
+	static function codeBench() {
+		var h = helderCli(), b = "bin/code-bench";
+		mkdirs(b);
+		File.saveContent('$b/code.tsx', repeatedLines("examples/ts-todo/app.tsx", 10000, true));
+		// (the script: focus, go to line 5,000's end, a key a frame; the wheel
+		// down a frame at a time, then back up, at a place: a step aimed at a
+		// node finds it in the tree, the harness's work, not the frame's)
+		var ev:Array<Dynamic> = [{t: 0.2, type: "tap", tag: "code-view", ox: 300, oy: 10}, {t: 0.3, type: "key", name: "g", secondary: true},
+			{t: 0.35, type: "type", text: "5000"}, {t: 0.45, type: "key", name: "Enter"}, {t: 0.5, type: "key", name: "End"}];
+		var t = 0.6, dt = 1 / 60;
+		for (k in 0...240) {
+			ev.push(k % 40 == 39 ? {t: t, type: "key", name: "Enter"} : {t: t, type: "type", text: String.fromCharCode("a".code + k % 26)});
+			t += dt;
+		}
+		var typed = t;
+		t += 0.5;
+		var down = t;
+		for (_ in 0...600) {
+			ev.push({t: t, type: "wheel", x: 450, y: 320, dy: 80});
+			t += dt;
+		}
+		var up = t;
+		for (_ in 0...600) {
+			ev.push({t: t, type: "wheel", x: 450, y: 320, dy: -80});
+			t += dt;
+		}
+		var idle = t;
+		ev.push({t: t + 1, type: "mark", name: "end"});
+		File.saveContent('$b/script.json', haxe.Json.stringify({events: ev}));
+		File.saveContent('$b/phases.json', haxe.Json.stringify([
+			{name: "keystroke (to its frame)", kind: "keys", from: 0.59, to: typed},
+			{name: "wheel down (lines new)", kind: "wheels", from: down, to: up},
+			{name: "wheel back up (steady state)", kind: "wheels", from: up, to: idle},
+			{name: "idle (caret blinking)", kind: "idle", from: idle + 0.2, to: idle + 1}
+		]));
+		run(h, ["run", "--headless", "examples/code-editor", "--size", "900x640", "--script", '$b/script.json', "--stats", '$b/stats.json', "--", '$b/code.tsx']);
+		run(NODE, ["tests/bench/code.mjs", '$b/stats.json', '$b/phases.json']);
+		exe('$b/CodeBench', cps(["src", "tests/bench"]).concat(["-main", "CodeBench", "-D", "hxmc.libc=glibc"]));
+		run(exePath('$b/CodeBench', HOST), ['$b/code.tsx']);
+	}
+
+	// a file's lines repeated to n lines (and a last line break); unique:
+	// each repetition's lines but the first's marked with its number (no
+	// two lines alike: none laid out once for both)
+	static function repeatedLines(path:String, n:Int, unique = false):String {
 		var src = File.getContent(path).split("\n"), out = [];
 		if (src[src.length - 1] == "") src.pop();
-		while (out.length < n)
-			out.push(src[out.length % src.length]);
+		while (out.length < n) {
+			var l = src[out.length % src.length], k = Std.int(out.length / src.length);
+			out.push(unique && k > 0 && StringTools.trim(l) != "" ? l + " /* " + k + " */" : l);
+		}
 		return out.join("\n") + "\n";
 	}
 

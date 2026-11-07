@@ -47,6 +47,7 @@ class Options {
 		{key: "fps", names: ["--fps"], value: "<n>", number: true, about: "frames a second of the virtual clock (60)"},
 		{key: "duration", names: ["--duration"], value: "<s|auto>", about: "--video's length (and -o/--out's without --frames): seconds, or auto (to the end)"},
 		{key: "trace", names: ["--trace"], value: "<jsonl>", about: "motion: each tagged node's rect and opacity, a JSON line a frame"},
+		{key: "stats", names: ["--stats"], value: "<json>", about: "each frame's work in ms (its events to its end) and GC bytes, its input events, as JSON"},
 		{key: "keys", names: ["--keys"], about: "keycaps of the script's keys drawn over the frames"},
 		{key: "keys-at", names: ["--keys-at"], value: "<corner>", about: "where: bottom-left (default), bottom, bottom-right, top-left, top, top-right"},
 		{key: "keys-theme", names: ["--keys-theme"], value: "<t>", about: "the keycaps' colours: light, dark (default: --theme)"},
@@ -350,8 +351,8 @@ class Options {
 		var v = value("video");
 		if (v != null && !(v.endsWith(".mp4") || v.endsWith(".webm") || v.endsWith(".mov"))) throw usage('--video $v: .mp4, .webm or .mov');
 		if (has("every") && out == null) throw usage('--every: with --frames and -o/--out');
-		if (!has("snap") && !has("tree") && !has("video") && !has("trace") && out == null)
-			throw usage('--headless: what to write: --snap, --tree, --frames with -o, --video or --trace');
+		if (!has("snap") && !has("tree") && !has("video") && !has("trace") && !has("stats") && out == null)
+			throw usage('--headless: what to write: --snap, --tree, --frames with -o, --video, --trace or --stats');
 	}
 
 	// a headless run's time: seconds, end, mark:<name>[+-<seconds>]

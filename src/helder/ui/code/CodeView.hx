@@ -83,6 +83,9 @@ class CodeView extends Node {
 	// (the last activity: the caret shown solid, then blinking)
 	var activeAt = 0.0;
 	final tick:Float->Bool;
+	// (the blink's phase last drawn)
+	var drawnPhase = 0;
+	static inline var BLINK_FOR = 30.0;
 
 	// (clicks in a row, the last one's time and place; a drag's granularity and its first selection)
 	var clicks = 0;
@@ -651,9 +654,8 @@ class CodeView extends Node {
 		}
 		caretShown = focused;
 		if (!focused) return;
-		var since = Ui.now() - activeAt;
-		var on = Clock.reducedMotion || since < 0.5 || since > 30 || Std.int((since - 0.5) / 0.5) % 2 == 1;
-		if (!on) return;
+		drawnPhase = blinkPhase();
+		if (drawnPhase % 2 == 1) return;
 		var color = codeTheme.colors[CodeTheme.CURSOR], w = Math.max(2, Math.round(fontSize / 8));
 		for (k in 0...count) {
 			var cy = curY[k];
@@ -745,12 +747,21 @@ class CodeView extends Node {
 			}
 			animating = moving;
 		}
-		// (the rest of the file highlighted, a few thousand lines a frame)
-		if (!model.highlighted()) model.highlight(model.lineCount, 4000);
-		var blinking = focused && Ui.now() - activeAt <= 30;
-		if (ui != null && (animating || blinking || !model.highlighted())) ui.requestFrame();
+		// (the rest of the file highlighted, a thousand lines a tick: nothing drawn for it)
+		if (!model.highlighted()) model.highlight(model.lineCount, 1000);
+		var blinking = focused && !Clock.reducedMotion && Ui.now() - activeAt <= BLINK_FOR;
+		// (a frame while the cursors move, and when the caret blinks on or off: not every tick)
+		if (ui != null && (animating || focused && blinkPhase() != drawnPhase)) ui.requestFrame();
 		ticking = animating || blinking || !model.highlighted();
 		return ticking;
+	}
+
+	// (the caret's phase: even shown, odd hidden; solid for half a second
+	// after an edit or a move, then blinking every half second, solid again
+	// after BLINK_FOR seconds without one)
+	function blinkPhase():Int {
+		var since = Ui.now() - activeAt;
+		return Clock.reducedMotion || since < 0.5 || since > BLINK_FOR ? 0 : 1 + Std.int((since - 0.5) / 0.5);
 	}
 
 	// ---- the pointer

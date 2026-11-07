@@ -192,7 +192,7 @@ function tests() {
 			equals(usage(() -> parse("run", ["--headless", "--snap", "a.png", "--theme", "blue"])), "helder run: --theme blue: light or dark");
 			equals(usage(() -> parse("run", ["--headless", "--frames", "10"])), "helder run: --frames: the directory they go to, -o/--out <dir>");
 			equals(usage(() -> parse("run", ["--headless", "--video", "a.gif"])), "helder run: --video a.gif: .mp4, .webm or .mov");
-			equals(usage(() -> parse("run", ["--headless"])), "helder run: --headless: what to write: --snap, --tree, --frames with -o, --video or --trace");
+			equals(usage(() -> parse("run", ["--headless"])), "helder run: --headless: what to write: --snap, --tree, --frames with -o, --video, --trace or --stats");
 			equals(usage(() -> parse("run", ["--headless", "--tree", "t.json", "--target", "web"])), "helder run: --headless: this machine only, not --target web");
 		});
 		test("each --at for the --snap and --tree before it", () -> {

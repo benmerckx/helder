@@ -48,6 +48,16 @@ class Headless {
 	// (a sequence's frames all of its first's size: a window resized during it cropped or padded, top left kept)
 	final sequences:Array<{dir:String, start:Float, count:Int, every:Int, written:Int, width:Int, height:Int}> = [];
 	final trace:Null<String>;
+	// --stats: each frame's work (ms, from its events to its end) and what it
+	// allocated (GC bytes, collections), its input events by kind; written at the end
+	final stats:Null<String>;
+	final statFrames:Array<Float> = [];
+	var statStart = -1.0;
+	var statBytes = 0.0;
+	var statCollections = 0;
+	var statKeys = 0;
+	var statWheels = 0;
+	var statPointers = 0;
 	final overlay:Null<Overlay>;
 	// when the run ends (s)
 	final end:Float;
@@ -121,6 +131,7 @@ class Headless {
 			ends.push(start + (count - 1) / fps);
 		}
 		trace = Reflect.field(o, "trace");
+		stats = Reflect.field(o, "stats");
 		var keys:Null<String> = Reflect.field(o, "keys"), pointer = Reflect.field(o, "pointer") == true;
 		overlay = keys != null || pointer ? new Overlay(keys, Reflect.field(o, "keysTheme") ?? (dark ? "dark" : "light"), pointer) : null;
 		var e = 0.0;
@@ -182,6 +193,7 @@ class Headless {
 	// script's steps (each turned into acts when it comes: its target found
 	// then) and their acts
 	public function events(onEvent:Event->Void) {
+		if (stats != null) statsBegin();
 		var t = frameTime() + 1e-9;
 		while (true) {
 			if (posted.length > 0) {
@@ -336,6 +348,12 @@ class Headless {
 		e.deltaX = e.deltaY = 0;
 		e.x = Math.round(a.x * k);
 		e.y = Math.round(a.y * k);
+		if (stats != null) switch a.kind {
+			case Key | KeyUp: statKeys++;
+			case Wheel: statWheels++;
+			case Move | Down | Up: statPointers++;
+			case _:
+		}
 		switch a.kind {
 			case Move:
 				px = a.x;
@@ -482,6 +500,7 @@ class Headless {
 
 	// after a frame: its outputs; whether the run goes on
 	public function framed():Bool {
+		if (stats != null) statsEnd();
 		var t = frameTime(), eps = 1e-6;
 		var nodes:Null<Array<InspectedNode>> = null;
 		if (wantsNodes && inspector != null) nodes = inspector.nodes();
@@ -525,6 +544,7 @@ class Headless {
 		if (finished) return;
 		finished = true;
 		if (traceOut != null) traceOut.close();
+		if (stats != null) writeStats();
 		var missed = [for (s in snaps.concat(trees)) if (!s.done) '${s.path} (at ${round(s.at)} s)'];
 		for (q in sequences)
 			if (q.written < q.count) missed.push('${q.dir} (${q.written} of ${q.count} frames)');
@@ -538,6 +558,47 @@ class Headless {
 			Sys.stderr().writeString('helder headless: the program ended at ${round(Time.now)} s, before ${left[0]}\n');
 			Sys.exit(1);
 		}
+	}
+
+	// (a frame's work begins: its events; the collector's counters then)
+	function statsBegin() {
+		statStart = haxe.Timer.stamp();
+		#if (target.name == "hxmc")
+		statBytes = hxmc.GcStats.bytesAllocated();
+		statCollections = hxmc.GcStats.collections();
+		#end
+		statKeys = statWheels = statPointers = 0;
+	}
+
+	// (and ends, drawn: before its outputs are written)
+	function statsEnd() {
+		if (statStart < 0) return;
+		var ms = (haxe.Timer.stamp() - statStart) * 1000, bytes = 0.0, gcs = 0;
+		#if (target.name == "hxmc")
+		bytes = hxmc.GcStats.bytesAllocated() - statBytes;
+		gcs = hxmc.GcStats.collections() - statCollections;
+		#end
+		for (v in [frame, frameTime(), ms, bytes, gcs, statKeys, statWheels, statPointers])
+			statFrames.push(v);
+		statStart = -1;
+	}
+
+	// {"fps", "frames": [{"frame", "t", "ms", "gcBytes", "gcs", "keys", "wheels", "pointers"}...]}
+	function writeStats() {
+		var b = new StringBuf();
+		b.add('{"fps":$fps,"frames":[');
+		var k = 0;
+		while (k + 7 < statFrames.length) {
+			if (k > 0) b.add(",\n");
+			var f = statFrames;
+			b.add('{"frame":${Std.int(f[k])},"t":${round(f[k + 1])},"ms":${Math.round(f[k + 2] * 1000) / 1000},"gcBytes":${Std.int(f[k + 3])},"gcs":${Std.int(f[k + 4])},"keys":${Std.int(f[k + 5])},"wheels":${Std.int(f[k + 6])},"pointers":${Std.int(f[k + 7])}}');
+			k += 8;
+		}
+		b.add("]}\n");
+		var dir = haxe.io.Path.directory(stats);
+		if (dir != "" && !sys.FileSystem.exists(dir)) sys.FileSystem.createDirectory(dir);
+		sys.io.File.saveContent(stats, b.toString());
+		Sys.println('headless: $stats (${Std.int(statFrames.length / 8)} frames)');
 	}
 
 	// the frame (keycaps and ripples over it) as an opaque PNG; at w x h pixels when given (cropped or padded with black)
