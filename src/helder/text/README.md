@@ -138,11 +138,14 @@ constants are Rune's measurements, credited where they are kept).
 - Pens are floored to CoreGraphics' subpixel step, which depends on the
   ppem: fifths of a device pixel below 8⅓ ppem, quarters to 11.1, thirds
   to 16.7, halves to 33.3, whole pixels above (`GlyphPipeline.steps`).
-  Baselines are whole device pixels.
+  A pen within 1.25/1024 px under a step is on it, as CoreText places
+  them (fitted on CI's Mac). Baselines are whole device pixels.
 - Curves are flattened with CoreGraphics' tolerances (coordinates as f32,
   halved until flat), and at whole ppem 7 to 18 its y autohinter maps
   every point's y to snap the x-height ('o') and cap height ('X') to whole
-  pixels (TrueType faces; CFF and obliques are not hinted).
+  pixels (TrueType faces with instructions, fpgm, prep or cvt: CoreText
+  on CI's Mac leaves faces cut without them unhinted; CFF and obliques
+  are not hinted).
 - Coverage is drawn as is (exact area, no gamma), blended in sRGB-encoded
   space as Core Animation and CSS blend: helder.ui's Renderer already does
   (premultiplied colours of sRGB values into a target that is not sRGB),
@@ -184,6 +187,32 @@ structural similarity (Gaussian SSIM on each row's ink), the ink's weight
 against CoreText's, and the pixels' differences (their distribution, the
 share off by more than 8, the mean, the largest), and the same for the
 rasterizer helder had before (`bin/text-quality/report.md`, heatmaps).
+It fails when a mode is further from CoreText than 4 levels anywhere.
+
+Its numbers (CoreText on CI's macOS 15 runner; every pair and both scales
+in the report). Rows pooled by pixel, SSIM their mean, weight helder's ink
+over CoreText's:
+
+| against CoreText | engine | SSIM | weight | mean abs | >8 | max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| smoothing on, dark on light, 1x | before | 0.9265 | 0.880 | 10.29 | 22.0% | 191 |
+| | smoothing on | 1.0000 | 0.998 | 0.153 | 0 | 2 |
+| smoothing on, light on dark, 1x | before | 0.8823 | 0.789 | 13.32 | 23.9% | 191 |
+| | smoothing on | 1.0000 | 1.002 | 0.138 | 0 | 3 |
+| smoothing on, dark on light, 2x | before | 0.9001 | 0.889 | 9.77 | 14.4% | 222 |
+| | smoothing on | 1.0000 | 0.999 | 0.082 | 0 | 3 |
+| smoothing on, light on dark, 2x | before | 0.8599 | 0.856 | 10.24 | 15.0% | 200 |
+| | smoothing on | 1.0000 | 1.001 | 0.077 | 0 | 2 |
+| smoothing off, dark on light, 1x | before | 0.9384 | 0.998 | 7.34 | 16.5% | 190 |
+| | smoothing off | 1.0000 | 0.998 | 0.143 | 0 | 2 |
+| smoothing off, light on dark, 2x | before | 0.9295 | 1.003 | 6.20 | 11.0% | 200 |
+| | smoothing off | 1.0000 | 1.001 | 0.084 | 0 | 2 |
+
+Every pixel is within 3 levels of CoreText's, 86 to 93% of them exact;
+the rest is CoreGraphics' fixed-point scan conversion. Before, light text
+on dark had a fifth less ink than CoreText's (no smoothing), and glyphs
+were placed and shaped otherwise (pens to the nearest quarter, no
+hinting, its own flattening).
 
 ## The platform's own stack
 

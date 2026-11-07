@@ -159,7 +159,7 @@ class TextQuality {
 	// --- CoreText's sheets (macOS)
 
 	static function reference(dir:String) {
-		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		#if (hxmc.target == "macos-arm64" || hxmc.target == "macos-x86_64")
 		if (hxmc.unsafe.Mem.os() != 1) throw "TextQuality reference: Core Text is macOS's";
 		FileSystem.createDirectory(dir);
 		var cs = cases();
@@ -309,7 +309,7 @@ class TextQuality {
 		var md = report(rows);
 		File.saveContent('$out/report.md', md);
 		Sys.println(md);
-		// (held to what the port reaches: each mode at least as close as before, on every pair and scale)
+		// (held to what the port reaches: each mode closer than before, and within 4 levels of CoreText, on every pair and scale)
 		var ok = true;
 		for (scale in SCALES)
 			for (p in PAIRS)
@@ -319,6 +319,14 @@ class TextQuality {
 					if (after.meanabs() > before.meanabs() || after.ssim() < before.ssim()) {
 						Sys.println('TextQuality: FAIL: ${p.name} ${scale}x against CoreText with $ref: further than before');
 						ok = false;
+					}
+					// (CoreText's within a few levels: 3 on CI's sheets; a glyph placed or hinted otherwise is tens)
+					for (whole in [false, true]) {
+						var s = pooled(rows, ref, p.name, scale, ref == "smoothing on" ? "on" : "off", whole);
+						if (s.max > 4 || s.ssim() < 0.999) {
+							Sys.println('TextQuality: FAIL: ${p.name} ${scale}x against CoreText with $ref: ${s.max} levels off at most, SSIM ${s.ssim()}');
+							ok = false;
+						}
 					}
 				}
 		return ok;
@@ -351,10 +359,10 @@ class TextQuality {
 						}
 			b.add("\n");
 		}
-		b.add("## Each row (2x, light, against the mode's own reference)\n\n| case | engine | SSIM | weight | mean abs |\n| --- | --- | ---: | ---: | ---: |\n");
+		b.add("## Each row (light, against the mode's own reference)\n\n| case | scale | engine | SSIM | weight | mean abs | >8 | max |\n| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |\n");
 		for (r in rows)
-			if (r.scale == 2 && r.pair.name == "light")
-				b.add('| ${r.c.name} | ${r.mode} vs ${r.reference} | ${f(r.s.ssim(), 4)} | ${f(r.s.weight(), 3)} | ${f(r.s.meanabs(), 3)} |\n');
+			if (r.pair.name == "light")
+				b.add('| ${r.c.name} | ${Std.int(r.scale)}x | ${r.mode} vs ${r.reference} | ${f(r.s.ssim(), 4)} | ${f(r.s.weight(), 3)} | ${f(r.s.meanabs(), 3)} | ${f(100 * r.s.over8 / r.s.pixels, 2)}% | ${r.s.max} |\n');
 		return b.toString();
 	}
 

@@ -155,8 +155,10 @@ class CoreGraphicsTest {
 		check("pen: floored to thirds at 13 ppem",
 			GlyphPipeline.penPixel(10.32, 13) == 10 && GlyphPipeline.penPhase(10.32, 13) == 0 && GlyphPipeline.penPhase(10.34, 13) == 20
 			&& GlyphPipeline.penPhase(10.99, 13) == 40 && GlyphPipeline.penPixel(-0.1, 13) == -1 && GlyphPipeline.penPhase(-0.1, 13) == 40);
-		// (a pen a hair (under 1/512) short of a step: on it)
-		check("pen: noise under 1/512 px snapped", GlyphPipeline.penPixel(10.9999, 40) == 11 && GlyphPipeline.penPhase(10.9999, 40) == 0);
+		// (a pen 1/2048 or 1/1024 short of a step: on it; 1/512 short, as CoreText, not)
+		check("pen: within 1/1024 of a step on it, 1/512 not", GlyphPipeline.penPixel(65.99951171875, 11) == 66 && GlyphPipeline.penPhase(65.99951171875, 11) == 0
+			&& GlyphPipeline.penPixel(131.9990234375, 22) == 132 && GlyphPipeline.penPhase(131.9990234375, 22) == 0
+			&& GlyphPipeline.penPhase(102.74853515625, 11) == 30 && GlyphPipeline.penPixel(176.498046875, 20) == 176 && GlyphPipeline.penPhase(176.498046875, 20) == 0);
 	}
 
 	// Inter Regular's masks through each mode against CoreGraphics', smoothing on and off

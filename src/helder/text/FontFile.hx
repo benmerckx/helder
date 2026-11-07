@@ -64,6 +64,10 @@ class FontFile {
 	// whether its outlines are TrueType's (glyf), not CFF's or bitmaps
 	public var trueType(get, never):Bool;
 
+	// whether the face has a table (its tag: "glyf", "fpgm"...)
+	public function hasTable(tag:String):Bool
+		return tables.exists(tag);
+
 	inline function get_trueType():Bool
 		return glyf != 0 && cff == null;
 

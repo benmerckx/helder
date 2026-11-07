@@ -1164,8 +1164,9 @@ fix.
     pens at its subpixel steps by size, pixel-snapped baselines, its curve
     flattening and y autohinter, the font smoothing's dilation as a mode
     (`Shaping.smoothing`, a window's atlas, `<Surface fontSmoothing>`);
-    its masks within 3 levels of CoreGraphics' own, the text-quality lane
-    measuring it against CoreText's.
+    every pixel within 3 levels of CoreText's own (the text-quality lane:
+    Inter and DejaVu Sans, four inks, 1x and 2x, both modes; SSIM 1.0000
+    where helder's old rasterizer had 0.86 to 0.94).
   - **Lists of a million rows** (*landed*: helder.ui's `VirtualScroll`,
     markup's `VirtualList`, src/helder/ui/README.md's "Long lists";
     examples/million and ts-million; tests/bench/results/million.md):

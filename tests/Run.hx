@@ -30,7 +30,7 @@ class Run {
 	// next one's display is not the last one's still letting go)
 	static final XVFB = "sh " + FileSystem.fullPath("tests/xvfb-run.sh");
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf", "syntax"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf", "syntax", "text-quality"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -463,7 +463,7 @@ class Run {
 
 	// (the references: tests/text/coretext/sheets, CoreText's, drawn by the system-text lane on a Mac)
 	static function textQuality() {
-		exe("bin/text-quality/TextQuality", cps(["src", "tests/text"]).concat(["-main", "TextQuality"]));
+		native("bin/text-quality/TextQuality", cps(["src", "tests/text"]).concat(["-main", "TextQuality"]), HOST);
 		run(exePath("bin/text-quality/TextQuality", HOST), ["compare", "tests/text/coretext/sheets", "bin/text-quality"]);
 	}
 

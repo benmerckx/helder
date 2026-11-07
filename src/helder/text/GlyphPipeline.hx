@@ -53,12 +53,15 @@ class GlyphPipeline {
 	}
 
 	// (a pen x in device pixels at a ppem: floored to its step, as
-	// CoreGraphics' quantisation does; snapped to 1/256 of a pixel first, so
-	// that a sum of advances a hair short of a step still floors to the one
-	// below and noise does not move it)
+	// CoreGraphics' quantisation does, a pen just short of a step on it:
+	// CoreText on CI's Mac puts pens 1/2048 short (1x) and 1/1024 short (2x)
+	// on their step, ones 1.5/1024 and 1/512 short not (the text-quality lane's
+	// 'g' and 'o' of DejaVu Sans 11, 'H' of Inter 20), so the tolerance is fitted
+	// between, 1.25/1024 px. Rune snaps its pens to Parley's 1/256, which
+	// puts the last on its step too)
 	static inline function quantised(x:Float, ppem:Float):Float {
 		var s = steps(ppem);
-		return Math.ffloor(Math.fround(x * 256) / 256 * s) / s;
+		return Math.ffloor((x + 1.25 / 1024) * s) / s;
 	}
 
 	// the device pixel a glyph whose pen is at x starts from (pen and pixel
@@ -848,9 +851,13 @@ class HintMetrics {
 		this.stemHeight = stemHeight;
 	}
 
-	// a TrueType (glyf) face's; null for others (CFF faces are not hinted)
+	// a TrueType (glyf) face's; null for others (CFF faces are not hinted),
+	// and for a face without TrueType instructions (no fpgm, prep or cvt:
+	// CoreGraphics on CI's Mac hints none of the text-quality lane's subsets,
+	// cut with fontTools' --no-hinting, while it hints the whole fonts:
+	// tests/text/TextQuality.hx)
 	public static function of(font:FontFile):Null<HintMetrics> {
-		if (!font.trueType) return null;
+		if (!font.trueType || !(font.hasTable("fpgm") || font.hasTable("prep") || font.hasTable("cvt "))) return null;
 		var o = font.glyph("o".code), x = font.glyph("X".code);
 		if (o == 0 || x == 0) return null;
 		var xh = Top.of(font, o), cap = Top.of(font, x);
