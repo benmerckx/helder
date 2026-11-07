@@ -62,6 +62,10 @@ async function start(wasm, restoreBytes) {
 			register: (f) => (state.reloadFn = f),
 			send: (p, n) => (state.snapshot = new TextDecoder().decode(h.bytes(p, n).slice())),
 			frame: () => { window.hxmcDev.frames++; send({ type: 'frame' }); },
+			// (the devtools protocol in the page: helder.compiler.web's preview speaks it; helder dev's page not yet)
+			devtools: (f) => (state.devtoolsFn = f),
+			devtools_take: () => {},
+			devtools_send: () => {},
 			// (helder.asset's: the keys of the files that changed, and its function told)
 			asset_register: (f) => (state.assetFn = f),
 			asset_length: () => changedAssets.length ? enc.encode(changedAssets[0]).length : -1,

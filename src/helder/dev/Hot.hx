@@ -251,6 +251,8 @@ class Hot {
 				data = b.toString();
 			}
 			DevWeb.register(hxmc.unsafe.Callback.addr(webReload));
+			// (the devtools protocol from the page: helder.compiler.web's preview, Hot.literals)
+			DevWeb.devtools(hxmc.unsafe.Callback.addr(webDevtools));
 		} else {
 			var file = Sys.getEnv("HXMC_DEV_SNAPSHOT");
 			if (file != null && file != "" && sys.FileSystem.exists(file)) data = sys.io.File.getContent(file);
@@ -497,7 +499,24 @@ class Hot {
 
 	// a line to the dev server (helder.devtools.Agent's messages)
 	@:noCompletion public static function sendLine(line:String)
-		send(line);
+		if (hxmc.unsafe.Mem.os() == 3) sendDevtools(haxe.io.Bytes.ofString(line)) else send(line);
+
+	// a devtools message from the page (n bytes of JSON-RPC, DevWeb.devtools_take):
+	// the agent's, its answer through DevWeb.devtools_send
+	@:hxmc.callback static function webDevtools(n:Int):Int {
+		var b = haxe.io.Bytes.alloc(n);
+		hxmc.unsafe.Arena.scoped(a -> {
+			var p = a.alloc(n + 1, 1);
+			DevWeb.devtools_take(p);
+			hxmc.unsafe.BytesPtr.copyIn(b, 0, p, n);
+		});
+		var m:Dynamic = try haxe.Json.parse(b.toString()) catch (_:Dynamic) null;
+		if (m != null) helder.devtools.Agent.receive(m);
+		return 0;
+	}
+
+	@:hxmc.noGc static function sendDevtools(b:haxe.io.Bytes)
+		DevWeb.devtools_send(hxmc.unsafe.BytesPtr.of(b, 0, b.length), b.length);
 
 	static function send(line:String) {
 		if (socket < 0) return;
@@ -608,6 +627,12 @@ private class Hooks {
 	static function send(p:hxmc.unsafe.Ptr, n:Int):Void;
 	// the first frame is drawn
 	static function frame():Void;
+	// the function the page calls with a devtools message (a @:hxmc.callback (n:Int):Int: n bytes of JSON)
+	static function devtools(f:hxmc.unsafe.Ptr):Void;
+	// that message's bytes into p
+	static function devtools_take(p:hxmc.unsafe.Ptr):Void;
+	// a devtools message to the page (a response, a notification; UTF-8 JSON)
+	static function devtools_send(p:hxmc.unsafe.Ptr, n:Int):Void;
 }
 #end
 #end
