@@ -277,7 +277,7 @@ jobs:
           # (HXMC_RT_DIR is where helder's compiler looks then: arm64's objects there too)
           cp -R node_modules/@hxmc/darwin-arm64/macos-arm64 "$RUNNER_TEMP/rt/package/"
           echo "HXMC_RT_DIR=$RUNNER_TEMP/rt/package" >> "$GITHUB_ENV"
-      - name: window, the viewer (its tests, its builds, a real window, its app bundle, its release packages), helder/native from TypeScript (Core Foundation, Objective-C), shared textures (IOSurface: helder.gfx's, the story host's)
+      - name: window, the viewer (its tests, its builds, a real window, its app bundle, its release packages), helder/native from TypeScript (Core Foundation, Objective-C), shared textures (IOSurface, helder.gfx's and the story host's)
         run: bun run test -k window viewer viewer-window viewer-app viewer-package system-images system-text typescript-native gfx-shared story-shared
       - uses: actions/upload-artifact@v7
         if: always()
@@ -301,7 +301,7 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: window, the viewer (its tests, its builds, a real window), the system's decoders, helder/native from TypeScript (COM), shared textures (DXGI: helder.gfx's, the story host's)
+      - name: window, the viewer (its tests, its builds, a real window), the system's decoders, helder/native from TypeScript (COM), shared textures (DXGI, helder.gfx's and the story host's)
         run: bun run test -k window viewer viewer-window system-images system-text typescript-native gfx-shared story-shared
       - uses: actions/upload-artifact@v7
         if: always()
