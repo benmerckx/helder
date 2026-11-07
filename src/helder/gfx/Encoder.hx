@@ -1,20 +1,27 @@
 package helder.gfx;
 
 // Records a frame's passes: one per device, reused (no allocation per frame).
+// What it records is counted in FrameCounts.
 final class Encoder {
 	final impl:Impl;
 
 	@:allow(helder.gfx.Device) function new(impl:Impl)
 		this.impl = impl;
 
-	public inline function beginPass(p:PassDesc)
+	public inline function beginPass(p:PassDesc) {
+		FrameCounts.passes++;
 		impl.beginPass(p);
+	}
 
-	public inline function setPipeline(p:Pipeline)
+	public inline function setPipeline(p:Pipeline) {
+		FrameCounts.pipelines++;
 		impl.setPipeline(p.id());
+	}
 
-	public inline function setVertexBuffer(slot:Int, b:Buffer, offset = 0)
+	public inline function setVertexBuffer(slot:Int, b:Buffer, offset = 0) {
+		FrameCounts.buffers++;
 		impl.setVertexBuffer(slot, b.id(), offset);
+	}
 
 	// the indices of drawIndexed, from offset bytes into b
 	public inline function setIndexBuffer(b:Buffer, format:IndexFormat, offset = 0)
@@ -29,15 +36,23 @@ final class Encoder {
 		impl.setUniforms(slot, data, offset, size < 0 ? data.length - offset : size);
 
 	// a texture and the sampler that reads it, at its slot (a shader class's textures: binding)
-	public inline function setTexture(slot:Int, t:Texture, s:Sampler)
+	public inline function setTexture(slot:Int, t:Texture, s:Sampler) {
+		FrameCounts.textures++;
 		impl.setTexture(slot, t.id(), s.id());
+	}
 
-	public inline function draw(vertices:Int, instances = 1, firstVertex = 0)
+	public inline function draw(vertices:Int, instances = 1, firstVertex = 0) {
+		FrameCounts.draws++;
+		FrameCounts.instances += instances;
 		impl.draw(vertices, instances, firstVertex);
+	}
 
 	// count indices of the index buffer from firstIndex, each plus baseVertex
-	public inline function drawIndexed(count:Int, instances = 1, firstIndex = 0, baseVertex = 0)
+	public inline function drawIndexed(count:Int, instances = 1, firstIndex = 0, baseVertex = 0) {
+		FrameCounts.draws++;
+		FrameCounts.instances += instances;
 		impl.drawIndexed(count, instances, firstIndex, baseVertex);
+	}
 
 	public inline function endPass()
 		impl.endPass();

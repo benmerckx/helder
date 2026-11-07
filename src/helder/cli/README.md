@@ -661,10 +661,22 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   clock (from its script events to its frame drawn, before the outputs
   are written: a keystroke's frame is the time from the key to the frame),
   the GC bytes it allocated and the collections (hxmc's `GcStats`), and
-  its input events by kind (keys, wheels, pointers), as one JSON file
-  `{fps, frames: [{frame, t, ms, gcBytes, gcs, keys, wheels, pointers}]}`
-  written at the end. The machine's times: not part of the determinism
-  below (tests/bench/code.mjs reads it: the code-bench lane).
+  its input events by kind (keys, wheels, pointers), and what it recorded
+  on the GPU (helder.gfx's `FrameCounts`: `passes`, `draws` (draw calls),
+  the `instances` they drew, `pipelines` and `textures` set; helder.ui's
+  renderer's `quads`, the bytes of them `uploaded`, its CPU `uiMs` from
+  painting to its pass encoded, of that `uploadMs` (the glyph atlas's and
+  the quads' upload) and `encodeMs` (the draw calls: the driver's work
+  in them, Mesa's llvmpipe's vertex stage too), the GC bytes it
+  allocated (`uiBytes`, painting included); all 0 for a frame that
+  drew nothing), as one JSON file `{fps, frames: [{frame, t, ms,
+  gcBytes, gcs, keys, wheels, pointers, passes, draws, instances,
+  pipelines, textures, quads, uiMs, uploadMs, encodeMs, uploaded,
+  uiBytes}]}`
+  written at the end, and a summary of the frames drawn printed (each
+  column's median, the passes' and draw calls' largest). The machine's
+  times: not part of the determinism below (tests/bench/code.mjs reads
+  it: the code-bench lane).
 - **`--frames N -o dir`**: `frame_0000.png`... from `--start`, every
   `--every`-th written (named by their frame); `-o` without `--frames`:
   `--duration`'s (auto: to the end). A sequence keeps its first frame's

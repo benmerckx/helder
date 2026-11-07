@@ -3,36 +3,47 @@ package helder.ui.draw;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
-// The renderer's one shader. Every quad is a rectangle with rounded
-// corners (each its own radius: radii) given by its half size, each
-// fragment's position relative to its centre (local), so that its edge is
-// anti-aliased by the signed distance to it and a border drawn inside it,
-// each side its own width (widths), the inner edge a rectangle with
-// rounded corners too (mode 0); or a glyph, the atlas's coverage of the
-// colour (mode 1); or an image, its texels (premultiplied) times the
-// colour's alpha, its corners rounded as a rectangle's (mode 2); or a
-// shadow, the rectangle blurred by a Gaussian (its standard deviation:
-// blur), as Skia blurs CSS's box shadows, not under the box that casts it
-// (the rectangle moved back by widths' x, y and shrunk by z: CSS clips an
-// outer shadow to outside the border box) (mode 3); or an inset shadow, the
-// rectangle's padding box darkened from outside a rectangle offset and
-// shrunk by widths' x, y and z (mode 4). Every fragment is
-// also clipped by a rectangle with rounded corners (clip, in target pixels,
-// and its corners' radii), from its own position (pixel): clips need no
-// scissor and nest on the CPU. Colours are premultiplied
-// (Blend.Premultiplied). Corners are top left, top right, bottom right,
-// bottom left; sides top, right, bottom, left.
+// The renderer's one shader, an instanced "uber-quad" (after Rune's,
+// anomalyco/rune, MIT): a frame's quads are instances of one quad (its
+// corner: the vertex buffer's four), each instance a kind of quad (mode)
+// and all it needs, so that a frame is one draw. Every quad is a
+// rectangle with rounded corners (each its own radius: radii) given by its
+// half size and corners grown by a margin (rect, extent: its anti-aliased
+// pixel, a shadow's blur), each fragment's position relative to its centre
+// (local), so that its edge is anti-aliased by the signed distance to it
+// and a border drawn inside it, each side its own width (widths), the
+// inner edge a rectangle with rounded corners too (mode 0); or a glyph, the
+// atlas's coverage of the colour, read filtered (params.z: where a
+// transform turns it) or at its texels' centres (widths.xy: the atlas's
+// size) (mode 1); or an image, its texels (premultiplied) times the
+// colour's alpha, its corners rounded as a rectangle's, read clamped to its
+// texels' centres (widths: an atlas page's part that is the image's) (mode
+// 2); or a shadow, the rectangle blurred by a Gaussian (its standard
+// deviation: blur), as Skia blurs CSS's box shadows, not under the box that
+// casts it (the rectangle moved back by widths' x, y and shrunk by z: CSS
+// clips an outer shadow to outside the border box) (mode 3); or an inset
+// shadow, the rectangle's padding box darkened from outside a rectangle
+// offset and shrunk by widths' x, y and z (mode 4). Its corners are given
+// in clip space and the target's pixels (three of them: a parallelogram,
+// the rectangle turned by a transform), as the CPU placed them. Every fragment is also clipped by a
+// rectangle with rounded corners (clip, in target pixels, and its corners'
+// radii), from its own position (pixel), anti-aliased over a pixel: clips
+// need no scissor, nest on the CPU and never split the draw. Colours are
+// premultiplied (Blend.Premultiplied). Corners are top left, top right,
+// bottom right, bottom left; sides top, right, bottom, left.
 @:structInit @:publicFields class UiVertex {
-	var pos:Vec2; // clip space
-	var local:Vec2; // pixels from the rectangle's centre
-	var half:Vec2; // the rectangle's half size in pixels
-	var uv:Vec2; // the texture's coordinates (modes 1 and 2)
+	var corner:Vec2; // the quad's corner: 0 or 1 across and down (the vertex buffer's)
+	// (the instance's, one buffer of them: Renderer's)
+	var a:Vec4; // its top left corner (grown by the margin): in clip space, then in target pixels
+	var b:Vec4; // its top right corner
+	var c:Vec4; // its bottom left corner (the bottom right: b + c - a)
+	var uv:Vec4; // the texture's coordinates at the top left and bottom right (modes 1 and 2)
+	var extent:Vec4; // the rectangle's half size, then the corners' place from its centre (the half size plus the margin)
 	var color:Vec4; // the fill (premultiplied)
 	var border:Vec4; // the border's colour (premultiplied)
 	var radii:Vec4; // the corners' radii
 	var widths:Vec4; // the border's sides
-	var params:Vec2; // x: mode, y: blur
-	var pixel:Vec2; // the target pixel
+	var params:Vec4; // x: mode, y: blur, z: the texture (mode 1: filtered, mode 2: its slot)
 	var clip:Vec4; // the clip: x0, y0, x1, y1 in target pixels
 	var clipRadii:Vec4; // its corners' radii
 }
@@ -46,7 +57,7 @@ import helder.gfx.shader.ShaderMath.*;
 	var border:Vec4;
 	var radii:Vec4;
 	var widths:Vec4;
-	var params:Vec2;
+	var params:Vec4;
 	var pixel:Vec2;
 	var clip:Vec4;
 	var clipRadii:Vec4;
@@ -111,23 +122,29 @@ function blurred(p:Vec2, half:Vec2, r:Vec4, sigma:Float):Float {
 }
 
 final UiShader = shader({
-	vertex: function(v:UiVertex):UiVaryings
+	vertex: function(v:UiVertex):UiVaryings {
+		// (the bottom right corner from the others: exactly theirs where the quad is not turned)
+		var c = v.corner, e = v.extent, a = v.a, b = v.b, l = v.c;
+		var d = vec4(b.x + (l.x - a.x), l.y + (b.y - a.y), b.z + (l.z - a.z), l.w + (b.w - a.w));
+		var q = c.x > 0.5 ? (c.y > 0.5 ? d : b) : (c.y > 0.5 ? l : a);
 		return {
-			pos: position(vec4(v.pos, 0, 1)),
-			local: v.local,
-			half: v.half,
-			uv: v.uv,
+			pos: position(vec4(q.x, q.y, 0, 1)),
+			local: vec2(c.x > 0.5 ? e.z : -e.z, c.y > 0.5 ? e.w : -e.w),
+			half: e.xy,
+			uv: vec2(c.x > 0.5 ? v.uv.z : v.uv.x, c.y > 0.5 ? v.uv.w : v.uv.y),
 			color: v.color,
 			border: v.border,
 			radii: v.radii,
 			widths: v.widths,
 			params: v.params,
-			pixel: v.pixel,
+			pixel: q.zw,
 			clip: v.clip,
 			clipRadii: v.clipRadii
-		},
+		};
+	},
 	fragment: function(i:UiVaryings, p:{atlas:Texture2D, image:Texture2D}):Vec4 {
-		// (the textures read only by the modes that draw them: sample is at level 0, no derivatives)
+		// (the textures read only by the modes that draw them, filtered: a
+		// glyph at its texels' centres where not, an image clamped to its texels)
 		var ch = (i.clip.zw - i.clip.xy) * 0.5;
 		var clipped = clamp(0.5 - box(i.pixel - i.clip.xy - ch, ch, i.clipRadii), 0, 1);
 		var mode = i.params.x;
@@ -148,8 +165,15 @@ final UiShader = shader({
 			var under = o.w > 0 ? clamp(0.5 - box(i.local + o.xy, caster, cr), 0, 1) : 0.0;
 			return i.color * a * (1 - under) * clipped;
 		}
-		if (mode > 1.5) return sample(p.image, i.uv) * i.color.w * clamp(0.5 - box(i.local, i.half, i.radii), 0, 1) * clipped;
-		if (mode > 0.5) return i.color * sample(p.atlas, i.uv).x * clipped;
+		if (mode > 1.5) {
+			var uv = clamp(i.uv, i.widths.xy, i.widths.zw);
+			return sample(p.image, uv) * i.color.w * clamp(0.5 - box(i.local, i.half, i.radii), 0, 1) * clipped;
+		}
+		if (mode > 0.5) {
+			var size = i.widths.xy;
+			var uv = i.params.z > 0.5 ? i.uv : (floor(i.uv * size) + vec2(0.5, 0.5)) / size;
+			return i.color * sample(p.atlas, uv).x * clipped;
+		}
 		var d = box(i.local, i.half, i.radii);
 		var edge = clamp(0.5 - d, 0, 1);
 		// (the inner edge, as CSS has it: the rectangle less each side's width,

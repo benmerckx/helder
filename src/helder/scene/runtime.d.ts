@@ -24,6 +24,7 @@ export declare class Mesh {
 }
 
 // Records a frame's passes: one per device, reused (no allocation per frame).
+// What it records is counted in FrameCounts.
 export declare class Encoder {
 	private readonly encoder: never;
 }

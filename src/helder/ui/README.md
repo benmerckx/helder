@@ -236,9 +236,14 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     The mouse's presses feed the arena too. `Node.addGesture`,
     `removeGesture`, `gesture(Class)`; a recogniser of a node that leaves
     the tree is cancelled.
-- **`helder.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
-  with borders, soft shadows and glyphs from an atlas, every fragment
-  clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a
+- **`helder.ui.draw`**: the GPU renderer. One instanced shader (after
+  Rune's uber-quad) draws rounded rectangles with borders, soft shadows
+  (outer and inset), glyphs from an atlas and images, each an instance of
+  one quad, every fragment clipped by a rounded rectangle carried by its
+  instance; small images (paths, SVGs, gradients, colour glyphs) share
+  atlas pages, so that a frame is one draw call (a texture of its own, a
+  large image or a `<Scene>`'s, a draw more where it is bound), its
+  instances in a ring of buffers written where they changed; `UiWindow` puts a
   `Ui` in an `helder.os` window, shows the hovered node's cursor and runs
   the loop. In markup the window is `<Surface>` (`UiWindow.Surface`, a
   root): `UiWindow.run(<Surface title="Todo" width={480} height={560}

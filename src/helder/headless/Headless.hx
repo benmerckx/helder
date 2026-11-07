@@ -63,7 +63,13 @@ class Headless {
 	final sequences:Array<{dir:String, start:Float, count:Int, every:Int, written:Int, width:Int, height:Int}> = [];
 	final trace:Null<String>;
 	// --stats: each frame's work (ms, from its events to its end) and what it
-	// allocated (GC bytes, collections), its input events by kind; written at the end
+	// allocated (GC bytes, collections), its input events by kind, what it
+	// recorded on the GPU (helder.gfx.FrameCounts: passes, draw calls, the
+	// instances they drew, pipelines and textures set; the 2D renderer's
+	// quads, its CPU ms from painting to its pass encoded and of that its
+	// upload's and its draws' (the encoder's calls, the driver's work in
+	// them), the bytes it uploaded, the GC bytes it allocated, painting
+	// included; all 0 for a frame that drew nothing); written at the end, with a summary printed
 	final stats:Null<String>;
 	final statFrames:Array<Float> = [];
 	var statStart = -1.0;
@@ -654,6 +660,7 @@ class Headless {
 		statCollections = hxmc.GcStats.collections();
 		#end
 		statKeys = statWheels = statPointers = 0;
+		helder.gfx.FrameCounts.reset();
 	}
 
 	// (and ends, drawn: before its outputs are written)
@@ -664,28 +671,63 @@ class Headless {
 		bytes = hxmc.GcStats.bytesAllocated() - statBytes;
 		gcs = hxmc.GcStats.collections() - statCollections;
 		#end
-		for (v in [frame, frameTime(), ms, bytes, gcs, statKeys, statWheels, statPointers])
-			statFrames.push(v);
+		var f = statFrames, g = helder.gfx.FrameCounts;
+		f.push(frame);
+		f.push(frameTime());
+		f.push(ms);
+		f.push(bytes);
+		f.push(gcs);
+		f.push(statKeys);
+		f.push(statWheels);
+		f.push(statPointers);
+		f.push(g.passes);
+		f.push(g.draws);
+		f.push(g.instances);
+		f.push(g.pipelines);
+		f.push(g.textures);
+		f.push(g.quads);
+		f.push(g.uiMs);
+		f.push(g.uploadMs);
+		f.push(g.encodeMs);
+		f.push(g.uploaded);
+		f.push(g.uiBytes);
 		statStart = -1;
 	}
 
-	// {"fps", "frames": [{"frame", "t", "ms", "gcBytes", "gcs", "keys", "wheels", "pointers"}...]}
+	// {"fps", "frames": [{"frame", "t", "ms", "gcBytes", "gcs", "keys", "wheels", "pointers",
+	// "passes", "draws", "instances", "pipelines", "textures", "quads", "uiMs", "uploadMs", "encodeMs", "uploaded", "uiBytes"}...]}
 	function writeStats() {
 		var b = new StringBuf();
 		b.add('{"fps":$fps,"frames":[');
-		var k = 0;
-		while (k + 7 < statFrames.length) {
+		var k = 0, n = STAT_FIELDS;
+		var drawn:Array<Array<Float>> = [];
+		while (k + n - 1 < statFrames.length) {
 			if (k > 0) b.add(",\n");
 			var f = statFrames;
-			b.add('{"frame":${Std.int(f[k])},"t":${round(f[k + 1])},"ms":${Math.round(f[k + 2] * 1000) / 1000},"gcBytes":${Std.int(f[k + 3])},"gcs":${Std.int(f[k + 4])},"keys":${Std.int(f[k + 5])},"wheels":${Std.int(f[k + 6])},"pointers":${Std.int(f[k + 7])}}');
-			k += 8;
+			b.add('{"frame":${Std.int(f[k])},"t":${round(f[k + 1])},"ms":${Math.round(f[k + 2] * 1000) / 1000},"gcBytes":${Std.int(f[k + 3])},"gcs":${Std.int(f[k + 4])},"keys":${Std.int(f[k + 5])},"wheels":${Std.int(f[k + 6])},"pointers":${Std.int(f[k + 7])}');
+			b.add(',"passes":${Std.int(f[k + 8])},"draws":${Std.int(f[k + 9])},"instances":${Std.int(f[k + 10])},"pipelines":${Std.int(f[k + 11])},"textures":${Std.int(f[k + 12])},"quads":${Std.int(f[k + 13])},"uiMs":${Math.round(f[k + 14] * 1000) / 1000},"uploadMs":${Math.round(f[k + 15] * 1000) / 1000},"encodeMs":${Math.round(f[k + 16] * 1000) / 1000},"uploaded":${Std.int(f[k + 17])},"uiBytes":${Std.int(f[k + 18])}}');
+			if (f[k + 8] > 0) drawn.push([f[k + 2], f[k + 8], f[k + 9], f[k + 13], f[k + 14], f[k + 3], f[k + 14] - f[k + 16], f[k + 16], f[k + 18]]);
+			k += n;
 		}
 		b.add("]}\n");
 		var dir = haxe.io.Path.directory(stats);
 		if (dir != "" && !sys.FileSystem.exists(dir)) sys.FileSystem.createDirectory(dir);
 		sys.io.File.saveContent(stats, b.toString());
-		Sys.println('headless: $stats (${Std.int(statFrames.length / 8)} frames)');
+		Sys.println('headless: $stats (${Std.int(statFrames.length / n)} frames)');
+		// (the frames drawn: each column's median and largest)
+		if (drawn.length > 0) {
+			function col(i:Int, q:Float):Float {
+				var v = [for (d in drawn) d[i]];
+				v.sort(Reflect.compare);
+				return v[Std.int(Math.min(v.length - 1, v.length * q))];
+			}
+			function ms(v:Float)
+				return Math.round(v * 1000) / 1000;
+			Sys.println('headless: ${drawn.length} frames drawn: passes ${col(1, 0.5)} (at most ${col(1, 1)}), draw calls ${col(2, 0.5)} (at most ${col(2, 1)}), quads ${col(3, 0.5)}, renderer CPU ms ${ms(col(4, 0.5))} (p95 ${ms(col(4, 0.95))}, of it the draw calls ${ms(col(7, 0.5))}, the rest ${ms(col(6, 0.5))}), frame ms ${ms(col(0, 0.5))} (p95 ${ms(col(0, 0.95))}), GC bytes ${col(5, 0.5)} (the renderer, painting included, ${col(8, 0.5)})');
+		}
 	}
+
+	static inline var STAT_FIELDS = 19;
 
 	// the frame (keycaps and ripples over it) as an opaque PNG; at w x h pixels when given (cropped or padded with black)
 	function writePng(path:String, t:Float, w = 0, h = 0) {

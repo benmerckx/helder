@@ -4,23 +4,40 @@ import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.text.GlyphAtlas;
 import helder.ui.*;
+import helder.ui.Paint;
+import helder.ui.Stroke;
 import helder.ui.draw.DrawText;
 import helder.image.Image;
 import helder.image.PngDecoder;
 import helder.image.Resize;
 import helder.ui.draw.UiShader;
 
-// helder.ui's Canvas on helder.gfx: a frame's rectangles, shadows, glyphs and
-// images become quads of one vertex buffer (UiShader: four vertices each,
-// two triangles by a shared index buffer: helder.gfx's QuadBatch, the
-// batcher SpriteBatch is on too), drawn in one call per run of
-// quads with the same image (texture slot 1:
-// an image's texture, else a white texel). Every vertex carries the clip (a rectangle in target pixels and
-// its corners' radii) that UiShader clips its fragments by, so clips need no
-// scissor and rounded ones clip to their corners. The UI's pixels are scaled
+// helder.ui's Canvas on helder.gfx: a frame's rectangles, borders, shadows,
+// glyphs and images are instances of one quad (UiShader's, after Rune's
+// uber-quad: anomalyco/rune, MIT), each a kind of it, all in one instance
+// buffer (helder.gfx's QuadBatch, instanced; the batcher SpriteBatch is on
+// too), in the order drawn, and drawn as one instanced draw: a frame is one
+// draw call, one pipeline. What would split it is shared instead: every
+// instance carries the clip (a rectangle in target pixels and its corners'
+// radii) that UiShader clips its fragments by, so clips need no scissor and
+// rounded ones clip to their corners; the glyph atlas is read filtered (a
+// glyph under a turning transform) or at its texels' centres, an instance
+// choosing; images of up to PAGED pixels a side (paths' and SVGs'
+// rasterizations, gradients, icons, colour glyphs) share atlas pages
+// (PAGE pixels square, up to PAGES of them, an image's place in one kept
+// while it is drawn), each read clamped to its own texels, so that images
+// do not split the draw either. What has a texture of its own (a larger
+// image, a browser's, a <Scene>'s GPU texture) is bound in the image slot
+// in turn: a draw for each change of it, in the order drawn, painter's
+// order kept. Opacity multiplies each
+// quad's colour (no group of its own), transforms are each quad's, so
+// neither needs a pass; a <Scene>'s passes come before the frame's
+// (beforePass). The instance buffer is kept between frames: only the
+// instances that changed since the last frame are written (QuadBatch), and
+// a steady frame allocates nothing. The UI's pixels are scaled
 // to the target's (scale: a Retina display's 2); glyphs are rasterized at the
 // scaled size into the GlyphAtlas, its coverage uploaded into a texture's
-// red channel (read at the nearest texel) where it changed. An image is
+// red channel where it changed. An image is
 // uploaded once (premultiplied, filtered linearly) and again when its
 // version changes; forget(image) frees its texture. Under a transform
 // (pushTransform) a quad is built in the transform's scaled pixels (its
@@ -48,22 +65,38 @@ class Renderer implements Canvas {
 	final pipeline:Pipeline;
 	final atlasTexture:Texture;
 	final blank:Texture;
-	final nearest:Sampler;
 	final linear:Sampler;
 	// the shader's texture slots: the atlas's, the image's
 	final atlasSlot:Int;
 	final imageSlot:Int;
-	// the frame's quads, in runs by key: the image id, twice, plus whether glyphs are read filtered
-	final quads = new QuadBatch(STRIDE);
-	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
-	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int, width:Int, height:Int}>();
+	// the frame's quads, an instance each, in runs: a run's image texture bound (its index)
+	final quads = new QuadBatch(STRIDE, 1024, true);
+	// the runs' image textures (null: none drawn)
+	final runTextures:Array<Null<Texture>> = [];
+	var run = 0;
+	// (an image by its id: its texture and place; frame: the last one that drew it; one not drawn for EVICT frames is freed)
+	final textures = new Map<Int, ImageEntry>();
+	// the images' atlas pages
+	final pages:Array<ImagePage> = [];
 	// the frames begun (begin)
 	public var frames(default, null) = 0;
 	// the GPU textures drawn this frame (texture: by their negative ids), the passes to record before the frame's (beforePass)
 	final gpu = new Map<Int, Texture>();
 	final before:Array<Encoder->Void> = [];
+	// (the atlas's changed region as RGBA: grown, kept)
+	var region = Bytes.alloc(0);
+	// (the ids evicted, kept)
+	final stale:Array<Int> = [];
+	final stalePaths:Array<Path> = [];
 
 	static inline var EVICT = 300;
+	// an image page's size, how many there may be, the largest side of an image put in one
+	public static inline var PAGE = 1024;
+	public static inline var PAGES = 4;
+	public static inline var PAGED = 256;
+	// (when the frame began: FrameCounts.uiMs from it to the pass encoded)
+	var began = 0.0;
+	var beganBytes = 0.0;
 	var targetW = 1.0;
 	var targetH = 1.0;
 
@@ -72,7 +105,7 @@ class Renderer implements Canvas {
 	var ty = 0.0;
 	var alpha = 1.0;
 	final alphas:Array<Float> = [];
-	final clips:Array<Array<Float>> = []; // the clips pushed over: x0, y0, x1, y1, the corners' radii
+	final clips:Array<Float> = []; // the clips pushed over: x0, y0, x1, y1, the corners' radii (8 each)
 	var clipX0 = 0.0;
 	var clipY0 = 0.0;
 	var clipX1 = 0.0;
@@ -106,17 +139,31 @@ class Renderer implements Canvas {
 	var aligned = true;
 	// (on the pixel grid: snapped, and no transform)
 	var grid = true;
-	final transforms:Array<Array<Float>> = [];
+	final transforms:Array<Float> = []; // (9 each)
 
-	static inline var STRIDE = 144; // UiVertex: 36 floats
+	static inline var STRIDE = 192; // UiVertex's instance: 48 floats
+
+	// (UiShader's vertex: its corner from a buffer of four, the rest an instance's)
+	static function layout():Array<VertexBufferLayout> {
+		var a = UiShader.layout[0].attributes;
+		return [
+			{stride: 8, attributes: [a[0]]},
+			{
+				stride: STRIDE,
+				step: Instance,
+				attributes: [for (k in 1...a.length) {location: a[k].location, format: a[k].format, offset: a[k].offset - 8}]
+			}
+		];
+	}
 
 	public function new(device:Device, ?atlas:GlyphAtlas) {
 		this.device = device;
 		this.atlas = atlas == null ? new GlyphAtlas(1024, 1024) : atlas;
-		pipeline = device.createPipeline(UiShader.pipeline({blend: Premultiplied}));
+		var d = UiShader.pipeline({blend: Premultiplied});
+		d.layout = layout();
+		pipeline = device.createPipeline(d);
 		atlasTexture = device.createTexture({width: this.atlas.width, height: this.atlas.height, format: RGBA8});
 		blank = device.createTexture({width: 1, height: 1, format: RGBA8, data: Bytes.ofHex("ffffffff")});
-		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
 		linear = device.createSampler({filter: Linear, wrap: Clamp});
 		atlasSlot = UiShader.textures[0].binding;
 		imageSlot = UiShader.textures[1].binding;
@@ -126,20 +173,32 @@ class Renderer implements Canvas {
 	public function begin(width:Int, height:Int) {
 		// (the textures of images no longer drawn: a replaced image, an svg drawn again at another size)
 		frames++;
+		began = haxe.Timer.stamp();
+		#if (target.name == "hxmc")
+		beganBytes = hxmc.GcStats.bytesAllocated();
+		#end
 		if (frames % 60 == 0) {
-			for (id => e in [for (k => v in textures) k => v])
-				if (frames - e.frame > EVICT) {
-					device.destroyTexture(e.texture);
-					textures.remove(id);
-				}
-			for (p in [for (k in paths.keys()) k])
-				if (frames - paths.get(p).frame > EVICT) paths.remove(p);
+			stale.resize(0);
+			for (id => e in textures)
+				if (frames - e.frame > EVICT) stale.push(id);
+			for (id in stale) {
+				release(textures.get(id));
+				textures.remove(id);
+			}
+			stalePaths.resize(0);
+			for (p => e in paths)
+				if (frames - e.frame > EVICT) stalePaths.push(p);
+			for (p in stalePaths)
+				paths.remove(p);
 		}
 		targetW = width;
 		targetH = height;
 		gpu.clear();
 		before.resize(0);
 		quads.clear();
+		run = 0;
+		runTextures.resize(0);
+		runTextures.push(null);
 		tx = ty = 0;
 		alpha = 1;
 		alphas.resize(0);
@@ -154,12 +213,14 @@ class Renderer implements Canvas {
 		clipY1 = height;
 	}
 
-	// uploads and draws what was drawn since begin, in the pass the encoder is in
+	// uploads and draws what was drawn since begin, in the pass the encoder
+	// is in: one draw, or one more for each change of the image texture bound
 	public function end(enc:Encoder) {
+		var ending = haxe.Timer.stamp();
 		if (atlas.dirtyX1 > atlas.dirtyX0) {
 			var x = atlas.dirtyX0, y = atlas.dirtyY0, w = atlas.dirtyX1 - x, h = atlas.dirtyY1 - y;
 			// (coverage in the red channel)
-			var region = Bytes.alloc(w * h * 4);
+			if (region.length < w * h * 4) region = Bytes.alloc(w * h * 4);
 			for (r in 0...h) {
 				var src = (y + r) * atlas.width + x, dst = r * w * 4;
 				for (c in 0...w)
@@ -168,16 +229,35 @@ class Renderer implements Canvas {
 			device.writeTexture(atlasTexture, region, x, y, w, h);
 			atlas.clean();
 		}
-		if (!quads.upload(device)) return;
-		enc.setPipeline(pipeline);
-		quads.bind(enc);
-		for (r in 0...quads.draws()) {
-			// (a run's key: its image id, twice, plus whether glyphs are read filtered)
-			var key = quads.runs[r * 3], image = key >> 1;
-			var e = image <= 0 ? null : textures.get(image);
-			enc.setTexture(atlasSlot, atlasTexture, key & 1 == 1 ? linear : nearest);
-			enc.setTexture(imageSlot, image < 0 ? gpu.get(image) : e == null ? blank : e.texture, linear);
-			quads.draw(enc, r);
+		FrameCounts.quads += quads.count;
+		var uploaded = quads.upload(device), encoding = haxe.Timer.stamp();
+		FrameCounts.uploadMs += (encoding - ending) * 1000;
+		if (uploaded) {
+			enc.setPipeline(pipeline);
+			quads.bind(enc);
+			enc.setTexture(atlasSlot, atlasTexture, linear);
+			for (r in 0...quads.draws()) {
+				var t = runTextures[quads.runs[r * 3]];
+				if (r == 0 || t != null) enc.setTexture(imageSlot, t == null ? blank : t, linear);
+				quads.draw(enc, r);
+			}
+			FrameCounts.uploaded += quads.uploaded;
+		}
+		var now = haxe.Timer.stamp();
+		FrameCounts.uiMs += (now - began) * 1000;
+		FrameCounts.encodeMs += (now - encoding) * 1000;
+		#if (target.name == "hxmc")
+		FrameCounts.uiBytes += hxmc.GcStats.bytesAllocated() - beganBytes;
+		#end
+	}
+
+	// (the image texture bound for a quad: the run's, else a new run's)
+	inline function bind(t:Texture) {
+		var r = runTextures[run];
+		if (r == null) runTextures[run] = t;
+		else if (r != t) {
+			run++;
+			runTextures.push(t);
 		}
 	}
 
@@ -197,37 +277,75 @@ class Renderer implements Canvas {
 	public function forget(img:Image) {
 		var e = textures.get(img.id);
 		if (e == null) return;
-		device.destroyTexture(e.texture);
+		release(e);
 		textures.remove(img.id);
 	}
 
-	// the image's texture, uploaded (premultiplied) when new or changed
-	function texture(img:Image):Texture {
+	// (an image's texture or its place in a page given up)
+	function release(e:ImageEntry) {
+		if (e.page < 0) device.destroyTexture(e.texture);
+		else pages[e.page].live--;
+	}
+
+	// the image's texture, uploaded (premultiplied) when new or changed: an
+	// image of up to PAGED pixels a side with its pixels here into a page,
+	// any other (a browser's, a large one) a texture of its own
+	function texture(img:Image):ImageEntry {
 		var e = textures.get(img.id);
 		if (e != null) e.frame = frames;
-		if (e != null && e.version == img.version) return e.texture;
+		if (e != null && e.version == img.version) return e;
 		// (another size: Image.replace's)
 		if (e != null && (e.width != img.width || e.height != img.height)) {
-			device.destroyTexture(e.texture);
+			release(e);
+			textures.remove(img.id);
 			e = null;
 		}
 		if (e == null) {
-			// (its pixels dropped after, where they can come back: Image.uploaded)
-			var t = helder.gfx.ImageTexture.create(device, img, {premultiply: true});
-			e = {
-				texture: t,
-				version: img.version,
-				frame: frames,
-				width: img.width,
-				height: img.height
-			};
+			e = new ImageEntry(img.version, frames, img.width, img.height);
+			var browser = img.browser != 0 && !img.hasPixels && device.decodesImages;
+			if (!browser && img.width <= PAGED && img.height <= PAGED && allocate(e)) {
+				var p = pages[e.page];
+				e.texture = p.texture;
+				img.premultiplied(pre -> device.writeTexture(p.texture, pre, e.x, e.y, e.width, e.height));
+				img.uploaded();
+			} else
+				// (its pixels dropped after, where they can come back: Image.uploaded)
+				e.texture = helder.gfx.ImageTexture.create(device, img, {premultiply: true});
 			textures.set(img.id, e);
 		} else {
 			var t = e.texture;
-			img.premultiplied(pre -> device.writeTexture(t, pre));
+			if (e.page >= 0) img.premultiplied(pre -> device.writeTexture(t, pre, e.x, e.y, e.width, e.height));
+			else img.premultiplied(pre -> device.writeTexture(t, pre));
 			e.version = img.version;
 		}
-		return e.texture;
+		return e;
+	}
+
+	// (a place in a page for the entry: in one there is room in, else in one
+	// emptied (every image in it evicted or forgotten), else in a new one,
+	// up to PAGES; false: none)
+	function allocate(e:ImageEntry):Bool {
+		for (k in 0...pages.length)
+			if (pages[k].allocate(e)) {
+				e.page = k;
+				return true;
+			}
+		for (k in 0...pages.length) {
+			var p = pages[k];
+			if (p.live == 0 && p.used) {
+				p.reset();
+				if (p.allocate(e)) {
+					e.page = k;
+					return true;
+				}
+			}
+		}
+		if (pages.length >= PAGES) return false;
+		var p = new ImagePage(device.createTexture({width: PAGE, height: PAGE, format: RGBA8}));
+		pages.push(p);
+		if (!p.allocate(e)) return false;
+		e.page = pages.length - 1;
+		return true;
 	}
 
 	// --- Canvas ---
@@ -242,7 +360,14 @@ class Renderer implements Canvas {
 	// that cuts into its corners keeps only the inner one's corners), else
 	// the smaller of each
 	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float, ?corners:Corners) {
-		clips.push([clipX0, clipY0, clipX1, clipY1, clipR0, clipR1, clipR2, clipR3]);
+		clips.push(clipX0);
+		clips.push(clipY0);
+		clips.push(clipX1);
+		clips.push(clipY1);
+		clips.push(clipR0);
+		clips.push(clipR1);
+		clips.push(clipR2);
+		clips.push(clipR3);
 		var k = scale;
 		var x0 = (x + tx) * scale, y0 = (y + ty) * scale, x1 = (x + w + tx) * scale, y1 = (y + h + ty) * scale;
 		if (grid && snap) {
@@ -298,19 +423,28 @@ class Renderer implements Canvas {
 	}
 
 	public function popClip() {
-		var c = clips.pop();
-		clipX0 = c[0];
-		clipY0 = c[1];
-		clipX1 = c[2];
-		clipY1 = c[3];
-		clipR0 = c[4];
-		clipR1 = c[5];
-		clipR2 = c[6];
-		clipR3 = c[7];
+		var n = clips.length - 8, c = clips;
+		clipX0 = c[n];
+		clipY0 = c[n + 1];
+		clipX1 = c[n + 2];
+		clipY1 = c[n + 3];
+		clipR0 = c[n + 4];
+		clipR1 = c[n + 5];
+		clipR2 = c[n + 6];
+		clipR3 = c[n + 7];
+		clips.resize(n);
 	}
 
 	public function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {
-		transforms.push([ma, mb, mc, md, me, mf, mk, flat ? 1 : 0, aligned ? 1 : 0]);
+		transforms.push(ma);
+		transforms.push(mb);
+		transforms.push(mc);
+		transforms.push(md);
+		transforms.push(me);
+		transforms.push(mf);
+		transforms.push(mk);
+		transforms.push(flat ? 1 : 0);
+		transforms.push(aligned ? 1 : 0);
 		// (in the scaled pixels after the translation: moved to it, transformed, moved back)
 		var s = scale;
 		var ne = s * (e - a * tx - c * ty + tx), nf = s * (f - b * tx - d * ty + ty);
@@ -330,16 +464,17 @@ class Renderer implements Canvas {
 	}
 
 	public function popTransform() {
-		var t = transforms.pop();
-		ma = t[0];
-		mb = t[1];
-		mc = t[2];
-		md = t[3];
-		me = t[4];
-		mf = t[5];
-		mk = t[6];
-		flat = t[7] == 1;
-		aligned = t[8] == 1;
+		var n = transforms.length - 9, t = transforms;
+		ma = t[n];
+		mb = t[n + 1];
+		mc = t[n + 2];
+		md = t[n + 3];
+		me = t[n + 4];
+		mf = t[n + 5];
+		mk = t[n + 6];
+		flat = t[n + 7] == 1;
+		aligned = t[n + 8] == 1;
+		transforms.resize(n);
 		grid = snap && flat;
 	}
 
@@ -475,8 +610,9 @@ class Renderer implements Canvas {
 	}
 
 	// (a path rasterized at the scale it is drawn at, its stroke's reach
-	// around it, kept while it is drawn the same way: by path, its paints and the scale)
-	final paths = new haxe.ds.ObjectMap<Path, {key:String, img:Image, x:Float, y:Float, frame:Int}>();
+	// around it, kept while it is drawn the same way: by path, its paints and
+	// the scale, compared without allocating)
+	final paths = new haxe.ds.ObjectMap<Path, PathImage>();
 
 	public function path(p:Path, fill:Null<Paint>, ?stroke:Stroke) {
 		var b = p.bounds(), s = scale;
@@ -484,11 +620,9 @@ class Renderer implements Canvas {
 		var x0 = Math.floor((b.x - reach) * s) - 1, y0 = Math.floor((b.y - reach) * s) - 1;
 		var w = Std.int(Math.ceil((b.x + b.width + reach) * s) + 1 - x0), h = Std.int(Math.ceil((b.y + b.height + reach) * s) + 1 - y0);
 		if (w <= 0 || h <= 0 || w * h > 4096 * 4096) return;
-		var key = s + "/" + p.commands.length + "/" + p.evenOdd + "/" + Std.string(fill) + "/" + (stroke == null ? "" : stroke.width + Std.string(stroke.paint)
-			+ stroke.cap + stroke.join + stroke.miterLimit + stroke.dashes + stroke.dashOffset);
 		var e = paths.get(p);
-		if (e == null || e.key != key) {
-			e = {key: key, img: p.render(w, h, [s, 0, 0, s, -x0, -y0], fill, stroke), x: x0 / s, y: y0 / s, frame: frames};
+		if (e == null || !e.same(s, p, fill, stroke)) {
+			e = new PathImage(s, p, fill, stroke, p.render(w, h, [s, 0, 0, s, -x0, -y0], fill, stroke), x0 / s, y0 / s);
 			paths.set(p, e);
 		}
 		e.frame = frames;
@@ -686,80 +820,217 @@ class Renderer implements Canvas {
 
 	// a quad over x0, y0, x1, y1 grown by margin m (a rectangle's anti-aliased
 	// edge, a shadow's blur), its texture coordinates growing with it; its
-	// corners and border sides: qr*, qw*
+	// corners and border sides: qr*, qw*; an instance of UiShader's quad
 	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, mode:Float, blur:Float,
 			m:Float, image:Int) {
-		// (a new run where the image changes, or how glyphs are read)
-		var used = quads.add(image * 2 + (mode == 1 && !aligned ? 1 : 0)), bytes = quads.bytes;
-		var hx = (x1 - x0) / 2, hy = (y1 - y0) / 2;
-		var ax = x0 - m, ay = y0 - m, bx = x1 + m, by = y1 + m;
+		// (an image: its texture bound, its place in a page and its texels'
+		// bounds there (read clamped to them); a glyph: read filtered where turned)
+		var w0 = qw0, w1 = qw1, w2 = qw2, w3 = qw3, filtered = 0;
+		if (mode == 2) {
+			var e = image < 0 ? null : textures.get(image);
+			if (e == null || e.page < 0) {
+				bind(e == null ? gpu.get(image) : e.texture);
+				w0 = w1 = -1e9;
+				w2 = w3 = 1e9;
+			} else {
+				bind(e.texture);
+				var k = 1 / PAGE;
+				u0 = (e.x + u0 * e.width) * k;
+				u1 = (e.x + u1 * e.width) * k;
+				v0 = (e.y + v0 * e.height) * k;
+				v1 = (e.y + v1 * e.height) * k;
+				w0 = (e.x + 0.5) * k;
+				w1 = (e.y + 0.5) * k;
+				w2 = (e.x + e.width - 0.5) * k;
+				w3 = (e.y + e.height - 0.5) * k;
+			}
+		} else if (mode == 1) {
+			w0 = atlas.width;
+			w1 = atlas.height;
+			w2 = w3 = 0;
+			filtered = aligned ? 0 : 1;
+		}
+		var o = quads.add(run), b = quads.bytes;
 		var fa = fill.a / 255 * alpha, ba = border.a / 255 * alpha;
-		var fr = fill.r / 255 * fa, fg = fill.g / 255 * fa, fb = fill.b / 255 * fa;
-		var br = border.r / 255 * ba, bg = border.g / 255 * ba, bb = border.b / 255 * ba;
-		var cx0 = clipX0, cy0 = clipY0, cx1 = clipX1, cy1 = clipY1, c0 = clipR0, c1 = clipR1, c2 = clipR2, c3 = clipR3;
-		var r0 = qr0, r1 = qr1, r2 = qr2, r3 = qr3, w0 = qw0, w1 = qw1, w2 = qw2, w3 = qw3;
-		// (the transform less its scale: exact for none)
-		var k = mk, ra = flat ? 1 : ma / k, rb = flat ? 0 : mb / k, rc = flat ? 0 : mc / k, rd = flat ? 1 : md / k, te = flat ? 0 : me, tf = flat ? 0 : mf;
-		inline function vertex(px:Float, py:Float, u:Float, v:Float) {
-			var o = used;
-			var X = ra * px + rc * py + te, Y = rb * px + rd * py + tf;
-			bytes.setFloat(o, X / targetW * 2 - 1);
-			bytes.setFloat(o + 4, 1 - Y / targetH * 2);
-			bytes.setFloat(o + 8, px - x0 - hx);
-			bytes.setFloat(o + 12, py - y0 - hy);
-			bytes.setFloat(o + 16, hx);
-			bytes.setFloat(o + 20, hy);
-			bytes.setFloat(o + 24, u);
-			bytes.setFloat(o + 28, v);
-			bytes.setFloat(o + 32, fr);
-			bytes.setFloat(o + 36, fg);
-			bytes.setFloat(o + 40, fb);
-			bytes.setFloat(o + 44, fa);
-			bytes.setFloat(o + 48, br);
-			bytes.setFloat(o + 52, bg);
-			bytes.setFloat(o + 56, bb);
-			bytes.setFloat(o + 60, ba);
-			bytes.setFloat(o + 64, r0);
-			bytes.setFloat(o + 68, r1);
-			bytes.setFloat(o + 72, r2);
-			bytes.setFloat(o + 76, r3);
-			bytes.setFloat(o + 80, w0);
-			bytes.setFloat(o + 84, w1);
-			bytes.setFloat(o + 88, w2);
-			bytes.setFloat(o + 92, w3);
-			bytes.setFloat(o + 96, mode);
-			bytes.setFloat(o + 100, blur);
-			bytes.setFloat(o + 104, X);
-			bytes.setFloat(o + 108, Y);
-			bytes.setFloat(o + 112, cx0);
-			bytes.setFloat(o + 116, cy0);
-			bytes.setFloat(o + 120, cx1);
-			bytes.setFloat(o + 124, cy1);
-			bytes.setFloat(o + 128, c0);
-			bytes.setFloat(o + 132, c1);
-			bytes.setFloat(o + 136, c2);
-			bytes.setFloat(o + 140, c3);
-			used += STRIDE;
-		}
-		// (the other corners: the first copied, what differs written over it)
-		inline function corner(px:Float, py:Float, u:Float, v:Float) {
-			var o = used;
-			bytes.blit(o, bytes, o - STRIDE, STRIDE);
-			var X = ra * px + rc * py + te, Y = rb * px + rd * py + tf;
-			bytes.setFloat(o, X / targetW * 2 - 1);
-			bytes.setFloat(o + 4, 1 - Y / targetH * 2);
-			bytes.setFloat(o + 8, px - x0 - hx);
-			bytes.setFloat(o + 12, py - y0 - hy);
-			bytes.setFloat(o + 24, u);
-			bytes.setFloat(o + 28, v);
-			bytes.setFloat(o + 104, X);
-			bytes.setFloat(o + 108, Y);
-			used += STRIDE;
-		}
+		var hx = (x1 - x0) / 2, hy = (y1 - y0) / 2;
 		var mu = (u1 - u0) * m / (x1 - x0), mv = (v1 - v0) * m / (y1 - y0);
-		vertex(ax, ay, u0 - mu, v0 - mv);
-		corner(ax, by, u0 - mu, v1 + mv);
-		corner(bx, ay, u1 + mu, v0 - mv);
-		corner(bx, by, u1 + mu, v1 + mv);
+		var ax = x0 - m, ay = y0 - m, bx = x1 + m, by = y1 + m;
+		// (the corners in target pixels and clip space: the transform less its scale, exact for none)
+		var k = mk, ra = flat ? 1 : ma / k, rb = flat ? 0 : mb / k, rc = flat ? 0 : mc / k, rd = flat ? 1 : md / k, te = flat ? 0 : me, tf = flat ? 0 : mf;
+		inline function corner(at:Int, px:Float, py:Float) {
+			var X = ra * px + rc * py + te, Y = rb * px + rd * py + tf;
+			b.setFloat(at, X / targetW * 2 - 1);
+			b.setFloat(at + 4, 1 - Y / targetH * 2);
+			b.setFloat(at + 8, X);
+			b.setFloat(at + 12, Y);
+		}
+		corner(o, ax, ay);
+		corner(o + 16, bx, ay);
+		corner(o + 32, ax, by);
+		b.setFloat(o + 48, u0 - mu);
+		b.setFloat(o + 52, v0 - mv);
+		b.setFloat(o + 56, u1 + mu);
+		b.setFloat(o + 60, v1 + mv);
+		b.setFloat(o + 64, hx);
+		b.setFloat(o + 68, hy);
+		b.setFloat(o + 72, hx + m);
+		b.setFloat(o + 76, hy + m);
+		b.setFloat(o + 80, fill.r / 255 * fa);
+		b.setFloat(o + 84, fill.g / 255 * fa);
+		b.setFloat(o + 88, fill.b / 255 * fa);
+		b.setFloat(o + 92, fa);
+		b.setFloat(o + 96, border.r / 255 * ba);
+		b.setFloat(o + 100, border.g / 255 * ba);
+		b.setFloat(o + 104, border.b / 255 * ba);
+		b.setFloat(o + 108, ba);
+		b.setFloat(o + 112, qr0);
+		b.setFloat(o + 116, qr1);
+		b.setFloat(o + 120, qr2);
+		b.setFloat(o + 124, qr3);
+		b.setFloat(o + 128, w0);
+		b.setFloat(o + 132, w1);
+		b.setFloat(o + 136, w2);
+		b.setFloat(o + 140, w3);
+		b.setFloat(o + 144, mode);
+		b.setFloat(o + 148, blur);
+		b.setFloat(o + 152, filtered);
+		b.setFloat(o + 156, 0);
+		b.setFloat(o + 160, clipX0);
+		b.setFloat(o + 164, clipY0);
+		b.setFloat(o + 168, clipX1);
+		b.setFloat(o + 172, clipY1);
+		b.setFloat(o + 176, clipR0);
+		b.setFloat(o + 180, clipR1);
+		b.setFloat(o + 184, clipR2);
+		b.setFloat(o + 188, clipR3);
+	}
+}
+
+// (an image's texture: its own (page -1), or a page's, its place x, y in it)
+private class ImageEntry {
+	public var texture:Null<Texture> = null;
+	public var version:Int;
+	public var frame:Int;
+	public final width:Int;
+	public final height:Int;
+	public var page = -1;
+	public var x = 0;
+	public var y = 0;
+
+	public function new(version, frame, width, height) {
+		this.version = version;
+		this.frame = frame;
+		this.width = width;
+		this.height = height;
+	}
+}
+
+// (an atlas page of images: shelves, each a row of images as high as its
+// first, filled left to right; live: the images in it; emptied when none are)
+private class ImagePage {
+	public final texture:Texture;
+	public var live = 0;
+	public var used = false;
+	// (each shelf's top, height and the next x on it)
+	final shelves:Array<Int> = [];
+	var bottom = 0;
+
+	public function new(texture)
+		this.texture = texture;
+
+	public function reset() {
+		shelves.resize(0);
+		bottom = 0;
+		used = false;
+	}
+
+	public function allocate(e:ImageEntry):Bool {
+		var w = e.width, h = e.height, size = Renderer.PAGE;
+		var k = 0;
+		while (k < shelves.length) {
+			if (shelves[k + 1] >= h && shelves[k + 1] <= h * 2 && shelves[k + 2] + w <= size) {
+				place(e, shelves[k + 2], shelves[k]);
+				shelves[k + 2] += w;
+				return true;
+			}
+			k += 3;
+		}
+		if (bottom + h > size) return false;
+		shelves.push(bottom);
+		shelves.push(h);
+		shelves.push(w);
+		place(e, 0, bottom);
+		bottom += h;
+		return true;
+	}
+
+	inline function place(e:ImageEntry, x:Int, y:Int) {
+		e.x = x;
+		e.y = y;
+		live++;
+		used = true;
+	}
+}
+
+// (a path's image as Renderer.path drew it, and what it was drawn with)
+private class PathImage {
+	public final img:Image;
+	public final x:Float;
+	public final y:Float;
+	public var frame = 0;
+
+	final scale:Float;
+	final commands:Int;
+	final evenOdd:Bool;
+	final fill:Null<Paint>;
+	final stroke:Null<Stroke>;
+	// (the stroke's fields when drawn: a stroke object may be changed and drawn again)
+	final width:Float;
+	final paint:Null<Paint>;
+	final cap:Null<LineCap>;
+	final join:Null<LineJoin>;
+	final miterLimit:Null<Float>;
+	final dashes:Null<Array<Float>>;
+	final dashOffset:Null<Float>;
+
+	public function new(scale:Float, p:Path, fill:Null<Paint>, stroke:Null<Stroke>, img:Image, x:Float, y:Float) {
+		this.scale = scale;
+		commands = p.commands.length;
+		evenOdd = p.evenOdd;
+		this.fill = fill;
+		this.stroke = stroke;
+		width = stroke == null ? 0 : stroke.width;
+		paint = stroke?.paint;
+		cap = stroke?.cap;
+		join = stroke?.join;
+		miterLimit = stroke?.miterLimit;
+		dashes = stroke?.dashes == null ? null : stroke.dashes.copy();
+		dashOffset = stroke?.dashOffset;
+		this.img = img;
+		this.x = x;
+		this.y = y;
+	}
+
+	public function same(s:Float, p:Path, f:Null<Paint>, st:Null<Stroke>):Bool {
+		if (s != scale || p.commands.length != commands || p.evenOdd != evenOdd || !samePaint(f, fill)) return false;
+		if (st == null || stroke == null) return st == stroke;
+		if (st.width != width || !samePaint(st.paint, paint) || st.cap != cap || st.join != join || st.miterLimit != miterLimit
+			|| st.dashOffset != dashOffset) return false;
+		var d = st.dashes;
+		if (d == null || dashes == null) return d == dashes;
+		if (d.length != dashes.length) return false;
+		for (k in 0...d.length)
+			if (d[k] != dashes[k]) return false;
+		return true;
+	}
+
+	static function samePaint(a:Null<Paint>, b:Null<Paint>):Bool {
+		if (a == null || b == null) return a == b;
+		return switch [(a : PaintValue), (b : PaintValue)] {
+			case [Solid(x), Solid(y)]: x == y;
+			// (another gradient object: the same if it reads the same)
+			case [Gradient(x), Gradient(y)]: x == y || Std.string(x) == Std.string(y);
+			case _: false;
+		}
 	}
 }
