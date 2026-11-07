@@ -1,0 +1,29 @@
+{
+  "events": [
+    {"t": 0.6, "type": "tap", "tag": "note-2"},
+    {"t": 1.4, "type": "tap", "tag": "note-3"},
+    {"t": 2.2, "type": "key", "name": "k", "secondary": true},
+    {"t": 2.6, "type": "type", "text": "dark", "every": 0.09},
+    {"t": 3.3, "type": "mark", "name": "launcher"},
+    {"t": 3.5, "type": "key", "name": "Enter"},
+    {"t": 4.6, "type": "mark", "name": "dark"},
+    {"t": 4.6, "type": "key", "name": "k", "secondary": true},
+    {"t": 5.0, "type": "type", "text": "pin", "every": 0.09},
+    {"t": 5.6, "type": "key", "name": "Enter"},
+    {"t": 6.6, "type": "mark", "name": "pinned"},
+    {"t": 6.8, "type": "key", "name": "n", "secondary": true},
+    {"t": 7.2, "type": "tap", "tag": "title"},
+    {"t": 7.3, "type": "key", "name": "a", "secondary": true},
+    {"t": 7.5, "type": "type", "text": "Weekend plans", "every": 0.06},
+    {"t": 8.6, "type": "tap", "tag": "body"},
+    {"t": 8.7, "type": "type", "text": "Market on Saturday, the long walk on Sunday.", "every": 0.035},
+    {"t": 10.5, "type": "mark", "name": "written"},
+    {"t": 10.6, "type": "tap", "tag": "folder-travel"},
+    {"t": 11.6, "type": "key", "name": "k", "secondary": true},
+    {"t": 12.0, "type": "type", "text": "cook", "every": 0.09},
+    {"t": 12.6, "type": "key", "name": "ArrowDown"},
+    {"t": 12.9, "type": "key", "name": "ArrowUp"},
+    {"t": 13.2, "type": "key", "name": "Enter"},
+    {"t": 14.4, "type": "mark", "name": "end"}
+  ]
+}
