@@ -7,7 +7,7 @@
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
 import type {Read, RootView, Signal, View} from "helder/view";
 
-declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", Clock: "helder.ui.Clock", UiFlow: "helder.ui.view.UiFlow", __module: "helder.ui.TypeScript"};
+declare const __haxe: {UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", Clock: "helder.ui.Clock", WebViewEvent: "helder.ui.platform.WebViewEvent", WebContent: "helder.ui.platform.WebContent", WebResponse: "helder.ui.platform.WebResponse", UiFlow: "helder.ui.view.UiFlow", __module: "helder.ui.TypeScript"};
 
 // a menu of the menu bar; role Window: the window menu (macOS's: its own
 // items after Minimize, Zoom and Close)
@@ -201,6 +201,88 @@ export declare class Clock {
 	static tick(t: number): boolean;
 }
 
+// A web view's event (WebView's handlers, WebViewListener): what each kind
+// has is in WebViewEventKind
+export declare class WebViewEvent {
+	constructor(kind: number);
+	// a message from the bridge's wire form (WebBridge: s text, j JSON, b base64, c a console line)
+	static message(wire: string): WebViewEvent;
+	readonly kind: number;
+	url: string;
+	text: string;
+	// a message's: the page posted JSON (text; json() parses it)
+	isJson: boolean;
+	// a message's binary (an ArrayBuffer or a typed array the page posted)
+	bytes: Uint8Array | null;
+	progress: number;
+	code: number;
+	// a message's value: its JSON parsed, else its text
+	json(): any;
+}
+
+// What a web view's own origin serves (WebView.content): the files of the
+// app's bundle (assets the program names, helder.asset's keys under a
+// prefix) or of a directory, or a function's responses, each with headers
+// of its own beside the MIME type its extension gives. By default every
+// response is cross-origin isolated (COOP same-origin, COEP require-corp,
+// CORP same-origin: the page's crossOriginIsolated, SharedArrayBuffer and
+// wasm threads), never cached, and a .wasm is application/wasm (what
+// WebAssembly.instantiateStreaming asks for).
+//
+// The origin is the platform's: on iOS and macOS a custom scheme
+// (WKURLSchemeHandler: `app://localhost/`, the scheme WebContent.scheme),
+// on Android https on a host of its own (shouldInterceptRequest, as
+// WebViewAssetLoader does: `https://appassets.androidplatform.net/`), so
+// the page is a secure context everywhere. `url(path)` is a path's URL
+// there; a web view's src may be a path, resolved against it.
+//
+//   var content = WebContent.bundle("web/");                  // Asset.bytes("web/index.html") etc. in the bundle
+//   var content = WebContent.directory(dir);                  // a folder on disk
+//   var content = WebContent.handler(path -> WebResponse.text("hi"));
+export declare class WebContent {
+	constructor(serve: (arg0: string) => WebResponse | null);
+	// the bundle's files under prefix (helder.asset's keys: each must be
+	// named by the program, Asset.bytes(prefix + path), to be bundled)
+	static bundle(prefix?: string): WebContent;
+	// the files of a directory on disk
+	static directory(dir: string): WebContent;
+	// a function's responses, by path (null: 404)
+	static handler(f: (arg0: string) => WebResponse | null): WebContent;
+	// the custom scheme on Apple's systems
+	scheme: string;
+	// the host (Apple: app://<host>/; Android: https://<host>/)
+	host: string;
+	// the headers every response gets (cross-origin isolation, no cache)
+	readonly headers: unknown;
+	// the path a directory's request gets (a path ending in /)
+	index: string;
+	// the origin, without a slash at the end
+	origin(): string;
+	// a path's URL at the origin
+	url(path: string): string;
+	// whether a URL is the origin's (the request this handles)
+	owns(url: string): boolean;
+	// the response to a URL of the origin (any thread: Android's requests
+	// come on the web view's own); 404 when nothing serves it
+	respond(url: string): WebResponse;
+}
+
+// A response of WebContent's: its status, MIME type, headers and body
+export declare class WebResponse {
+	constructor(status: number, mime: string, body: Uint8Array);
+	static bytes(b: Uint8Array, mime: string): WebResponse;
+	static text(s: string, mime?: string): WebResponse;
+	static error(code: number, mime: string, s: string): WebResponse;
+	// the reason phrase of a status
+	static reason(code: number): string;
+	// a path's MIME type, by its extension (text as UTF-8)
+	static mimeOf(path: string): string;
+	status: number;
+	mime: string;
+	readonly headers: unknown;
+	body: Uint8Array;
+}
+
 // helder.ui's own control flow components for markup (import
 // helder.ui.view.UiFlow.*), beside helder.view.Flow's:
 //
@@ -261,6 +343,15 @@ export interface NeutralAttributes {
 	onPan?: ((event: unknown) => void) | null;
 	onPinch?: ((event: unknown) => void) | null;
 	onScale?: ((event: unknown) => void) | null;
+	onMessage?: ((event: WebViewEvent) => void) | null;
+	onNavigate?: ((event: WebViewEvent) => void) | null;
+	onUrlChange?: ((event: WebViewEvent) => void) | null;
+	onLoad?: ((event: WebViewEvent) => void) | null;
+	onTitle?: ((event: WebViewEvent) => void) | null;
+	onProgress?: ((event: WebViewEvent) => void) | null;
+	onLoadError?: ((event: WebViewEvent) => void) | null;
+	onConsole?: ((event: WebViewEvent) => void) | null;
+	onCrash?: ((event: WebViewEvent) => void) | null;
 }
 
 declare global {

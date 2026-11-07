@@ -120,6 +120,8 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 			// (a text field, one line or several: native where the window's policy says, EditableText)
 			case "field": new helder.ui.widgets.TextField();
 			case "field:textarea": new helder.ui.widgets.TextArea();
+			// (the system's web view where the window has one: helder.ui.platform.WebView)
+			case "webview": new helder.ui.platform.WebView();
 			// (the neutral elements' DOM names: a view or text here, their element in a page)
 			case t if (StringTools.startsWith(t, "view:")):
 				var n = new Node(t.substr(5));
@@ -430,6 +432,11 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 		semantics(n).valueText = v == null ? null : Std.string(v);
 
 	@:attribute static function src(n:Node, name:String, v:Dynamic) {
+		// (a web view's: its URL, or a path of its content's origin)
+		if (Std.isOfType(n, helder.ui.platform.WebView)) {
+			(cast n : helder.ui.platform.WebView).src = v == null ? null : Std.string(v);
+			return;
+		}
 		if (!Std.isOfType(n, ImageNode)) noAttribute(n, name);
 		// (an animation: its image, played)
 		if (Std.isOfType(v, AnimatedImage)) {
@@ -437,6 +444,32 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 			(cast n : ImageNode).image = anim.image;
 			anim.play(Clock.add);
 		} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
+	}
+
+	// (a web view's, <webview>: its page as HTML, its own origin's files
+	// (a WebContent), the inspector, zoom, a transparent background, the
+	// back gesture; the last four read when its native view is made)
+	@:attribute static function html(n:Node, name:String, v:Dynamic)
+		webView(n, name).html = v == null ? null : Std.string(v);
+
+	@:attribute static function content(n:Node, name:String, v:Dynamic)
+		webView(n, name).content = v;
+
+	@:attribute static function inspectable(n:Node, name:String, v:Dynamic)
+		webView(n, name).inspectable = v == null ? null : v == true || v == "true" || v == "";
+
+	@:attribute static function zoom(n:Node, name:String, v:Dynamic)
+		webView(n, name).zoom = v == true || v == "true" || v == "";
+
+	@:attribute static function transparent(n:Node, name:String, v:Dynamic)
+		webView(n, name).transparent = v == true || v == "true" || v == "";
+
+	@:attribute static function backGesture(n:Node, name:String, v:Dynamic)
+		webView(n, name).backGesture = !(v == false || v == "false");
+
+	static function webView(n:Node, name:String):helder.ui.platform.WebView {
+		if (!Std.isOfType(n, helder.ui.platform.WebView)) noAttribute(n, name);
+		return cast n;
 	}
 
 	// (an icon's: lucide's of that name, helder.ui.widgets.Icons)
@@ -572,6 +605,16 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 			case "onPan": pan(n).onGesture = v;
 			case "onPinch": scale(n, 2).onGesture = v;
 			case "onScale": scale(n, 1).onGesture = v;
+			// (a web view's: helder.ui.platform.WebView)
+			case "onMessage": webView(n, name).onMessage = v;
+			case "onNavigate": webView(n, name).onNavigate = v;
+			case "onUrlChange": webView(n, name).onUrlChange = v;
+			case "onLoad": webView(n, name).onLoad = v;
+			case "onTitle": webView(n, name).onTitle = v;
+			case "onProgress": webView(n, name).onProgress = v;
+			case "onLoadError": webView(n, name).onLoadError = v;
+			case "onConsole": webView(n, name).onConsole = v;
+			case "onCrash": webView(n, name).onCrash = v;
 			case _: throw 'helder.ui: no event $name';
 		}
 	}

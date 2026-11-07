@@ -10,10 +10,15 @@
 #   display's frames, a rotation, the background), helder dev's loop there
 #   (tests/os/dev/dev-android.mjs), the cube's window and touches
 #   (tests/gfx/android.sh), a drawn ui's touch fling (tests/os/android-touch.sh),
-#   native.jni from TypeScript (tests/typescript/native/android.sh);
+#   native.jni from TypeScript (tests/typescript/native/android.sh), the
+#   web view (tests/platform/webview-android.sh: a page through its scheme
+#   handler, cross-origin isolated, wasm, the bridge's round trip, a
+#   snapshot, examples/todo's web build in it; over a drawn window and on
+#   the whole screen);
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
 #   runner (helder run, simctl), the screen fixture, codesign --verify and
-#   plutil; the cube's window and touches (tests/gfx/ios.sh: SimTap's clicks).
+#   plutil; the cube's window and touches (tests/gfx/ios.sh: SimTap's clicks);
+#   the web view (tests/platform/webview-ios.sh, as Android's).
 # - ios-signing: an iPhone's app signed for distribution by helder with a
 #   throwaway identity, checked by codesign and assetutil on a macOS runner.
 # - desktop-macos, desktop-windows: the window lane (and helder's viewer,
@@ -173,6 +178,7 @@ jobs:
             sh tests/gfx/android.sh bin/pack/AndroidTest.apk bin/pack/android-gfx
             sh tests/os/android-touch.sh bin/pack/AndroidTouchTest.apk bin/pack/android-gfx
             sh tests/typescript/native/android.sh bin/cli/helder bin/pack/android-ts
+            sh tests/platform/webview-android.sh bin/cli/helder bin/pack/android-webview
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -183,6 +189,8 @@ jobs:
             bin/pack/android-gfx/*.txt
             bin/pack/android-gfx/*.png
             bin/pack/android-ts/*.txt
+            bin/pack/android-webview/*.txt
+            bin/pack/android-webview/*.png
             bin/pack/*.apk
           retention-days: 7
           if-no-files-found: ignore
@@ -216,6 +224,9 @@ jobs:
           bin/cli/helder build tests/gfx/ios --target ios-sim -o bin/pack/IosTest.app
           bin/cli/helder build tests/gfx/SimTap.hx -o bin/pack/SimTap
           sh tests/gfx/ios.sh bin/pack/IosTest.app bin/pack/ios-gfx "$PWD/bin/pack/SimTap"
+      - name: The web view on a simulator (tests/platform/webview-ios.sh)
+        if: ${{ !cancelled() }}
+        run: sh tests/platform/webview-ios.sh bin/cli/helder bin/pack/ios-webview
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -225,6 +236,8 @@ jobs:
             bin/pack/ios/*.png
             bin/pack/ios-gfx/*.txt
             bin/pack/ios-gfx/*.png
+            bin/pack/ios-webview/*.txt
+            bin/pack/ios-webview/*.png
           retention-days: 7
           if-no-files-found: ignore
 

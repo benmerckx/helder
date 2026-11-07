@@ -34,17 +34,22 @@ class JniEnv {
 	@:slot(94) static function GetFieldID(env:Ptr, cls:Ptr, name:Ptr, sig:Ptr):Ptr;
 	@:slot(100) static function GetIntField(env:Ptr, o:Ptr, f:Ptr):Int;
 	@:slot(102) static function GetFloatField(env:Ptr, o:Ptr, f:Ptr):Float32;
+	@:slot(104) static function SetObjectField(env:Ptr, o:Ptr, f:Ptr, v:Ptr):Void;
 	@:slot(109) static function SetIntField(env:Ptr, o:Ptr, f:Ptr, v:Int):Void;
 	@:slot(113) static function GetStaticMethodID(env:Ptr, cls:Ptr, name:Ptr, sig:Ptr):Ptr;
 	@:slot(116) static function CallStaticObjectMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Ptr;
 	@:slot(131) static function CallStaticIntMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Int;
 	@:slot(143) static function CallStaticVoidMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Void;
 	@:slot(144) static function GetStaticFieldID(env:Ptr, cls:Ptr, name:Ptr, sig:Ptr):Ptr;
+	@:slot(145) static function GetStaticObjectField(env:Ptr, cls:Ptr, f:Ptr):Ptr;
 	@:slot(163) static function NewString(env:Ptr, chars:Ptr, length:Int):Ptr;
 	@:slot(164) static function GetStringLength(env:Ptr, s:Ptr):Int;
+	@:slot(176) static function NewByteArray(env:Ptr, length:Int):Ptr;
+	@:slot(208) static function SetByteArrayRegion(env:Ptr, a:Ptr, start:Int, length:Int, buf:Ptr):Void;
 	@:slot(215) static function RegisterNatives(env:Ptr, cls:Ptr, methods:Ptr, count:Int):Int;
 	@:slot(220) static function GetStringRegion(env:Ptr, s:Ptr, start:Int, length:Int, buf:Ptr):Void;
 	@:slot(228) static function ExceptionCheck(env:Ptr):Int;
+	@:slot(229) static function NewDirectByteBuffer(env:Ptr, address:Ptr, capacity:Int64):Ptr;
 }
 
 @:build(helder.os.VTable.build())

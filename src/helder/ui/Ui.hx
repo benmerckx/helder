@@ -118,6 +118,9 @@ class Ui {
 	// "text-field", "text-area", "context-menu", "menubar" (defaultPolicy:
 	// text drawn on the desktop, native in a browser and on phones; menus native)
 	public var platform:Null<PlatformViews> = null;
+	// the window's own view, where native views a node places go (UiWindow:
+	// iOS's UIView, macOS's NSView; helder.ui.platform.WebView); nil elsewhere
+	public var nativeView:hxmc.unsafe.Ptr = hxmc.unsafe.Ptr.nil();
 	public var policy:Map<String, Host> = defaultPolicy();
 	public var clipboard:ClipboardHost = new ClipboardHost.MemoryClipboard();
 	public var focusRingColor:Color = 0xFF3B82F6;

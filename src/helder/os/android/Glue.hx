@@ -28,6 +28,16 @@ class Glue {
 	public static inline var SURFACE_CHANGED = 7;
 	public static inline var SURFACE_DESTROYED = 8;
 	public static inline var KEY = 9;
+	// (org.hxmc.WebClient's and WebChrome's: helder.pack.android.Glue's)
+	public static inline var WEB_STARTED = 10;
+	public static inline var WEB_FINISHED = 11;
+	public static inline var WEB_ERROR = 12;
+	public static inline var WEB_NAVIGATED = 13;
+	public static inline var WEB_OVERRIDE = 14;
+	public static inline var WEB_PROGRESS = 15;
+	public static inline var WEB_TITLE = 16;
+	public static inline var WEB_CONSOLE = 17;
+	public static inline var WEB_GONE = 18;
 
 	static final handlers = new Map<Int, (kind:Int, o:Ptr, a:Int, b:Int) -> Int>();
 	static var nextId = 1;
@@ -44,6 +54,22 @@ class Glue {
 		var id = nextId++;
 		handlers.set(id, handler);
 		return {id: id, obj: Jni.newObject(cls, ctor, id)};
+	}
+
+	// another of classes.dex's classes of an id and a static native event
+	// (org.hxmc.WebClient, WebChrome): its event registered as Glue's, with
+	// other natives of its own; the class, a global reference
+	public static function adopt(name:String, ?natives:Array<{name:String, sig:String, fn:Ptr}>):Ptr {
+		var c = Jni.cls(name);
+		Jni.registerNatives(c, [{name: "event", sig: "(IILjava/lang/Object;II)I", fn: Callback.addr(event)}].concat(natives ?? []));
+		return c;
+	}
+
+	// an id for an object of such a class (made with it), calling handler
+	public static function handle(handler:(kind:Int, o:Ptr, a:Int, b:Int) -> Int):Int {
+		var id = nextId++;
+		handlers.set(id, handler);
+		return id;
 	}
 
 	// the activity's content: a view (only with org.hxmc.Activity, which a

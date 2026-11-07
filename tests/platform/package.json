@@ -1,0 +1,10 @@
+{
+  "name": "@helder/webview-check",
+  "private": true,
+  "dependencies": {
+    "helder": "*"
+  },
+  "helder": {
+    "android": {"permissions": ["INTERNET"]}
+  }
+}

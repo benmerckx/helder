@@ -46,5 +46,18 @@ typedef NodeEvents = {
 	onPan:Pan,
 	// (two pointers' Scale; onScale's from one)
 	onPinch:Scale,
-	onScale:Scale
+	onScale:Scale,
+	// a web view's (<webview>, helder.ui.platform.WebView): a message its
+	// page posted (helder.post: text, isJson, bytes), a navigation begun, its
+	// URL changed, its page loaded, its title, the load's progress, a failed
+	// load, a console line, its page's process gone
+	onMessage:helder.ui.platform.WebViewEvent,
+	onNavigate:helder.ui.platform.WebViewEvent,
+	onUrlChange:helder.ui.platform.WebViewEvent,
+	onLoad:helder.ui.platform.WebViewEvent,
+	onTitle:helder.ui.platform.WebViewEvent,
+	onProgress:helder.ui.platform.WebViewEvent,
+	onLoadError:helder.ui.platform.WebViewEvent,
+	onConsole:helder.ui.platform.WebViewEvent,
+	onCrash:helder.ui.platform.WebViewEvent
 }
