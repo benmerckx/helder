@@ -159,7 +159,7 @@ class TextQuality {
 	// --- CoreText's sheets (macOS)
 
 	static function reference(dir:String) {
-		#if (hxmc && !wasm32)
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		if (hxmc.unsafe.Mem.os() != 1) throw "TextQuality reference: Core Text is macOS's";
 		FileSystem.createDirectory(dir);
 		var cs = cases();
