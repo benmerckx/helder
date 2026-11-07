@@ -231,8 +231,9 @@ class AccessTree {
 				a.valueText = sem.valueText;
 			}
 			a.name = sem != null && sem.label != null ? sem.label : role == Label ? (cast n : TextNode).allText() : role.namedByContent() ? textOf(n) : "";
-			if ((role == TextInput || role == MultilineTextInput || role == ComboBox || role == SpinButton) && Std.isOfType(n, TextNode)) {
-				var text = (cast n : TextNode).text;
+			var own = Std.isOfType(n, TextNode) ? null : n.accessValue();
+			if ((role == TextInput || role == MultilineTextInput || role == ComboBox || role == SpinButton) && (own != null || Std.isOfType(n, TextNode))) {
+				var text = own != null ? own : (cast n : TextNode).text;
 				a.value = sem != null && sem.secret ? StringTools.lpad("", "\u2022", text.length) : text;
 				a.secret = sem != null && sem.secret;
 				var t = n.accessText();

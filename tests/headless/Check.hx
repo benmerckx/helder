@@ -41,6 +41,7 @@ class Check {
 			literals(app, '$one/$app-literal-before.png', '$one/$app-literal-after.png', tree('$one/$app-literal.json'));
 		}
 		image("glow.png", '$one/glow.png', bless);
+		codeEditor(dir, one, bless);
 		viewer(tree('$one/viewer-menu.json'), tree('$one/viewer-end.json'));
 		var frames = [for (f in FileSystem.readDirectory('$one/frames')) f];
 		frames.sort(Reflect.compare);
@@ -55,6 +56,46 @@ class Check {
 		check("both runs' outputs compared", same >= 12, '$same');
 		Sys.println('headless-run: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// examples/code-editor on a 2,000-line TSX file (tests/headless/code-editor.json):
+	// a word double-clicked and typed over, a line typed at the top, go to
+	// line, three cursors by secondary-D and a word typed at each, undone and
+	// redone, find and replace all, a drag's selection; its text (the
+	// editor's value in the tree) and status bar at each mark, its last
+	// frame against the golden
+	static function codeEditor(dir:String, one:String, bless:Bool) {
+		var file = File.getContent('$dir/code.tsx');
+		var lines = file.split("\n").length;
+		check("code-editor: its file has 2,000 lines", lines >= 2000, '$lines');
+		inline function count(s:String, w:String):Int
+			return s.split(w).length - 1;
+		function view(nodes:Array<Dynamic>):Dynamic
+			return byTag(nodes, "code-view");
+		function status(nodes:Array<Dynamic>):String
+			return byTag(nodes, "status")?.text ?? "";
+		var multi = tree('$one/code-multi.json');
+		check("code-editor: three selections by secondary-D", status(multi).indexOf("(3 selections)") >= 0, status(multi));
+		var v = view(multi);
+		check("code-editor: a text area with the text as its value", v != null && v.role == "textbox" && v.value != null && v.focus == true);
+		var mv:String = v.value;
+		check("code-editor: the word double-clicked typed over", mv.indexOf("import { state, memo, For, Show, Read }") >= 0);
+		check("code-editor: a line typed at the top", StringTools.startsWith(mv, "// edited headless\n"));
+		var shows = count(file.toLowerCase(), "show"), todos = count(file, "todos");
+		var undone:String = view(tree('$one/code-undone.json')).value;
+		check("code-editor: the word typed at three cursors undone", count(undone, "entries") == 0 && count(undone, "todos") == todos, '${count(undone, "entries")}, ${count(undone, "todos")} of $todos');
+		var find = tree('$one/code-find.json');
+		check("code-editor: the find panel open", byTag(find, "code-find") != null);
+		var c = byTag(find, "find-count")?.text ?? "";
+		check("code-editor: find's count", StringTools.endsWith(c, ' of $shows'), c);
+		var end = tree('$one/code-end.json');
+		var ev:String = view(end).value;
+		check("code-editor: redone: the word at three cursors", count(ev, "entries") == 3 && count(ev, "todos") == todos - 3, '${count(ev, "entries")}');
+		check("code-editor: every match replaced", count(ev.toLowerCase(), "show") == 0 && count(ev, "display") == shows, '${count(ev, "display")} of $shows');
+		check("code-editor: typed at the end", StringTools.endsWith(ev, "// end"));
+		check("code-editor: the panel closed, the text focused", byTag(end, "code-find") == null && view(end).focus == true);
+		check("code-editor: the drag's selection in the status bar", status(end) == "Ln 5, Col 16 (161 selected)", status(end));
+		image("code-editor.png", '$one/code-end.png', bless);
 	}
 
 	static function files(d:String, prefix = ""):Array<String> {

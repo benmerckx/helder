@@ -71,6 +71,23 @@ class CodeDiagnostic {
 	}
 }
 
+// A line as a view laid it out (CodeView): its text as drawn (tabs as
+// spaces), the tokens it was coloured by, its paragraph and each span's
+// class; dropped when the line's text or tokens change
+class ShapedLine {
+	public final text:String;
+	public final tokens:Array<Int>;
+	public final paragraph:Paragraph;
+	public final classes:Array<Int>;
+
+	public function new(text, tokens, paragraph, classes) {
+		this.text = text;
+		this.tokens = tokens;
+		this.paragraph = paragraph;
+		this.classes = classes;
+	}
+}
+
 // (an edit applied: its changes against the text before, and the inverse ones against the text after)
 private class Step {
 	public final changes:Array<Change>;
@@ -141,7 +158,7 @@ class CodeModel {
 	final tokStart:Array<Int> = [-1];
 	final endState:Array<Int> = [-1];
 	final tokens:Array<Null<Array<Int>>> = [null];
-	@:allow(helder.ui.code) final laid:Array<Null<Paragraph>> = [null];
+	@:allow(helder.ui.code) final laid:Array<Null<ShapedLine>> = [null];
 	final pool:Array<Array<Int>> = [];
 	// (lines from which highlighting may be out of date)
 	var dirtyFrom = 0;
@@ -589,22 +606,37 @@ class CodeModel {
 		version++;
 	}
 
-	// the column of offset pos on its line (tabs to the next stop)
+	// the column of offset pos on its line (tabs to the next stop, wide characters two)
 	public function column(pos:Int):Int {
-		var l = lineOf(pos), t = line(l), n = pos - lineStart(l), col = 0;
-		for (k in 0...n) {
-			var c = StringTools.fastCodeAt(t, k);
-			if (c == "\t".code) col += tabSize - col % tabSize else if (!(c >= 0xDC00 && c < 0xE000)) col++;
-		}
+		var l = lineOf(pos);
+		return columnIn(line(l), pos - lineStart(l));
+	}
+
+	// the column of the first n units of a line's text t
+	public function columnIn(t:String, n:Int):Int {
+		var col = 0;
+		if (n > t.length) n = t.length;
+		for (k in 0...n)
+			col += width(StringTools.fastCodeAt(t, k), col);
 		return col;
 	}
 
-	// the offset at a column of a line (its end when shorter)
+	// the columns a UTF-16 unit takes at column col: a tab to the next stop,
+	// a pair's second unit none, East Asian wide characters and others
+	// outside the BMP two
+	public inline function width(c:Int, col:Int):Int
+		return c == "\t".code ? tabSize - col % tabSize : c < 0x1100 ? 1 : c >= 0xDC00 && c < 0xE000 ? 0 : c >= 0xD800 && c < 0xDC00 ? 2 : wide(c) ? 2 : 1;
+
+	static inline function wide(c:Int):Bool
+		return c <= 0x115F || c >= 0x2E80 && c <= 0xA4CF || c >= 0xAC00 && c <= 0xD7A3 || c >= 0xF900 && c <= 0xFAFF || c >= 0xFE30 && c <= 0xFE4F
+			|| c >= 0xFF00 && c <= 0xFF60 || c >= 0xFFE0 && c <= 0xFFE6;
+
+	// the offset at a column of a line (the nearest character boundary; its end when shorter)
 	public function offsetAtColumn(l:Int, col:Int):Int {
 		var t = line(l), c = 0, k = 0;
 		while (k < t.length && c < col) {
 			var u = StringTools.fastCodeAt(t, k);
-			var w = u == "\t".code ? tabSize - c % tabSize : 1;
+			var w = width(u, c);
 			if (c + w > col && c + w - col > col - c) break;
 			c += w;
 			k++;

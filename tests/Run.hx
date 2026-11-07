@@ -81,7 +81,7 @@ class Run {
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
 		{name: "syntax", about: "helder.syntax, the syntax trees the studio edits (src/helder/syntax; its edits' tests are the test lane's, Syntax.test.hx): every .ts and .tsx file, and every .hx file with markup, of the repository read and printed back byte for byte, read structurally, each Haxe markup literal read as the macro's parser reads it (tests/syntax/Check.hx, on Eval and natively: the read of the largest file timed)", run: syntaxLane},
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
-		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); examples/todo's and ts-todo's dev builds with a live literal's colour and a text patched by the script (tests/headless/literals.json: helder.dev.Literals), the frame after showing them; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
+		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; examples/code-editor (helder.ui.code) on a 2,000-line TSX file (tests/headless/code-editor.json: a word double-clicked and typed over, go to line, three cursors by secondary-D, undo and redo, find and replace all, a drag), its text and status bar at each mark and its last frame against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); examples/todo's and ts-todo's dev builds with a live literal's colour and a text patched by the script (tests/headless/literals.json: helder.dev.Literals), the frame after showing them; all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
 		{name: "ui-web", about: "the todo example, text editors and the accessibility fixture's ARIA mirror (web-access.mjs) as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
@@ -977,8 +977,17 @@ class Run {
 	static function headlessRun() {
 		var h = helderCli(), b = "bin/headless-run";
 		rmrf(b);
+		// (a TSX file of 2,000 lines for the code editor: examples/ts-todo's app repeated)
+		mkdirs(b);
+		File.saveContent('$b/code.tsx', repeatedLines("examples/ts-todo/app.tsx", 2000));
 		for (pass in ["1", "2"]) {
 			var o = '$b/$pass';
+			// (helder.ui.code: examples/code-editor on it, scripted)
+			run(h, [
+				"run", "--headless", "examples/code-editor", "--script", "tests/headless/code-editor.json", "--size", "900x640", "--tree", '$o/code-multi.json',
+				"--at", "mark:multi", "--tree", '$o/code-undone.json', "--at", "mark:undone", "--tree", '$o/code-find.json', "--at", "mark:find", "--snap",
+				'$o/code-end.png', "--tree", '$o/code-end.json', "--", '$b/code.tsx'
+			]);
 			for (app in ["todo", "ts-todo"])
 				run(h, [
 					"run", "--headless", 'examples/$app', "--script", "tests/headless/todo.json", "--snap", '$o/$app-toggled.png', "--tree", '$o/$app-toggled.json',
@@ -1007,6 +1016,15 @@ class Run {
 			run(h, ["run", "--headless", "examples/todo", "--script", "tests/headless/todo.json", "--video", '$b/todo.mp4', "--keys", "--pointer"]);
 			if (!FileSystem.exists('$b/todo.mp4') || FileSystem.exists('$b/todo.frames')) throw new Failed('$b/todo.mp4: not written, or its frames left');
 		} else Sys.println("headless-run: no ffmpeg: --video not checked");
+	}
+
+	// a file's lines repeated to n lines (and a last line break)
+	static function repeatedLines(path:String, n:Int):String {
+		var src = File.getContent(path).split("\n"), out = [];
+		if (src[src.length - 1] == "") src.pop();
+		while (out.length < n)
+			out.push(src[out.length % src.length]);
+		return out.join("\n") + "\n";
 	}
 
 	static function sceneWeb() {

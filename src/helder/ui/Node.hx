@@ -1113,6 +1113,11 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	public function accessSetValue(value:String):Bool
 		return false;
 
+	// a text input's value for assistive technology when it is not a
+	// TextNode's text (a code editor's document); null: none
+	public function accessValue():Null<String>
+		return null;
+
 	// a text input's selection and caret (UTF-16 indices) and whether it is
 	// read only, for assistive technology; null: it edits no text
 	public function accessText():Null<{start:Int, end:Int, caret:Int, readOnly:Bool}>
