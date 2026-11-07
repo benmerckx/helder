@@ -53,12 +53,13 @@ null when none runs). `client.mjs` calls its `running` function for it.
 
 | Path | |
 | --- | --- |
-| `/helder/src` | helder's sources (the bundle) |
-| `/hxmc/std`, `/haxe/std` | hxmc's std, Haxe's std (the bundle) |
-| `/typescript` | the `typescript` package's declarations TypeScript's API reads (the bundle) |
+| `/node_modules/helder` | helder's package.json and sources (`src/`: `HELDER_SRC`) (the bundle) |
+| `/node_modules/@hxmc/cli` | hxmc's package.json, Haxe's std (`haxe/upstream/std`: its `haxe`, `sys`, `eval` packages and top-level classes) and hxmc's std (`hxmc/bootstrap/hxmc-std`) (the bundle) |
+| `/node_modules/typescript` | the `typescript` package's package.json, its API's protocol (`dist/api/node`) and enums (`enums`): helder.typescript's tables (the bundle) |
+| `/node_modules/@typescript/typescript-wasip1-wasm/lib` | TypeScript's ECMAScript libraries (`lib.*.d.ts`, without the DOM's, webworker's and scripthost's) (the bundle) |
 | `/work` | the page's projects (`write`) |
-| `/out` | builds' modules |
-| `/cache` | hxmc's module cache and helder's: kept in OPFS where the browser has it |
+| `/out` | builds' modules (`/out/<name>.wasm`; live literals' tables in `/out/.literals`) |
+| `/cache` | `HOME`: hxmc's module cache (`/cache/hxmc`) and helder's (`/cache/helder`): kept in OPFS where the browser has it |
 
 In memory, with `/cache` mirrored to OPFS (written after each build, read
 at `init`).
