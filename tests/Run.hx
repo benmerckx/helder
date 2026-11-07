@@ -27,7 +27,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf", "syntax"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -76,6 +76,8 @@ class Run {
 		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, a tap and a drag without mouse events or scrolls, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
+		{name: "syntax", about: "helder.syntax, the syntax trees the studio edits (src/helder/syntax; its edits' tests are the test lane's, Syntax.test.hx): every .ts and .tsx file, and every .hx file with markup, of the repository read and printed back byte for byte, read structurally, each Haxe markup literal read as the macro's parser reads it (tests/syntax/Check.hx, on Eval and natively: the read of the largest file timed)", run: syntaxLane},
+		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
 		{name: "headless-run", about: "`helder run --headless` (helder.headless; Linux: Mesa's llvmpipe, no display): examples/todo and examples/ts-todo driven by one script (tests/headless/todo.json: typed into, Enter, the Add button, a checkbox by its role and label, a filter), their --tree at a mark and at the end checked, their --snap against tests/headless's goldens, the --trace's lines, --frames with --every and keycaps; examples/glow's --snap at 0.5 s against its golden; apps/viewer opening a file through its file dialog (the script's answer) and a context menu's item picked (tests/headless/viewer.json; its status bar shown by its key, its store empty as in every headless run); all run twice, the outputs byte for byte the same (tests/headless/Check.hx); a --video when ffmpeg is installed", run: headlessRun},
 		{name: "ui-web", about: "the todo example, text editors and the accessibility fixture's ARIA mirror (web-access.mjs) as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
@@ -947,6 +949,27 @@ class Run {
 	// (each run twice, into bin/headless-run/1 and 2: the same bytes)
 	static function editLoop()
 		run(NODE, ["tests/edit-loop/edit-loop.mjs", helderCli(), "bin/edit-loop"]);
+
+	static function syntaxLane() {
+		var cp = cps(["src", "tests/syntax"]);
+		interp(cp, "Check");
+		exe("bin/syntax/Check", cp.concat(["-main", "Check"]));
+		run(exePath("bin/syntax/Check", HOST), []);
+	}
+
+	// (the examples edited, built and run headless, their trees checked)
+	static function syntaxRun() {
+		var h = helderCli(), o = "bin/syntax/run";
+		var cp = cps(["src", "tests/syntax"]);
+		interp(cp, "Examples", ["prepare", o]);
+		for (app in ["todo", "ts-todo"])
+			run(h, ["run", "--headless", '$o/$app', "--script", "tests/headless/todo.json", "--tree", '$o/$app-end.json']);
+		run(h, ["run", "--headless", '$o/mail', "--tree", '$o/mail.json']);
+		run(h, ["run", "--headless", '$o/guide/GuideScreen.hx', "--tree", '$o/guide.json']);
+		run(h, ["run", "--headless", '$o/viewer', "--script", "tests/headless/viewer.json", "--size", "480x360", "--tree", '$o/viewer-end.json']);
+		run(h, ["test", '$o/ts-todo-story', "--target", "host"]);
+		interp(cp, "Examples", ["check", o]);
+	}
 
 	static function headlessRun() {
 		var h = helderCli(), b = "bin/headless-run";
