@@ -108,3 +108,67 @@ that today:
   own wasm32 build, which needs none.
 - **`chmod`** after a link (`Driver.markExecutable`): `HXMC_EXE_LIST`
   covers WASI already.
+
+## Structural edits: where the time goes
+
+`bun run test edit-loop` (bin/edit-loop/results.md) times helder dev on
+examples/todo and examples/ts-todo, warm, in a window (Linux, Xvfb,
+llvmpipe; 4 cores), from the save to the new frame. Medians, ms:
+
+| app | edit | total | watcher | tsgo | typing | filters | lowering | codegen | link | server | cli | reload | frame | other |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| todo | literal (patched) | 18 | 12 | | | | | | | | | | 4 | 2 |
+| todo | a component's body | 707 | 33 | | 153 | 72 | 114 | 120 | 39 | 90 | 15 | 10 | 32 | 27 |
+| todo | a component added | 727 | 34 | | 168 | 67 | 113 | 151 | 34 | 87 | 15 | 6 | 31 | 27 |
+| ts-todo | literal (patched) | 18 | 13 | | | | | | | | | | 4 | 1 |
+| ts-todo | a component's body | 632 | 34 | 45 | 54 | 84 | 164 | 131 | 43 | 3 | 19 | 10 | 31 | 25 |
+| ts-todo | a component added | 688 | 12 | 47 | 53 | 88 | 166 | 184 | 42 | 3 | 19 | 6 | 31 | 25 |
+
+(Before this work every edit, literals too, took 650 to 860 ms.) The
+studio's budget for a structural edit is 300 ms warm: about 520 to 590 ms
+of each is inside the compilation server, hxmc's and Haxe's. The build's
+sequence for a one-function edit of Todo.hx, with what the server's stats
+say (HELDER_DEV_SERVER_LOG=1 with HELDER_DEV_PHASES=1):
+
+1. the request, before `beforeTypingHook` (`server`): about 90 ms for the
+   Haxe program, 3 ms for the TypeScript one: the target's init macro
+   (`hxmc.Init.init()`), `Setup.initializeTarget`, `ServerCache`'s checks of
+   what it keeps (the macro context's modules among them: the markup
+   macros' world, which the TypeScript build barely has);
+2. init macros and typing (`typing`): 150 to 170 ms for Todo.hx alone typed
+   again (its markup expanded by MarkupMacro on the macro interpreter);
+3. Haxe's filters (`filters`): 70 ms, whole program, every build;
+4. hxmc's lowering: 110 to 165 ms although `bodies 3746 reused (147 by
+   key), 101 lowered`: the reuse's own cost over every body;
+5. prepare, codegen, data (`codegen`): prepare 50 to 140 ms (whole
+   program: reach, 3587 functions), codegen of the modules whose
+   fingerprint changed (10 of 277 for a lambda's body changed in Todo.hx:
+   inlining spreads a change), data regenerated whole (26 to 29 ms);
+6. link: 35 to 45 ms, the whole executable (a shared library for the dev
+   host) linked again.
+
+What the dev loop adds is about 110 ms: the watcher (its 25 ms tick),
+helder dev's own step (the assets' check, the live literals' tables read),
+the dev host's swap (the snapshot, the library loaded: 6 to 10 ms) and the
+new build's first frame (31 ms).
+
+Suggestions for hxmc (not patched here):
+
+- **The request's start**: cache `ServerCache.afterTargetInit`'s verdicts
+  for modules whose files' stamps did not change, and the macro context's
+  validity when no macro module changed (90 ms of Todo's).
+- **Filters and lowering per module**: run Haxe's filters (DCE aside) and
+  hxmc's lowering only for the modules typed again; today both walk the
+  whole program (150 to 230 ms together), even with LowerCache's reuse.
+- **Prepare incrementally**: keep `Prep`/`Reach` results across builds of
+  the server and update them from the changed modules' functions.
+- **Fingerprints that do not spread**: a lambda's body changed in Todo
+  recompiled 10 modules; inlining (Fingerprint.Inlined) could key on the
+  inlined function's own digest only where it is inlined.
+- **Data and link incrementally**: for a dev build the data object and the
+  link could be patched, or the changed modules' objects linked into a
+  small shared library the dev host loads over the last (per-module
+  reload), which hxmc's dev-host support (`-D hxmc.shared`) is close to.
+- **Typing the markup**: MarkupMacro on the macro interpreter costs most of
+  Todo.hx's 150 ms typing; the interpreter's tiers (HXMC_MIR_TIER) or a
+  compiled macro host would help every markup-heavy module.
