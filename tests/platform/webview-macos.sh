@@ -27,6 +27,31 @@ check "helder build examples/todo --target web" $?
 check "helder build tests/platform/WebViewCheck.hx" $?
 HELDER_WEB_DIR="$out/todo" "$out/WebViewCheck" > "$out/WebViewCheck.txt" 2>&1 &
 p=$!
+# (from outside the web view, as another process of the machine: its loopback
+# server refuses a request without its secret, a guessed one, and the bridge)
+i=0
+while [ $i -lt 60 ] && ! grep -q "webview: content at http://127.0.0.1:" "$out/WebViewCheck.txt"; do
+	sleep 0.5
+	i=$((i + 1))
+done
+origin=$(grep -o "webview: content at http://127.0.0.1:[0-9]*" "$out/WebViewCheck.txt" | head -1 | sed 's/webview: content at //')
+outsider() {
+	if [ -z "$origin" ]; then
+		check "the loopback's origin printed" 1
+		return
+	fi
+	echo "webview-macos.sh: from outside: $origin"
+	s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$origin/index.html")
+	[ "$s" = 403 ]
+	check "curl without the secret: 403 ($s)" $?
+	s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$origin/0000000000000000000000000000000000000000000000000000000000000000/index.html")
+	[ "$s" = 403 ]
+	check "curl with a guessed secret: 403 ($s)" $?
+	s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST -H "Origin: $origin" --data "shello" "$origin/__helder/post")
+	[ "$s" = 403 ]
+	check "curl posting to the bridge without the secret: 403 ($s)" $?
+}
+outsider
 i=0
 while [ $i -lt 120 ] && ! grep -q "webview: [a-z]*: [0-9]* checks" "$out/WebViewCheck.txt"; do
 	kill -0 $p 2> /dev/null || break

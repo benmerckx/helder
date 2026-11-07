@@ -704,9 +704,48 @@ WebShell.run({content: content, src: "index.html"}, (shell, e) -> if (e.kind == 
   `headers`), and a MIME type by extension (`.wasm`: `application/wasm`):
   `crossOriginIsolated`, SharedArrayBuffer and wasm threads on Apple's;
   Android's WebView (Chrome 113 on CI's emulator) isolates no page, the
-  headers notwithstanding. The loopback server answers any process of the
-  machine: what it serves is the app's public files. `src` may be
-  a path of it.
+  headers notwithstanding. The loopback server answers its own web view
+  alone (below: its threat model): its URLs are
+  `http://127.0.0.1:<port>/<secret>/...` (`content.url(path)`; `src` may be
+  a path of it), so a page's own URLs are relative ones, never from the
+  root.
+- **The loopback's threat model**: any process of the device can connect
+  to a port on 127.0.0.1 (another app on a Mac, a local service, a script),
+  and the bridge will carry privileged calls (the stores, the keychain).
+  So such a process must neither read what the server serves nor post to
+  the bridge, nor tie it up. `WebServer`:
+  - binds 127.0.0.1 alone (never every address: nothing off the machine);
+  - takes only requests whose path starts with `/<secret>/`, 256 random
+    bits of the session's from the system's CSPRNG (`helder.pack.Entropy`:
+    /dev/urandom), given to no one but the web view (in the URLs it loads).
+    The origin is `http://127.0.0.1:<port>` with or without it, so the
+    page's origin, its storage and its cross-origin isolation are as they
+    were. The request line is read alone, its path compared with the secret
+    in constant time (every byte, whatever differs), and without it the
+    answer is a 403 before a header is read;
+  - takes a Host of its own only (`127.0.0.1:<port>`: a name rebound to the
+    loopback by DNS is refused);
+  - takes the bridge (`/<secret>/__helder/post`, macOS's messages) as a POST
+    whose `Origin` is the page's own origin only (no other page in the web
+    view, which would not know the secret either, posts to it), with a
+    `Content-Length` (no chunks);
+  - is bounded: the request line within 5 s (a connection that says
+    nothing goes), the whole request within 30 s, its line and headers
+    within 16 KB (100 headers), a bridge message within 64 MB
+    (`WebServer.MAX_*`, `TIMEOUT`), at most 32 connections served at once,
+    the next ones waiting in the system's queue.
+
+  Not covered: a process running as the same user that can read the app's
+  memory or attach a debugger has the secret anyway (the system's own
+  boundaries are those), and the page's own scripts are trusted with the
+  bridge as before. Android's origin is intercepted in process
+  (`shouldInterceptRequest`) and the custom scheme (`local = false`) is
+  WKURLSchemeHandler's: neither has a port. Tests: the test lane's
+  `WebServer.test.hx` (raw sockets: no secret, a wrong one, refused before
+  the headers, a foreign Host, the bridge from another origin, its method,
+  the limits, a timed out connection, the cap), and on CI's simulator and
+  macOS runner `WebViewCheck` from a socket of the app's own and the
+  scripts' curl from outside, while the page stays cross-origin isolated.
 - **The bridge** (`WebBridge`): the page has `window.helder` before its own
   scripts (Apple: a WKUserScript at the document's start; Android: put in
   the HTML its content serves, and evaluated at each other page's start):

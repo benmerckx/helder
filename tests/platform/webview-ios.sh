@@ -78,6 +78,28 @@ run() {
 		kill $console > /dev/null 2>&1
 		launch "$@"
 	fi
+	# (from outside the web view, the Mac's curl: the simulator's loopback is the Mac's; its
+	# server refuses a request without its secret, a guessed one, and the bridge)
+	i=0
+	while [ $i -lt 20 ] && ! grep -q "webview: content at" "$out/$base.txt"; do
+		sleep 0.5
+		i=$((i + 1))
+	done
+	origin=$(grep -o "webview: content at http://127.0.0.1:[0-9]*" "$out/$base.txt" | head -1 | sed 's/webview: content at //')
+	if [ -n "$origin" ]; then
+		echo "webview-ios.sh: $base: from outside: $origin"
+		s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$origin/index.html")
+		[ "$s" = 403 ]
+		check "$base: curl without the secret: 403 ($s)" $?
+		s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$origin/0000000000000000000000000000000000000000000000000000000000000000/index.html")
+		[ "$s" = 403 ]
+		check "$base: curl with a guessed secret: 403 ($s)" $?
+		s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST -H "Origin: $origin" --data "shello" "$origin/__helder/post")
+		[ "$s" = 403 ]
+		check "$base: curl posting to the bridge without the secret: 403 ($s)" $?
+	elif [ -z "${2:-}" ]; then
+		check "$base: the loopback's origin printed" 1
+	fi
 	i=0
 	shot=0
 	while [ $i -lt 150 ] && ! grep -q "webview: [a-z]*: [0-9]* checks" "$out/$base.txt"; do

@@ -17,7 +17,9 @@ import haxe.io.Bytes;
 // `app://localhost/`, the scheme WebContent.scheme); on Android https on a host of its own (shouldInterceptRequest, as
 // WebViewAssetLoader does: `https://appassets.androidplatform.net/`), so
 // the page is a secure context everywhere. `url(path)` is a path's URL
-// there; a web view's src may be a path, resolved against it.
+// there (on the loopback under the server's secret, base(): WebServer
+// answers nothing else, its origin the same); a web view's src may be a
+// path, resolved against it.
 //
 //   var content = WebContent.bundle("web/");                  // Asset.bytes("web/index.html") etc. in the bundle
 //   var content = WebContent.directory(dir);                  // a folder on disk
@@ -86,13 +88,10 @@ class WebContent {
 	public static function handler(f:String->Null<WebResponse>):WebContent
 		return new WebContent(f);
 
-	// the origin, without a slash at the end
+	// the origin, without a slash at the end (the loopback's: no secret in it)
 	public function origin():String {
 		#if (hxmc.target != "wasm32-wasi")
-		if (local) {
-			if (server == null) server = new WebServer(this);
-			return "http://127.0.0.1:" + server.port;
-		}
+		if (local) return started().origin();
 		#end
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 		return "https://" + host;
@@ -101,18 +100,42 @@ class WebContent {
 		#end
 	}
 
-	// a path's URL at the origin
+	#if (hxmc.target != "wasm32-wasi")
+	function started():WebServer {
+		lock.acquire();
+		if (server == null) server = try new WebServer(this) catch (e:Dynamic) {
+			lock.release();
+			throw e;
+		}
+		lock.release();
+		return server;
+	}
+	#end
+
+	// what every URL of the content starts with, without a slash at the end:
+	// the origin, and on the loopback the server's secret after it
+	// (http://127.0.0.1:<port>/<secret>: WebServer answers nothing else)
+	public function base():String {
+		#if (hxmc.target != "wasm32-wasi")
+		if (local) return origin() + "/" + started().secret;
+		#end
+		return origin();
+	}
+
+	// a path's URL at the origin (on the loopback under its secret: the
+	// page's relative URLs are too, never a path from the root)
 	public function url(path:String):String
-		return origin() + "/" + (StringTools.startsWith(path, "/") ? path.substr(1) : path);
+		return base() + "/" + (StringTools.startsWith(path, "/") ? path.substr(1) : path);
 
-	// whether a URL is the origin's (the request this handles)
+	// whether a URL is the content's (the request this handles)
 	public function owns(url:String):Bool
-		return StringTools.startsWith(url, origin() + "/") || url == origin();
+		return StringTools.startsWith(url, base() + "/") || url == base();
 
-	// the response to a URL of the origin (any thread: Android's requests
+	// the response to a URL of the content's (any thread: Android's requests
 	// come on the web view's own); 404 when nothing serves it
 	public function respond(url:String):WebResponse {
-		var path = StringTools.startsWith(url, origin()) ? url.substr(origin().length) : url;
+		var b = base();
+		var path = StringTools.startsWith(url, b + "/") ? url.substr(b.length) : StringTools.startsWith(url, origin()) ? url.substr(origin().length) : url;
 		var q = path.indexOf("?"), h = path.indexOf("#");
 		if (h >= 0 && (q < 0 || h < q)) q = h;
 		if (q >= 0) path = path.substr(0, q);

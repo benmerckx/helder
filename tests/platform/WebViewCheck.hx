@@ -84,6 +84,48 @@ class WebViewCheck implements Markup {
 		var local = Sys.getEnv("HELDER_WEBVIEW_LOCAL");
 		if (local == "1" || local == "0") content.local = local == "1";
 		Sys.println("webview: content at " + content.origin());
+		#if !(hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
+		if (content.local) outsider();
+		#end
+	}
+
+	// (the loopback server as another process sees it, a raw socket of the
+	// app's own: no secret, a wrong one, the bridge from another origin, all
+	// refused; webview-ios.sh and webview-macos.sh try the same with curl)
+	static function outsider() {
+		var port = Std.parseInt(content.origin().substr(content.origin().lastIndexOf(":") + 1));
+		var host = '127.0.0.1:$port';
+		var secret = content.base().substr(content.origin().length + 1);
+		function status(raw:String):Int {
+			var s = new sys.net.Socket();
+			try {
+				s.connect(new sys.net.Host("127.0.0.1"), port);
+				s.setTimeout(10);
+				s.output.writeString(raw);
+				var b = new haxe.io.BytesBuffer(), buf = Bytes.alloc(4096);
+				while (true) {
+					var n = try s.input.readBytes(buf, 0, buf.length) catch (_:Dynamic) 0;
+					if (n <= 0) break;
+					b.addBytes(buf, 0, n);
+				}
+				s.close();
+				var m = ~/^HTTP\/1\.1 ([0-9]{3}) /;
+				var t = b.getBytes().toString();
+				return m.match(t) ? Std.parseInt(m.matched(1)) : -1;
+			} catch (e:Dynamic) {
+				s.close();
+				return -2;
+			}
+		}
+		var wrong = (secret.charAt(0) == "0" ? "1" : "0") + secret.substr(1);
+		var s = status('GET /index.html HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n');
+		check("the loopback without the secret: 403", s == 403, '$s');
+		s = status('GET /$wrong/index.html HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n');
+		check("the loopback with a wrong secret: 403", s == 403, '$s');
+		s = status('POST /$secret/__helder/post HTTP/1.1\r\nHost: $host\r\nOrigin: http://evil.example\r\nContent-Length: 4\r\nConnection: close\r\n\r\nsbad');
+		check("the bridge from another origin: 403", s == 403, '$s');
+		s = status('GET /$secret/index.html HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n');
+		check("the loopback with the secret: 200", s == 200, '$s');
 	}
 
 	var node:Null<WebView> = null;
