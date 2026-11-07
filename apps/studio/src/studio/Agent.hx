@@ -51,8 +51,9 @@ class LocalAgent implements Agent {
 		Async.launch(_ -> {
 			var r = t.call(tool, args);
 			var texts = [for (c in r.content) if (c.type == "text") (c.text : String)];
-			var first = texts.length == 0 ? "" : texts[texts.length - 1];
-			reply('$tool: ' + (first.length > 240 ? first.substr(0, 240).replace("\n", " ") + "…" : first.replace("\n", " ")));
+			// (one line: its whitespace collapsed, at most 240 characters)
+			var first = ~/\s+/g.replace(texts.length == 0 ? "" : texts[texts.length - 1], " ");
+			reply('$tool: ' + (first.length > 240 ? first.substr(0, 240) + "…" : first));
 		});
 	}
 }

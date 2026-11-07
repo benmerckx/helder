@@ -132,14 +132,14 @@ inspector, a padding added and undone, an attribute typed in the code
 view, the prompt bar's `/tree`; the files and every edit's span checked,
 the overview, zoomed and selected frames against goldens.
 
-On a 4-core Linux container (Mesa's llvmpipe, headless):
+On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
 
 | | todo (Haxe) | ts-todo (TypeScript) |
 |---|---|---|
-| Cold start to the first frame | 165 ms | 163 ms |
-| Project open to all 4 screens shown (a cold build) | 3.5 s | 3.8 s |
-| An inspector's colour change to the program's frame (a live literal) | 44 ms, 1 studio frame | 47 ms, 1 studio frame |
-| A structural edit (an attribute added), built and reloaded | 0.5–0.8 s | 0.7–0.8 s |
+| Cold start to the first frame | 116 ms | 134 ms |
+| Project open to all 4 screens shown (a cold build, 4 processes) | 2.6 s | 2.9 s |
+| An inspector's colour change to the program's frame (a live literal) | 27 ms, 1 studio frame | 24 ms, 1 studio frame |
+| A structural edit (an attribute added): built, the screens reloaded | 0.6–0.8 s (built in 0.57 s) | 0.6–1.2 s (built in 0.47–0.54 s) |
 
 ## Not yet
 

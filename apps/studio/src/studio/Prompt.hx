@@ -23,9 +23,9 @@ class Prompt implements Markup {
 			<field tag="prompt" slot="field-input" font-family={Theme.UI} font-size={Theme.BODY} label="Prompt" value={text}
 				placeholder={studio.context().label} onInput={e -> text(e.text)} onKeyDown={e -> if (e.key == Key.ENTER) send()}/>
 			<view direction="row" align-items="center" column-gap={12} font-size={12} color={c("fg2")}>
-				<view tag="ask-context" direction="row" align-items="center" column-gap={6} padding="2 7" radius={Theme.R1} background={c("well")}>
+				<view tag="ask-context" direction="row" align-items="center" column-gap={6} padding="2 7" shrink={0} radius={Theme.R1} background={c("well")}>
 					<view width={6} height={6} radius={3} background={studio.focused() == null ? c("fg3") : c("k-screen")}/>
-					<text>{studio.context().scope}</text>
+					<text max-lines={1}>{studio.context().scope}</text>
 				</view>
 				<text tag="ask-reply" grow={1} color={c("fg3")} max-lines={1} text-overflow="ellipsis">{studio.reply()}</text>
 				<view:button tag="ask-send" role="button" label="Send" focusable width={26} height={26} radius={Theme.R1} background={c("hover")}
