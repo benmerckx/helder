@@ -263,6 +263,69 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 		return n.addGesture(new helder.ui.gesture.Scale(min));
 	}
 
+	// motion (helder.ui.motion): for it and its subtree, motion="snappy|default|calm" (the
+	// palette's tokens, a theme's StyleSheet.motion over them), "0.3 0.15" (a spring's
+	// duration and bounce), "ease-out 0.2s" (a tween), {duration, bounce} or a MotionSpec;
+	// per property class over it, motion-layout, motion-opacity, motion-color,
+	// motion-transform, motion-radius, motion-presence; lead and trail (the edge in the
+	// direction of travel, the other); instant (its subtree's changes without motion);
+	// matched="id" (flies from or to its counterpart); ride="trailing" (kept against its
+	// parent's right and bottom edges: "x" or "y" one of them)
+	@:attribute static function motion(n:Node, name:String, v:Dynamic) {
+		if (v == null || v == false) {
+			n.motion = null;
+			return;
+		}
+		if (Std.isOfType(v, helder.ui.motion.MotionSpec) || !Std.isOfType(v, String) && !Std.isOfType(v, helder.ui.motion.Curve)
+			&& !Std.isOfType(v, Float) && !Std.isOfType(v, Int) && v != true && !Reflect.hasField(v, "duration")) {
+			n.motion = helder.ui.motion.MotionSpec.of(v);
+			return;
+		}
+		// (a curve: the spec's, its own curves kept)
+		var s = n.motion == null ? new helder.ui.motion.MotionSpec() : n.motion.copy();
+		if (v != true) s.curve = helder.ui.motion.Curve.of(v);
+		n.motion = s;
+	}
+
+	static function motionSpec(n:Node):helder.ui.motion.MotionSpec {
+		var s = n.motion == null ? new helder.ui.motion.MotionSpec() : n.motion.copy();
+		n.motion = s;
+		return s;
+	}
+
+	@:attribute static function motionLayout(n:Node, name:String, v:Dynamic)
+		motionSpec(n).layout = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function motionOpacity(n:Node, name:String, v:Dynamic)
+		motionSpec(n).opacity = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function motionColor(n:Node, name:String, v:Dynamic)
+		motionSpec(n).color = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function motionTransform(n:Node, name:String, v:Dynamic)
+		motionSpec(n).transform = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function motionRadius(n:Node, name:String, v:Dynamic)
+		motionSpec(n).radius = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function motionPresence(n:Node, name:String, v:Dynamic)
+		motionSpec(n).presence = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function lead(n:Node, name:String, v:Dynamic)
+		motionSpec(n).lead = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function trail(n:Node, name:String, v:Dynamic)
+		motionSpec(n).trail = helder.ui.motion.Curve.of(v);
+
+	@:attribute static function instant(n:Node, name:String, v:Dynamic)
+		n.instant = v == true || v == "true" || v == "";
+
+	@:attribute static function matched(n:Node, name:String, v:Dynamic)
+		n.matched = v == null || v == "" ? null : Std.string(v);
+
+	@:attribute static function ride(n:Node, name:String, v:Dynamic)
+		n.ride = v == null || v == false || v == "leading" || v == "start" ? 0 : v == "x" ? 1 : v == "y" ? 2 : Std.isOfType(v, Int) ? v : 3;
+
 	@:attribute static function tag(n:Node, name:String, v:Dynamic)
 		if (v != null) n.tag = v;
 

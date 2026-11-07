@@ -7,11 +7,15 @@ package helder.ui;
 // lengths are what Length.token references name ("radius"), light or dark.
 // Its markers are the group and peer markers its slots carry, "group/item
 // peer" ("group" unnamed), as an element's class: a rule's group: and peer:
-// states find them as they find a node's group and peer attributes.
+// states find them as they find a node's group and peer attributes. Its
+// motion is its palette of motion tokens (helder.ui.motion.Curve: "snappy",
+// "default", "calm", "lead", "fade", or names of its own), over the
+// built-in ones, for the nodes it themes (motion="calm").
 typedef StyleSheet = {
 	rules:Array<Rule>,
 	?light:Map<String, Color>,
 	?dark:Map<String, Color>,
 	?lengths:Map<String, Float>,
-	?markers:Map<String, String>
+	?markers:Map<String, String>,
+	?motion:Map<String, helder.ui.motion.Curve>
 }

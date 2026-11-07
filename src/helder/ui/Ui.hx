@@ -231,6 +231,7 @@ class Ui {
 	public final beforeUpdate:Array<Void->Void> = [];
 
 	public function update() {
+		helder.ui.motion.Motions.updating = true;
 		for (f in beforeUpdate.copy())
 			f();
 		if (platform != null) platform.poll();
@@ -269,6 +270,8 @@ class Ui {
 		changes.resize(0);
 		for (n in natives.copy())
 			n.syncNative();
+		helder.ui.motion.Motions.updating = false;
+		if (helder.ui.motion.Motions.on) helder.ui.motion.Motions.updated();
 	}
 
 	var fontGeneration = 0;
@@ -365,9 +368,41 @@ class Ui {
 		cullX0 = cullY0 = 0;
 		cullX1 = width;
 		cullY1 = height;
+		painting = this;
+		ptx = pty = 0;
 		paintNode(root, canvas);
 		if (overlay.children.length > 0) paintNode(overlay, canvas);
+		// (matched elements flying: over everything, outside their ancestors' opacity and clips)
+		if (flights.length > 0) {
+			flying = true;
+			for (i in 0...flights.length) {
+				var fx = flightAt[2 * i], fy = flightAt[2 * i + 1];
+				cullX0 = -fx;
+				cullY0 = -fy;
+				cullX1 = width - fx;
+				cullY1 = height - fy;
+				ptx = fx;
+				pty = fy;
+				canvas.translate(fx, fy);
+				paintNode(flights[i], canvas);
+				canvas.translate(-fx, -fy);
+			}
+			flying = false;
+			flights.resize(0);
+			flightAt.resize(0);
+		}
+		painting = null;
 	}
+
+	// the Ui painting now (a leaving node's content drawn out of its tree: helder.ui.motion)
+	public static var painting(default, null):Null<Ui> = null;
+	// (the translation motion and scrolling put the node being drawn at, from the window's; the
+	// matched elements flying, drawn last, where they were met)
+	var ptx = 0.0;
+	var pty = 0.0;
+	final flights:Array<Node> = [];
+	final flightAt:Array<Float> = [];
+	var flying = false;
 
 	// (the paints so far: a node drawn in the last one has its number, Node.drawnAt)
 	var paintFrame = 0;
@@ -385,26 +420,52 @@ class Ui {
 	function paintNode(n:Node, canvas:Canvas) {
 		var s = n.style;
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
+		// (motion: where its tracks draw it, helder.ui.motion.Present)
+		var p = n.present;
+		if (p != null && p.flying && !flying) {
+			flights.push(n);
+			flightAt.push(ptx);
+			flightAt.push(pty);
+			return;
+		}
 		if (!@:privateAccess s.drawn) {
 			@:privateAccess s.drawn = true;
 			if (@:privateAccess s.starting) @:privateAccess n.restyleLater();
 		}
-		if (s.opacity <= 0) return;
+		var opacity = p == null ? s.opacity : s.opacity * p.presenceOpacity();
+		if (opacity <= 0) return;
+		var dx = 0.0, dy = 0.0, nw = n.width, nh = n.height;
+		if (p != null) {
+			dx = p.dx();
+			dy = p.dy();
+			nw = p.width();
+			nh = p.height();
+		}
 		var m = n.transformMatrix();
 		// (its ink, widened by what rings, shadows and glyphs' overhang add, out of sight: left out)
 		if (!n.inkAll) {
-			var e = focusRingOffset + focusRingWidth + shadowReach + 8;
-			if (n.inkX1 + e <= cullX0 || n.inkX0 - e >= cullX1 || n.inkY1 + e <= cullY0 || n.inkY0 - e >= cullY1) return;
+			var e = focusRingOffset + focusRingWidth + shadowReach + 8 + Math.abs(nw - n.width) + Math.abs(nh - n.height);
+			if (n.inkX1 + dx + e <= cullX0 || n.inkX0 + dx - e >= cullX1 || n.inkY1 + dy + e <= cullY0 || n.inkY0 + dy - e >= cullY1) return;
 		}
 		@:privateAccess n.drawnAt = paintFrame;
 		var c0 = cullX0, c1 = cullY0, c2 = cullX1, c3 = cullY1;
+		var moved = dx != 0 || dy != 0;
+		if (moved) {
+			canvas.translate(dx, dy);
+			cullX0 -= dx;
+			cullX1 -= dx;
+			cullY0 -= dy;
+			cullY1 -= dy;
+			ptx += dx;
+			pty += dy;
+		}
 		if (m != null) {
 			canvas.pushTransform(m.a, m.b, m.c, m.d, m.e, m.f);
 			// (under a transform: everything drawn)
 			cullX0 = cullY0 = -1e9;
 			cullX1 = cullY1 = 1e9;
 		}
-		if (s.opacity < 1) canvas.pushOpacity(s.opacity);
+		if (opacity < 1) canvas.pushOpacity(opacity);
 		var wasHidden = hidden;
 		if (s.visibility != null) hidden = s.visibility == Hidden;
 		// (each corner's radius and each side's border, when the style gives them)
@@ -425,41 +486,53 @@ class Ui {
 			for (sh in shadows) {
 				if (sh.inset) continue;
 				var o = sh.spread;
-				canvas.shadow(n.absX + sh.x - o, n.absY + sh.y - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, sh.color,
+				canvas.shadow(n.absX + sh.x - o, n.absY + sh.y - o, nw + 2 * o, nh + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, sh.color,
 					sh.blur, cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0, cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0,
 						cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0, cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0), opaque ? null : [sh.x, sh.y, o]);
 			}
 		if (hidden) {
 			// (nothing of its own)
-		} else if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
+		} else if (s.backgroundImage != null && nw > 0 && nh > 0) {
 			// (the colour, the gradient over it, then the border over both)
-			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
-			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius, cs);
-			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
+			if (s.background.a > 0) canvas.rect(n.absX, n.absY, nw, nh, s.radius, s.background, 0, 0, cs);
+			canvas.image(n.backgroundImage(scale), n.absX, n.absY, nw, nh, 0, 0, 1, 1, s.radius, cs);
+			if (bordered) canvas.rect(n.absX, n.absY, nw, nh, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
 		} else if (s.background.a > 0 && s.borderColor.a < 255 && be.top + be.right + be.bottom + be.left > 0) {
 			// (the background under the border too, as CSS's background-clip: border-box, seen through a translucent one)
-			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
-			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
+			canvas.rect(n.absX, n.absY, nw, nh, s.radius, s.background, 0, 0, cs);
+			if (bordered) canvas.rect(n.absX, n.absY, nw, nh, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
 		} else if (s.background.a > 0 || bordered)
-			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
+			canvas.rect(n.absX, n.absY, nw, nh, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
 		// (the shadows inside: in the padding box, over the background)
 		if (shadows != null)
 			for (sh in shadows)
 				if (sh.inset)
-					canvas.insetShadow(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, sh.color, sh.blur, sh.x, sh.y,
+					canvas.insetShadow(n.absX + be.left, n.absY + be.top, nw - be.horizontal, nh - be.vertical, padR, sh.color, sh.blur, sh.x, sh.y,
 						sh.spread, padC);
+		// (a matched element flying: its content as laid out, scaled to cover its frame, clipped to it)
+		var cover = p != null && p.flying && n.width > 0 && n.height > 0;
+		if (cover) {
+			var k = Math.max(nw / n.width, nh / n.height);
+			canvas.pushClip(n.absX, n.absY, nw, nh, s.radius, cs);
+			canvas.pushTransform(k, 0, 0, k, n.absX + nw / 2 - k * (n.absX + n.width / 2), n.absY + nh / 2 - k * (n.absY + n.height / 2));
+			cullX0 = cullY0 = -1e9;
+			cullX1 = cullY1 = 1e9;
+			nw = n.width;
+			nh = n.height;
+		}
 		var pad = s.padding;
+		// (its content as laid out: a size moving does not lay its text out again)
 		if (n.hasContent() && !hidden)
 			n.paintContent(canvas, n.absX + be.left + pad.left, n.absY + be.top + pad.top, Math.max(0, n.width - be.left - be.right - pad.left - pad.right),
 				Math.max(0, n.height - be.top - be.bottom - pad.top - pad.bottom));
 		var clip = s.overflow != Visible;
 		// (the padding box: its corners' radii less the wider side meeting there)
 		if (clip) {
-			canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, padC);
+			canvas.pushClip(n.absX + be.left, n.absY + be.top, nw - be.horizontal, nh - be.vertical, padR, padC);
 			cullX0 = Math.max(cullX0, n.absX + be.left);
 			cullY0 = Math.max(cullY0, n.absY + be.top);
-			cullX1 = Math.min(cullX1, n.absX + n.width - be.right);
-			cullY1 = Math.min(cullY1, n.absY + n.height - be.bottom);
+			cullX1 = Math.min(cullX1, n.absX + nw - be.right);
+			cullY1 = Math.min(cullY1, n.absY + nh - be.bottom);
 		}
 		var scroll = s.overflow == Scroll && (n.scrollX != 0 || n.scrollY != 0);
 		if (scroll) {
@@ -468,6 +541,8 @@ class Ui {
 			cullX1 += n.scrollX;
 			cullY0 += n.scrollY;
 			cullY1 += n.scrollY;
+			ptx -= n.scrollX;
+			pty -= n.scrollY;
 		}
 		// (absolute and sticky children over the others, in their order, as CSS paints positioned boxes)
 		var order = n.paintOrder();
@@ -479,8 +554,38 @@ class Ui {
 				for (c in n.children)
 					if (c.style.position != Relative) paintNode(c, canvas);
 		}
-		if (scroll) canvas.translate(n.scrollX, n.scrollY);
+		// (its children leaving: drawn where they were, over the others, until their exits settle)
+		if (n.exits != null)
+			for (g in n.exits) {
+				var gp = g.present, gdx = n.absX + gp.gx - g.absX, gdy = n.absY + gp.gy - g.absY;
+				canvas.translate(gdx, gdy);
+				cullX0 -= gdx;
+				cullX1 -= gdx;
+				cullY0 -= gdy;
+				cullY1 -= gdy;
+				ptx += gdx;
+				pty += gdy;
+				paintNode(g, canvas);
+				canvas.translate(-gdx, -gdy);
+				cullX0 += gdx;
+				cullX1 += gdx;
+				cullY0 += gdy;
+				cullY1 += gdy;
+				ptx -= gdx;
+				pty -= gdy;
+			}
+		if (scroll) {
+			canvas.translate(n.scrollX, n.scrollY);
+			ptx += n.scrollX;
+			pty += n.scrollY;
+		}
 		if (clip) canvas.popClip();
+		if (cover) {
+			canvas.popTransform();
+			canvas.popClip();
+			nw = p.width();
+			nh = p.height();
+		}
 		cullX0 = c0;
 		cullY0 = c1;
 		cullX1 = c2;
@@ -500,20 +605,25 @@ class Ui {
 		// (its outline over its content, the focus ring over that)
 		if (s.outlineWidth > 0 && !hidden && s.outlineStyle != None) {
 			var o = s.outlineOffset + s.outlineWidth;
-			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, Color.TRANSPARENT,
+			canvas.rect(n.absX - o, n.absY - o, nw + 2 * o, nh + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, Color.TRANSPARENT,
 				s.outlineWidth, s.outlineColor ?? n.textColor(), cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0,
 					cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0, cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0,
 					cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0));
 		}
 		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden && (s.outlineStyle == null || s.outlineStyle == Auto)) {
 			var o = focusRingOffset + focusRingWidth;
-			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
+			canvas.rect(n.absX - o, n.absY - o, nw + 2 * o, nh + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
 				focusRingColor, cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,
 					cs.bottomRight > 0 ? cs.bottomRight + o : 0, cs.bottomLeft > 0 ? cs.bottomLeft + o : 0));
 		}
 		hidden = wasHidden;
-		if (s.opacity < 1) canvas.popOpacity();
+		if (opacity < 1) canvas.popOpacity();
 		if (m != null) canvas.popTransform();
+		if (moved) {
+			canvas.translate(-dx, -dy);
+			ptx -= dx;
+			pty -= dy;
+		}
 	}
 
 	// --- pointer ---

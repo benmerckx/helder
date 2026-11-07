@@ -692,6 +692,8 @@ class Style {
 
 	// a property's value by its id (its place in StyleFields.NAMES), or the one it is moving to under a transition
 	public function targetAt(id:Int):Dynamic {
+		var mt = motionTarget(StyleFields.NAMES[id]);
+		if (mt != null) return mt;
 		if (themed != null && themed.moving != null) {
 			var name = StyleFields.NAMES[id];
 			for (run in themed.moving)
@@ -702,10 +704,26 @@ class Style {
 
 	// a property's value (StyleFields' names), or the one it is moving to under a transition
 	public function target(name:String):Dynamic {
+		var mt = motionTarget(name);
+		if (mt != null) return mt;
 		if (themed != null && themed.moving != null)
 			for (run in themed.moving)
 				if (run.name == name) return run.to;
 		return StyleFields.get(this, name);
+	}
+
+	// (where a property moving under motion goes: null, not moving)
+	function motionTarget(name:String):Dynamic {
+		var p = node.present;
+		if (p == null) return null;
+		return switch name {
+			case "opacity" if (p.opacity != null && p.opacity.moving()): p.opacity.target;
+			case "radius" if (p.radius != null && p.radius.moving()): p.radius.target;
+			case "background" if (p.background != null && p.background.moving()): p.background.target;
+			case "borderColor" if (p.border != null && p.border.moving()): p.border.target;
+			case "color" if (p.color != null && p.color.moving()): p.colorTo;
+			case _: null;
+		}
 	}
 
 	// (a change of an eased property, drawn, under a transition that names
@@ -713,7 +731,7 @@ class Style {
 	// it does; the same value again: a run toward another one stopped)
 	function eases(name:String, from:Dynamic, to:Dynamic):Bool {
 		var r = themed;
-		if (r.stepping) return false;
+		if (r.stepping || helder.ui.motion.Motions.writing) return false;
 		var m = r.moving, i = -1;
 		if (m != null)
 			for (k in 0...m.length)
@@ -1291,6 +1309,7 @@ class Style {
 	}
 
 	function set_background(v:Color):Color {
+		if (helder.ui.motion.Motions.on && helder.ui.motion.Motions.moveColor(node, helder.ui.motion.Motions.BACKGROUND, background, v)) return v;
 		if (themed != null && themed.transition != null && eases("background", background, v)) return v;
 		if (v == background) return v;
 		background = v;
@@ -1306,6 +1325,7 @@ class Style {
 	}
 
 	function set_transform(v:Null<Transform>):Null<Transform> {
+		if (helder.ui.motion.Motions.on && v != transform) helder.ui.motion.Motions.moveTransform(node, transform, v);
 		if (themed != null && themed.transition != null && eases("transform", transform, v)) return v;
 		if (v == transform) return v;
 		theming().transform = v;
@@ -1324,6 +1344,7 @@ class Style {
 	}
 
 	function set_borderColor(v:Color):Color {
+		if (helder.ui.motion.Motions.on && helder.ui.motion.Motions.moveColor(node, helder.ui.motion.Motions.BORDER, borderColor, v)) return v;
 		if (themed != null && themed.transition != null && eases("borderColor", borderColor, v)) return v;
 		if (v == borderColor) return v;
 		borderColor = v;
@@ -1332,6 +1353,7 @@ class Style {
 	}
 
 	function set_radius(v:Float):Float {
+		if (helder.ui.motion.Motions.on && helder.ui.motion.Motions.moveFloat(node, helder.ui.motion.Motions.RADIUS, radius, v)) return v;
 		if (v == radius) return v;
 		radius = v;
 		node.styleChanged(false);
@@ -1339,6 +1361,7 @@ class Style {
 	}
 
 	function set_opacity(v:Float):Float {
+		if (helder.ui.motion.Motions.on && helder.ui.motion.Motions.moveFloat(node, helder.ui.motion.Motions.OPACITY, opacity, v)) return v;
 		if (themed != null && themed.transition != null && eases("opacity", opacity, v)) return v;
 		if (v == opacity) return v;
 		if ((v <= 0) != (opacity <= 0)) Ui.accessEpoch++;
@@ -1403,6 +1426,7 @@ class Style {
 	}
 
 	function set_color(v:Null<Color>):Null<Color> {
+		if (helder.ui.motion.Motions.on && helder.ui.motion.Motions.moveTextColor(node, color, v)) return v;
 		if (themed != null && themed.transition != null && eases("color", color, v)) return v;
 		if (v == color) return v;
 		color = v;

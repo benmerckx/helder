@@ -119,6 +119,36 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	// first, in its order, then 0's in tree order; below 0: focusable by a
 	// click or focus(), passed over by Tab
 	public var tabIndex = 0;
+	// motion (helder.ui.motion.Motions): what it declares for itself and its
+	// subtree (markup's motion="snappy"); the id a matched counterpart flies
+	// from or to (matched="tile-3"); its subtree's changes without motion
+	// (instant); kept against its parent's trailing edges while the parent's
+	// size moves (ride: 1 across, 2 down, 3 both; markup's ride="trailing")
+	public var motion(default, set):Null<helder.ui.motion.MotionSpec> = null;
+	public var matched(default, set):Null<String> = null;
+	public var instant = false;
+	public var ride(default, set) = 0;
+	// its presented state: the tracks of what moves of it (made when first needed)
+	public var present(default, null):Null<helder.ui.motion.Present> = null;
+	// its children that left and are still drawn until their exits settle (Motions), and a leaving node's old parent
+	public var exits(default, null):Null<Array<Node>> = null;
+	public var leftFrom(default, null):Null<Node> = null;
+
+	function set_motion(v:Null<helder.ui.motion.MotionSpec>):Null<helder.ui.motion.MotionSpec> {
+		if (v != null) helder.ui.motion.Motions.enable();
+		return motion = v;
+	}
+
+	function set_matched(v:Null<String>):Null<String> {
+		if (v != null) helder.ui.motion.Motions.enable();
+		if ((v == null) != (matched == null)) helder.ui.motion.Motions.matchedCount += v == null ? -1 : 1;
+		return matched = v;
+	}
+
+	function set_ride(v:Int):Int {
+		if (v != 0) helder.ui.motion.Motions.enable();
+		return ride = v;
+	}
 	// (its FocusHandle, kept by the Ui)
 	@:allow(helder.ui) var focusHandle:Null<FocusHandle> = null;
 	var attrs:Null<Map<String, String>> = null;
@@ -196,11 +226,16 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 			p = p.parent;
 		}
 		var first = children.length > 0 ? children[0] : null, last = children.length > 0 ? children[children.length - 1] : null;
+		var motions = helder.ui.motion.Motions.on;
 		if (child.parent == this) {
 			var i = indexOf(child);
 			children.splice(i, 1);
 			if (i < index) index--;
-		} else if (child.parent != null) child.parent.remove(child);
+		} else if (child.parent != null) {
+			child.parent.take(child, false);
+			// (laid out in another parent: no motion from where it was there)
+			if (motions) child.drawnAt = -1;
+		}
 		if (index < 0 || index > children.length) index = children.length;
 		if (children == NO_CHILDREN) children = [];
 		children.insert(index, child);
@@ -211,6 +246,8 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 		if (moved) child.inheritedChanged();
 		if (moved && ui != null && @:privateAccess Rules.relational != 0) Rules.restyleTree(child);
 		Rules.placed(this, child, first, last, index + 1 < children.length ? children[index + 1] : null);
+		// (entering, or revived while it was leaving)
+		if (motions && moved) helder.ui.motion.Motions.inserted(this, child);
 		markDirty();
 		return child;
 	}
@@ -244,8 +281,19 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 		}
 	}
 
-	public function remove(child:Node) {
+	public function remove(child:Node)
+		take(child, true);
+
+	// (child taken out; leave: as it leaves the tree, its exit played (Motions), not moved to another parent)
+	function take(child:Node, leave:Bool) {
 		if (child.parent != this) return;
+		var ghost = false;
+		if (leave && helder.ui.motion.Motions.on) {
+			// (inside a node leaving: kept as it was drawn)
+			if (helder.ui.motion.Motions.inGhost(this)) return;
+			ghost = helder.ui.motion.Motions.removing(this, child);
+			if (!ghost) child.drawnAt = -1;
+		}
 		var first = children[0], last = children[children.length - 1], i = indexOf(child);
 		children.splice(i, 1);
 		child.parent = null;
@@ -755,7 +803,7 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	// (what it inherits from: its parent; the overlay's, the page's body (Ui.body), as a popup in a page's
 	// body inherits the body's text, not its trigger's)
 	inline function inheritsFrom():Null<Node>
-		return ui != null && this == ui.overlay && ui.body != null ? ui.body : parent;
+		return ui != null && this == ui.overlay && ui.body != null ? ui.body : parent != null ? parent : leftFrom;
 
 	public function font():Font {
 		if (fontCache != null) return fontCache;
@@ -833,6 +881,9 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	public function textColor():Color {
 		var n = this;
 		while (n != null) {
+			// (a text colour moving: where it is, Motions)
+			var p = n.present;
+			if (p != null && p.color != null && p.color.moving()) return p.color.value();
 			if (n.style.color != null) return n.style.color;
 			n = n.inheritsFrom();
 		}
@@ -1008,7 +1059,12 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	// windowBounds, written into out (returned): its corners in locals, no
 	// array or box made (a transformed ancestor's matrix still is: transformMatrix)
 	public function windowBoundsInto(out:Bounds):Bounds {
-		var x0 = absX, y0 = absY, x1 = absX + width, y1 = absY, x2 = absX, y2 = absY + height, x3 = absX + width, y3 = absY + height;
+		var w = width, h = height;
+		if (present != null) {
+			w = present.width();
+			h = present.height();
+		}
+		var x0 = absX, y0 = absY, x1 = absX + w, y1 = absY, x2 = absX, y2 = absY + h, x3 = absX + w, y3 = absY + h;
 		var a = this;
 		while (a != null) {
 			if (a != this && a.style.overflow == Scroll) {
@@ -1036,7 +1092,21 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 				x3 = m.mapX(x, y3);
 				y3 = m.mapY(x, y3);
 			}
-			a = a.parent;
+			// (where motion draws it: its own edges' move, a leaving node's place in its old parent)
+			var p = a.present;
+			if (p != null) {
+				var dx = p.exiting && a.leftFrom != null ? a.leftFrom.absX + p.gx - a.absX : p.dx();
+				var dy = p.exiting && a.leftFrom != null ? a.leftFrom.absY + p.gy - a.absY : p.dy();
+				x0 += dx;
+				x1 += dx;
+				x2 += dx;
+				x3 += dx;
+				y0 += dy;
+				y1 += dy;
+				y2 += dy;
+				y3 += dy;
+			}
+			a = a.parent ?? a.leftFrom;
 		}
 		var lx = Math.min(Math.min(x0, x1), Math.min(x2, x3)), ly = Math.min(Math.min(y0, y1), Math.min(y2, y3));
 		var hx = Math.max(Math.max(x0, x1), Math.max(x2, x3)), hy = Math.max(Math.max(y0, y1), Math.max(y2, y3));
@@ -1058,12 +1128,20 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 			sx = s[0];
 			sy = s[1];
 		}
+		// (motion: its presence's scale and slide, its transform's lanes, about its presented box)
+		var p = present;
+		if (p != null && p.transforms()) {
+			var w = p.width(), h = p.height(), o = style.transformOrigin;
+			var ox = o == null ? Math.NaN : o[0].resolve(w), oy = o == null ? Math.NaN : o[1].resolve(h);
+			return p.matrix(t == null || t.isIdentity() ? null : t.toMatrix(w, h), absX + (Math.isNaN(ox) ? w / 2 : ox), absY + (Math.isNaN(oy) ? h / 2 : oy), sx, sy);
+		}
 		if (t == null || t.isIdentity()) return sx == 0 && sy == 0 ? null : new Matrix(1, 0, 0, 1, sx, sy);
 		var o = style.transformOrigin;
-		var ox = o == null ? Math.NaN : o[0].resolve(width), oy = o == null ? Math.NaN : o[1].resolve(height);
-		ox = absX + (Math.isNaN(ox) ? width / 2 : ox);
-		oy = absY + (Math.isNaN(oy) ? height / 2 : oy);
-		var m = t.toMatrix(width, height);
+		var w = p != null ? p.width() : width, h = p != null ? p.height() : height;
+		var ox = o == null ? Math.NaN : o[0].resolve(w), oy = o == null ? Math.NaN : o[1].resolve(h);
+		ox = absX + (Math.isNaN(ox) ? w / 2 : ox);
+		oy = absY + (Math.isNaN(oy) ? h / 2 : oy);
+		var m = t.toMatrix(w, h);
 		// (about the origin: moved there, transformed, moved back)
 		m.e += ox - (m.a * ox + m.c * oy) + sx;
 		m.f += oy - (m.b * ox + m.d * oy) + sy;
@@ -1367,6 +1445,8 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 		// (onResize: told after the layout, Ui.update)
 		if (handlers != null && handlers.onResize != null && ui != null && (w != handlers.toldWidth || h != handlers.toldHeight))
 			@:privateAccess ui.resized.push(this);
+		// (under motion: its edges move from where they are drawn, Motions)
+		if (helder.ui.motion.Motions.on && (x != this.x || y != this.y || w != width || h != height)) helder.ui.motion.Motions.relaid(this, x, y, w, h);
 		this.x = x;
 		this.y = y;
 		width = w;

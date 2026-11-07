@@ -11,6 +11,10 @@ package helder.ui;
 // transform (function by function where both lists have the same ones,
 // else none against each one's identity), box-shadow (shadow by shadow);
 // others jump. A node's first style does not ease, as CSS's does not.
+// A part of presence's words (helder.ui.motion.Presence: "fade", "scale",
+// "slide-up", "slide-left(24)", "blur"; several: combined) is how the node
+// enters and leaves instead: transition="fade scale", or with CSS's parts,
+// "fade, background-color 150ms".
 class Transition {
 	// the Style properties that ease (as Style names them)
 	public static final EASED = ["background", "color", "borderColor", "outlineColor", "textDecorationColor", "opacity", "transform", "shadow", "ringColor", "ringWidth"];
@@ -20,6 +24,8 @@ class Transition {
 	public final durations:Array<Float>;
 	public final delays:Array<Float>;
 	public final easings:Array<Array<Float>>;
+	// how it enters and leaves (null: it does not)
+	public var presence:Null<helder.ui.motion.Presence> = null;
 
 	public function new(properties:Array<String>, durations:Array<Float>, ?delays:Array<Float>, ?easings:Array<Array<Float>>) {
 		this.properties = properties;
@@ -57,9 +63,16 @@ class Transition {
 		var s = StringTools.trim(css);
 		if (s == "" || s == "none") return null;
 		var properties = [], durations = [], delays = [], easings = [];
+		var presence:Array<String> = [];
 		for (part in splitTop(s)) {
 			var property = "all", times = [], easing = EASE;
-			for (w in words(part)) {
+			var ws = words(part);
+			if (ws.length > 0 && !Lambda.exists(ws, w -> !helder.ui.motion.Presence.word(w))) {
+				for (w in ws)
+					presence.push(w);
+				continue;
+			}
+			for (w in ws) {
 				var t = time(w);
 				if (t != null) times.push(t) else {
 					var e = easingOf(w);
@@ -71,7 +84,12 @@ class Transition {
 			delays.push(times.length > 1 ? times[1] : 0);
 			easings.push(easing);
 		}
-		return new Transition(properties, durations, delays, easings);
+		var t = new Transition(properties, durations, delays, easings);
+		if (presence.length > 0) {
+			t.presence = helder.ui.motion.Presence.of(presence);
+			helder.ui.motion.Motions.enable();
+		}
+		return t;
 	}
 
 	// a CSS property's Style name (a Style name as it is)

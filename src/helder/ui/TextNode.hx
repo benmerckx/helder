@@ -262,6 +262,8 @@ class TextNode extends Node {
 
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		var text = shownText();
+		// (a node leaving, drawn out of its tree: the Ui drawing it, helder.ui.motion)
+		var ui = this.ui ?? Ui.painting;
 		if (ui == null || text.length == 0) return;
 		var rich = children.length > 0 ? spanned() : null, align = textAlign(), length = text.length;
 		text = paragraphKey(text, rich, align == Justify, dir());
