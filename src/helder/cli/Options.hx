@@ -183,7 +183,7 @@ class Options {
 			],
 			notes: [
 				"the project's screens are its stories (*.story.hx, *.story.tsx), \"Flow/Screen\" by name;",
-				"each runs as a dev build in a process of its own (apps/studio/README.md)",
+				"all of them run in one dev build, a process of its own (apps/studio/README.md)",
 			],
 		},
 		{

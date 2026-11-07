@@ -395,8 +395,9 @@ class Studio {
 		if (!shownAll && previews.allShown()) {
 			shownAll = true;
 			var ms = Math.round((haxe.Timer.stamp() - openedAt) * 1000);
-			Sys.println('studio: all ${previews.screens.length} screens shown $ms ms after opening ${project.name}');
-			log("all-shown", {ms: ms, screens: previews.screens.length});
+			var host = previews.sinceHost();
+			Sys.println('studio: all ${previews.screens.length} screens shown $ms ms after opening ${project.name}' + (host >= 0 ? ', $host ms after the screens\' program started' : ''));
+			log("all-shown", {ms: ms, screens: previews.screens.length, hostMs: host, sharing: previews.sharing});
 			fitView(false);
 		}
 		var m = measuring;

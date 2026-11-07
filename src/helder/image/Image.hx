@@ -34,6 +34,13 @@ class Image {
 	// whether its pixels are premultiplied)
 	@:noCompletion public var browser(default, null) = 0;
 	@:noCompletion public var browserPremultiplied(default, null) = false;
+	// (a texture another process shares: helder.gfx's Device.openShared's
+	// handle, a renderer drawing it as it is, its pixels never here:
+	// helder.story's native preview host's frames in the studio; null none)
+	@:noCompletion public var shared(default, null):Null<String> = null;
+	// (a shared image: the frames a renderer drew it in, counted, for whoever
+	// draws into it again to know the GPU is done with what it showed before)
+	@:noCompletion public var drawn = 0;
 	var data:Null<Bytes>;
 	// unique per image (a renderer's texture cache key)
 	public final id:Int = nextId++;
@@ -70,12 +77,25 @@ class Image {
 		return img;
 	}
 
+	// an image of another process's texture (helder.gfx's shared handle), of
+	// that size in pixels: no pixels here; a renderer opens the texture
+	// (Device.openShared) and draws it, premultiplied as it is
+	@:noCompletion public static function ofShared(handle:String, width:Int, height:Int):Image {
+		var img = new Image(1, 1, Bytes.alloc(4));
+		img.width = width;
+		img.height = height;
+		img.data = null;
+		img.shared = handle;
+		return img;
+	}
+
 	function get_hasPixels()
 		return data != null;
 
 	function get_pixels():Bytes {
 		if (data != null) return data;
 		var file = source != null ? source.bytes : browserFile();
+		if (file == null && shared != null) throw "Image: a texture of another process's (shared), its pixels not here";
 		if (file == null) throw "Image: its pixels were dropped and it has no file to decode them from";
 		var d = decode(file);
 		if (d.width != width || d.height != height) throw "Image: its file is not of its size";
@@ -192,6 +212,7 @@ class Image {
 		drawing = other.drawing;
 		browser = other.browser;
 		browserPremultiplied = other.browserPremultiplied;
+		shared = other.shared;
 	}
 
 	// its pixels premultiplied by their alpha, for `use` only (an upload:
@@ -229,6 +250,7 @@ class Image {
 		if (data == null) get_pixels();
 		version++;
 		browser = 0;
+		shared = null;
 		source = null;
 		drawing = null;
 	}

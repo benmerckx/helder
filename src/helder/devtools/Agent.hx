@@ -41,9 +41,14 @@ class Agent {
 		begin0();
 	}
 
-	// a message of the protocol from serve's other end
+	// a message of the protocol from serve's other end (or one route passed on: the methods' alone)
 	public static function dispatch(m:Dynamic)
-		receive(m);
+		handle(m);
+
+	// what sees the dev server's messages first (helder.story's native host:
+	// a request naming a screen run in its context): true, taken (answered
+	// with respond, or a notification); false, the methods' as usual
+	public static var route:Null<Dynamic->Bool> = null;
 
 	// an answer to a request dispatch did not answer itself (a method of the transport's own)
 	public static function respond(id:Dynamic, result:Dynamic, ?error:{code:Int, message:String})
@@ -105,6 +110,12 @@ class Agent {
 	// a message of the protocol from the dev server (Hot.poll)
 	@:allow(helder.dev.Hot) static function receive(m:Dynamic) {
 		if (m.method == null) return; // (a response: the hello's)
+		if (route != null && route(m)) return;
+		handle(m);
+	}
+
+	static function handle(m:Dynamic) {
+		if (m.method == null) return;
 		var name:String = m.method;
 		var f = methods.get(name);
 		if (m.id == null) {

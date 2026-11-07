@@ -78,6 +78,10 @@ class Renderer implements Canvas {
 	final textures = new Map<Int, ImageEntry>();
 	// the images' atlas pages
 	final pages:Array<ImagePage> = [];
+	// other processes' textures by their handles (shared images: helder.story's
+	// native preview host's frames), opened once, the last frame that drew each
+	final opened = new Map<String, {texture:Texture, frame:Int}>();
+	final staleShared:Array<String> = [];
 	// the frames begun (begin)
 	public var frames(default, null) = 0;
 	// the GPU textures drawn this frame (texture: by their negative ids), the passes to record before the frame's (beforePass)
@@ -185,6 +189,14 @@ class Renderer implements Canvas {
 				release(textures.get(id));
 				textures.remove(id);
 			}
+			staleShared.resize(0);
+			for (h => o in opened)
+				if (frames - o.frame > EVICT) staleShared.push(h);
+			for (h in staleShared) {
+				var t = opened.get(h).texture;
+				if (t != blank) device.destroyTexture(t);
+				opened.remove(h);
+			}
 			stalePaths.resize(0);
 			for (p => e in paths)
 				if (frames - e.frame > EVICT) stalePaths.push(p);
@@ -283,6 +295,7 @@ class Renderer implements Canvas {
 
 	// (an image's texture or its place in a page given up)
 	function release(e:ImageEntry) {
+		if (e.external) return;
 		if (e.page < 0) device.destroyTexture(e.texture);
 		else pages[e.page].live--;
 	}
@@ -291,6 +304,7 @@ class Renderer implements Canvas {
 	// image of up to PAGED pixels a side with its pixels here into a page,
 	// any other (a browser's, a large one) a texture of its own
 	function texture(img:Image):ImageEntry {
+		if (img.shared != null) return sharedTexture(img);
 		var e = textures.get(img.id);
 		if (e != null) e.frame = frames;
 		if (e != null && e.version == img.version) return e;
@@ -320,6 +334,34 @@ class Renderer implements Canvas {
 			else img.premultiplied(pre -> device.writeTexture(t, pre));
 			e.version = img.version;
 		}
+		return e;
+	}
+
+	// another process's texture (Image.ofShared: its handle), opened once and
+	// drawn as it is (premultiplied, opaque frames), never uploaded; the
+	// frames that drew the image counted (Image.drawn: the studio's previews
+	// let go of a frame's target once a newer one was drawn)
+	function sharedTexture(img:Image):ImageEntry {
+		var e = textures.get(img.id);
+		if (e == null || !e.external || e.width != img.width || e.height != img.height) {
+			if (e != null) release(e);
+			e = new ImageEntry(img.version - 1, frames - 1, img.width, img.height);
+			e.external = true;
+			textures.set(img.id, e);
+		}
+		if (e.frame != frames) {
+			e.frame = frames;
+			img.drawn++;
+		}
+		var o = opened.get(img.shared);
+		if (o == null) {
+			// (not opened: blank, not tried again)
+			o = {texture: device.openShared(img.shared, img.width, img.height) ?? blank, frame: frames};
+			opened.set(img.shared, o);
+		}
+		o.frame = frames;
+		e.texture = o.texture;
+		e.version = img.version;
 		return e;
 	}
 
@@ -916,6 +958,8 @@ private class ImageEntry {
 	public final width:Int;
 	public final height:Int;
 	public var page = -1;
+	// another process's texture (Renderer.opened's): not this entry's to free
+	public var external = false;
 	public var x = 0;
 	public var y = 0;
 

@@ -145,7 +145,7 @@ class Tools {
 		return s;
 	}
 
-	function snap(args:Dynamic):{content:Array<Dynamic>, isError:Bool} {
+	@:coroutine function snap(args:Dynamic):{content:Array<Dynamic>, isError:Bool} {
 		var s = screenOf(args.screen);
 		var img = s.image.peek();
 		if (img == null) throw '${s.info.name} has no frame yet';
@@ -155,6 +155,9 @@ class Tools {
 		var out = "(not written)";
 		var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
 		#else
+		// (a texture the host shares: read back there)
+		img = studio.previews.pixels(s);
+		if (img == null) throw '${s.info.name}: its frame could not be read';
 		var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
 		var out:String = args.path ?? '${studio.project.out}/snaps/${s.slug}.png';
 		helder.cli.TestCommand.mkdirs(haxe.io.Path.directory(out));

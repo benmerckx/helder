@@ -62,8 +62,14 @@ console.log(tree(plain));
 
 - **Screens** (`Screens.run(stories)`; TypeScript's `screens`): the
   program helder studio builds of a project's stories (apps/studio/README.md,
-  "Screens"): one story, the one `HELDER_STUDIO_SCREEN` names, in a window
-  of its size; over the devtools protocol `Studio.screens` answers which.
+  "Screens"): every story in one program, the preview host (`Host`: each
+  story a root of its own with a ScreenContext of its own; only the
+  screens in view draw). Natively one process (`NativeHost`: each screen's
+  frame drawn into a GPU texture the studio opens, helder.gfx's shared
+  textures, else through shared memory, `FrameFile`); for the web a worker
+  (`web.Preview`: ImageBitmaps). The studio speaks the devtools protocol
+  to it (`HostAgent`: Host.show, Host.frame, Host.release, Ui.getTree and
+  Ui.nodesAt naming a screen; `Studio.screens` answers the screens).
 
 Not yet: the stories' editor and panel (phase 3), a story kept across a
 reload, image snapshots and scripted interactions in tests, a virtual

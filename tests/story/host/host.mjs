@@ -1,27 +1,33 @@
-// The story host against a process a screen (bun run test story-host):
+// The story host, headless and as the desktop studio runs it (bun run test story-host):
 //
-//   node tests/story/host/host.mjs gen <dir> [screens]    the stories' program's sources into <dir>/gen
-//   node tests/story/host/host.mjs measure <dir> [screens] both run, measured: <dir>/results.md
+//   node tests/story/host/host.mjs gen <dir> [screens]     the stories' program's sources into <dir>/gen
+//   node tests/story/host/host.mjs measure <dir> [screens]  both run, measured: <dir>/results.md
 //   node tests/story/host/host.mjs project <dir> [screens]  the same stories as a project for the studio
-//                                                         (<dir>/Todo.hx, <dir>/Screens.story.hx: the studio-web lane's 50 screens)
+//                                                          (<dir>/Todo.hx, <dir>/Screens.story.hx: the studio-web lane's 50 screens)
 //
 // gen writes BenchStories.hx: screens stories (50 by default) of
 // examples/todo's list, each its own list (0 to 24 items, some done, a
-// filter), at a window's size and a phone's, in five flows; and the two
-// mains: BenchHost (helder.story.Host: every screen mounted in one
-// program, drawn offscreen, natively) and BenchScreens (helder.story.Screens,
-// what the studio runs today: one screen a process, HELDER_STUDIO_SCREEN
-// naming it, its frames served to a file as helder.headless's serve mode
-// writes them). The lane builds both (dev builds, headless, as the
-// studio's), then measure starts each way the studio would: the host
-// once, the screens' program once per screen all at once; and times the
-// start to every screen's first frame, and the memory then (each
-// process's resident set and proportional set, /proc/<pid>/smaps_rollup:
-// Pss shares the executable's pages between the processes), and the host's
-// frames: one screen focused (drawn every frame) while the others are
-// still, then a literal's change. Linux only (/proc).
+// filter), at a window's size and a phone's, in five flows; and BenchHost's
+// main (helder.story.Host: every screen mounted in one program, drawn
+// offscreen and read back, natively; a dev build, headless, as the
+// studio's). measure starts it and times the start to every screen's first
+// frame, the memory then (the process's resident set and proportional set,
+// /proc/<pid>/smaps_rollup), and the host's frames: one screen focused
+// (drawn every frame) while the others are still. Then the desktop studio
+// itself (apps/studio, headless, helder run) on the same stories as a
+// project (project's): its one preview process (helder.story.NativeHost:
+// frames as shared GPU textures, or through shared memory where the GPU has
+// none: llvmpipe), the project opened to every screen shown (from the
+// studio's open, the cold build in it, and from the host process's start),
+// the memory of the host and of the studio then (held there:
+// --hold-while), and an inspector's colour change on a zoomed screen to the
+// host's frame showing it (a live literal: tests/story/host/studio.json).
+// The process a screen the studio ran before (each story its own dev
+// build's process) took 0.8 to 3.3 s to every first frame and 6.1 GB
+// resident (2.8 GB Pss) for these 50 screens: the table's last row, from
+// the lane's last run of it. Linux only (/proc).
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const [mode, dir, count] = process.argv.slice(2);
@@ -39,7 +45,8 @@ function stories() {
 	return out;
 }
 
-if (mode === 'project') {
+// the stories as a project for the studio: dir/Todo.hx, dir/Screens.story.hx
+function writeProject(dir) {
 	mkdirSync(dir, { recursive: true });
 	const here = path.dirname(new URL(import.meta.url).pathname);
 	writeFileSync(path.join(dir, 'Todo.hx'), readFileSync(path.join(here, '../../../examples/todo/Todo.hx')));
@@ -52,6 +59,10 @@ if (mode === 'project') {
 		'\tvar list = [for (i in 0...n) new Item("Item " + (i + 1))];', '\tfor (i in 0...n) if (i % 3 == 1) list[i].done(true);', '\tt.todos(list);',
 		'\tt.filter(filter);', '\treturn t.view();', '}');
 	writeFileSync(path.join(dir, 'Screens.story.hx'), lines.join('\n') + '\n');
+}
+
+if (mode === 'project') {
+	writeProject(dir);
 	process.exit(0);
 }
 
@@ -119,12 +130,6 @@ class BenchHost {
 	}
 }
 `);
-	writeFileSync(path.join(gen, 'BenchScreens.hx'), `// one story a process (helder.story.Screens: the studio's previews today), HELDER_STUDIO_SCREEN its name (generated)
-class BenchScreens {
-	static function main()
-		helder.story.Screens.run(helder.story.Stories.of("BenchStories"));
-}
-`);
 	process.exit(0);
 }
 
@@ -174,62 +179,84 @@ async function host() {
 	return { n: Number(n), wall, inner: Number(inner), turns: Number(turns), mem, focusedMs: Number(f[2]), focusedDrawn: Number(f[3]), idleMs: Number(f[5]), idleDrawn: Number(f[6]) };
 }
 
-async function perProcess() {
-	const frames = path.join(dir, 'frames');
-	rmSync(frames, { recursive: true, force: true });
-	mkdirSync(frames, { recursive: true });
-	const list = stories();
-	const t0 = performance.now();
-	const procs = list.map((s, i) => {
-		const file = path.join(frames, `s${i}.rgba`);
-		const p = spawn(path.join(dir, 'BenchScreens'), [], {
-			env: { ...env, HELDER_STUDIO_SCREEN: s.name, HELDER_HEADLESS: JSON.stringify({ serve: { frames: file } }) }, stdio: ['ignore', 'ignore', 'inherit'] });
-		return { p, file };
-	});
-	while (!procs.every((x) => existsSync(x.file))) {
-		if (procs.some((x) => x.p.exitCode !== null)) throw new Error('a screen\'s process ended before its first frame');
-		await sleep(2);
+// (a process's descendants, by their parent: /proc/<pid>/stat's fourth field)
+function descendants(root) {
+	const kids = new Map();
+	for (const n of readdirSync('/proc')) {
+		if (!/^\d+$/.test(n)) continue;
+		try {
+			const st = readFileSync(`/proc/${n}/stat`, 'utf8');
+			const ppid = Number(st.slice(st.lastIndexOf(')') + 2).split(' ')[1]);
+			if (!kids.has(ppid)) kids.set(ppid, []);
+			kids.get(ppid).push(Number(n));
+		} catch {}
 	}
-	const wall = performance.now() - t0;
-	const mem = procs.map((x) => memory(x.p.pid)).reduce((a, m) => ({ rss: a.rss + m.rss, hwm: a.hwm + m.hwm, pss: a.pss + m.pss }), { rss: 0, hwm: 0, pss: 0 });
-	for (const x of procs) x.p.kill();
-	await Promise.all(procs.map((x) => new Promise((r) => (x.p.exitCode !== null ? r() : x.p.on('exit', r)))));
-	return { n: procs.length, wall, mem };
+	const out = [], todo = [root];
+	while (todo.length) for (const k of kids.get(todo.pop()) ?? []) {
+		out.push(k);
+		todo.push(k);
+	}
+	return out;
+}
+
+const cmdline = (pid) => {
+	try {
+		return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0')[0];
+	} catch {
+		return '';
+	}
+};
+
+// the desktop studio on the stories as a project: its preview process, the memory, a patch
+async function studio() {
+	const proj = path.join(dir, 'screens50');
+	rmSync(proj, { recursive: true, force: true });
+	writeProject(proj);
+	const events = path.join(dir, 'studio.jsonl'), flag = path.join(dir, 'studio.hold');
+	rmSync(events, { force: true });
+	writeFileSync(flag, '');
+	const helder = process.env.HELDER ?? 'bin/cli/helder';
+	const p = spawn(helder, ['run', '--headless', 'apps/studio', '--script', 'tests/story/host/studio.json', '--size', '1180x740', '--snap', path.join(dir, 'studio-overview.png'), '--at', 'mark:overview',
+		'--snap', path.join(dir, 'studio-zoomed.png'), '--at', 'mark:end', '--', proj, '--events', events,
+		'--hold-while', flag], { env: { ...process.env, LC_ALL: 'C.UTF-8', LANG: 'C.UTF-8' }, stdio: ['ignore', 'inherit', 'inherit'] });
+	const read = () => (existsSync(events) ? readFileSync(events, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l)) : []);
+	let shown;
+	while (!(shown = read().find((e) => e.event === 'all-shown'))) {
+		if (p.exitCode !== null) throw new Error(`the studio ended (${p.exitCode}) before its screens were shown`);
+		await sleep(5);
+	}
+	// (the processes: the studio, its screens' program, the compiler)
+	await sleep(200);
+	const procs = descendants(p.pid).map((pid) => ({ pid, cmd: cmdline(pid) }));
+	const host = procs.find((x) => /\/screens-\d+$/.test(x.cmd)), own = procs.find((x) => /\/studio$/.test(x.cmd));
+	if (!host || !own) throw new Error(`the studio's processes: ${JSON.stringify(procs)}`);
+	const hostMem = memory(host.pid), studioMem = memory(own.pid);
+	rmSync(flag, { force: true });
+	const code = await new Promise((r) => (p.exitCode !== null ? r(p.exitCode) : p.on('exit', r)));
+	if (code !== 0) throw new Error(`the studio ended with ${code}`);
+	const patch = read().find((e) => e.event === 'patch-shown');
+	if (!patch || patch.color !== '#ef4444') throw new Error(`the patch's frame: ${JSON.stringify(patch)}`);
+	return { n: shown.screens, open: shown.ms, hostMs: shown.hostMs, sharing: shown.sharing, hostMem, studioMem, patchMs: patch.ms, patchFrames: patch.frames };
 }
 
 const h = await host();
-const s = await perProcess();
-if (h.n !== N || s.n !== N) throw new Error(`screens: host ${h.n}, processes ${s.n}, wanted ${N}`);
-// (the same pixels: each screen's frame in the host is its process's)
-let same = 0, near = 0;
-for (let i = 0; i < N; i++) {
-	const a = readFileSync(path.join(dir, 'host-frames', `s${i}.rgba`)), b = readFileSync(path.join(dir, 'frames', `s${i}.rgba`));
-	const w = b.readInt32LE(4), hh = b.readInt32LE(8);
-	if (a.readInt32LE(4) !== w || a.readInt32LE(8) !== hh) throw new Error(`screen ${i + 1}: the host's frame is ${a.readInt32LE(4)}x${a.readInt32LE(8)}, its process's ${w}x${hh}`);
-	let diff = 0, most = 0;
-	for (let k = 16; k < 16 + w * hh * 4; k++) {
-		const d = Math.abs(a[k] - b[k]);
-		if (d > 0) diff++;
-		if (d > most) most = d;
-	}
-	if (diff === 0) same++;
-	else if (most <= 2 && diff < w * hh * 0.01) near++;
-	else throw new Error(`screen ${i + 1}: ${diff} bytes of the host's frame differ from its process's (at most ${most})`);
-}
-rmSync(path.join(dir, 'frames'), { recursive: true, force: true });
+const st = await studio();
+if (h.n !== N || st.n !== N) throw new Error(`screens: host ${h.n}, studio ${st.n}, wanted ${N}`);
 rmSync(path.join(dir, 'host-frames'), { recursive: true, force: true });
+rmSync(path.join(dir, 'screens50'), { recursive: true, force: true });
 const rows = [
-	`${N} screens of examples/todo (a dev build, headless, offscreen on Mesa's llvmpipe, LP_NUM_THREADS=2)`,
+	`${N} screens of examples/todo (a dev build, offscreen on Mesa's llvmpipe; the headless host with LP_NUM_THREADS=2)`,
 	'',
-	'| | open to every first frame | resident (sum) | proportional (Pss, sum) | peak resident (sum) |',
+	'| | open to every first frame | resident | proportional (Pss) | peak resident |',
 	'|---|---|---|---|---|',
-	`| one host (helder.story.Host) | ${Math.round(h.wall)} ms (${h.inner} ms inside, ${h.turns} turn(s)) | ${mb(h.mem.rss)} | ${mb(h.mem.pss)} | ${mb(h.mem.hwm)} |`,
-	`| a process a screen (helder.story.Screens) | ${Math.round(s.wall)} ms | ${mb(s.mem.rss)} | ${mb(s.mem.pss)} | ${mb(s.mem.hwm)} |`,
-	`| | ${(s.wall / h.wall).toFixed(1)}x faster | ${(s.mem.rss / h.mem.rss).toFixed(1)}x less | ${(s.mem.pss / h.mem.pss).toFixed(1)}x less | ${(s.mem.hwm / h.mem.hwm).toFixed(1)}x less |`,
+	`| one host, headless (helder.story.Host, frames read back) | ${Math.round(h.wall)} ms (${h.inner} ms inside, ${h.turns} turn(s)) | ${mb(h.mem.rss)} | ${mb(h.mem.pss)} | ${mb(h.mem.hwm)} |`,
+	`| the desktop studio's preview process (NativeHost, frames: ${st.sharing}) | ${st.hostMs} ms from its start; ${st.open} ms from the project's open, its cold build in it | ${mb(st.hostMem.rss)} | ${mb(st.hostMem.pss)} | ${mb(st.hostMem.hwm)} |`,
+	`| the studio's own process (its canvas, the ${N} frames as images) | | ${mb(st.studioMem.rss)} | ${mb(st.studioMem.pss)} | ${mb(st.studioMem.hwm)} |`,
+	`| before: a process a screen (helder.story.Screens, until this lane replaced it) | 0.8–3.3 s | 6.1 GB (sum) | 2.8 GB (sum) | |`,
 	'',
-	`Each screen's first frame in the host against its process's: ${same} the same byte for byte` + (near ? `, ${near} within 2 levels` : '') + '.',
+	`An inspector's colour change (a live literal) to the studio's frame showing the host's new frame: ${st.patchMs} ms, ${st.patchFrames} studio frame(s).`,
 	'',
-	`The host's turns, every screen shown: one focused ${h.focusedMs} ms a turn (${h.focusedDrawn} frames in 120 turns: the focused one's alone), none focused and nothing changed ${h.idleMs} ms a turn (${h.idleDrawn} frames drawn).`,
+	`The headless host's turns, every screen shown: one focused ${h.focusedMs} ms a turn (${h.focusedDrawn} frames in 120 turns: the focused one's alone), none focused and nothing changed ${h.idleMs} ms a turn (${h.idleDrawn} frames drawn).`,
 ];
 const table = rows.join('\n');
 console.log(table);

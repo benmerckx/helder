@@ -28,8 +28,9 @@ import helder.view.Render;
 // The runtime is the host's way to pixels (HostRuntime): headless natively
 // (HeadlessHost: an offscreen surface, each frame read back), an
 // OffscreenCanvas in a web worker (helder.story.web.WorkerHost: each frame
-// an ImageBitmap posted to the page); a native process sharing GPU
-// textures with the studio is another one, later.
+// an ImageBitmap posted to the page), the studio's native preview process
+// (helder.story.NativeHost's SharedFrames: each frame drawn into a GPU
+// texture the studio's process opens, or copied through shared memory).
 //
 //   var host = new Host(Stories.of("Todo_story"), new HeadlessHost((s, pixels) -> ...));
 //   host.show([for (s in host.screens) s.name]);
@@ -136,9 +137,16 @@ class Host {
 	function draw(s:HostScreen, changed:Bool) {
 		var scale = s.scale;
 		var w = Math.round(s.width * scale), h = Math.round(s.height * scale);
-		runtime.size(w, h);
+		// (not now: the runtime has no target free for it, or the same pixels are there; again at a next turn when it changed)
+		if (!runtime.begin(s, device, w, h, changed)) {
+			if (changed) s.redraw = true;
+			return;
+		}
 		var enc = device.beginFrame();
-		if (enc == null) return;
+		if (enc == null) {
+			s.redraw = true;
+			return;
+		}
 		s.redraw = false;
 		var c = pass.colors[0].clear;
 		@:privateAccess {
@@ -216,13 +224,14 @@ class HostScreen {
 }
 
 // A host's way to pixels: its target (a surface the device renders to),
-// sized for each screen's frame, each frame read (capture: before it is
-// presented) and handed over (present: after; changed: whether anything in
-// it changed since its last frame, else the focused screen's frame of every
-// turn, the same pixels)
+// made ready for each screen's frame (begin: the surface sized, or a texture
+// the frame goes into; false: no frame of it now, changed or not: drawn
+// later; changed: whether anything in it changed since its last frame, else
+// the focused screen's frame of every turn, the same pixels), each frame
+// read (capture: before it is presented) and handed over (present: after)
 interface HostRuntime {
 	var surface(default, null):Surface;
-	function size(width:Int, height:Int):Void;
+	function begin(s:HostScreen, device:Device, width:Int, height:Int, changed:Bool):Bool;
 	function capture(s:HostScreen, device:Device):Void;
 	function present(s:HostScreen, changed:Bool):Void;
 }
@@ -240,8 +249,10 @@ class HeadlessHost implements HostRuntime {
 		surface = Surface.headless(1, 1);
 	}
 
-	public function size(width:Int, height:Int)
+	public function begin(s:HostScreen, device:Device, width:Int, height:Int, changed:Bool):Bool {
 		if (surface.width != width || surface.height != height) @:privateAccess surface.resized(width, height);
+		return true;
+	}
 
 	public function capture(s:HostScreen, device:Device) {
 		var n = device.width * device.height * 4;

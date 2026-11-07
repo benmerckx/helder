@@ -14,9 +14,10 @@ bun run helder studio                      # the project in this directory
   a row per flow. Pan with a drag or the wheel, zoom with secondary
   (Ctrl, Cmd) and the wheel, a trackpad's pinch or two fingers. Click a
   screen to spring into it; Escape or "All screens" goes back.
-- **A screen, live.** Each screen is the project's program, a dev build,
-  running in a process of its own at the screen's size, offscreen; the
-  canvas shows its frames as it draws them.
+- **A screen, live.** Each screen is a story of the project's program, a
+  dev build, running in one process for the whole project (each story a
+  root of its own), offscreen at the screen's size; the canvas shows its
+  frames as it draws them.
 - **Select.** Click inside the screen you zoomed into: the node there is
   selected (the program's tree: its box, and where its markup is), drawn
   as an outlined box. The inspector shows its layout (width, height,
@@ -70,20 +71,45 @@ opens, not built, so the canvas is laid out before anything compiled.
 
 ## How it runs
 
-- **The project never runs in the studio's process.** The studio builds
-  one program of the project's stories (a dev build, `-D hxmc.dev`,
-  headless: `-D helder.headless`; its main `helder.story.Screens` over
-  them, generated in `<root>/bin/studio/<name>`) and starts it once per
-  screen (`HELDER_STUDIO_SCREEN` names which), so each screen has its
-  own state, and a crash or an endless loop takes only that screen down.
-- Each screen draws offscreen at its size (helder.headless's serve mode:
-  each frame written to a file and told as `Headless.frame`), and talks
-  to the studio over the devtools protocol (src/helder/devtools): its
-  tree (`Ui.getTree`, `Ui.nodesAt`), live literals (`Hot.literals`),
-  reloads (`Runtime.reload`, its state kept). A screen ends with the
-  studio (`HXMC_DEV_EXIT_WITH_SERVER`).
+- **The project never runs in the studio's process, and runs once.** The
+  studio builds one program of the project's stories (a dev build, `-D
+  hxmc.dev`, `-D helder.headless`; its main `helder.story.Screens` over
+  them, generated in `<root>/bin/studio/<name>`) and starts it once: the
+  preview host (helder.story.NativeHost), every story mounted as a root of
+  its own with a context of its own (helder.story.Host,
+  helder.ui.ScreenContext: its clock and timers, keymap, settings, safe
+  area, dark or light). A crash or an endless loop takes the host down,
+  not the studio: the canvas keeps the last frames and the host is started
+  again.
+- **Frames are GPU textures the studio composites.** The host draws each
+  screen into a texture of its own the studio's process opens without a
+  copy (helder.gfx's shared textures: an IOSurface through Metal on macOS,
+  a DXGI texture with a keyed mutex through Direct3D 11 on Windows, a
+  dma-buf through EGL on Linux), and the studio draws it as an image with
+  its own renderer (Image.ofShared: the zoom, the selection's outline and
+  the transitions stay the studio's). A frame's texture goes back to the
+  host once the canvas drew a newer one (up to three a screen). Where the
+  GPU shares none (Mesa's llvmpipe: CI, this lane) the frames come through
+  shared memory instead (a file in /dev/shm both map: helder.story.FrameFile),
+  copied into the studio's texture. Only the screens in the canvas' view
+  draw: the one zoomed into every frame it changes, at the canvas' scale
+  (its pixels a point in halves, up to 3), the others at 1x when something
+  in them changes; a screen out of view is suspended and its last frame
+  kept.
+- **The devtools protocol on the dev connection** (src/helder/devtools,
+  helder.story.HostAgent): `Host.show` (the screens in view, the one
+  zoomed into, its scale), `Host.frame` and `Host.release` (the frames'
+  textures), `Ui.getTree` and `Ui.nodesAt` naming a screen, live literals
+  (`Hot.literals`: one program, every screen's next frame shows a patch),
+  reloads (`Runtime.reload`: the host's state in Hot's snapshot, the new
+  build started from it), `Host.snap` (a frame's pixels read back for
+  `run.snap`). The host ends with the studio (`HXMC_DEV_EXIT_WITH_SERVER`).
 - The compiler stays warm (helder.compiler.service). One build runs at a
   time; files edited during a build are written after it.
+- A project's stories share its modules' state, one program: a story keeps
+  what it changes to itself (examples/ts-todo's stories each make a store
+  of their own, `store(three, "done")`, rather than setting the module's
+  signals).
 
 ## In the browser
 
@@ -141,15 +167,20 @@ one zoomed into, its title selected, its colour changed (patched, the
 next frames showing it, the file in OPFS), at a desktop's width and a
 phone's (taps, a pinch, the drawer), the overview and zoomed states
 against goldens; and 50 screens opened and measured. The story-host lane
-measures one host against a process a screen natively (50 screens of
-examples/todo, Linux, llvmpipe):
+measures the host natively and the desktop studio with it (50 screens of
+examples/todo, Linux, llvmpipe, 4 cores):
 
-| | open to every first frame | resident (sum) | Pss (sum) |
+| | open to every first frame | resident | Pss |
 |---|---|---|---|
-| one host (helder.story.Host) | 280–310 ms | 202 MB | 168–201 MB |
-| a process a screen (today's desktop studio) | 0.8–3.3 s | 6.1 GB | 2.8 GB |
+| one host, headless (helder.story.Host, frames read back) | 280–310 ms | 202 MB | 168–201 MB |
+| the desktop studio's preview process (NativeHost; llvmpipe: frames through shared memory) | 304 ms from its start (2.8 s from the project's open, its cold build included) | 209 MB | 150 MB |
+| the desktop studio itself, the 50 frames its images | | 312 MB | 252 MB |
+| a process a screen (the desktop studio before) | 0.8–3.3 s | 6.1 GB (sum) | 2.8 GB (sum) |
 
-Each screen's first frame in the host is its process's byte for byte. In
+An inspector's colour change on a zoomed screen reaches the host's new
+frame on the canvas in 17 ms, one studio frame. Each screen's first frame
+in the host was its own process's byte for byte (the studio lane's
+goldens, unchanged). In
 Chromium (SwiftShader's WebGPU, the same machine), 50 screens: every
 screen shown 0.7 to 2.4 s after the project opened, the preview's module
 78 MB, the studio's 27 MB, the page's JavaScript 12 MB. With the
@@ -213,27 +244,36 @@ On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
 | | todo (Haxe) | ts-todo (TypeScript) |
 |---|---|---|
 | Cold start to the first frame | 116 ms | 134 ms |
-| Project open to all 4 screens shown (a cold build, 4 processes) | 2.6 s | 2.9 s |
-| An inspector's colour change to the program's frame (a live literal) | 27 ms, 1 studio frame | 24 ms, 1 studio frame |
+| Project open to all 4 screens shown (a cold build, one host process) | 2.6 s | 3.1 s |
+| An inspector's colour change to the program's frame (a live literal) | 17 ms, 1 studio frame | 20 ms, 1 studio frame |
 | A structural edit (an attribute added): built, the screens reloaded | 0.6–0.8 s (built in 0.57 s) | 0.6–1.2 s (built in 0.47–0.54 s) |
+
+The gfx-shared lane proves each platform's way of sharing a frame between
+two processes (tests/gfx/SharedTexture.hx: a frame drawn in one, opened,
+drawn and read back in the other, then a second frame through the same
+texture): IOSurface on CI's macOS runner (opened and drawn in 95 ms, the
+next frame 1.7 ms), DXGI on its Windows runner (7.7 ms, 0.7 ms), dma-bufs
+where the GPU exports them (none on CI: llvmpipe, which the studio lane
+runs through shared memory).
 
 ## Not yet
 
-- The screens' frames go through a file each frame (RGBA, uploaded as an
-  image), not a shared GPU texture; they are drawn at 1x and scaled, not
-  tiled at the canvas' zoom.
+- A zoomed screen is drawn at the canvas' scale in halves up to 3, not
+  tiled: deeper zooms scale its frame.
+- A reload restores the screens in view; the others start afresh when
+  shown (Hot's snapshot settles at the host's first frame).
+- A story's shortcuts bound at a module's start (Keymap.global there) are
+  the program's main context's, not the screens'.
 - Selection is click only: no move, resize, snapping, layers or multiple
   selection; the handles are drawn, not dragged.
 - The inspector writes attributes as text; its fields do not come from
   the generated declarations yet (types, units, enums).
 - The warm compiler sometimes builds a wrong program after an attribute
   is added to an element of a module a story file uses (hxmc's server:
-  the story's view gets its attributes crossed); the studio sees the
-  screens end at their start and builds again from cold (2 s more).
+  the story's view gets its attributes crossed; fixed by hxmc#161, not yet
+  in the nightly package.json pins); the studio sees the host end at its
+  start and builds again from cold (2 s more).
 - No model calls: the prompt bar's agent only calls the tools.
-- The desktop studio still runs a process a screen: the one-host model with
-  shared GPU textures (HostRuntime's native runtime) is next; the host and
-  its contexts are ready for it.
 - In the browser: a TypeScript project's structural edits are not built
   there yet (its screens' program for the web is Haxe's alone); its screens share its modules'
   state in one program (a story that sets a module's signal sets it for

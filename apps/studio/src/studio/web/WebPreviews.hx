@@ -70,6 +70,13 @@ class WebPreviews {
 	public function busy():Bool
 		return !failed && !allShown();
 
+	// (the worker's start is the page's: startMs)
+	public function sinceHost():Float
+		return -1;
+
+	// how frames come: ImageBitmaps
+	public final sharing = "bitmap";
+
 	// the worker started (its module the page's), its events relayed
 	@:coroutine public function start(task:Node) {
 		if (StudioWeb.preview_start(0) == 0) {

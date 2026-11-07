@@ -55,7 +55,7 @@ const apps = {
 		entry: '.', files: ['examples/ts-todo/app.tsx', 'examples/ts-todo/main.tsx', 'examples/ts-todo/todos.ts'], file: 'app.tsx',
 		literal: (s, i) => s.replace(/color="#[0-9a-f]{6}">todos/, `color="${i % 2 ? '#ef4444' : '#3b82f6'}">todos`),
 		body: (s) => swap(s, 'onPress={() => props.onClick()}', 'onPress={() => { props.onClick(); }}'),
-		component: (s, i) => s.replace('const remaining = memo(', `function Badge${i}(props: { label: string }) {\n\treturn <text color="#71717a" font-size={12}>{props.label}</text>;\n}\n\nconst remaining = memo(`)
+		component: (s, i) => s.replace('export function App(', `function Badge${i}(props: { label: string }) {\n\treturn <text color="#71717a" font-size={12}>{props.label}</text>;\n}\n\nexport function App(`)
 			.replace(/(color="#[0-9a-f]{6}">todos<\/text>)/, `$1\n\t\t<Badge${i} label="badge ${i}"/>`),
 	},
 };

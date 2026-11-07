@@ -40,13 +40,10 @@ class Preview {
 		host = h;
 		#if hxmc.dev
 		helder.devtools.Agent.serve(send);
-		helder.devtools.Agent.notify("Host.ready", {screens: list()});
+		helder.devtools.Agent.notify("Host.ready", {screens: helder.story.HostAgent.list(h)});
 		#end
 		PreviewWeb.start(Callback.addr(turn));
 	}
-
-	static function list():Array<Dynamic>
-		return [for (s in host.screens) {name: s.name, width: s.width, height: s.height}];
 
 	static function send(line:String)
 		Arena.scoped(a -> PreviewWeb.send(a.cstring(line)));
@@ -67,27 +64,7 @@ class Preview {
 		var m:Dynamic = try Json.parse(line) catch (_:Dynamic) null;
 		if (m == null || m.method == null) return;
 		#if hxmc.dev
-		var p:Dynamic = m.params ?? {};
-		var s = p.screen == null ? null : host.screen(p.screen);
-		inline function answer(r:Dynamic)
-			if (m.id != null) helder.devtools.Agent.respond(m.id, r);
-		switch (m.method : String) {
-			case "Host.show":
-				var names:Array<String> = p.screens == null ? [] : [for (x in (p.screens : Array<Dynamic>)) Std.string(x)];
-				host.show(names);
-				host.focus(p.focused, p.scale == null ? null : (p.scale : Float));
-				answer({});
-			case "Studio.screens":
-				answer({screens: list()});
-			case "Ui.getTree" | "Ui.nodesAt" if (s == null || s.ui == null):
-				if (m.id != null) helder.devtools.Agent.respond(m.id, null, {code: -32602, message: 'no screen ${p.screen} shown'});
-			case "Ui.getTree":
-				answer(s.run(() -> helder.ui.DevTree.treeOf([s.ui])));
-			case "Ui.nodesAt":
-				answer(s.run(() -> helder.ui.DevTree.nodesAtOf([s.ui], p)));
-			case _:
-				if (s != null) s.run(() -> helder.devtools.Agent.dispatch(m)) else helder.devtools.Agent.dispatch(m);
-		}
+		if (!helder.story.HostAgent.receive(host, m)) helder.devtools.Agent.dispatch(m);
 		#end
 	}
 
@@ -115,10 +92,11 @@ class WorkerHost implements HostRuntime {
 		surface = new Surface(Canvas, Ptr.nil(), Ptr.ofI64(canvas), 1, 1);
 	}
 
-	public function size(width:Int, height:Int) {
-		if (surface.width == width && surface.height == height) return;
+	public function begin(s:HostScreen, device:Device, width:Int, height:Int, changed:Bool):Bool {
+		if (surface.width == width && surface.height == height) return true;
 		PreviewWeb.resize(canvas, width, height);
 		@:privateAccess surface.resized(width, height);
+		return true;
 	}
 
 	public function capture(s:HostScreen, device:Device) {}
