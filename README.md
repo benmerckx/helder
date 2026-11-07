@@ -1153,10 +1153,21 @@ fix.
     moving at once cost a frame what drawing them still does, without
     allocating (the motion-bench lane). Not yet: blur (the renderer has
     none; a blur transition fades), hit testing on presented rects.
-  - **The UI in one draw call**: helder.ui's batcher over QuadBatch as one
-    instanced pass a frame (rounded rects, borders, shadows, gradients,
-    images and glyphs as kinds of one quad), measured against Rune's
-    0.13 ms a frame of CPU.
+  - **The UI in one draw call** (*landed*: helder.ui.draw's `Renderer`
+    and `UiShader`, QuadBatch's instanced mode; tests/bench/results/draw-calls.md):
+    helder.ui's renderer as one instanced pass a frame, rounded rects
+    (a radius a corner), borders, outer and inset shadows, glyphs and
+    images each an instance of one quad, its clip (rounded, anti-aliased)
+    its own; small images (paths, SVGs, gradients, colour glyphs) in
+    atlas pages, the glyph atlas read filtered or at its texels from one
+    binding, so that GuideTest's screen, todo, mail, million, the code
+    editor and 1,000 moving boxes are one draw call and one pass (the
+    studio 4, from 10: its previews are textures of their own); the
+    instances in a ring of buffers written where they changed, nothing
+    allocated in a steady frame; `--stats` counts passes, draw calls and
+    the renderer's CPU (0.035 to 0.21 ms a frame without the driver's,
+    against Rune's 0.13 ms). Not yet: gradients and dashed borders as
+    kinds of the quad (gradients are rasterized images), opacity groups.
   - **Text as good as macOS's everywhere** (*landed*: helder.text's
     `GlyphPipeline`, src/helder/text/README.md's "CoreText's look", a port
     of Rune's): helder.text's own engine (tests,

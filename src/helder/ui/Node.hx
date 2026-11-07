@@ -1234,18 +1234,21 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	static inline var GRADIENT_PIXELS = 262144.0;
 
 	var gradientImage:Null<Image> = null;
-	var gradientKey = "";
+	var gradientW = 0;
+	var gradientH = 0;
+	var gradientScale = 0.0;
 	var gradientOf:Null<Gradient> = null;
 
 	public function backgroundImage(scale:Float):Image {
 		var g = style.backgroundImage, area = width * height * scale * scale;
 		var k = area > GRADIENT_PIXELS ? scale * Math.sqrt(GRADIENT_PIXELS / area) : scale;
 		var w = Std.int(Math.max(1, Math.round(width * k))), h = Std.int(Math.max(1, Math.round(height * k)));
-		var key = w + "x" + h + "@" + scale;
-		if (gradientImage == null || gradientOf != g || gradientKey != key) {
+		if (gradientImage == null || gradientOf != g || gradientW != w || gradientH != h || gradientScale != scale) {
 			gradientImage = g.render(w, h, k);
 			gradientOf = g;
-			gradientKey = key;
+			gradientW = w;
+			gradientH = h;
+			gradientScale = scale;
 		}
 		return gradientImage;
 	}
