@@ -91,7 +91,7 @@ jobs:
         run: sudo apt-get install -qqy --no-install-recommends weston wayland-protocols libwayland-dev libwayland-egl1 libxkbcommon0
       - name: gfx, 3d, audio, ui, helder run --headless, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
         run: |
-          sudo apt-get install -qqy strace gdb bc > /dev/null
+          sudo apt-get -o DPkg::Lock::Timeout=300 install -qqy strace gdb bc > /dev/null || true
           bun run test viewer-window || echo "LANE FAILED"
           sh tests/ui/viewer-diag.sh
       - uses: actions/upload-artifact@v7
