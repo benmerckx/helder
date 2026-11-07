@@ -4,7 +4,8 @@
 # - headless: the lanes that need no GPU, display or browser (bun run test),
 #   then helder.image's decoders fuzzed for 30 s (image-fuzz);
 # - gfx: the native GPU and audio lanes on Mesa's llvmpipe and Xvfb;
-# - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium;
+# - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium, and
+#   helder studio built for the web (studio-web);
 # - android: tests/pack/Hello.hx on an emulator (helder run, adb), the
 #   screen fixture (tests/pack/Screen.hx: its window, safe area and the
 #   display's frames, a rotation, the background), helder dev's loop there
@@ -88,8 +89,8 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: sudo apt-get install -qqy --no-install-recommends weston wayland-protocols libwayland-dev libwayland-egl1 libxkbcommon0
-      - name: gfx, 3d, audio, ui, helder run --headless, the showcase demos headless, helder.syntax's edits run headless, helder studio headless, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
-        run: bun run test -k gfx 3d audio ui-draw headless-run demos syntax-run studio window viewer-window viewer-package wayland dbus system-text system-images canvas-gpu
+      - name: gfx, 3d, audio, ui, helder run --headless, the showcase demos headless, helder.syntax's edits run headless, helder studio headless, the story host against a process a screen, window, the viewer's (Mesa llvmpipe, Xvfb; its release packages), Wayland (a headless weston), the platform's text
+        run: bun run test -k gfx 3d audio ui-draw headless-run demos syntax-run studio story-host window viewer-window viewer-package wayland dbus system-text system-images canvas-gpu
       - uses: actions/upload-artifact@v7
         if: always()
         with: {name: images, path: "bin/gfx/**/*.png\nbin/headless-run/**/*.png\nbin/demos/*.png\nbin/studio-check/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
@@ -108,11 +109,14 @@ jobs:
         run: |
           set -ex
           sudo apt-get update -qq
-          sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core poppler-utils
+          sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core poppler-utils libegl1 libegl-mesa0
           bun add --no-save playwright@1.56.1
           bunx playwright install --with-deps chromium > /dev/null
-      - name: gfx, 3d, audio, web and ui in Chromium
-        run: bun run test -k gfx-web 3d-web audio-web web ui-web canvas-web canvas-doc
+      - name: gfx, 3d, audio, web and ui in Chromium, helder studio in the browser
+        run: bun run test -k gfx-web 3d-web audio-web web ui-web canvas-web canvas-doc studio-web
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: {name: studio-web, path: "bin/studio-web/*.png\nbin/studio-web/results.md", retention-days: 7, if-no-files-found: ignore}
 
   # Android on an x86-64 emulator with KVM (reactivecircus/android-emulator-runner,
   # API 34, as hxmc's CI): tests/pack/android.sh (helder run --target

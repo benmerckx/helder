@@ -31,6 +31,14 @@ class Theme {
 	public static inline var ASK_SPACE = 72;
 	public static inline var TITLES = 50;
 
+	// compact: a window narrower than this (a phone, a tablet upright) has
+	// the screens' list as a drawer and the inspector as a bottom sheet,
+	// SHEET tall open, SHEET_PEEK closed (its handle and the selection's name)
+	public static inline var COMPACT = 900;
+	public static inline var SHEET = 300;
+	public static inline var SHEET_PEEK = 52;
+	public static inline var DRAWER = 260;
+
 	// the canvas: gaps between screens and flows, the zoom's spring
 	public static inline var SCREEN_GAP = 40;
 	public static inline var FLOW_GAP = 170;
@@ -54,6 +62,8 @@ class Theme {
 		"sel" => Color.parse("rgba(255, 255, 255, 0.72)"),
 		"sel-soft" => Color.parse("rgba(255, 255, 255, 0.10)"),
 		"sel-halo" => Color.parse("rgba(0, 0, 0, 0.55)"),
+		// under a drawer over the canvas
+		"scrim" => Color.parse("rgba(0, 0, 0, 0.5)"),
 	]);
 
 	// the code view's colours (helder.ui.code's CodeTheme tokens) from the same greys: its
@@ -108,6 +118,10 @@ class Theme {
 			{slot: "ask-input", when: ["selection"], style: {background: t("sel-soft")}},
 			// what floats over the canvas: the inspector, the prompt bar
 			{slot: "floating", style: {background: t("bg"), borderWidth: 1, borderColor: t("line")}},
+			// compact: the inspector's bottom sheet (a hairline above it), its handle; the screens' drawer
+			{slot: "sheet", style: {background: t("bg"), borderColor: t("line")}},
+			{slot: "sheet-handle", style: {width: 36, height: 4, radius: 2, background: t("edge")}},
+			{slot: "drawer", style: {background: t("bg"), borderColor: t("line")}},
 			// a screen on the canvas: a thin outline; hovered and current ringed a little outside it (its program's own edge may be light)
 			{slot: "screen", style: {radius: RADIUS, background: t("bg"), borderWidth: 1, borderColor: t("edge"), overflow: Hidden, cursor: Pointer}},
 			{slot: "screen", when: ["hover"], style: {outlineWidth: 1, outlineOffset: 4, outlineColor: t("edge")}},

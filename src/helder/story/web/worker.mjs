@@ -26,6 +26,8 @@ self.onmessage = async (e) => {
 	const m = e.data;
 	if (m.type === 'line') return queue.push(m.line);
 	if (m.type === 'stop') return stop();
+	// (a new build coming: the running one's state, helder.dev.Hot's snapshot, posted as {type: 'snapshot'})
+	if (m.type === 'snapshot') return current?.preview?.reload ? current.call(current.preview.reload) : postMessage({ type: 'snapshot', snapshot: null });
 	// (the program's memory: its module's linear memory, bytes)
 	if (m.type === 'stats') return postMessage({ type: 'stats', memory: current?.memory()?.buffer.byteLength ?? 0 });
 	if (m.type !== 'start') return;
@@ -65,7 +67,6 @@ function stop() {
 // (hxmc dev's imports, helder.dev.Hot's on the web: the snapshot of the build before, a reload's)
 function dev(host) {
 	const enc = new TextEncoder();
-	let reload = 0;
 	host.preview ??= {};
 	return {
 		hxmc_dev: {
@@ -75,7 +76,7 @@ function dev(host) {
 				host.bytes(p, b.length + 1).set([...b, 0]);
 			},
 			register(f) {
-				reload = f;
+				host.preview.reload = f;
 			},
 			send(p, n) {
 				postMessage({ type: 'snapshot', snapshot: new TextDecoder().decode(host.bytes(p, n)) });

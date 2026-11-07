@@ -17,11 +17,39 @@ using StringTools;
 // the screens' next frame (patched, then saved); another builds. A number's
 // label scrubs it: dragged left or right, a point per two.
 class Inspector implements Markup {
-	public static function view(studio:Studio):View {
+	public static function view(studio:Studio):View
+		return <Show when={studio.compact()} fallback={panel(studio)}>{sheet(studio)}</Show>;
+
+	// beside the screen, floating over the canvas
+	static function panel(studio:Studio):View
 		return <view tag="inspector" slot="floating" position="absolute" right={12} top={12} width={Theme.INSPECTOR} padding="8 12"
 			transition="fade slide-left(16)" motion="snappy"
 			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<Show when={studio.selection() != null} fallback={<text color={c("fg3")} font-size={Theme.SMALL} padding="4 0">Click a part of the screen to select it.</text>}>
+			{fields(studio)}
+		</view>;
+
+	// compact: a bottom sheet over the canvas, sliding up when a screen is
+	// zoomed into; its handle (a tap) opens and closes it, the screen
+	// fitted above it on the camera's spring, its height on motion's
+	static function sheet(studio:Studio):View
+		return <view tag="inspector" slot="sheet" border-width="1 0 0 0" position="absolute" left={0} right={0} bottom={0} height={studio.sheetOpen() ? Theme.SHEET : Theme.SHEET_PEEK}
+			padding="0 16 10" overflow="hidden" transition="slide-up(80) fade" motion="snappy" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			<view:button tag="sheet-toggle" role="button" label={studio.sheetOpen() ? "Close the inspector" : "Open the inspector"} focusable
+				align-items="center" row-gap={8} padding="8 0 6" cursor="pointer" onPress={() -> studio.toggleSheet()}>
+				<view slot="sheet-handle"/>
+				<text color={c("fg2")} font-size={Theme.SMALL}>{sheetTitle(studio)}</text>
+			</view:button>
+			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
+		</view>;
+
+	static function sheetTitle(studio:Studio):String {
+		var s = studio.selection();
+		return s == null ? "Inspector" : s.tag;
+	}
+
+	static function fields(studio:Studio):View {
+		return <view>
+			<Show when={studio.selection() != null} fallback={<text color={c("fg3")} font-size={Theme.SMALL} padding="4 0">{studio.compact() ? "Tap" : "Click"} a part of the screen to select it.</text>}>
 				{field(studio, "width", "Width", true)}
 				{field(studio, "height", "Height", true)}
 				{field(studio, "padding", "Padding", true)}

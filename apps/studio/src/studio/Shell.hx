@@ -20,6 +20,10 @@ using StringTools;
 class Shell implements Markup {
 	public static function view(studio:Studio):View {
 		var p = studio.project;
+		#if (hxmc.target == "wasm32-wasi")
+		// (the browser without a project: the folder, the examples, OPFS's projects)
+		if (p == null) return Welcome.view(studio);
+		#end
 		return <view tag="studio" grow={1} direction="row" ref={(n:Node) -> n.theme = Theme.sheet} background={c("bg")} color={c("fg")} font-family={Theme.UI} font-size={Theme.BODY}
 			actions={[helder.ui.actions.Actions.handle(StudioAction, a -> {
 				switch a {
@@ -29,13 +33,15 @@ class Shell implements Markup {
 				}
 				true;
 			})]}>
-			{sidebar(studio)}
-			<view tag="hairline" width={1} background={c("line")}/>
+			<Show when={!studio.compact()}>
+				{sidebar(studio)}
+				<view tag="hairline" width={1} background={c("line")}/>
+			</Show>
 			<view tag="main" grow={1} min-width={0}>
 				{header(studio)}
 				<view tag="workspace" grow={1} direction="row" min-height={0}>
 					<Show when={studio.mode() == "code"}>
-						<view tag="code" width="56%" min-width={0} border-width="0 1 0 0" border-color={c("line")}>
+						<view tag="code" width={studio.compact() ? "100%" : "56%"} min-width={0} border-width="0 1 0 0" border-color={c("line")}>
 							<view tag="code-head" direction="row" align-items="center" column-gap={8} height={32} padding="0 12" border-width="0 0 1 0"
 								border-color={c("line")} font-family={Theme.CODE} font-size={Theme.SMALL} color={c("fg2")}>
 								<text tag="code-file">{fileLabel(studio, studio.codeFile())}</text>
@@ -45,26 +51,40 @@ class Shell implements Markup {
 							{studio.editor}
 						</view>
 					</Show>
-					{Board.view(studio)}
+					<Show when={!(studio.compact() && studio.mode() == "code")}>{Board.view(studio)}</Show>
 				</view>
 			</view>
+			<Show when={studio.compact() && studio.drawer()}>{drawer(studio)}</Show>
 		</view>;
 	}
 
+	// compact: the screens' list over the canvas, from the left, a scrim behind it (a tap there closes it)
+	static function drawer(studio:Studio):View
+		return <view tag="drawer-layer" position="absolute" inset={0}>
+			<view tag="drawer-scrim" position="absolute" inset={0} background={c("scrim")} onClick={_ -> studio.drawer(false)}/>
+			<view tag="drawer" slot="drawer" border-width="0 1 0 0" position="absolute" left={0} top={0} bottom={0} width={Theme.DRAWER} transition="slide-right(260)" motion="snappy"
+				onClick={e -> e.stop()}>{sidebar(studio)}</view>
+		</view>;
+
 	static function sidebar(studio:Studio):View {
 		var p = studio.project;
-		return <view tag="sidebar" width={Theme.SIDEBAR} shrink={0} padding="10 10" row-gap={1} min-height={0}>
+		return <view tag="sidebar" width={studio.compact() ? Theme.DRAWER : Theme.SIDEBAR} shrink={0} padding="10 10" row-gap={1} min-height={0} grow={studio.compact() ? 1 : 0}>
 			{nav(studio, "nav-all", "All screens", () -> studio.mode() == "design" && studio.focused() == null, () -> {
+				studio.drawer(false);
 				studio.setMode("design");
 				studio.focus(null);
 			})}
-			{nav(studio, "nav-stories", "Stories", () -> studio.mode() == "stories", () -> studio.setMode("stories"))}
+			{nav(studio, "nav-stories", "Stories", () -> studio.mode() == "stories", () -> {
+				studio.drawer(false);
+				studio.setMode("stories");
+			})}
 			<VirtualList tag="screens" each={sidebarRows(p)} by={(r:SidebarRow) -> r.key} estimate={26} label="Screens">{(r:Read<SidebarRow>, i:Int) -> {
 				// (a row each: a flow's name, a screen; 1 pixel between them)
 				var row = r(), info = row.screen;
 				<view padding="0 0 1">{info == null ? <text padding="14 8 4" color={c("fg3")} font-size={Theme.SMALL}>{row.flow}</text> :
 					<view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" role="button" label={info.name} focusable
 						data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
+							studio.drawer(false);
 							if (studio.mode() == "stories") studio.setMode("design");
 							studio.focus(info.name);
 						}}>
@@ -94,12 +114,18 @@ class Shell implements Markup {
 
 	static function header(studio:Studio):View {
 		var p = studio.project;
-		return <view tag="header" direction="row" align-items="center" column-gap={16} height={Theme.HEADER} padding="0 12 0 16" border-width="0 0 1 0"
-			border-color={c("line")}>
-			<view tag="crumb" direction="row" align-items="center" column-gap={6} color={c("fg2")}>
-				<text font-weight={Theme.MEDIUM} color={c("fg")}>{p == null ? "helder studio" : p.name}</text>
-				<text color={c("fg3")}>/</text>
-				<text tag="crumb-screen">{crumb(studio)}</text>
+		return <view tag="header" direction="row" align-items="center" column-gap={studio.compact() ? 6 : 16} height={Theme.HEADER}
+			padding={studio.compact() ? "0 8" : "0 12 0 16"} border-width="0 0 1 0" border-color={c("line")}>
+			<Show when={studio.compact()}>
+				<view:button tag="menu" slot="button" role="button" label="Screens" focusable data-on={studio.drawer() ? "true" : "false"}
+					onPress={() -> studio.drawer(!studio.drawer.peek())}><text>Screens</text></view:button>
+			</Show>
+			<view tag="crumb" direction="row" align-items="center" column-gap={6} color={c("fg2")} shrink={1} min-width={0}>
+				<Show when={!studio.compact()}>
+					<text font-weight={Theme.MEDIUM} color={c("fg")}>{p == null ? "helder studio" : p.name}</text>
+					<text color={c("fg3")}>/</text>
+				</Show>
+				<text tag="crumb-screen" max-lines={1} text-overflow="ellipsis">{crumb(studio)}</text>
 			</view>
 			<view slot="seg">
 				<view:button tag="seg-design" slot="seg-item" role="button" label="Design" focusable data-on={studio.mode() != "code" ? "true" : "false"}

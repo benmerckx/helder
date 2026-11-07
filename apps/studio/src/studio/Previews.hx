@@ -14,8 +14,14 @@ import sys.io.File;
 
 using StringTools;
 
-// The project's program, never in the studio's process: one process a
-// screen (the screens' host, Project.words: a dev build run headless), each
+#if (hxmc.target == "wasm32-wasi")
+// (in the browser: one preview host in a worker, studio.web.WebPreviews)
+typedef Previews = studio.web.WebPreviews;
+#else
+
+// The project's program, never in the studio's process (natively; in the
+// browser studio.web.WebPreviews: one preview host for every screen, in a
+// worker): one process a screen (the screens' host, Project.words: a dev build run headless), each
 // started with helder dev's machinery (HXMC_DEV: a connection to the
 // studio's socket speaking the devtools protocol, src/helder/devtools/
 // README.md; HXMC_DEV_SNAPSHOT: its state across a rebuild), drawing
@@ -388,6 +394,9 @@ class Previews {
 		launch(task, s, saved);
 	}
 
+	// the screens in view and the one zoomed into (a process a screen: each draws its own, as it always has)
+	public function show(names:Array<String>, focused:Null<String>) {}
+
 	// a devtools request to a screen's program (false: none connected)
 	public function request(s:Screen, method:String, params:Dynamic, done:Dynamic->Void):Bool {
 		var c = s.connection;
@@ -415,7 +424,9 @@ class Previews {
 	}
 }
 
-// One screen: its story, its process and connection, its last frame
+#end
+
+// One screen: its story, its process and connection (natively), its last frame
 class Screen {
 	public final info:ScreenInfo;
 	public final slug:String;
@@ -423,11 +434,13 @@ class Screen {
 	public final image:Signal<Null<Image>> = signal(null);
 	public final frames = signal(0);
 	public var version = 0;
+	#if !(hxmc.target == "wasm32-wasi")
 	public var process:Null<Process> = null;
 	public var connection:Null<Connection> = null;
-	public var reloading = false;
 	// the process asked to end (a reload's), not a crash when it does
 	public var retiring:Null<Process> = null;
+	#end
+	public var reloading = false;
 	// its program ended with an error (shown over its last frame until it starts again)
 	public final crashedSignal = signal(false);
 	public var crashed(get, set):Bool;
@@ -464,6 +477,7 @@ class Screen {
 	}
 }
 
+#if !(hxmc.target == "wasm32-wasi")
 // A program's devtools connection: requests by id, written in order
 class Connection {
 	public final socket:Socket;
@@ -502,3 +516,4 @@ class Connection {
 		f(m);
 	}
 }
+#end

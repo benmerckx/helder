@@ -30,7 +30,7 @@ class Prompt implements Markup {
 
 	static function width(studio:Studio):Float {
 		studio.stageSize();
-		return Math.min(Theme.ASK, studio.stageWidth * 0.72);
+		return Math.min(Theme.ASK, studio.stageWidth * (studio.compact() ? 0.92 : 0.72));
 	}
 
 	static function left(studio:Studio):Float {

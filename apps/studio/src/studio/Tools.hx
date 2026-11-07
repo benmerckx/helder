@@ -102,7 +102,7 @@ class Tools {
 			return Json.stringify({project: pr.name, dir: pr.dir, typescript: pr.typescript, files: files, flows: flows}, "  ");
 		}
 		var f = path(p);
-		if (!sys.FileSystem.exists(f)) throw '$p: no such file';
+		if (!Files.exists(f)) throw '$p: no such file';
 		return studio.docs.get(f).text;
 	}
 
@@ -149,10 +149,17 @@ class Tools {
 		var s = screenOf(args.screen);
 		var img = s.image.peek();
 		if (img == null) throw '${s.info.name} has no frame yet';
+		#if (hxmc.target == "wasm32-wasi")
+		// (a frame of the preview host's is the browser's, its pixels on the GPU)
+		if (!img.hasPixels) throw '${s.info.name}: its frame is on the GPU (the web\'s previews): no PNG of it here';
+		var out = "(not written)";
+		var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
+		#else
 		var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
 		var out:String = args.path ?? '${studio.project.out}/snaps/${s.slug}.png';
 		helder.cli.TestCommand.mkdirs(haxe.io.Path.directory(out));
 		sys.io.File.saveBytes(out, png);
+		#end
 		return {
 			content: [
 				{type: "image", data: haxe.crypto.Base64.encode(png), mimeType: "image/png"},

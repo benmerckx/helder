@@ -1,11 +1,12 @@
 package studio;
 
 import haxe.io.Path;
+#if !(hxmc.target == "wasm32-wasi")
 import helder.cli.Entry;
+import sys.FileSystem;
+#end
 import helder.syntax.Document;
 import helder.syntax.Scanner.Lang;
-import sys.FileSystem;
-import sys.io.File;
 
 using StringTools;
 
@@ -28,11 +29,21 @@ using StringTools;
 // (helder.story.Screens over the stories: bin/studio/<name>/gen/StudioScreens.hx
 // with the story files linked beside it as test files are, Foo_story.hx;
 // TypeScript: bin/studio/<name>/screens.tsx importing them).
+//
+// In the browser (apps/studio/web) a project is the page's: its files a
+// copy kept in OPFS (Files), its program a preview module for the web
+// (helder.story.web.Preview over its stories) the page has, built where it
+// came from (an example's, bundled with the page) or by the compiler's
+// worker; links maps the build's paths (its sources' paths where it was
+// built, which its live literals' ids and its nodes' sources name) to the
+// project's.
 class Project {
 	// the project's directory (full path), its name
 	public final dir:String;
 	public final name:String;
+	#if !(hxmc.target == "wasm32-wasi")
 	public final entry:Entry;
+	#end
 	public final typescript:Bool;
 	public final screens:Array<ScreenInfo> = [];
 	// where the studio's files for it go: <root>/bin/studio/<name>
@@ -40,6 +51,29 @@ class Project {
 	// the story files' links (Haxe): linked path to real path
 	public final links = new Map<String, String>();
 
+	#if (hxmc.target == "wasm32-wasi")
+	// the preview's live literals' tables ({file: its built path, content, entries})
+	public final tables:Array<Dynamic>;
+
+	// (the page's project: studio.web.StudioWeb.project's)
+	function new(info:Dynamic) {
+		tables = info.tables ?? [];
+		dir = info.dir;
+		name = info.name;
+		out = '$dir/bin/studio/$name';
+		var l:haxe.DynamicAccess<String> = info.links ?? {};
+		for (k => v in l)
+			links.set(k, v);
+		findScreens();
+		typescript = Lambda.exists(screens, s -> StringTools.endsWith(s.file, ".tsx") || StringTools.endsWith(s.file, ".ts"));
+	}
+
+	// the page's project (null: none opened)
+	public static function opened():Null<Project> {
+		var h = studio.web.StudioWeb.project();
+		return h == 0 ? null : new Project(haxe.Json.parse(studio.web.StudioWeb.WebText.take(h)));
+	}
+	#else
 	function new(dir:String) {
 		this.dir = FileSystem.fullPath(dir).split("\\").join("/");
 		entry = Entry.resolve(this.dir);
@@ -52,6 +86,7 @@ class Project {
 	// the project in dir (a thrown message: not one)
 	public static function open(dir:String):Project
 		return new Project(dir);
+	#end
 
 	// the stories of the story files under the project's directory, in path order, each in the order written
 	function findScreens() {
@@ -59,7 +94,7 @@ class Project {
 		walk(dir, files);
 		files.sort(Reflect.compare);
 		for (f in files) {
-			var text = File.getContent(f);
+			var text = Files.read(f);
 			var doc = Document.parse(text, Lang.of(f));
 			for (c in doc.calls("story")) {
 				var o = c.object(0);
@@ -87,17 +122,17 @@ class Project {
 			label: name,
 			width: 0,
 			height: 0,
-			file: entry.typescript ?? "",
+			file: #if (hxmc.target == "wasm32-wasi") "" #else entry.typescript ?? "" #end,
 			binding: null,
 			story: false
 		});
 	}
 
 	static function walk(d:String, into:Array<String>) {
-		for (n in (try FileSystem.readDirectory(d) catch (_:Dynamic) [])) {
+		for (n in Files.list(d)) {
 			if (n == "bin" || n == "node_modules" || n.startsWith(".")) continue;
 			var p = '$d/$n';
-			if (FileSystem.isDirectory(p)) walk(p, into) else if (n.endsWith(".story.hx") || n.endsWith(".story.tsx") || n.endsWith(".story.ts")) into.push(p);
+			if (Files.isDirectory(p)) walk(p, into) else if (n.endsWith(".story.hx") || n.endsWith(".story.tsx") || n.endsWith(".story.ts")) into.push(p);
 		}
 	}
 
@@ -121,9 +156,15 @@ class Project {
 		return out;
 	}
 
+	#if !(hxmc.target == "wasm32-wasi")
 	// the compiler's words for the screens' program into exe (its host's files written)
-	public function words(exe:String):Array<String> {
+	// (web: the program for the browser, helder.story.Screens there the
+	// preview host of a worker, helder.story.web.Preview: WebExport's)
+	public function words(exe:String, web = false):Array<String> {
+		var was = entry.target;
+		if (web) entry.target = "web";
 		var w = entry.args();
+		entry.target = was;
 		var host = screens[0].story;
 		if (host && typescript) {
 			var main = writeTypescriptHost();
@@ -134,8 +175,9 @@ class Project {
 			w[k + 1] = "StudioScreens";
 			w = ["-cp", gen].concat(w);
 		}
-		return w.concat([
-			"-D", "hxmc.dev", "-D", "disable-hxb-cache", "-D", "helder.headless", "-D", 'helder.name=$name', "--custom-target", 'hxmc=$exe']);
+		return w.concat(["-D", "hxmc.dev", "-D", "disable-hxb-cache"])
+			.concat(web ? [] : ["-D", "helder.headless"])
+			.concat(["-D", 'helder.name=$name', "--custom-target", 'hxmc=$exe']);
 	}
 
 	// (Haxe) the story files linked as modules (Foo.story.hx: Foo_story) and a main over their stories
@@ -188,6 +230,8 @@ class Project {
 		return main;
 	}
 
+	#end
+
 	function storyFiles():Array<String> {
 		var out = [];
 		for (s in screens) if (!out.contains(s.file)) out.push(s.file);
@@ -202,10 +246,10 @@ class Project {
 	public function sources():Array<String> {
 		var out = [];
 		function go(d:String)
-			for (n in (try FileSystem.readDirectory(d) catch (_:Dynamic) [])) {
+			for (n in Files.list(d)) {
 				if (n == "bin" || n == "node_modules" || n.startsWith(".")) continue;
 				var p = '$d/$n';
-				if (FileSystem.isDirectory(p)) go(p) else if ((n.endsWith(".hx") || n.endsWith(".tsx") || n.endsWith(".ts")) && !n.endsWith(".d.ts")) out.push(p);
+				if (Files.isDirectory(p)) go(p) else if ((n.endsWith(".hx") || n.endsWith(".tsx") || n.endsWith(".ts")) && !n.endsWith(".d.ts")) out.push(p);
 			}
 		go(dir);
 		out.sort(Reflect.compare);
@@ -213,7 +257,7 @@ class Project {
 	}
 
 	static function save(path:String, text:String)
-		if (!FileSystem.exists(path) || File.getContent(path) != text) File.saveContent(path, text);
+		if (!Files.exists(path) || Files.read(path) != text) Files.save(path, text);
 }
 
 typedef ScreenInfo = {

@@ -33,7 +33,10 @@ class Board implements Markup {
 				e.stop();
 			}}
 			onPan={g -> studio.camera.panBy(g.dx, g.dy)}
-			onPinch={g -> studio.camera.zoomAt(g.x, g.y, g.dscale)}>
+			onPinch={g -> {
+				studio.camera.zoomAt(g.x, g.y, g.dscale);
+				if (g.state == Ended) studio.log("pinched", {k: studio.camera.k});
+			}}>
 			<Show when={studio.mode() != "stories"}>
 				<view tag="world" position="absolute" left={0} top={0} width={1} height={1} transform-origin="left top" transform={transform(studio)}>
 					<For each={studio.layout.screens()}>{(r:Read<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}>) -> {
@@ -55,8 +58,8 @@ class Board implements Markup {
 				{overlay(studio)}
 			</Show>
 			<Show when={studio.mode() == "stories"}>{stories(studio)}</Show>
-			<Show when={studio.focused() != null && studio.mode() == "design"}>{Inspector.view(studio)}</Show>
-			<Show when={studio.mode() != "code"}>{Prompt.view(studio)}</Show>
+			<Show when={studio.focused() != null && studio.mode() == "design" && !studio.drawer()}>{Inspector.view(studio)}</Show>
+			<Show when={studio.mode() != "code" && !(studio.compact() && studio.focused() != null)}>{Prompt.view(studio)}</Show>
 		</view>;
 	}
 
@@ -70,7 +73,7 @@ class Board implements Markup {
 		return <view tag="overlay" position="absolute" inset={0} pointer-events="none">
 			<For each={flows(studio)}>{(f:Read<{name:String, x:Float, y:Float}>) ->
 				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 46} font-size={Theme.SMALL}
-					color={c("fg2")}>{f().name}</text>
+					color={c("fg2")} opacity={titleShown(studio, f().y) ? 1 : 0}>{f().name}</text>
 			}</For>
 			<For each={studio.layout.screens()}>{(r:Read<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}>) ->
 				<text tag="caption" position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 20} font-size={Theme.SMALL}
@@ -124,6 +127,12 @@ class Board implements Markup {
 				</view:button>;
 			}}</For>
 		</scroll>;
+	}
+
+	// (a flow's title above its row: the first's always, the others' while the rows are far enough apart to hold it, not over the row before)
+	static function titleShown(studio:Studio, wy:Float):Bool {
+		studio.camera.changed();
+		return wy <= 0 || Theme.FLOW_GAP * studio.camera.k >= 50;
 	}
 
 	static function flows(studio:Studio):Array<{name:String, x:Float, y:Float}> {

@@ -44,6 +44,12 @@ class Studio {
 	public final selection:Signal<Null<Selection>> = signal(null);
 	// the code view's file
 	public final codeFile:Signal<Null<String>> = signal(null);
+	// the window is compact (narrower than Theme.COMPACT: a phone, a tablet
+	// upright): the screens' list a drawer (open: drawer), the inspector a
+	// bottom sheet (open or peeking: sheetOpen)
+	public final compact = signal(false);
+	public final drawer = signal(false);
+	public final sheetOpen = signal(true);
 	// the status line's message, the agent's last reply
 	public final message = signal("");
 	public final reply = signal("");
@@ -53,8 +59,10 @@ class Studio {
 	public var stageNode:Null<Node> = null;
 	public final stageSize = signal(0);
 	public final editor:CodeEditor;
-	// events for checks (--events <file>: JSON lines), measurements
+	// events for checks (--events <file>: JSON lines; in the browser the page's, window.studioWeb.events), measurements
+	#if !(hxmc.target == "wasm32-wasi")
 	final events:Null<sys.io.FileOutput>;
+	#end
 	final startedAt:Float;
 	var openedAt = 0.0;
 	var shownAll = false;
@@ -74,12 +82,20 @@ class Studio {
 	public function new(dir:Null<String>, options:{?events:String, ?mcpPort:Int, ?holdWhile:String}) {
 		current = this;
 		startedAt = processStart;
-		events = options.events == null ? null : sys.io.File.write(options.events, false);
 		var p:Null<Project> = null;
+		#if (hxmc.target == "wasm32-wasi")
+		// (the page's project, opened before the module started)
+		p = try Project.opened() catch (e:Dynamic) {
+			Sys.println('studio: the project: $e');
+			null;
+		}
+		#else
+		events = options.events == null ? null : sys.io.File.write(options.events, false);
 		if (dir != null) p = try Project.open(dir) catch (e:Dynamic) {
 			Sys.println('studio: $dir: $e');
 			null;
 		}
+		#end
 		project = p;
 		previews = p == null ? null : new Previews(p);
 		layout = new Layout(this);
@@ -94,11 +110,13 @@ class Studio {
 			var pr = previews;
 			hold(() -> pr.allShown(), "the screens' first frames", 300);
 		}
+		#if !(hxmc.target == "wasm32-wasi")
 		if (options.holdWhile != null) {
 			var f = options.holdWhile;
 			hold(() -> !sys.FileSystem.exists(f), 'while $f exists', 600);
 		}
 		if (p != null) mcp = new Mcp(this, options.mcpPort ?? 0);
+		#end
 	}
 
 	// the project opened: the compiler, the screens' program built and started, the MCP server
@@ -121,11 +139,16 @@ class Studio {
 	}
 
 	public function log(event:String, data:Dynamic) {
-		if (events == null) return;
 		Reflect.setField(data, "event", event);
 		Reflect.setField(data, "frame", frames);
+		#if (hxmc.target == "wasm32-wasi")
+		var line = Json.stringify(data);
+		hxmc.unsafe.Arena.scoped(a -> studio.web.StudioWeb.event(a.cstring(line)));
+		#else
+		if (events == null) return;
 		events.writeString(Json.stringify(data) + "\n");
 		events.flush();
+		#end
 	}
 
 	// (each frame the studio draws: the first measured, the stage's size followed)
@@ -138,12 +161,33 @@ class Studio {
 			Sys.println('studio: first frame $ms ms after start');
 			log("first-frame", {ms: ms});
 		}
+		var w = Main.window == null ? 0.0 : Main.window.ui.width;
+		if (w > 0 && (w < Theme.COMPACT) != compact.peek()) {
+			compact(w < Theme.COMPACT);
+			if (!compact.peek()) drawer(false);
+		}
 		if (stage != null && (stage.width != stageWidth || stage.height != stageHeight) && stage.width > 0) {
 			stageWidth = stage.width;
 			stageHeight = stage.height;
 			stageSize(v -> v + 1);
 			fitView(false);
 		}
+		showVisible();
+	}
+
+	// the previews told which screens are in view (the camera's; the others
+	// suspended, their last frames kept) and which one is zoomed into (drawn
+	// every frame): a preview host draws only those
+	function showVisible() {
+		var pr = previews;
+		if (pr == null || stageWidth <= 0) return;
+		var names = [];
+		if (mode.peek() != "stories")
+			for (r in layout.screens()) {
+				var x0 = camera.sx(r.x), y0 = camera.sy(r.y), x1 = camera.sx(r.x + r.w), y1 = camera.sy(r.y + r.h);
+				if (x1 > 0 && y1 > 0 && x0 < stageWidth && y0 < stageHeight) names.push(r.name);
+			}
+		pr.show(names, mode.peek() == "stories" ? null : focused.peek());
 	}
 
 	// ---- the canvas: focus and views
@@ -154,6 +198,12 @@ class Studio {
 		if (name == null) selection(null);
 		fitTo(name, true);
 		refreshCode();
+	}
+
+	// the inspector's sheet opened or closed (compact), the zoomed screen fitted above it
+	public function toggleSheet() {
+		sheetOpen(!sheetOpen.peek());
+		fitView(true);
 	}
 
 	public function setMode(m:String) {
@@ -172,13 +222,15 @@ class Studio {
 	function fitTo(name:Null<String>, fly:Bool, ?m:String) {
 		if (stageWidth <= 0) return;
 		var code = (m ?? mode.peek()) == "code";
+		var small = compact.peek();
 		var v = if (name == null) {
 			var b = layout.bounds();
 			Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, 0, Theme.ASK_SPACE, Theme.TITLES);
 		} else {
 			var r = layout.rect(name);
 			if (r == null) return;
-			Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, code ? 0 : Theme.INSPECTOR + 24, code ? 0 : Theme.ASK_SPACE, 14);
+			if (small) Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 14, 0, code ? 0 : (sheetOpen.peek() ? Theme.SHEET : Theme.SHEET_PEEK) + 8, 18)
+			else Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, code ? 0 : Theme.INSPECTOR + 24, code ? 0 : Theme.ASK_SPACE, 14);
 		}
 		if (fly) camera.fly(v.x, v.y, v.k) else camera.jump(v.x, v.y, v.k);
 	}
@@ -354,7 +406,8 @@ class Studio {
 	// the strongest colour in the selection's box of the screen's last frame (a check's: what it shows)
 	function selectionColor(s:Screen):Null<String> {
 		var sel = selection.peek(), img = s.image.peek();
-		if (sel == null || img == null || sel.screen != s.info.name) return null;
+		// (a frame of the browser's preview host is a bitmap on the GPU: its pixels not here)
+		if (sel == null || img == null || sel.screen != s.info.name || !img.hasPixels) return null;
 		var px = img.pixels, best = -1.0, out:Null<String> = null;
 		var x0 = Std.int(Math.max(0, sel.x)), y0 = Std.int(Math.max(0, sel.y));
 		var x1 = Std.int(Math.min(img.width, sel.x + sel.width)), y1 = Std.int(Math.min(img.height, sel.y + sel.height));
@@ -640,7 +693,9 @@ class Studio {
 
 	@:coroutine public function stop() {
 		if (previews != null) previews.stop();
+		#if !(hxmc.target == "wasm32-wasi")
 		if (events != null) events.close();
+		#end
 	}
 }
 

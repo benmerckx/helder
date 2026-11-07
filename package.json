@@ -7,6 +7,7 @@
     "src/",
     "apps/studio/src/",
     "apps/studio/fonts/",
+    "apps/studio/web/",
     "apps/studio/package.json"
   ],
   "bin": {

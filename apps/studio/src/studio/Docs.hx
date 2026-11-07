@@ -4,7 +4,6 @@ import helder.syntax.Document;
 import helder.syntax.Scanner.Lang;
 import helder.syntax.Transaction;
 import helder.view.graph.Graph.*;
-import sys.io.File;
 
 // The project's files as the studio edits them: each open file's text and
 // its syntax tree (helder.syntax, read again after each edit), and one
@@ -31,7 +30,7 @@ class Docs {
 	public function get(path:String):OpenFile {
 		var f = files.get(path);
 		if (f == null) {
-			f = new OpenFile(path, File.getContent(path));
+			f = new OpenFile(path, Files.read(path));
 			files.set(path, f);
 		}
 		return f;
@@ -112,7 +111,7 @@ class OpenFile {
 	}
 
 	public function save()
-		File.saveContent(path, text);
+		Files.save(path, text);
 }
 
 typedef Entry = {

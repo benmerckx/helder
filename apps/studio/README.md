@@ -85,6 +85,70 @@ opens, not built, so the canvas is laid out before anything compiled.
 - The compiler stays warm (helder.compiler.service). One build runs at a
   time; files edited during a build are written after it.
 
+## In the browser
+
+The same studio built for the web (helder's web target, WebGPU or WebGL2:
+`?gfx=webgl2`), its page `apps/studio/web`:
+
+```sh
+node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then serve the directory
+```
+
+- **Projects live in OPFS** (the origin's private file system), each under
+  `projects/<name>/`. The welcome (no `?project=`) opens a folder (the File
+  System Access API: its sources copied into OPFS, and written back to the
+  folder while the page may), an example bundled with the page, or a
+  project already in OPFS. The page reads the project into memory before
+  the studio's module starts and writes each save back (`studio.mjs`,
+  `Files`).
+- **One preview host per project.** The project's program runs once, in a
+  Web Worker, every story mounted in it as a root of its own with a
+  context of its own (helder.story.Host, helder.ui.ScreenContext: its
+  clock and timers, keymap, settings, safe area, dark or light; its Ui's
+  focus and theme). Only the screens in the canvas' view draw: the one
+  zoomed into every frame, the others when something in them changes; a
+  screen out of view is suspended and its last frame kept. Each frame is
+  drawn on the worker's OffscreenCanvas and posted as an ImageBitmap; the
+  studio's renderer uploads it (copyExternalImageToTexture) and composites
+  it like any image, so the studio owns its pixels
+  (helder.story.web.Preview, `studio.web.WebPreviews`).
+- **The devtools protocol as the worker's messages**: Ui.getTree and
+  Ui.nodesAt name the screen, Hot.literals patches the one program (every
+  screen's next frame shows it). An inspector's colour reaches the
+  preview's frame in 12 to 24 ms, one studio frame.
+- **The preview's module** of an example is built where the page is built
+  (`helder studio <project> -- --export-web <dir>`: the screens' program
+  for the web, a dev build, with its live literals' tables and the links
+  from its build's paths to the project's). A structural edit goes to the
+  compiler's worker (helder.compiler.web, its protocol's `build`: the
+  screens' program written beside the project, the host started again
+  from its state) when the page has one; until it lands such an edit is
+  saved, not built, and the studio says so.
+- **Touch.** Narrower than 900 points (a phone, a tablet upright) the
+  studio is compact: the screens' list a drawer from the header's
+  "Screens", the inspector a bottom sheet sliding up when a screen is
+  zoomed into (its handle opens and closes it; motion's springs), the
+  canvas panned with a finger and zoomed with a pinch. A phone's studio
+  is this page in the system's web view.
+
+The studio-web lane (`bun run test studio-web`, tests/studio-web) drives
+it in headless Chromium: the welcome's Todo opened, all screens shown,
+one zoomed into, its title selected, its colour changed (patched, the
+next frames showing it, the file in OPFS), at a desktop's width and a
+phone's (taps, a pinch, the drawer), the overview and zoomed states
+against goldens; and 50 screens opened and measured. The story-host lane
+measures one host against a process a screen natively (50 screens of
+examples/todo, Linux, llvmpipe):
+
+| | open to every first frame | resident (sum) | Pss (sum) |
+|---|---|---|---|
+| one host (helder.story.Host) | 308 ms | 202 MB | 168 MB |
+| a process a screen (today's desktop studio) | 3329 ms | 6147 MB | 2798 MB |
+
+In Chromium (SwiftShader's WebGPU, the same machine), 50 screens: every
+screen shown 0.7 s after the project opened, the preview's module 78 MB,
+the studio's 27 MB.
+
 ## Agents over MCP
 
 The studio serves its tools over MCP (Streamable HTTP, JSON responses)
@@ -158,6 +222,15 @@ On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
   the story's view gets its attributes crossed); the studio sees the
   screens end at their start and builds again from cold (2 s more).
 - No model calls: the prompt bar's agent only calls the tools.
+- The desktop studio still runs a process a screen: the one-host model with
+  shared GPU textures (HostRuntime's native runtime) is next; the host and
+  its contexts are ready for it.
+- In the browser: structural edits wait for the compiler's worker
+  (helder.compiler.web); a TypeScript project's screens share its modules'
+  state in one program (a story that sets a module's signal sets it for
+  every screen: ts-todo's stories), so only Haxe examples are bundled; the
+  screens' frames are drawn at 1x and scaled; MCP has no server there
+  (WebMCP is the plan's).
 - Opening apps/studio in itself works crudely: its stories show the shell
   without a project and with examples/todo not started, at the window's
   size, without the camera fitted.
