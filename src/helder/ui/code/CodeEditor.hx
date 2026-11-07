@@ -6,7 +6,7 @@ import helder.ui.code.CodeLanguage;
 import helder.ui.code.CodeModel;
 import helder.ui.widgets.TextField;
 
-// A code editor (helder.ui.code; README.md): a CodeView of a CodeModel,
+// A code editor (helder.ui.code; helder.ui's README): a CodeView of a CodeModel,
 // with its find and replace panel (secondary-F, secondary-H: the matches
 // as you type, case, whole words and regular expressions, the next and
 // previous, one replaced or all) and its go to line panel (secondary-G),

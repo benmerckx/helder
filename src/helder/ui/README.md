@@ -275,6 +275,33 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   `UiWindow`'s `Ui.dark` follows the system's appearance
   (`helder.os.App.prefersDark`: the browser's colour scheme, macOS's,
   Windows', GTK's settings).
+- **`helder.ui.code`**: a code editor. `CodeModel` is its document: a
+  rope (`Rope`: chunks of at most 1 KB with their lengths, UTF-8 lengths
+  and line breaks; line and offset lookups and UTF-16/UTF-8 mapping by
+  binary search), multi-cursor selections, undo grouped by runs of
+  typing, highlighting read again from an edited line until a line's
+  state is the one it had (`CodeLanguage`; TypeScript, TSX and Haxe are
+  `helder.syntax.Lexer`'s, by extension in `CodeLanguages`, more
+  registered), and the commands (brackets paired, Enter's indentation,
+  words, indent, comments, duplicated and moved lines, cursors above,
+  below and at the next occurrence, find and replace). `CodeView` draws
+  it virtualised (only the lines in view highlighted, laid out and
+  drawn; a line laid out kept until it changes, and shared by content)
+  in the bundled JetBrains Mono (OFL, ligatures off unless asked): a
+  gutter of line numbers and diagnostics, the current line, selections,
+  cursors that blink and spring, indentation guides, whitespace in
+  selections, decorations, squiggles with their message on hover; keys
+  are `CodeAction`'s through the keymap (context `CodeEditor`), an input
+  method composes at the primary caret (its context the caret's line),
+  and assistive technology reads a multi-line text input
+  (`Node.accessValue`). `CodeEditor` adds find and replace and go to
+  line, and the studio's hooks: `revealRange`, `setSelection(s)`,
+  `addDecoration`, `setDiagnostics` (helder.compiler.service's),
+  `onChange` with each edit's changes (helder.syntax's: a
+  `Transaction`'s). examples/code-editor hosts it; tests: `CodeModel.test.hx`,
+  `CodeEditor.test.hx`, the headless-run lane (a scripted 2,000-line TSX
+  file), the code-bench lane (tests/bench/results/code-editor.md). Not
+  yet: soft wrap, folding, completion, bidi text on its column grid.
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
