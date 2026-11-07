@@ -133,6 +133,8 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	// its children that left and are still drawn until their exits settle (Motions), and a leaving node's old parent
 	public var exits(default, null):Null<Array<Node>> = null;
 	public var leftFrom(default, null):Null<Node> = null;
+	// (inserted into a drawn parent: it enters as it is first drawn, Motions.enter)
+	var entering = false;
 
 	function set_motion(v:Null<helder.ui.motion.MotionSpec>):Null<helder.ui.motion.MotionSpec> {
 		if (v != null) helder.ui.motion.Motions.enable();

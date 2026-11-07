@@ -420,6 +420,11 @@ class Ui {
 	function paintNode(n:Node, canvas:Canvas) {
 		var s = n.style;
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
+		if (!@:privateAccess s.drawn) {
+			@:privateAccess s.drawn = true;
+			if (@:privateAccess s.starting) @:privateAccess n.restyleLater();
+			if (@:privateAccess n.entering) helder.ui.motion.Motions.enter(n);
+		}
 		// (motion: where its tracks draw it, helder.ui.motion.Present)
 		var p = n.present;
 		if (p != null && p.flying && !flying) {
@@ -427,10 +432,6 @@ class Ui {
 			flightAt.push(ptx);
 			flightAt.push(pty);
 			return;
-		}
-		if (!@:privateAccess s.drawn) {
-			@:privateAccess s.drawn = true;
-			if (@:privateAccess s.starting) @:privateAccess n.restyleLater();
 		}
 		var opacity = p == null ? s.opacity : s.opacity * p.presenceOpacity();
 		if (opacity <= 0) return;

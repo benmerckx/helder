@@ -150,11 +150,13 @@ class ViewRuntime {
 		return new helder.view.Mounted.Shown(o, nodes);
 	}
 
+	// (its nodes taken out first, then its owner disposed: what leaves is taken out as it was, its
+	// contents still in it, ui's leaving nodes drawn so until their exits settle)
 	static function unmount(s:Null<helder.view.Mounted.Shown<HostNode>>, parent:HostNode) {
 		if (s == null) return;
-		s.owner.dispose();
 		for (n in s.nodes)
 			detach(parent, n);
+		s.owner.dispose();
 	}
 
 	// a reactive region: its content drawn again before a marker
@@ -375,6 +377,23 @@ class ViewRuntime {
 		// (the rows belong to the owner the list is mounted in)
 		var home = helder.view.graph.Graph.getOwner();
 		var entries:Array<helder.view.Mounted.Row<HostNode>> = [];
+		// (rows taken out whose nodes are still leaving (the renderer's leaving): taken back if their key comes back)
+		var leaving:Array<helder.view.Mounted.Row<HostNode>> = [];
+		function left(r:helder.view.Mounted.Row<HostNode>) {
+			if (leaving.indexOf(r) < 0) return;
+			for (n in r.shown.nodes)
+				if (LEAVING(n, null)) return;
+			leaving.remove(r);
+			r.shown.owner.dispose();
+		}
+		function drop(r:helder.view.Mounted.Row<HostNode>) {
+			var kept = false;
+			for (n in r.shown.nodes) {
+				detach(parent, n);
+				if (LEAVING(n, () -> left(r))) kept = true;
+			}
+			if (kept) leaving.push(r) else r.shown.owner.dispose();
+		}
 		function make(item:Dynamic, at:Int):helder.view.Mounted.Row<HostNode> {
 			var cell = list.keyed && list.key == null ? null : helder.view.graph.Node.signal((item : Dynamic), {ownedWrite: true});
 			var read:helder.view.graph.Read<Dynamic> = cell != null ? (cell : helder.view.graph.Read.Reader<Dynamic>) : (new helder.view.graph.Read.Const<Dynamic>(item) : helder.view.graph.Read.Reader<Dynamic>);
@@ -427,17 +446,38 @@ class ViewRuntime {
 					taken[k] = true;
 					while (first < old.length && taken[first])
 						first++;
+					continue;
+				}
+				// (a row leaving, its key back: taken back from where it is drawn)
+				var back = -1;
+				for (j in 0...leaving.length)
+					if (key == null ? leaving[j].item == item : key(leaving[j].item) == id) {
+						back = j;
+						break;
+					}
+				if (back >= 0) {
+					var r = leaving.splice(back, 1)[0];
+					if (key != null && r.item != item) {
+						r.item = item;
+						r.cell.write(item);
+					}
+					next.push(r);
 				} else next.push(make(item, next.length));
 			}
 			for (j in 0...old.length)
-				if (!taken[j]) unmount(old[j].shown, parent);
+				if (!taken[j]) drop(old[j]);
 			// in order, before the anchor (where the rows are: the new ones
 			// were put there; a row's node moved out by hand is put back)
 			arrange(parent, [for (e in next) for (n in e.shown.nodes) n], anchor);
 			entries = next;
 		});
-		helder.view.graph.Graph.onCleanup(() -> for (e in entries)
-			unmount(e.shown, parent));
+		helder.view.graph.Graph.onCleanup(() -> {
+			for (e in entries)
+				unmount(e.shown, parent);
+			for (r in leaving)
+				r.shown.owner.dispose();
+			leaving = [];
+		});
 		return [anchor];
 	}
 

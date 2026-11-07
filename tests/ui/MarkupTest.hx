@@ -33,6 +33,7 @@ class MarkupTest implements Markup {
 		rendering();
 		flow();
 		motion();
+		propertyTracks();
 		access();
 		accessFixture();
 		popovers();
@@ -704,6 +705,73 @@ class MarkupTest implements Markup {
 		check("text units: an endpoint moved to the end, as far as it goes", e.at == 7 && e.moved == 2, '${e.at} ${e.moved}');
 		check("text units: a surrogate pair one character", TextUnits.pieces("a\u{1F600}b", Character).length == 3);
 		check("fixture: JSON's new fields", t.nodes.get(grid.id).toJson().rowCount == 3 && pear.toJson().posInSet == 2 && code.toJson().readOnly == true);
+	}
+
+	// motion declared in markup (helder.ui.motion): motion, its per-property
+	// curves, lead and trail, matched, instant, ride; a keyed For's rows
+	// entering and leaving by their transition, one taken back mid-exit (the
+	// same row, its node revived), one gone for good (its owner disposed once
+	// its exit settled)
+	static function propertyTracks() {
+		var ui = new Ui(null, 300, 400), canvas = new UiTest.Recording();
+		var items = signal(["a", "b", "c"]);
+		made = disposed = 0;
+		Render.render(<view tag="list" motion="snappy" motion-opacity="calm" lead="lead" trail="0.5 0.1">
+			<For each={items}>{(s:Read<String>) -> <TrackRow name={s}/>}</For>
+			<view tag="pinned" ride="trailing" matched="m" instant/>
+		</view>, ui.root);
+		var list = ui.root.find("list"), pinned = ui.root.find("pinned");
+		var spec = list.motion;
+		check("tracks: motion's token", spec != null && spec.curve.token == "snappy", '$spec');
+		check("tracks: per property", spec.opacity.token == "calm" && spec.lead.token == "lead" && spec.trail.duration == 0.5 && spec.trail.bounce == 0.1);
+		check("tracks: ride, matched, instant", pinned.ride == 3 && pinned.matched == "m" && pinned.instant);
+		var row = list.find("row-a");
+		check("tracks: a transition's presence", row.style.transition.presence != null && row.style.transition.presence.dy == 16);
+		var t = 1000.0;
+		function frame() {
+			Clock.tick(t += 1 / 60);
+			ui.update();
+			canvas.calls.resize(0);
+			ui.paint(canvas);
+		}
+		frame();
+		check("tracks: nothing on the first frame", list.find("row-a").present == null);
+		var b = list.find("row-b");
+		items(["a", "c"]);
+		flush();
+		frame();
+		frame();
+		check("tracks: a row leaving, kept drawn", b.parent == null && b.leftFrom == list && list.exits.indexOf(b) >= 0);
+		check("tracks: drawn fading", canvas.calls.filter(c -> StringTools.startsWith(c, "opacity 0.")).length > 0, canvas.calls.join("; "));
+		items(["a", "b", "c"]);
+		flush();
+		frame();
+		check("tracks: taken back mid-exit, the same row", made == 3 && disposed == 0 && list.find("row-b") == b && b.leftFrom == null, '$made made, $disposed disposed');
+		var c = list.find("row-c");
+		items(["a", "b"]);
+		flush();
+		for (_ in 0...60)
+			frame();
+
+		check("tracks: gone once its exit settled, its owner disposed", disposed == 1 && list.find("row-c") == null && list.exits.length == 0, '$disposed disposed');
+		items(["a", "b", "d"]);
+		flush();
+		frame();
+		frame();
+		var d = list.find("row-d");
+		check("tracks: a new row entering", made == 4 && d.present != null && d.present.presence != null && d.present.presence.value < 1);
+		ui.update();
+		Clock.finish();
+	}
+
+	static var made = 0;
+	static var disposed = 0;
+
+	// (a row of propertyTracks' list: its making and its owner's disposal counted)
+	static function TrackRow(props:{name:Read<String>}) {
+		made++;
+		onCleanup(() -> disposed++);
+		return <view tag={"row-" + props.name()} height={20} transition="fade slide-up" background="#808080"/>;
 	}
 
 	static function motion() {

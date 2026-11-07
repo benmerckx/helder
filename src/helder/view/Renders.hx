@@ -58,6 +58,14 @@ package helder.view;
 //
 //   static function markEnds():Void;
 //
+// Optional: a function leaving (ui's): whether a node just removed (remove)
+// is still leaving, drawn until its exit settles, done called when it has
+// left (not when it comes back first); a keyed For keeps a row whose nodes
+// are leaving, unmounted once they have left, and takes it back, its nodes
+// put back where they are drawn, when its key comes back meanwhile.
+//
+//   static function leaving(node:N, done:Void->Void):Bool;
+//
 // Optional metadata on the class: @:elements("a", "b"), its elements when
 // it has a closed set (another name an error); @:events(T), its events,
 // T a structure of each event attribute's event type:

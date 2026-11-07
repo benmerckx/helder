@@ -162,6 +162,10 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	public static inline function remove(parent:Node, node:Node)
 		parent.remove(node);
 
+	// (a node just removed still leaving, drawn until its exit settles: helder.ui.motion's presence)
+	public static function leaving(node:Node, done:Null<Void->Void>):Bool
+		return helder.ui.motion.Motions.leaving(node, done);
+
 	public static inline function parentOf(node:Node):Null<Node>
 		return node.parent;
 

@@ -261,6 +261,7 @@ class Motions {
 		// (revived: back from where it is, its exit undone)
 		if (p != null && p.exiting) {
 			endGhost(p);
+			p.onExited = null;
 			if (p.presence != null) {
 				var spec = specOf(child) ?? MotionSpec.DEFAULT;
 				p.presence.animate(now(), 1, Clock.reducedMotion ? Curve.REDUCED_FADE : curveOf(spec.presenceCurve(), child));
@@ -268,13 +269,21 @@ class Motions {
 			}
 			return;
 		}
-		var tr = child.style.transition;
-		if (tr == null || tr.presence == null || parent.ui == null || !@:privateAccess parent.style.drawn || underInstant(child)) return;
-		p = present(child);
+		// (into a drawn parent: it enters when it is first drawn, by the transition it has then)
+		if (parent.ui != null && @:privateAccess parent.style.drawn && !underInstant(child)) @:privateAccess child.entering = true;
+	}
+
+	// (Ui's paint: n, inserted into a drawn parent, drawn for the first time: entering by its transition's presence)
+	public static function enter(n:Node) {
+		@:privateAccess n.entering = false;
+		var tr = n.style.transition;
+		if (tr == null || tr.presence == null) return;
+		var p = present(n);
 		p.effect = tr.presence;
 		if (p.presence == null) p.presence = new Track(0, 1e-4) else p.presence.set(0);
-		var spec = specOf(child) ?? MotionSpec.DEFAULT;
-		p.presence.animate(now(), 1, Clock.reducedMotion ? Curve.REDUCED_FADE : curveOf(spec.presenceCurve(), child));
+		var spec = specOf(n) ?? MotionSpec.DEFAULT;
+		// (from this frame's time: it is drawing)
+		p.presence.animate(Clock.now, 1, Clock.reducedMotion ? Curve.REDUCED_FADE : curveOf(spec.presenceCurve(), n));
 		activate(p);
 	}
 

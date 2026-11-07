@@ -23,6 +23,8 @@ typedef RendererInfo = {
 	id:Int,
 	// whether a region that ends its parent has a marker too (a static function markEnds: the page's renderers)
 	markEnds:Bool,
+	// whether a node removed may still be leaving, drawn until its exit settles (a static function leaving(node, done):Bool, ui's)
+	leaving:Bool,
 	// its runtime's class name
 	runtime:String
 };
@@ -86,6 +88,7 @@ class HostMacro {
 						evs[0].pos) : haxe.macro.ExprTools.toString(evs[0].params[0]),
 					id: id(full),
 					markEnds: have.exists("markEnds"),
+					leaving: have.exists("leaving"),
 					runtime: runtimeName(c.name, full)
 				};
 				infos.set(path, i);
@@ -215,7 +218,7 @@ class HostMacro {
 
 	// a field with Host, HostNode, ViewRuntime, INDEX and NAME those of renderer i
 	static function subst(f:Field, i:RendererInfo):Field
-		return new Subst(i.node, i.path.split("."), i.runtime, i.id, i.path, i.markEnds).field(f);
+		return new Subst(i.node, i.path.split("."), i.runtime, i.id, i.path, i.markEnds, i.leaving).field(f);
 
 	// --- after typing: the agnostic literals' code for each reached renderer
 
@@ -363,8 +366,10 @@ private class Subst {
 	final id:Int;
 	final name:String;
 	final markEnds:Bool;
+	final leaving:Bool;
 
-	public function new(node, host, self, id, name, markEnds) {
+	public function new(node, host, self, id, name, markEnds, leaving) {
+		this.leaving = leaving;
 		this.node = node;
 		this.host = host;
 		this.self = self;
@@ -405,6 +410,8 @@ private class Subst {
 			case EConst(CIdent("INDEX")): macro @:pos(e.pos) $v{id};
 			case EConst(CIdent("NAME")): macro @:pos(e.pos) $v{name};
 			case EConst(CIdent("MARK_ENDS")): macro @:pos(e.pos) $v{markEnds};
+			// (LEAVING(node, done): the renderer's leaving, else false)
+			case ECall({expr: EConst(CIdent("LEAVING"))}, args): leaving ? {expr: ECall(macro @:pos(e.pos) $p{host.concat(["leaving"])}, [for (a in args) ex(a)]), pos: e.pos} : macro @:pos(e.pos) false;
 			case EVars(vs): {expr: EVars([for (v in vs) {name: v.name, type: ct(v.type), expr: v.expr == null ? null : ex(v.expr), isFinal: v.isFinal}]), pos: e.pos};
 			case ENew(t, args): {expr: ENew({pack: t.pack, name: t.name, sub: t.sub, params: t.params}, [for (a in args) ex(a)]), pos: e.pos};
 			case ECast(x, t): {expr: ECast(ex(x), ct(t)), pos: e.pos};
