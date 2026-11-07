@@ -7,6 +7,7 @@ import hxmc.unsafe.*;
 // helder.os.objc.Msg), the ones with Metal's structs
 @:build(helder.os.objc.Sender.build())
 class MtlMsg {
+	static function idPtrPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Int64):Ptr;
 	static function vClear(self:Ptr, sel:Ptr, c:MTLClearColor):Void;
 	static function vViewport(self:Ptr, sel:Ptr, v:MTLViewport):Void;
 	static function vPtrIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64):Void;

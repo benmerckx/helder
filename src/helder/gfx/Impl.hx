@@ -125,6 +125,21 @@ abstract Impl(Any) {
 	public inline function readPixels(dst:haxe.io.Bytes)
 		Mem.os() == 1 ? mtl().readPixels(dst) : Mem.os() == 2 ? d3d().readPixels(dst) : Mem.os() != 3 ? gl().readPixels(dst) : webgl() ? gl().readPixels(dst) : wgpu().readPixels(dst);
 
+	// (shared textures: Metal's, D3D11's and GL's; none in a browser)
+	public inline function sharing():Null<String>
+		return Mem.os() == 1 ? mtl().sharing() : Mem.os() == 2 ? d3d().sharing() : Mem.os() != 3 ? gl().sharing() : null;
+
+	public inline function createShared(width:Int, height:Int):Null<{id:Int, handle:String}>
+		return Mem.os() == 1 ? mtl().createShared(width, height) : Mem.os() == 2 ? d3d().createShared(width, height) : Mem.os() != 3 ? gl().createShared(width,
+			height) : null;
+
+	public inline function openShared(handle:String, width:Int, height:Int):Int
+		return Mem.os() == 1 ? mtl().openShared(handle, width, height) : Mem.os() == 2 ? d3d().openShared(handle, width, height) : Mem.os() != 3 ? gl().openShared(handle,
+			width, height) : 0;
+
+	public inline function frameInto(id:Int)
+		Mem.os() == 1 ? mtl().frameInto(id) : Mem.os() == 2 ? d3d().frameInto(id) : Mem.os() != 3 ? gl().frameInto(id) : if (id != 0) throw "helder.gfx: frameInto: not in a browser";
+
 	public inline function dispose()
 		Mem.os() == 1 ? mtl().dispose() : Mem.os() == 2 ? d3d().dispose() : Mem.os() != 3 ? gl().dispose() : webgl() ? gl().dispose() : wgpu().dispose();
 }

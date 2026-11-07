@@ -94,6 +94,18 @@ class GLBackend {
 	var uniformAlign = 256;
 
 	static inline var MAX_SLOTS = 8;
+	// frameInto's texture (0: the surface's); the textures on EGL images
+	// (createShared's, exported as dma-bufs, their descriptors to close;
+	// openShared's, imported): destroyed with them
+	var frameTarget = 0;
+	var framed = false;
+	final images = new Map<Int, {image:Ptr, fd:Int}>();
+	var dmabuf:Null<Bool> = null;
+	var pCreateImage = Ptr.nil();
+	var pDestroyImage = Ptr.nil();
+	var pExportQuery = Ptr.nil();
+	var pExport = Ptr.nil();
+	var pImageTarget = Ptr.nil();
 	#if hxmc.dev
 	var vao = 0;
 	#end
@@ -439,6 +451,15 @@ class GLBackend {
 		scratch.value = t;
 		if (infos[id - 1].samples > 1) GL.glDeleteRenderbuffers(1, scratch) else GL.glDeleteTextures(1, scratch);
 		textures[id - 1] = 0;
+		if (frameTarget == id) frameTarget = 0;
+		var img = images.get(id);
+		if (img != null) {
+			images.remove(id);
+			if (Mem.os() != 3) {
+				EglImage.destroy(pDestroyImage, display, img.image);
+				if (img.fd >= 0) Posix.close(img.fd);
+			}
+		}
 	}
 
 	public function createSampler(d:SamplerDesc):Int {
@@ -548,8 +569,125 @@ class GLBackend {
 		#end
 	}
 
+
+	// ---- shared textures: dma-bufs through EGL (Device.createShared, openShared)
+
+	// "dmabuf" where EGL exports GL textures as dma-bufs and imports them
+	// (EGL_MESA_image_dma_buf_export, EGL_EXT_image_dma_buf_import,
+	// EGL_KHR_gl_texture_2D_image) and Linux lends a process's descriptors
+	// (pidfd_getfd); not on Android, not in a browser; HELDER_NO_DMABUF=1:
+	// none (the copy's path, tested where the GPU has them)
+	public function sharing():Null<String> {
+		if (Mem.os() == 3 || Mem.target() >= 9) return null;
+		if (dmabuf == null) {
+			use();
+			var p = Egl.eglQueryString(display, EGL.EXTENSIONS);
+			var ext = p.isNull() ? "" : (cast p : CString).toString();
+			var ok = Sys.getEnv("HELDER_NO_DMABUF") != "1" && ext.indexOf("EGL_MESA_image_dma_buf_export") >= 0
+				&& ext.indexOf("EGL_EXT_image_dma_buf_import") >= 0 && ext.indexOf("EGL_KHR_gl_texture_2D_image") >= 0;
+			if (ok) {
+				pCreateImage = Egl.eglGetProcAddress(Mem.cstr("eglCreateImageKHR"));
+				pDestroyImage = Egl.eglGetProcAddress(Mem.cstr("eglDestroyImageKHR"));
+				pExportQuery = Egl.eglGetProcAddress(Mem.cstr("eglExportDMABUFImageQueryMESA"));
+				pExport = Egl.eglGetProcAddress(Mem.cstr("eglExportDMABUFImageMESA"));
+				pImageTarget = Egl.eglGetProcAddress(Mem.cstr("glEGLImageTargetTexture2DOES"));
+				ok = !pCreateImage.isNull() && !pDestroyImage.isNull() && !pExportQuery.isNull() && !pExport.isNull() && !pImageTarget.isNull();
+			}
+			dmabuf = ok;
+		}
+		return dmabuf ? "dmabuf" : null;
+	}
+
+	// a render target exported as a dma-buf of one plane: its descriptor
+	// (this process's), DRM fourcc, stride, offset and modifier in the handle,
+	// with this process's id (the other one takes the descriptor: pidfd_getfd)
+	public function createShared(w:Int, h:Int):Null<{id:Int, handle:String}> {
+		if (sharing() == null) return null;
+		use();
+		var id = createTexture({width: w, height: h, renderTarget: true});
+		var q:Ptr<Int32> = LibC.malloc(64);
+		LibC.memset(q, 0, 64);
+		var image = Arena.scopedValue(a -> EglImage.create(pCreateImage, display, context, EGL.GL_TEXTURE_2D_KHR, Ptr.ofI64(textures[id - 1]), ints(a, [EGL.NONE])));
+		if (image.isNull()
+			|| EglImage.query(pExportQuery, display, image, q, q.offset(1), q.offset(2)) == 0
+			|| q[1] != 1
+			|| EglImage.export(pExport, display, image, q.offset(4), q.offset(5), q.offset(6)) == 0) {
+			if (!image.isNull()) EglImage.destroy(pDestroyImage, display, image);
+			LibC.free(q);
+			destroyTexture(id);
+			return null;
+		}
+		images.set(id, {image: image, fd: q[4]});
+		// (the process, the descriptor, fourcc, stride, offset, the modifier's high and low halves)
+		var handle = "dmabuf:" + pid() + ":" + q[4] + ":" + q[0] + ":" + q[5] + ":" + q[6] + ":" + q[3] + ":" + q[2];
+		LibC.free(q);
+		return {id: id, handle: handle};
+	}
+
+	static var ownPid = 0;
+
+	static function pid():Int {
+		if (ownPid == 0) ownPid = Std.parseInt(haxe.io.Path.withoutDirectory(sys.FileSystem.fullPath("/proc/self"))) ?? 0;
+		return ownPid;
+	}
+
+	public function openShared(handle:String, w:Int, h:Int):Int {
+		if (Mem.os() == 3 || Mem.target() >= 9 || !StringTools.startsWith(handle, "dmabuf:") || sharing() == null) return 0;
+		var f = [for (x in handle.substr(7).split(":")) Std.parseInt(x) ?? 0];
+		if (f.length < 7) return 0;
+		use();
+		// (the producer's descriptor, ours now: pidfd_open 434, pidfd_getfd 438)
+		var pidfd = LinuxCall.syscall(434, f[0], 0, 0).toInt();
+		if (pidfd < 0) return 0;
+		var fd = LinuxCall.syscall(438, pidfd, f[1], 0).toInt();
+		Posix.close(pidfd);
+		if (fd < 0) return 0;
+		var attribs = [
+			EGL.WIDTH, w, EGL.HEIGHT, h, EGL.LINUX_DRM_FOURCC_EXT, f[2], EGL.DMA_BUF_PLANE0_FD_EXT, fd, EGL.DMA_BUF_PLANE0_OFFSET_EXT, f[4],
+			EGL.DMA_BUF_PLANE0_PITCH_EXT, f[3]
+		];
+		// (DRM_FORMAT_MOD_INVALID, 0x00ffffffffffffff: none said)
+		if (!(f[5] == 0xFFFFFF && f[6] == -1)) attribs = attribs.concat([EGL.DMA_BUF_PLANE0_MODIFIER_LO_EXT, f[6], EGL.DMA_BUF_PLANE0_MODIFIER_HI_EXT, f[5]]);
+		attribs.push(EGL.NONE);
+		var image = Arena.scopedValue(a -> EglImage.create(pCreateImage, display, Ptr.nil(), EGL.LINUX_DMA_BUF_EXT, Ptr.nil(), ints(a, attribs)));
+		// (EGL keeps its own reference to the buffer)
+		Posix.close(fd);
+		if (image.isNull()) return 0;
+		GL.glGenTextures(1, scratch);
+		var t = scratch.value;
+		textures.push(t);
+		infos.push(TextureInfo.of({width: w, height: h}));
+		GL.glActiveTexture(GL.TEXTURE0);
+		GL.glBindTexture(GL.TEXTURE_2D, t);
+		EglImage.target(pImageTarget, GL.TEXTURE_2D, image);
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
+		images.set(textures.length, {image: image, fd: -1});
+		return textures.length;
+	}
+
+	public function frameInto(id:Int)
+		frameTarget = id;
+
+	// (a pass without a colour texture while frameInto's is set: into it)
+	inline function framePass(p:PassDesc):PassDesc {
+		var c = p.colors[0];
+		return frameTarget == 0 || c.texture != null ? p : {colors: [{load: c.load, clear: c.clear, texture: new Texture(frameTarget)}]};
+	}
+
 	public function beginFrame():Bool {
 		use();
+		if (frameTarget != 0) {
+			framed = true;
+			ring ^= 1;
+			cursor = 0;
+			width = infos[frameTarget - 1].width;
+			height = infos[frameTarget - 1].height;
+			return true;
+		}
+		if (framed) {
+			framed = false;
+			if (Mem.os() != 3) querySize();
+		}
 		// (Android: a new window after a Resume, none while suspended; the
 		// target's comparison alone, folded elsewhere)
 		if (Mem.target() >= 9) if (surface.kind != Headless) {
@@ -569,6 +707,7 @@ class GLBackend {
 	}
 
 	public function beginPass(p:PassDesc) {
+		p = framePass(p);
 		var c = p.colors[0], d = p.depth, mask = 0;
 		if (c.texture == null) {
 			if (framebuffer != 0) GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = 0);
@@ -745,6 +884,11 @@ class GLBackend {
 	}
 
 	public function endFrame() {
+		// (into a shared texture: complete before the other process is told)
+		if (frameTarget != 0) {
+			if (images.exists(frameTarget)) GL.glFinish();
+			return;
+		}
 		if (Mem.os() == 3) WebGL.swap(web) else if (surface.kind != Headless && !eglSurface.isNull()) Egl.eglSwapBuffers(display, eglSurface);
 	}
 
@@ -756,6 +900,14 @@ class GLBackend {
 			LibC.free(pixels);
 			pixels = LibC.malloc((size : Int64));
 			pixelsSize = size;
+		}
+		if (frameTarget != 0) {
+			// (frameInto's texture: drawn upside down, its rows top to bottom)
+			beginPass({colors: [{load: Load}]});
+			GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);
+			GL.glReadPixels(0, 0, width, height, GL.RGBA, GL.UNSIGNED_BYTE, pixels);
+			BytesPtr.copyIn(dst, 0, pixels, size);
+			return;
 		}
 		if (framebuffer != 0) GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = 0);
 		GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);

@@ -74,6 +74,13 @@ class MetalBackend {
 	var itype = 0;
 	var ioffset = 0;
 
+	// frameInto's texture (0: the surface's), the headless target's size, the
+	// textures made by createShared (their frames waited for at endFrame)
+	var frameTarget = 0;
+	var targetWidth = 0;
+	var targetHeight = 0;
+	final shared = new Map<Int, Bool>();
+
 	static inline var VERTEX_BUFFERS = 16;
 	static inline var MAX_SLOTS = 8;
 	static inline var MAX_BYTES = 4096;
@@ -114,10 +121,74 @@ class MetalBackend {
 			Runtime.objc_release(d);
 			if (target.isNull()) throw "helder.gfx: cannot create a " + surface.width + "x" + surface.height + " texture";
 		}
-		width = surface.width;
-		height = surface.height;
+		width = targetWidth = surface.width;
+		height = targetHeight = surface.height;
 		Runtime.objc_autoreleasePoolPop(pool);
 	}
+
+	// ---- shared textures: IOSurfaces (Device.createShared, openShared)
+
+	public function sharing():Null<String>
+		return "iosurface";
+
+	// an IOSurface (BGRA, global: looked up by its id from another process)
+	// and a render target on it, of the frame's format
+	public function createShared(w:Int, h:Int):Null<{id:Int, handle:String}> {
+		var pool = Runtime.objc_autoreleasePoolPush();
+		var dict = Msg.id(ObjC.cls("NSMutableDictionary"), ObjC.sel("dictionary"));
+		function set(key:String, value:Ptr) {
+			var k = ObjC.str(key);
+			Msg.vPtrPtr(dict, ObjC.sel("setObject:forKey:"), value, k);
+			ObjC.release(k);
+		}
+		inline function num(v:Int):Ptr
+			return Msg.idInt(ObjC.cls("NSNumber"), ObjC.sel("numberWithInt:"), v);
+		set("IOSurfaceWidth", num(w));
+		set("IOSurfaceHeight", num(h));
+		set("IOSurfaceBytesPerElement", num(4));
+		set("IOSurfacePixelFormat", num(0x42475241)); // 'BGRA'
+		set("IOSurfaceIsGlobal", Msg.idInt(ObjC.cls("NSNumber"), ObjC.sel("numberWithBool:"), 1));
+		var surf = IOSurface.IOSurfaceCreate(dict);
+		Runtime.objc_autoreleasePoolPop(pool);
+		if (surf.isNull()) return null;
+		var t = surfaceTexture(surf, w, h, MTL.TextureUsageShaderReadRenderTarget);
+		var id = IOSurface.IOSurfaceGetID(surf);
+		// (the texture keeps the surface)
+		MtlCF.CFRelease(surf);
+		if (t.isNull()) return null;
+		textures.push(t);
+		infos.push(TextureInfo.of({width: w, height: h, renderTarget: true}));
+		shared.set(textures.length, true);
+		return {id: textures.length, handle: "iosurface:" + id};
+	}
+
+	public function openShared(handle:String, w:Int, h:Int):Int {
+		if (!StringTools.startsWith(handle, "iosurface:")) return 0;
+		var n = Std.parseInt(handle.substr(10));
+		if (n == null) return 0;
+		var surf = IOSurface.IOSurfaceLookup(n);
+		if (surf.isNull()) return 0;
+		var t = surfaceTexture(surf, w, h, MTL.TextureUsageShaderRead);
+		MtlCF.CFRelease(surf);
+		if (t.isNull()) return 0;
+		textures.push(t);
+		infos.push(TextureInfo.of({width: w, height: h}));
+		return textures.length;
+	}
+
+	function surfaceTexture(surf:Ptr, w:Int, h:Int, usage:Int):Ptr {
+		var d = make("MTLTextureDescriptor");
+		Msg.vInt(d, ObjC.sel("setPixelFormat:"), MTL.PixelFormatBGRA8Unorm);
+		Msg.vInt(d, ObjC.sel("setWidth:"), w);
+		Msg.vInt(d, ObjC.sel("setHeight:"), h);
+		Msg.vInt(d, ObjC.sel("setUsage:"), usage);
+		var t = MtlMsg.idPtrPtrInt(device, ObjC.sel("newTextureWithDescriptor:iosurface:plane:"), d, surf, 0);
+		Runtime.objc_release(d);
+		return t;
+	}
+
+	public function frameInto(id:Int)
+		frameTarget = id;
 
 	// the depth texture (and the multisampled colour one), when the
 	// target's size is not theirs
@@ -266,6 +337,8 @@ class MetalBackend {
 		if (t.isNull()) return;
 		Runtime.objc_release(t);
 		textures[id - 1] = Ptr.nil();
+		shared.remove(id);
+		if (frameTarget == id) frameTarget = 0;
 	}
 
 	public function createSampler(d:SamplerDesc):Int {
@@ -372,7 +445,15 @@ class MetalBackend {
 	// false: no drawable this frame (the window is hidden)
 	public function beginFrame():Bool {
 		pool = Runtime.objc_autoreleasePoolPush();
-		if (layer.isNull()) texture = target else {
+		if (frameTarget != 0) {
+			texture = textures[frameTarget - 1];
+			width = infos[frameTarget - 1].width;
+			height = infos[frameTarget - 1].height;
+		} else if (layer.isNull()) {
+			texture = target;
+			width = targetWidth;
+			height = targetHeight;
+		} else {
 			drawable = Msg.id(layer, S.nextDrawable);
 			if (drawable.isNull()) {
 				Runtime.objc_autoreleasePoolPop(pool);
@@ -483,8 +564,10 @@ class MetalBackend {
 	}
 
 	public function endFrame() {
-		if (!drawable.isNull()) Msg.vPtr(cmd, S.presentDrawable, drawable);
+		if (!drawable.isNull() && frameTarget == 0) Msg.vPtr(cmd, S.presentDrawable, drawable);
 		Msg.v(cmd, S.commit);
+		// (a frame into a shared texture: complete before the other process is told)
+		if (frameTarget != 0 && shared.exists(frameTarget)) Msg.v(cmd, ObjC.sel("waitUntilCompleted"));
 		cmd = Ptr.nil();
 		drawable = Ptr.nil();
 		texture = Ptr.nil();

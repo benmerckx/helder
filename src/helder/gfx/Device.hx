@@ -107,6 +107,55 @@ final class Device {
 	public function generateMips(t:Texture)
 		impl.generateMips(t.id());
 
+	// ---- shared textures (helder.story's native preview host: its frames
+	// drawn into textures another process samples, without copies)
+	//
+	// sharing: how this device shares a texture with another process:
+	// "iosurface" (Metal: an IOSurface, found by its id), "dxgi" (Direct3D 11:
+	// a texture with a keyed mutex, by its DXGI shared handle), "dmabuf" (GL:
+	// a dma-buf exported through EGL_MESA_image_dma_buf_export, the other
+	// process taking its file descriptor with pidfd_getfd, imported with
+	// EGL_EXT_image_dma_buf_import); null: none (WebGPU, WebGL2, Android, an
+	// EGL without those extensions: llvmpipe without udmabuf), a copy then.
+	public var sharing(get, never):Null<String>;
+
+	inline function get_sharing()
+		return impl.sharing();
+
+	// a render target of width x height another process opens (openShared):
+	// the frame drawn into with frameInto, its handle a string to give that
+	// process (null: this device cannot share). The texture's format is the
+	// frame's (Metal: BGRA8, sampled as RGBA); destroyed by destroyTexture.
+	public function createShared(width:Int, height:Int):Null<{texture:Texture, handle:String}> {
+		var r = impl.createShared(width, height);
+		if (r == null) return null;
+		textureSizes.set(r.id, width * height * 4.0);
+		textureBytes += width * height * 4.0;
+		return {texture: new Texture(r.id), handle: r.handle};
+	}
+
+	// another process's shared texture (its createShared's handle, its
+	// size), sampled like any texture (null: it cannot be opened here: its
+	// process gone, another kind of handle); destroyed by destroyTexture
+	// (the memory is the other process's too: freed when both let go).
+	// Synchronised: a Direct3D 11 frame holds its keyed mutex from the
+	// first draw that samples it to endFrame; Metal and GL rely on the
+	// producer's frame being complete before it hands the handle over (its
+	// endFrame waits for the GPU) and on the producer not drawing into a
+	// texture this one samples (helder.story's buffers)
+	public function openShared(handle:String, width:Int, height:Int):Null<Texture> {
+		var id = impl.openShared(handle, width, height);
+		return id == 0 ? null : new Texture(id);
+	}
+
+	// the next frames drawn into t (a shared texture, or a render target of
+	// the frame's format) instead of the surface: beginFrame to endFrame at
+	// its size, its passes without a colour texture into it, readPixels
+	// reading it; null: the surface again. A frame into a shared texture
+	// waits for the GPU at endFrame (its pixels complete for the other process)
+	public function frameInto(t:Null<Texture>)
+		impl.frameInto(t == null ? 0 : t.id());
+
 	// frees a buffer or a texture (its handle is not used again)
 	public function destroyBuffer(b:Buffer)
 		impl.destroyBuffer(b.id());

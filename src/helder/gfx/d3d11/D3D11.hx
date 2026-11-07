@@ -33,6 +33,7 @@ class ID3D11Device {
 	@:slot(21) static function CreateDepthStencilState(self:Ptr, desc:Ptr<D3D11_DEPTH_STENCIL_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(22) static function CreateRasterizerState(self:Ptr, desc:Ptr<D3D11_RASTERIZER_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(23) static function CreateSamplerState(self:Ptr, desc:Ptr<D3D11_SAMPLER_DESC>, out:Ptr<Ptr>):Int;
+	@:slot(28) static function OpenSharedResource(self:Ptr, handle:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(30) static function CheckMultisampleQualityLevels(self:Ptr, format:Int, samples:Int, levels:Ptr<Int32>):Int;
 	@:slot(33) static function CheckFeatureSupport(self:Ptr, feature:Int, data:Ptr, size:Int):Int;
 	@:slot(37) static function GetFeatureLevel(self:Ptr):Int;
@@ -85,6 +86,18 @@ class ID3D11DeviceContext1 {
 class ID3DBlob {
 	@:slot(3) static function GetBufferPointer(self:Ptr):Ptr;
 	@:slot(4) static function GetBufferSize(self:Ptr):Int64;
+}
+
+// (shared textures: a texture's legacy shared handle, its keyed mutex)
+@:build(helder.os.win32.Com.build())
+class IDXGIResource {
+	@:slot(8) static function GetSharedHandle(self:Ptr, out:Ptr<Ptr>):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+class IDXGIKeyedMutex {
+	@:slot(8) static function AcquireSync(self:Ptr, key:Int64, ms:Int):Int;
+	@:slot(9) static function ReleaseSync(self:Ptr, key:Int64):Int;
 }
 
 @:build(helder.os.win32.Com.build())
@@ -150,6 +163,7 @@ class D3D {
 	public static inline var BIND_RENDER_TARGET = 0x20;
 	public static inline var BIND_DEPTH_STENCIL = 0x40;
 	public static inline var RESOURCE_MISC_GENERATE_MIPS = 0x1;
+	public static inline var RESOURCE_MISC_SHARED_KEYEDMUTEX = 0x100;
 	// D3D11_DSV_DIMENSION, D3D11_SRV_DIMENSION
 	public static inline var DSV_DIMENSION_TEXTURE2D = 3;
 	public static inline var DSV_DIMENSION_TEXTURE2DMS = 5;
@@ -208,6 +222,8 @@ class IID {
 	public static final ID3D11Texture2D = guid(0x6f15aaf2, 0xd208, 0x4e89, [0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c]);
 	public static final IDXGIDevice = guid(0x54ec77fa, 0x1377, 0x44e6, [0x8c, 0x32, 0x88, 0xfd, 0x5f, 0x44, 0xc8, 0x4c]);
 	public static final IDXGIFactory2 = guid(0x50c83a1c, 0xe072, 0x4c48, [0x87, 0xb0, 0x36, 0x30, 0xfa, 0x36, 0xa6, 0xd0]);
+	public static final IDXGIResource = guid(0x035f3ab4, 0x482e, 0x4e50, [0xb4, 0x1f, 0x8a, 0x7f, 0x8b, 0xd8, 0x96, 0x0b]);
+	public static final IDXGIKeyedMutex = guid(0x9d8e1289, 0xd7b3, 0x465f, [0x81, 0x26, 0x25, 0x0e, 0x34, 0x9a, 0xf8, 0x5d]);
 	public static final ID3D11DeviceContext1 = guid(0xbb2c6faa, 0xb5fb, 0x4082, [0x8e, 0x6b, 0x38, 0x8b, 0x8c, 0xfa, 0x90, 0xe1]);
 
 	// a GUID in native memory, kept for the process

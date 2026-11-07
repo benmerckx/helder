@@ -86,6 +86,18 @@ class D3D11Backend {
 	final slotBuffers:Array<Ptr> = [];
 	final slotSizes:Array<Int> = [];
 
+	// frameInto's texture (0: the surface's); the headless target's size and
+	// its view; the depth buffer's size; the shared textures this frame
+	// holds the keyed mutex of (sampled, or drawn into: released at endFrame)
+	var frameTarget = 0;
+	var targetWidth = 0;
+	var targetHeight = 0;
+	var targetTexture = Ptr.nil();
+	var targetView = Ptr.nil();
+	var depthWidth = 0;
+	var depthHeight = 0;
+	final held:Array<D3DTexture> = [];
+
 	static inline var MAX_SLOTS = 8;
 
 	public function new(surface:Surface, antialias:Bool) {
@@ -154,7 +166,95 @@ class D3D11Backend {
 			target = scratch.value;
 			createView();
 			createDepth();
+			targetWidth = width;
+			targetHeight = height;
+			targetTexture = target;
+			targetView = view;
 		}
+	}
+
+	// ---- shared textures: DXGI's shared handles, keyed mutexes (Device.createShared, openShared)
+
+	public function sharing():Null<String>
+		return "dxgi";
+
+	// a render target of the frame's format with a keyed mutex (key 0: a
+	// mutex both processes take), its legacy shared handle (a value any
+	// process opens)
+	public function createShared(w:Int, h:Int):Null<{id:Int, handle:String}> {
+		var hr = Arena.scopedValue(a -> {
+			var d = a.make(D3D11_TEXTURE2D_DESC);
+			d.value.Width = w;
+			d.value.Height = h;
+			d.value.MipLevels = 1;
+			d.value.ArraySize = 1;
+			d.value.Format = D3D.FORMAT_R8G8B8A8_UNORM;
+			d.value.SampleCount = 1;
+			d.value.Usage = D3D.USAGE_DEFAULT;
+			d.value.BindFlags = D3D.BIND_RENDER_TARGET | D3D.BIND_SHADER_RESOURCE;
+			d.value.MiscFlags = D3D.RESOURCE_MISC_SHARED_KEYEDMUTEX;
+			ID3D11Device.CreateTexture2D(device, d, Ptr.nil(), scratch);
+		});
+		if (hr < 0) return null;
+		var tex = scratch.value;
+		var t = new D3DTexture(tex, TextureInfo.of({width: w, height: h, renderTarget: true}));
+		if (IUnknown.QueryInterface(tex, IID.IDXGIResource, scratch) < 0) {
+			t.release();
+			return null;
+		}
+		var res = scratch.value;
+		hr = IDXGIResource.GetSharedHandle(res, scratch);
+		Com.release(res);
+		var handle = scratch.value;
+		if (hr < 0 || IUnknown.QueryInterface(tex, IID.IDXGIKeyedMutex, scratch) < 0) {
+			t.release();
+			return null;
+		}
+		t.mutex = scratch.value;
+		check(ID3D11Device.CreateRenderTargetView(device, tex, Ptr.nil(), scratch), "CreateRenderTargetView");
+		t.rtv = scratch.value;
+		check(ID3D11Device.CreateShaderResourceView(device, tex, Ptr.nil(), scratch), "CreateShaderResourceView");
+		t.view = scratch.value;
+		textures.push(t);
+		return {id: textures.length, handle: "dxgi:" + Std.string(handle.toI64().toInt())};
+	}
+
+	public function openShared(handle:String, w:Int, h:Int):Int {
+		if (!StringTools.startsWith(handle, "dxgi:")) return 0;
+		var n = Std.parseInt(handle.substr(5));
+		if (n == null) return 0;
+		if (ID3D11Device.OpenSharedResource(device, Ptr.ofI64(n), IID.ID3D11Texture2D, scratch) < 0) return 0;
+		var tex = scratch.value;
+		var t = new D3DTexture(tex, TextureInfo.of({width: w, height: h}));
+		if (ID3D11Device.CreateShaderResourceView(device, tex, Ptr.nil(), scratch) < 0) {
+			t.release();
+			return 0;
+		}
+		t.view = scratch.value;
+		if (IUnknown.QueryInterface(tex, IID.IDXGIKeyedMutex, scratch) >= 0) t.mutex = scratch.value;
+		textures.push(t);
+		return textures.length;
+	}
+
+	public function frameInto(id:Int)
+		frameTarget = id;
+
+	// (a shared texture's keyed mutex taken for this frame: false, not in time)
+	function hold(t:D3DTexture, ms:Int):Bool {
+		if (t.mutex.isNull() || t.held) return true;
+		// (0: taken; WAIT_TIMEOUT 0x102 and WAIT_ABANDONED 0x80 are not failures' HRESULTs)
+		if (IDXGIKeyedMutex.AcquireSync(t.mutex, 0, ms) != 0) return false;
+		t.held = true;
+		held.push(t);
+		return true;
+	}
+
+	function letGo() {
+		for (t in held) {
+			IDXGIKeyedMutex.ReleaseSync(t.mutex, 0);
+			t.held = false;
+		}
+		held.resize(0);
 	}
 
 	// 4 with antialias in a window, when the device has them for the
@@ -272,6 +372,8 @@ class D3D11Backend {
 		depth = scratch.value;
 		check(ID3D11Device.CreateDepthStencilView(device, depth, Ptr.nil(), scratch), "CreateDepthStencilView");
 		depthView = scratch.value;
+		depthWidth = width;
+		depthHeight = height;
 	}
 
 	public function createBuffer(d:BufferDesc):Int {
@@ -428,6 +530,11 @@ class D3D11Backend {
 	public function destroyTexture(id:Int) {
 		var t = textures[id - 1];
 		if (t == null) return;
+		if (t.held) {
+			IDXGIKeyedMutex.ReleaseSync(t.mutex, 0);
+			held.remove(t);
+		}
+		if (frameTarget == id) frameTarget = 0;
 		t.release();
 		textures[id - 1] = null;
 	}
@@ -577,7 +684,26 @@ class D3D11Backend {
 
 	public function beginFrame():Bool {
 		cursor = 0;
-		if (swapChain.isNull() || (surface.width == width && surface.height == height)) return true;
+		if (frameTarget != 0) {
+			// (into a texture: its view the frame's, the depth buffer of its size; a shared one's mutex held to endFrame)
+			var t = textures[frameTarget - 1];
+			if (!hold(t, 2000)) return false;
+			target = t.texture;
+			view = t.rtv;
+			width = t.info.width;
+			height = t.info.height;
+			if (depthWidth != width || depthHeight != height) createDepth();
+			return true;
+		}
+		if (swapChain.isNull()) {
+			target = targetTexture;
+			view = targetView;
+			width = targetWidth;
+			height = targetHeight;
+			if (depthWidth != width || depthHeight != height) createDepth();
+			return true;
+		}
+		if (surface.width == width && surface.height == height) return true;
 		// the window was resized: the swap chain's buffers follow
 		ID3D11DeviceContext.OMSetRenderTargets(context, 0, Ptr.nil(), Ptr.nil());
 		Com.release(view);
@@ -706,7 +832,10 @@ class D3D11Backend {
 	}
 
 	public function setTexture(slot:Int, texture:Int, sampler:Int) {
-		cbuf.value = textures[texture - 1].view;
+		var t = textures[texture - 1];
+		// (another process's texture: its mutex held while this frame samples it; not in time, sampled as it is)
+		if (!t.mutex.isNull()) hold(t, 100);
+		cbuf.value = t.view;
 		ID3D11DeviceContext.VSSetShaderResources(context, slot, 1, cbuf);
 		ID3D11DeviceContext.PSSetShaderResources(context, slot, 1, cbuf);
 		cbuf.value = samplers[sampler - 1];
@@ -745,10 +874,13 @@ class D3D11Backend {
 	}
 
 	public function endFrame() {
-		if (swapChain.isNull()) {
+		if (swapChain.isNull() || frameTarget != 0) {
+			// (the shared textures let go: ReleaseSync flushes)
+			letGo();
 			ID3D11DeviceContext.Flush(context);
 			return;
 		}
+		letGo();
 		resolve();
 		// (vsync; a lost device is not recovered yet)
 		var hr = IDXGISwapChain1.Present(swapChain, 1, 0);
@@ -804,6 +936,7 @@ class D3D11Backend {
 			Com.release(b);
 		for (b in slotBuffers)
 			Com.release(b);
+		letGo();
 		for (t in textures)
 			if (t != null) t.release();
 		for (s in samplers)
@@ -813,6 +946,11 @@ class D3D11Backend {
 		Com.release(staging);
 		Com.release(depthView);
 		Com.release(depth);
+		// (headless: its own target, not a frameInto texture's)
+		if (swapChain.isNull()) {
+			view = targetView;
+			target = targetTexture;
+		}
 		Com.release(view);
 		Com.release(msaa);
 		Com.release(target);
@@ -861,6 +999,9 @@ private class D3DShader {
 private class D3DTexture {
 	public final texture:Ptr;
 	public final info:TextureInfo;
+	// a shared texture's keyed mutex (IDXGIKeyedMutex), whether this frame holds it
+	public var mutex = Ptr.nil();
+	public var held = false;
 	public var view = Ptr.nil();
 	public var rtv = Ptr.nil();
 	public var dsv = Ptr.nil();
@@ -871,6 +1012,7 @@ private class D3DTexture {
 	}
 
 	public function release() {
+		Com.release(mutex);
 		Com.release(dsv);
 		Com.release(rtv);
 		Com.release(view);

@@ -25,6 +25,26 @@ import hxmc.unsafe.*;
 	static function eglSwapInterval(d:Ptr, interval:Int):Int;
 	static function eglGetProcAddress(name:Ptr):Ptr;
 	static function eglGetError():Int;
+	static function eglQueryString(d:Ptr, name:Int):Ptr;
+}
+
+// EGL's and GL's extension functions for shared textures (dma-bufs: GLBackend's
+// createShared and openShared), called through eglGetProcAddress's pointers
+@:hxmc.c extern class EglImage {
+	// eglCreateImageKHR(display, context, target, buffer, attribs: EGLint pairs)
+	@:hxmc.indirect static function create(f:Ptr, d:Ptr, context:Ptr, target:Int, buffer:Ptr, attribs:Ptr<Int32>):Ptr;
+	@:hxmc.indirect static function destroy(f:Ptr, d:Ptr, image:Ptr):Int;
+	// eglExportDMABUFImageQueryMESA(display, image, fourcc, planes, modifiers: a uint64 a plane)
+	@:hxmc.indirect static function query(f:Ptr, d:Ptr, image:Ptr, fourcc:Ptr<Int32>, planes:Ptr<Int32>, modifiers:Ptr):Int;
+	// eglExportDMABUFImageMESA(display, image, fds, strides, offsets: one a plane)
+	@:hxmc.indirect static function export(f:Ptr, d:Ptr, image:Ptr, fds:Ptr<Int32>, strides:Ptr<Int32>, offsets:Ptr<Int32>):Int;
+	// glEGLImageTargetTexture2DOES(target, image)
+	@:hxmc.indirect static function target(f:Ptr, target:Int, image:Ptr):Void;
+}
+
+// Linux's syscall with three arguments (pidfd_open, pidfd_getfd)
+@:hxmc.c extern class LinuxCall {
+	@:hxmc.varargs(1) static function syscall(n:hxmc.I64, a:hxmc.I64, b:hxmc.I64, c:hxmc.I64):hxmc.I64;
 }
 
 class EGL {
@@ -50,4 +70,14 @@ class EGL {
 	public static inline var PLATFORM_X11_KHR = 0x31D5;
 	public static inline var PLATFORM_WAYLAND_KHR = 0x31D8;
 	public static inline var PLATFORM_SURFACELESS_MESA = 0x31DD;
+	public static inline var EXTENSIONS = 0x3055;
+	public static inline var GL_TEXTURE_2D_KHR = 0x30B1;
+	public static inline var LINUX_DMA_BUF_EXT = 0x3270;
+	public static inline var LINUX_DRM_FOURCC_EXT = 0x3271;
+	public static inline var DMA_BUF_PLANE0_FD_EXT = 0x3272;
+	public static inline var DMA_BUF_PLANE0_OFFSET_EXT = 0x3273;
+	public static inline var DMA_BUF_PLANE0_PITCH_EXT = 0x3274;
+	public static inline var DMA_BUF_PLANE0_MODIFIER_LO_EXT = 0x3443;
+	public static inline var DMA_BUF_PLANE0_MODIFIER_HI_EXT = 0x3444;
+	public static inline var IMAGE_PRESERVED_KHR = 0x30D2;
 }

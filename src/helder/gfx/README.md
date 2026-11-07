@@ -151,6 +151,28 @@ enc.beginPass(framePass);
 enc.setTexture(1, color, sampler);                    // ... and sample it
 ```
 
+Shared textures: a render target another process samples without a copy
+(helder.story's native preview host draws each screen into one, the
+studio composites it). `Device.sharing` says how: `"iosurface"` (Metal: an
+IOSurface found by its id), `"dxgi"` (Direct3D 11: a texture with a keyed
+mutex, by its DXGI shared handle; a frame holds the mutex from the first
+draw that samples it, or from beginFrame into it, to endFrame), `"dmabuf"`
+(GL: exported with EGL_MESA_image_dma_buf_export, its descriptor taken by
+the other process with pidfd_getfd and imported with
+EGL_EXT_image_dma_buf_import), or null (WebGPU, WebGL2, Android, an EGL
+without those: llvmpipe without udmabuf; `HELDER_NO_DMABUF=1`). A frame
+into a shared texture waits for the GPU at `endFrame`, so its pixels are
+complete when the other process is told; the producer does not draw into a
+texture the consumer is sampling (helder.story keeps buffers for that).
+`tests/gfx/SharedTexture.hx` is the gfx-shared lane's check, two processes:
+
+```haxe
+var s = device.createShared(w, h);                   // null: no sharing here
+device.frameInto(s.texture);                          // the next frames into it (null: the surface again)
+var enc = device.beginFrame(); ... device.endFrame(); // complete: give s.handle to the other process
+var t = other.openShared(handle, w, h);               // there: a texture to sample (destroyTexture when done)
+```
+
 Conventions, the same on every back end: clip space y up and z from 0
 (near) to w (far), counter-clockwise front faces; the fragment position in
 pixels from the target's top left; a texture's first row is its top

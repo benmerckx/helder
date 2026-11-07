@@ -73,6 +73,7 @@ class Run {
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa), helder/scene's from TypeScript (tests/3d/ts/frames.ts)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
+		{name: "gfx-shared", about: "helder.gfx's shared textures between two processes (tests/gfx/SharedTexture.hx, GFX_TARGET's build): a producer draws into a texture it shares (Device.createShared: an IOSurface on macOS, a DXGI texture with a keyed mutex on Windows, a dma-buf where EGL exports one on Linux), the consumer opens it (openShared), draws it with helder.ui's renderer and reads back each quarter's colour, then a second frame drawn into the same texture; required on macOS and Windows, skipped where the GPU shares none (llvmpipe without udmabuf, Wine): helder.story's native preview host's way to the studio", run: gfxShared},
 		{name: "sprite", about: "helder.sprite's SpriteBatch on a GPU, headless (tests/sprite/SpriteFrame.hx; Linux: Mesa): sprites placed, scaled, turned, faded and added, two textures; its CPU half and the atlas are the test lane's", run: sprite},
 		{name: "gfx-web", about: "helder.gfx on WebGPU and WebGL2 (wasm32-wasi) in headless Chromium", run: gfxWeb},
 		{name: "audio", about: "helder.os's audio through each back end without speakers (tests/os/audio.sh)", run: audio},
@@ -862,6 +863,14 @@ class Run {
 	static function gfx() {
 		gfxPrograms();
 		run("sh", ["tests/gfx/check.sh", 'bin/gfx/$GFX_TARGET']);
+	}
+
+	static function gfxShared() {
+		native('bin/gfx-shared/$GFX_TARGET/SharedTexture', cps(["src", "tests/gfx"]).concat(["-main", "SharedTexture"]), GFX_TARGET);
+		var exe = exePath('bin/gfx-shared/$GFX_TARGET/SharedTexture', GFX_TARGET);
+		// (a Mac's and Windows' own GPU always share; under Wine, or on Linux without a dma-buf exporter, skipped)
+		var require = GFX_TARGET == HOST && (HOST.startsWith("macos-") || HOST.startsWith("windows-"));
+		if (GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-")) run("wine", [exe]) else run(exe, require ? ["--require"] : []);
 	}
 
 	static function sprite() {

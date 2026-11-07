@@ -8,6 +8,17 @@ import hxmc.unsafe.*;
 	static function MTLCreateSystemDefaultDevice():Ptr;
 }
 
+// IOSurface (shared textures: MetalBackend.createShared, openShared)
+@:hxmc.c @:hxmc.lib("/System/Library/Frameworks/IOSurface.framework/IOSurface") extern class IOSurface {
+	static function IOSurfaceCreate(properties:Ptr):Ptr;
+	static function IOSurfaceGetID(surface:Ptr):Int;
+	static function IOSurfaceLookup(id:Int):Ptr;
+}
+
+@:hxmc.c @:hxmc.lib("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation") extern class MtlCF {
+	static function CFRelease(o:Ptr):Void;
+}
+
 class MTL {
 	// MTLPixelFormat
 	public static inline var PixelFormatInvalid = 0;
@@ -63,6 +74,7 @@ class MTL {
 	public static inline var ResourceStorageModeShared = 0;
 	public static inline var StorageModePrivate = 2;
 	public static inline var TextureUsageShaderRead = 1;
+	public static inline var TextureUsageShaderReadRenderTarget = 5;
 	public static inline var TextureUsageRenderTarget = 4;
 	// MTLTextureType
 	public static inline var TextureType2DMultisample = 4;
