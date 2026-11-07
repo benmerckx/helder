@@ -99,7 +99,7 @@ swapped in), and prints the numbers.
 
 ## Numbers
 
-Headless Chromium 156 on a Linux x86-64 CI-class machine (the lane's
+Headless Chromium 156 on a Linux x86-64 cloud sandbox (the lane's
 numbers, 2026-11-07), against the native compiler on the same machine:
 
 | | in the browser | native |
