@@ -114,9 +114,9 @@ class MarkupMacro {
 			case _: return Context.error("markup: a literal expected", e.pos);
 		}
 		var info = Context.getPosInfos(e.pos);
-		var root = new Parser(src, (message, at, length) -> Context.error(message, position(info.file, info.min + at, length))).document();
+		var parser = new Parser(src, (message, at, length) -> Context.error(message, position(info.file, info.min + at, length))), root = parser.document();
 		var r = given == null ? placed() : given == ROOT ? ROOT : HostMacro.info(given).path;
-		return new Plan(new HaxeTarget(info.file, info.min, e.pos), r).compile(root);
+		return SourceMap.within(parser.ends, () -> new Plan(new HaxeTarget(info.file, info.min, e.pos), r).compile(root));
 	}
 
 	// (the renderer a literal is for from where it is: the type expected, the enclosing
@@ -612,7 +612,7 @@ class HaxeTarget implements Target<Expr> {
 		if (content != null) fields.push({field: "children", expr: content});
 		var props = {expr: EObjectDecl(fields), pos: p};
 		var call = agnostic ? macro @:pos(p) helder.view.Pick.call($callee, $props) : {expr: ECall(callee, [props]), pos: p};
-		return {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: {expr: EReturn(call), pos: p}}), pos: p};
+		return {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: SourceMap.factory({expr: EReturn(call), pos: p}, callee, file, base, at)}), pos: p};
 	}
 
 	public function view(v:Planned<Expr>):Expr {
@@ -653,5 +653,10 @@ class HaxeTarget implements Target<Expr> {
 		};
 		return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View($v{info.id}, $mount, 0, null, $parts, $v{source})])};
 	}
+
+	// (dev builds and headless runs: an element told where it is written, helder.view.Source;
+	// last in the file, so that a release build's positions of the code above stay the same)
+	public function located(element:Expr, at:Int):Null<Expr>
+		return SourceMap.element(element, file, base, at, pos);
 }
 #end

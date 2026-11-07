@@ -15,7 +15,7 @@ import helder.image.Image;
 // (paintContent).
 // (helder.view's markup: its renderer, NodeRenderer)
 @:rendered(helder.ui.view.NodeRenderer)
-class Node implements Part {
+class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) implements helder.view.Source.Located #end { #if ((hxmc.dev || helder.headless) && !macro) public var source:Null<helder.view.Source> = null; public var sourceComponent:Null<helder.view.Source.SourceComponent> = null; #end
 	public final style:Style;
 	public var parent(default, null):Null<Node>;
 	// (a leaf's: one empty array shared by all, replaced by its own when a child comes)
@@ -1491,3 +1491,8 @@ private class Handlers {
 
 	public function new() {}
 }
+
+// (Node's source and sourceComponent, on its first line: where markup wrote
+// it and the component mounting it, in dev builds and headless runs,
+// helder.view.Source; there so that no line below moves: a release build's
+// positions, and so its bytes, stay the same)

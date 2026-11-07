@@ -16,7 +16,10 @@ class DevTree {
 	static var nextId = 1;
 
 	public static function add(ui:Ui) {
-		if (uis.length == 0) helder.devtools.Agent.method("Ui.getTree", _ -> tree());
+		if (uis.length == 0) {
+			helder.devtools.Agent.method("Ui.getTree", _ -> tree());
+			helder.devtools.Agent.method("Ui.nodesAt", p -> nodesAt(p));
+		}
 		uis.push(ui);
 		if (uis.length > KEPT) uis.shift();
 	}
@@ -28,10 +31,33 @@ class DevTree {
 		return {uis: roots};
 	}
 
-	static function node(n:Node, seen:haxe.ds.ObjectMap<Node, Int>):Dynamic {
+	// the source map's reverse lookup (NodeSources): {file, line, col} to the
+	// nodes made there, {nodes: [{id, tag, source, component}]}, ids as getTree's
+	static function nodesAt(p:Dynamic):Dynamic {
+		var roots = [];
+		for (ui in uis) {
+			roots.push(ui.root);
+			roots.push(ui.overlay);
+		}
+		var found = NodeSources.at(roots, p.file, Std.int(p.line), p.col == null ? 1 : Std.int(p.col));
+		return {nodes: [for (n in found) {id: idOf(n, ids), tag: n.tag, source: sourceOf(n), component: componentOf(n)}]};
+	}
+
+	static function idOf(n:Node, seen:haxe.ds.ObjectMap<Node, Int>):Int {
 		var id = ids.get(n);
 		if (id == null) id = nextId++;
 		seen.set(n, id);
+		return id;
+	}
+
+	static function sourceOf(n:Node):Dynamic
+		return n.source == null ? null : n.source.data();
+
+	static function componentOf(n:Node):Dynamic
+		return n.sourceComponent == null ? null : n.sourceComponent.data();
+
+	static function node(n:Node, seen:haxe.ds.ObjectMap<Node, Int>):Dynamic {
+		var id = idOf(n, seen);
 		var s = n.style;
 		var o:Dynamic = {
 			id: id,
@@ -50,6 +76,8 @@ class DevTree {
 				fontSize: s.fontSize,
 			},
 			text: Std.isOfType(n, TextNode) ? (cast n : TextNode).text : null,
+			source: sourceOf(n),
+			component: componentOf(n),
 			children: [for (c in n.children) node(c, seen)],
 		};
 		return o;

@@ -32,6 +32,9 @@ class Parser {
 	// (an error: its message and where, an offset in s and a length; it throws)
 	final fail:(message:String, at:Int, length:Int) -> Dynamic;
 	var i = 0;
+	// (each element's end, an offset in s past its closing tag's ">", by its
+	// PElement's at: the source map of dev builds, helder.view.Source)
+	public final ends = new Map<Int, Int>();
 
 	public function new(s:String, fail) {
 		this.s = s;
@@ -65,6 +68,7 @@ class Parser {
 			if (c == "/") {
 				i++;
 				expect(">");
+				ends.set(start + 1, i);
 				return {kind: PElement(name, attrs, [], start + 1)};
 			}
 			if (c == ">") {
@@ -101,6 +105,7 @@ class Parser {
 			} else attrs.push({name: an, value: AFlag, at: anAt});
 		}
 		var children = content(name);
+		ends.set(start + 1, i);
 		return {kind: PElement(name, attrs, children, start + 1)};
 	}
 

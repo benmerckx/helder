@@ -313,6 +313,22 @@ they are). A neutral element's `ref` gets a part (`helder.ui.Part`: the
 Node, or the page's element wrapped when a ref is given), its `tag` and
 `id` are compiled into the passes that use them only.
 
+## Where a node was written
+
+In dev builds (`-D hxmc.dev`) and headless runs (`-D helder.headless`)
+the planner tells each element it makes where its tag is written, Haxe
+markup and TSX alike (`helder.view.Source`: the file's full path, byte
+offsets from `<` to the closing tag's `>`, 1-based lines and columns),
+and each component's factory its call's span and its function's
+definition, a context of the component's owner: a node made later (a
+For's new row) knows the innermost component mounting it too. A
+renderer whose nodes implement `Source.Located` keeps them (helder.ui's
+Node: the devtools' `Ui.getTree` and `Ui.nodesAt`, `helder inspect
+--tree` and `--at file:line`, a headless run's `--tree`). A release build
+has none of it, byte for byte (no call is written, Node has no field; the
+code that writes them, SourceMap and the end of HaxeTarget, is placed so
+that no line of the code above it moves).
+
 ## Tests
 
 `bun run test view`: `tests/view/ViewTest.hx` on two test renderers (the

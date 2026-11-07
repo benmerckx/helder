@@ -645,7 +645,12 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   ancestors' scrolling and transforms), `opacity` (through its
   ancestors'), `fill` and `color` (`#rrggbb`, `#rrggbbaa`), `hover`,
   `press`, `focus`, `moving` (a transition running on it, or its rect or
-  opacity changed since the frame before). A scene has `"nodes": null`.
+  opacity changed since the frame before), `source` (where markup wrote
+  it: `{file, line, col, end: {line, col}, offsets: [start, end]}`, its
+  tag's span, file a full path, bytes and 1-based lines and columns) and
+  `component` (the innermost component mounting it: `{name, call,
+  definition}`, two such spans, the definition null for helder's own
+  from TSX). A scene has `"nodes": null`.
 - **`--trace`**: a JSON line a frame, `{t, frame, nodes}`, each tagged
   node (a tag other than view, text, span, b, i, scroll) with its `rect`,
   `opacity` and `moving`.

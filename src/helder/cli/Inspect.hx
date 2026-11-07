@@ -20,9 +20,9 @@ class Inspect {
 	static final waiting = new Map<Int, Dynamic>();
 
 	@:coroutine public static function run(task:Node, o:Options):Int {
-		var tree = o.has("tree"), state = o.has("state"), log = o.has("log"), frames = o.has("frames");
+		var tree = o.has("tree"), state = o.has("state"), log = o.has("log"), frames = o.has("frames"), at = o.value("at");
 		var port = Std.parseInt(o.value("port") ?? "") ?? -1, dir = o.positionals[0] ?? ".";
-		if (!tree && !state && !frames) log = true;
+		if (!tree && !state && !frames && at == null) log = true;
 		var host = "127.0.0.1", path = "/__helder/devtools";
 		if (port < 0) {
 			var f = find(dir);
@@ -53,6 +53,23 @@ class Inspect {
 				Sys.println('ui ${u.width}x${u.height}');
 				node(u.root, 0);
 				if (u.overlay.children.length > 0) node(u.overlay, 0);
+			}
+		}
+		if (at != null) {
+			// (file:line[:col], the file's name itself possibly holding a drive's colon)
+			var m = ~/^(.+?):(\d+)(?::(\d+))?$/;
+			if (!m.match(at)) {
+				Sys.println('helder inspect: --at file:line[:col], not $at');
+				return 1;
+			}
+			var file = m.matched(1);
+			if (FileSystem.exists(file)) file = FileSystem.fullPath(file);
+			var col = try m.matched(3) catch (_:Dynamic) null;
+			var r = call("Ui.nodesAt", {file: file, line: Std.parseInt(m.matched(2)), col: col == null ? 1 : Std.parseInt(col)});
+			if (r.error != null) Sys.println('helder inspect: ${r.error.message}') else {
+				var found:Array<Dynamic> = r.result.nodes;
+				if (found.length == 0) Sys.println('no node made at $at');
+				for (n in found) Sys.println('${n.tag} #${n.id}' + where(n));
 			}
 		}
 		if (state) {
@@ -136,6 +153,19 @@ class Inspect {
 			+ '${Math.round(sum(bytes) / n)} GC bytes a frame, ${sum(p.gcCollections)} collections (${r(sum(p.gcPauseMs))} ms), agent ${p.agentBytes} bytes');
 	}
 
+	// (where markup wrote a node, and the component mounting it: " at Todo.hx:12:3 in TodoItem")
+	static function where(n:Dynamic):String {
+		var s = "";
+		if (n.source != null) s += ' at ${shown(n.source.file)}:${n.source.line}:${n.source.col}';
+		if (n.component != null) s += ' in ${n.component.name}';
+		return s;
+	}
+
+	static function shown(file:String):String {
+		var cwd = Sys.getCwd().split("\\").join("/");
+		return StringTools.startsWith(file, cwd) ? file.substr(cwd.length) : file;
+	}
+
 	static function node(n:Dynamic, depth:Int) {
 		var s = n.style;
 		var line = StringTools.lpad("", " ", depth * 2) + '${n.tag} #${n.id} ${n.x},${n.y} ${n.width}x${n.height}';
@@ -143,7 +173,7 @@ class Inspect {
 		if (s.display != "flex") line += ' ${s.display}';
 		if (s.background != "#00000000") line += ' bg ${s.background}';
 		if (n.text != null) line += ' "${n.text}"';
-		Sys.println(line);
+		Sys.println(line + where(n));
 		for (c in (n.children : Array<Dynamic>)) node(c, depth + 1);
 	}
 }

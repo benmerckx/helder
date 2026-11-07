@@ -163,11 +163,21 @@ and hands the key to the module.
 | method | params | result |
 | --- | --- | --- |
 | `Ui.getTree` | `{}` | `{uis: [{width, height, root: node, overlay: node}]}` |
+| `Ui.nodesAt` | `{file, line, col?}` | `{nodes: [{id, tag, source, component}]}` |
 
 A node is `{id, tag, x, y, width, height, style: {display, direction,
-grow, opacity, background, color, fontSize}, text, children}`: `x`, `y` in
-window pixels and the size after the last layout, colours `#aarrggbb`,
-`text` a text node's. An id stays the node's while it is in a tree (not
+grow, opacity, background, color, fontSize}, text, source, component,
+children}`: `x`, `y` in window pixels and the size after the last layout,
+colours `#aarrggbb`, `text` a text node's, `source` where markup wrote it
+(`{file, line, col, end: {line, col}, offsets: [start, end]}`: its tag,
+`<` to its closing `>`, the file's full path, byte offsets, 1-based lines
+and columns; null for a node made by code) and `component` the innermost
+component mounting it (`{name, call, definition}`, two such spans:
+helder.view.Source). `Ui.nodesAt` is the reverse: the nodes made from a
+place (a file's full path or the end of one, a line and a column): the
+innermost element or component call there, an element's every node (a
+For's rows), a component's top ones. `helder inspect --at file:line[:col]`
+prints them. An id stays the node's while it is in a tree (not
 across a reload). The method exists only in a program with helder.ui:
 `helder.ui.DevTree`, which each `Ui` registers with (in dev builds), the
 last 8 kept; helder.devtools does not depend on ui.

@@ -35,6 +35,7 @@ class Check {
 			var toggled = tree('$one/$app-toggled.json'), end = tree('$one/$app-end.json');
 			todoToggled(app, toggled);
 			todoEnd(app, end);
+			sources(app, app == "todo" ? "examples/todo/Todo.hx" : "examples/ts-todo/app.tsx", end);
 			traceLines(app, '$one/$app.jsonl');
 			image('$app-toggled.png', '$one/$app-toggled.png', bless);
 		}
@@ -106,6 +107,31 @@ class Check {
 		check('$app: the list where it is laid out', list != null && list.rect[0] == 24 && list.rect[2] == 432, haxe.Json.stringify(list?.rect));
 		for (n in nodes)
 			if (n.moving == true) check('$app: nothing moving at the end', false, n.path);
+	}
+
+	// the source map (helder.view.Source): an element's tag where it is
+	// written, a component's call and its function's definition, the
+	// innermost component mounting a node (Checkbox's rows, Button's)
+	static function sources(app:String, file:String, nodes:Array<Dynamic>) {
+		var lines = File.getContent(file).split("\n");
+		function lineOf(text:String):Int {
+			for (i in 0...lines.length)
+				if (lines[i].indexOf(text) >= 0) return i + 1;
+			return -1;
+		}
+		function at(s:Dynamic, line:Int):Bool
+			return s != null && (s.file : String).endsWith("/" + file) && s.line == line && s.end.line >= s.line && s.offsets[1] > s.offsets[0];
+		var draft = byTag(nodes, "draft");
+		check('$app: the field\'s source, its tag\'s line', draft != null && at(draft.source, lineOf('tag="draft"')), haxe.Json.stringify(draft?.source));
+		var col = lines[lineOf('tag="draft"') - 1].indexOf("<field") + 1;
+		check('$app: the field\'s source, its tag\'s column', draft != null && draft.source.col == col, '${draft?.source?.col}, not $col');
+		var add = byTag(nodes, "add");
+		var c:Dynamic = add?.component;
+		check('$app: Add made by Button, called where its tag is, defined where its function is', c != null && c.name == "Button" && at(c.call, lineOf('<Button tag="add"'))
+			&& at(c.definition, lineOf("function Button")), haxe.Json.stringify(c));
+		var boxes = [for (n in nodes) if (n.role == "checkbox") n];
+		check('$app: each checkbox in a Checkbox of its row', boxes.length == 2
+			&& Lambda.foreach(boxes, b -> b.component?.name == "Checkbox" && at(b.component.definition, lineOf("function Checkbox"))), haxe.Json.stringify(boxes[0]?.component));
 	}
 
 	// the viewer: a file opened through the file dialog (the script's

@@ -104,7 +104,7 @@ class Frontend extends ApiCalls {
 		captures = new Captures(src);
 		if (api != null && api.manifest != null) {
 			bridge = new Haxe(this, p, api.manifest);
-			tsx = new Tsx(this, bridge, api, dev);
+			tsx = new Tsx(this, bridge, api, dev, dev || definitions.define("helder.headless") != null);
 			// (its timers and promises on helder.async's loop: Interop.hostLoop)
 			if (eventLoop) bridge.call(bridge.interop("hostLoop"), []);
 		}
