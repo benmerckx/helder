@@ -18,6 +18,15 @@ async function check() {
 	const r = { kind: 'result', isolated: self.crossOriginIsolated === true, sab: typeof SharedArrayBuffer === 'function',
 		secure: self.isSecureContext === true, origin: location.origin, ua: navigator.userAgent };
 	try {
+		// (the scheme handler's headers, as the page sees them)
+		const h = (await fetch('add.wasm')).headers;
+		r.coop = h.get('cross-origin-opener-policy');
+		r.coep = h.get('cross-origin-embedder-policy');
+		r.mime = h.get('content-type');
+	} catch (e) {
+		r.headersError = String(e);
+	}
+	try {
 		const { instance } = await WebAssembly.instantiateStreaming(fetch('add.wasm'));
 		r.wasm = instance.exports.add(2, 3);
 	} catch (e) {

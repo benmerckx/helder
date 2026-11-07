@@ -51,10 +51,16 @@ class WebContent {
 
 	// the bundle's files under prefix (helder.asset's keys: each must be
 	// named by the program, Asset.bytes(prefix + path), to be bundled)
+	// (none in a browser: a page has no web view of its own here, and its
+	// program does not take helder.asset's fetches for it)
 	public static function bundle(prefix = ""):WebContent
 		return new WebContent(path -> {
+			#if (hxmc.target == "wasm32-wasi")
+			return null;
+			#else
 			var b = try helder.asset.Files.readNow(prefix + path) catch (_:Dynamic) null;
-			b == null ? null : WebResponse.bytes(b, WebResponse.mimeOf(path));
+			return b == null ? null : WebResponse.bytes(b, WebResponse.mimeOf(path));
+			#end
 		});
 
 	// the files of a directory on disk

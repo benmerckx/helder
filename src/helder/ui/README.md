@@ -667,7 +667,7 @@ helder.os's are theirs (`AkMsg`, `Win32`).
 `<webview>` (`helder.ui.platform.WebView`, a node) is the system's web
 view placed where it is laid out, over the drawn surface: on iOS and
 macOS a WKWebView (`AppleWebView`: a subview of the window's view,
-`Ui.nativeView`), on Android an `android.webkit.WebView` (`AndroidWebView`:
+its UiWindow's surface's), on Android an `android.webkit.WebView` (`AndroidWebView`:
 a panel window of the activity's, since NativeActivity's own window draws
 no views, made and driven on Java's main thread); elsewhere nothing yet
 (its box is drawn). `WebShell.run` is an app that is a web view alone, on

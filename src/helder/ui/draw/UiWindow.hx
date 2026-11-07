@@ -128,8 +128,6 @@ class UiWindow {
 		else if (Mem.os() == 2) ui.platform = new WinViews(window.surface.handle, ui, () -> renderer.scale);
 		// (macOS': NSTextFields over the window; not iOS's, whose Mem.os() is macOS's too: no AppKit there)
 		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
-		// (the view native views a node places go in: helder.ui.platform.WebView)
-		if (Mem.os() == 1) ui.nativeView = window.surface.handle;
 		open.push(this);
 		#if helder.headless
 		// (a headless run: the ui's events and clock the run's virtual time, the first window's nodes its tree)

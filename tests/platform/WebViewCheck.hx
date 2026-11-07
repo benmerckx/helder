@@ -91,7 +91,7 @@ class WebViewCheck implements Markup {
 			<view tag="header" padding={16} padding-top="env(safe-area-inset-top)" background="#f59e0b">
 				<text font-size={20}>helder: a web view below</text>
 			</view>
-			<webview tag="web" ref={n -> attached(cast n)} content={content} src="index.html" inspectable flex-grow={1} margin={12}
+			<webview tag="web" ref={n -> attached(cast n)} content={content} src="index.html" inspectable grow={1} margin={12}
 				onMessage={e -> event(e)} onLoad={e -> event(e)} onLoadError={e -> event(e)} onConsole={e -> event(e)} onTitle={e -> event(e)}/>
 		</view>;
 
@@ -125,10 +125,18 @@ class WebViewCheck implements Markup {
 				var r:Dynamic = e.json();
 				check("the page's result came through the bridge (JSON)", e.isJson && r.kind == "result", e.text);
 				check("a secure context (" + r.origin + ")", r.secure == true);
+				check("the scheme handler's headers: COOP, COEP, application/wasm", r.coop == "same-origin" && r.coep == "require-corp" && r.mime == "application/wasm",
+					'${r.coop} ${r.coep} ${r.mime}');
+				check("wasm instantiated (instantiateStreaming: application/wasm): add(2, 3) = 5", r.wasm == 5, Std.string(r.wasmError ?? r.wasm));
+				#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
+				// (Android's WebView gives no cross-origin isolation: no site isolation in it, the
+				// headers it is sent notwithstanding; reported, not checked)
+				Sys.println('webview: android: crossOriginIsolated ${r.isolated}, SharedArrayBuffer ${r.sab}, a shared memory ${r.shared} (not cross-origin isolated in Android\'s WebView)');
+				#else
 				check("crossOriginIsolated === true (COOP, COEP from the scheme handler)", r.isolated == true);
 				check("SharedArrayBuffer there", r.sab == true);
-				check("wasm instantiated (instantiateStreaming: application/wasm): add(2, 3) = 5", r.wasm == 5, Std.string(r.wasmError ?? r.wasm));
 				check("a shared wasm memory", r.shared == true);
+				#end
 				Sys.println("webview: user agent: " + r.ua);
 				step = 1;
 				post("pong " + r.wasm);
@@ -181,11 +189,11 @@ class WebViewCheck implements Markup {
 		}
 	}
 
-	// (the web build: its canvas laid out and its module's host made,
+	// (the web build: its canvas laid out, its module's host made and nothing uncaught,
 	// page.html's window.hxmcDev; polled in the page, for 60 s at most)
 	static function probeWeb()
 		evalJs('(function(){var t=Date.now(),f=function(){var c=document.querySelector("canvas"),d=window.hxmcDev;'
-			+ 'var ok=!!(c&&c.width>0&&d&&d.instance&&d.instance.host);'
+			+ 'var ok=!!(c&&c.width>0&&d&&d.instance&&d.instance.host)&&!d.log.some(function(l){return l.indexOf("Uncaught")>=0;});'
 			+ 'if(ok||Date.now()-t>60000)helder.post({kind:"web",canvas:c?c.width+"x"+c.height:"none",running:ok,log:d?d.log.slice(-3):[]});'
 			+ 'else setTimeout(f,500);};f();})();');
 
