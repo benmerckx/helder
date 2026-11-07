@@ -19,8 +19,8 @@ bun run helder studio                      # the project in this directory
   canvas shows its frames as it draws them.
 - **Select.** Click inside the screen you zoomed into: the node there is
   selected (the program's tree: its box, and where its markup is), drawn
-  as a cyan box with handles. The inspector shows its layout (width,
-  height, padding, gap), style (fill, colour, radius) and text.
+  as an outlined box. The inspector shows its layout (width, height,
+  padding, gap), style (fill, colour, radius), text and source line.
 - **Edit.** A field changes the element's attribute in the source,
   formatting kept (helder.syntax), only its span. A live literal's value
   (a colour, a number, a text written in the markup) is patched in the
@@ -117,11 +117,14 @@ the hosted prompt box plugs into later, through the same tools.
 ## Look
 
 Every value of the look is in `src/studio/Theme.hx`: the colours as
-tokens, the type, the radii (4 and 6 points), the layout's sizes and the
-canvas' spring, and a helder.ui StyleSheet of the studio's parts by slot.
-The direction ("Prism", minimal) is not signed off: change it there.
-The fonts are Hanken Grotesk for the interface and Geist Mono for values
-(`fonts/`, SIL Open Font License).
+tokens (the code view's too), the type, the radius, the layout's sizes
+and the canvas' spring, and a helder.ui StyleSheet of the studio's parts
+by slot. For now it is a wireframe until the visual design is settled:
+one grey ramp and no hues, text in three greys, hairlines only between
+regions, no gradients or shadows, selection and focus outlined in
+near-white; one body and one small size, regular and medium. Refine it
+there. The fonts are Hanken Grotesk for the interface and Geist Mono for
+values (`fonts/`, SIL Open Font License).
 
 ## Checks and numbers
 

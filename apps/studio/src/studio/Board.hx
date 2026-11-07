@@ -14,14 +14,14 @@ using StringTools;
 // Pan with a drag or the wheel, zoom with secondary and the wheel (a
 // trackpad's pinch) or two fingers; a screen clicked zooms into it on a
 // spring, a click inside the zoomed screen selects the node there (the
-// program's tree, the node's source), drawn as a cyan box with handles.
+// program's tree, the node's source), outlined.
 // The world (the screens) is one node under the camera's transform; what is
 // read at any zoom (flows' titles, captions, the selection) is drawn in the
 // stage's own points from the camera.
 class Board implements Markup {
 	public static function view(studio:Studio):View {
 		var stage:Null<Node> = null;
-		return <view tag="stage" grow={1} min-width={0} overflow="hidden" cursor="default" ref={n -> {
+		return <view tag="stage" grow={1} min-width={0} overflow="hidden" cursor="default" background={c("canvas")} ref={n -> {
 			stage = n;
 			studio.stageNode = n;
 		}}
@@ -42,15 +42,11 @@ class Board implements Markup {
 							height={r().h} data-on={studio.focused() == s.info.name ? "true" : "false"} data-frame={s.frames()}>
 							<image src={s.image()} width={r().w} height={r().h}/>
 							<Show when={s.crashedSignal()}>
-								<view tag="crashed" position="absolute" left={8} top={8} padding="3 7" radius={Theme.R1} background={c("raise")} direction="row"
-									align-items="center" column-gap={6}>
-									<view width={6} height={6} radius={3} background={c("error")}/>
-									<text color={c("fg2")} font-size={11}>stopped</text>
-								</view>
+								<text tag="crashed" position="absolute" left={8} top={8} color={c("fg2")} font-size={Theme.SMALL}>stopped</text>
 							</Show>
 							<Show when={s.frames() == 0 && !s.crashedSignal()}>
 								<view position="absolute" inset={0} align-items="center" justify="center">
-									<text color={c("fg3")} font-size={12}>{studio.previews.failed ? "the build failed" : "building…"}</text>
+									<text color={c("fg3")} font-size={Theme.SMALL}>{studio.previews.failed ? "the build failed" : "building…"}</text>
 								</view>
 							</Show>
 						</view>;
@@ -73,20 +69,18 @@ class Board implements Markup {
 	static function overlay(studio:Studio):View {
 		return <view tag="overlay" position="absolute" inset={0} pointer-events="none">
 			<For each={flows(studio)}>{(f:Read<{name:String, x:Float, y:Float}>) ->
-				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 48} font-size={12} font-weight={Theme.MEDIUM}
+				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 46} font-size={Theme.SMALL}
 					color={c("fg2")}>{f().name}</text>
 			}</For>
 			<For each={studio.layout.screens()}>{(r:Read<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}>) ->
-				<view tag="caption" position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 22} direction="row" align-items="center" column-gap={6}>
-					<view width={6} height={6} radius={3} background={c("k-screen")}/>
-					<text font-size={Theme.LABEL} color={studio.focused() == r().name ? c("fg2") : c("fg3")}>{label(studio, r().name)}</text>
-				</view>
+				<text tag="caption" position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 20} font-size={Theme.SMALL}
+					color={studio.focused() == r().name ? c("fg2") : c("fg3")}>{label(studio, r().name)}</text>
 			}</For>
 			<Show when={selected(studio) != null}>{selectionBox(studio)}</Show>
 		</view>;
 	}
 
-	// the selected node's box (the zoomed screen's), its four handles
+	// the selected node's box (the zoomed screen's), outlined
 	static function selectionBox(studio:Studio):View {
 		function box():{x:Float, y:Float, w:Float, h:Float} {
 			var s = selected(studio), r = s == null ? null : studio.layout.rect(s.screen);
@@ -95,13 +89,8 @@ class Board implements Markup {
 			var kk = studio.camera.k;
 			return {x: studio.camera.sx(r.x + s.x), y: studio.camera.sy(r.y + s.y), w: s.width * kk, h: s.height * kk};
 		}
-		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1.2}
-			border-color={c("sel")}>
-			<view slot="handle" position="absolute" left={-3.5} top={-3.5} width={6} height={6} radius={1} background={c("panel")} border-width={1.2} border-color={c("sel")}/>
-			<view slot="handle" position="absolute" right={-3.5} top={-3.5} width={6} height={6} radius={1} background={c("panel")} border-width={1.2} border-color={c("sel")}/>
-			<view slot="handle" position="absolute" left={-3.5} bottom={-3.5} width={6} height={6} radius={1} background={c("panel")} border-width={1.2} border-color={c("sel")}/>
-			<view slot="handle" position="absolute" right={-3.5} bottom={-3.5} width={6} height={6} radius={1} background={c("panel")} border-width={1.2} border-color={c("sel")}/>
-		</view>;
+		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1}
+			border-color={c("sel")} outline-width={1} outline-color={c("sel-halo")}/>;
 	}
 
 	// (the selection while its screen is the one zoomed into)
@@ -115,13 +104,12 @@ class Board implements Markup {
 		return <scroll tag="stories" position="absolute" inset={0} padding="20 24" row-gap={6}>
 			<For each={p == null ? [] : p.screens}>{(s:Read<Project.ScreenInfo>) -> {
 				var i = s();
-				<view:button tag={"story-" + Shell.slug(i.name)} slot="nav-item" role="button" label={i.name} focusable onPress={() -> {
+				<view:button tag={"story-" + Shell.slug(i.name)} slot="nav-item" column-gap={12} role="button" label={i.name} focusable onPress={() -> {
 					studio.setMode("design");
 					studio.focus(i.name);
 				}}>
-					<view slot="badge"><text>S</text></view>
 					<text grow={1}>{i.name}</text>
-					<text font-family={Theme.CODE} font-size={Theme.VALUE} color={c("fg3")}>{(i.width > 0 ? i.width + " × " + i.height + "  " : "")
+					<text font-family={Theme.CODE} font-size={Theme.SMALL} color={c("fg3")}>{(i.width > 0 ? i.width + " × " + i.height + "  " : "")
 						+ Shell.fileLabel(studio, i.file)}</text>
 				</view:button>;
 			}}</For>

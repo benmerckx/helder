@@ -18,59 +18,35 @@ using StringTools;
 // label scrubs it: dragged left or right, a point per two.
 class Inspector implements Markup {
 	public static function view(studio:Studio):View {
-		return <view tag="inspector" slot="floating" position="absolute" right={12} top={12} bottom={84} width={Theme.INSPECTOR} padding={12} row-gap={12}
+		return <view tag="inspector" slot="floating" position="absolute" right={12} top={12} width={Theme.INSPECTOR} padding="8 12"
 			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<view direction="row" justify="space-between" align-items="center">
-				<text tag="inspector-title" font-weight={Theme.MEDIUM} max-lines={1}>{title(studio)}</text>
-				<text font-family={Theme.CODE} font-size={11} color={c("fg3")}>{studio.selection() == null ? "" : studio.selection().tag}</text>
-			</view>
-			<Show when={studio.selection() != null} fallback={<text color={c("fg3")} font-size={12}>Click a part of the screen to select it.</text>}>
-				<view row-gap={6}>
-					<text font-size={Theme.LABEL} color={c("fg3")}>Layout</text>
-					<view direction="row" column-gap={6}>
-						{field(studio, "width", "W", true)}
-						{field(studio, "height", "H", true)}
-					</view>
-					<view direction="row" column-gap={6}>
-						{field(studio, "padding", "Pad", true)}
-						{field(studio, gapName(studio), "Gap", true)}
-					</view>
-				</view>
-				<view row-gap={6}>
-					<text font-size={Theme.LABEL} color={c("fg3")}>Style</text>
-					<view direction="row" column-gap={6}>
-						{field(studio, "background", "Fill", false)}
-						{field(studio, "radius", "R", true)}
-					</view>
-					<view direction="row" column-gap={6}>{field(studio, "color", "Color", false)}</view>
-				</view>
+			<Show when={studio.selection() != null} fallback={<text color={c("fg3")} font-size={Theme.SMALL} padding="4 0">Click a part of the screen to select it.</text>}>
+				{field(studio, "width", "Width", true)}
+				{field(studio, "height", "Height", true)}
+				{field(studio, "padding", "Padding", true)}
+				{field(studio, gapName(studio), "Gap", true)}
+				{field(studio, "background", "Fill", false)}
+				{field(studio, "radius", "Radius", true)}
+				{field(studio, "color", "Color", false)}
 				<Show when={hasText(studio)}>
-					<view row-gap={6}>
-						<text font-size={Theme.LABEL} color={c("fg3")}>Text</text>
-						<view slot="field">
-							<field tag="field-text" slot="field-input" label="Text" value={textValue(studio)} onInput={e -> studio.setText(e.text)}
-								onBlur={() -> studio.endGesture()}/>
-						</view>
+					<view slot="field">
+						<text slot="field-label" cursor="default">Text</text>
+						<field tag="field-text" slot="field-input" label="Text" value={textValue(studio)} onInput={e -> studio.setText(e.text)}
+							onBlur={() -> studio.endGesture()}/>
 					</view>
 				</Show>
-				<view row-gap={6}>
-					<text font-size={Theme.LABEL} color={c("fg3")}>Source</text>
-					<view direction="row" align-items="center" column-gap={7} font-family={Theme.CODE} font-size={Theme.VALUE} color={c("fg2")}>
-						<view width={6} height={6} radius={3} background={c("k-comp")}/>
-						<text tag="inspector-source">{source(studio)}</text>
-					</view>
+				<view slot="field">
+					<text slot="field-label" cursor="default">Source</text>
+					<text tag="inspector-source" padding="3 7" color={c("fg2")}>{source(studio)}</text>
 				</view>
 			</Show>
 		</view>;
 	}
 
-	// one attribute's field: its label (a number's scrubs it), its value as written
+	// one attribute's row: its label (a number's scrubs it), its value as written
 	static function field(studio:Studio, name:String, label:String, number:Bool):View {
 		var start = 0.0;
-		return <view tag={"field-" + name} slot="field" grow={1} basis={0} min-width={0}>
-			<Show when={!number}>
-				<view width={13} height={13} radius={3} border-width={1} border-color={c("line2")} background={swatch(studio, name)}/>
-			</Show>
+		return <view tag={"field-" + name} slot="field">
 			<text tag={"scrub-" + name} slot="field-label" onPan={g -> {
 				switch g.state {
 					case Began:
@@ -120,12 +96,6 @@ class Inspector implements Markup {
 		}
 	}
 
-	static function swatch(studio:Studio, name:String):Color {
-		var v = value(studio, name);
-		// (none written: the field's own well, an empty box)
-		return v == "" ? c("well") : try Color.parse(v) catch (_:Dynamic) c("well");
-	}
-
 	// the gap's attribute: the one written (gap, row-gap, column-gap), else gap
 	static function gapName(studio:Studio):String {
 		var el = studio.element();
@@ -144,15 +114,6 @@ class Inspector implements Markup {
 		var el = studio.element();
 		var r = el == null ? null : Studio.textRun(el);
 		return r == null ? "" : r.text;
-	}
-
-	static function title(studio:Studio):String {
-		var s = studio.selection();
-		if (s == null) return "Nothing selected";
-		var el = studio.element();
-		var tag = el?.attr("tag")?.valueText();
-		var text = el == null ? null : Studio.textRun(el)?.text;
-		return tag != null ? tag.replace('"', "") : text != null ? '“$text”' : s.tag;
 	}
 
 	static function source(studio:Studio):String {

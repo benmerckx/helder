@@ -38,7 +38,7 @@ class Main implements Markup {
 			.bind("escape", studio.Shell.StudioAction.Overview);
 		var s = new Studio(dir, {events: events, mcpPort: port, holdWhile: holdWhile});
 		UiWindow.run(<Surface title={s.project == null ? "helder studio" : s.project.name + " · helder studio"} width={width} height={height}
-			theme={studio.Theme.sheet} background={studio.Theme.c("frame")} dark={true} ref={w -> {
+			theme={studio.Theme.sheet} background={studio.Theme.c("bg")} dark={true} ref={w -> {
 				window = w;
 				w.onFrame = () -> s.drawn();
 				s.open();
@@ -56,7 +56,6 @@ class Main implements Markup {
 		for (b in [
 			helder.asset.Asset.embed("fonts/HankenGrotesk-Regular.ttf"),
 			helder.asset.Asset.embed("fonts/HankenGrotesk-Medium.ttf"),
-			helder.asset.Asset.embed("fonts/HankenGrotesk-SemiBold.ttf"),
 			helder.asset.Asset.embed("fonts/GeistMono-Regular.ttf")
 		])
 			try f.add(b) catch (_:Dynamic) {}
