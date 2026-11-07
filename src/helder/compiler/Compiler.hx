@@ -30,6 +30,26 @@ class Compiler {
 				break;
 			}
 		}
+		args = install(args);
+		var code = haxe.Main.run(args);
+		hxmc.ModuleCache.finish(failed == null ? code : 1);
+		if (failed != null) {
+			Sys.stderr().writeString(failed + "\n");
+			return 1;
+		}
+		return code;
+	}
+
+	// a one-shot build's failure (a compilation server's are its messages)
+	static var failed:Null<String> = null;
+
+	// this build's --no-output (a compilation server's request's, not its own command line's)
+	static var noOutput = false;
+
+	// helder's hooks and frontends installed and the environment set (hxmc's
+	// std, the runtime objects); args with hxmc's std given last. run's, and
+	// helder.compiler.web.WebMain's (the compiler resident in a worker)
+	public static function install(args:Array<String>):Array<String> {
 		environment();
 		// hxmc's std, given last (as hxmc.HaxeMain does)
 		var hxmcStd = Sys.getEnv("HXMC_STD");
@@ -43,18 +63,18 @@ class Compiler {
 		var typing = compiler.Compiler.beforeTypingHook;
 		compiler.Compiler.beforeTypingHook = function(com, actx) {
 			Phases.begin(com);
+			noOutput = actx.noOutput;
 			if (typing != null) typing(com, actx);
 			// (a compilation server's parse replaces hxmc's: around it again)
 			MarkupHook.install();
 			for (plugin in plugins) plugin.beforeTyping(com, actx);
 		}
-		var failed:Null<String> = null;
 		// (a compilation server keeps what it can between builds, as hxmc's does: the frontends' too)
 		for (a in ["--wait", "--server-listen", "--server-connect"]) if (args.contains(a)) hxmc.Driver.resident = true;
 		compiler.Compiler.generateHook = function(com) {
 			var owner = Lambda.find(plugins, p -> p.owns(com));
 			Phases.mark("to generation");
-			if (args.contains("--no-output") && owner == null) {
+			if (noOutput && owner == null) {
 				Phases.end();
 				return;
 			}
@@ -75,13 +95,7 @@ class Compiler {
 				if (hxmc.Driver.resident) for (m in messages(Std.string(e))) com.error(m.text, m.pos) else failed = Std.string(e);
 			}
 		}
-		var code = haxe.Main.run(args);
-		hxmc.ModuleCache.finish(failed == null ? code : 1);
-		if (failed != null) {
-			Sys.stderr().writeString(failed + "\n");
-			return 1;
-		}
-		return code;
+		return args;
 	}
 
 	// An error's lines as the compiler's messages, at their positions
@@ -137,7 +151,7 @@ class Compiler {
 	public static function source(marker:String):String {
 		var configured = Sys.getEnv("HELDER_SRC");
 		if (configured != null && configured != "") return configured;
-		for (start in [Path.directory(FileSystem.fullPath(Sys.programPath())), Sys.getCwd()]) {
+		for (start in [beside(), Sys.getCwd()]) if (start != null) {
 			var dir = FileSystem.fullPath(start);
 			while (dir != null && dir != "") {
 				for (candidate in [dir + "/src", dir + "/node_modules/helder/src"])
@@ -166,7 +180,7 @@ class Compiler {
 
 	// rel in the working directory or one above it, else beside this program or above
 	public static function locate(rel:String):Null<String> {
-		for (start in [Sys.getCwd(), Path.directory(FileSystem.fullPath(Sys.programPath()))]) {
+		for (start in [Sys.getCwd(), beside()]) if (start != null) {
 			var dir = FileSystem.fullPath(start);
 			while (dir != null && dir != "") {
 				var p = Path.join([dir, rel]);
@@ -178,4 +192,8 @@ class Compiler {
 		}
 		return null;
 	}
+
+	// this program's directory (null where it has none: a worker's module)
+	static function beside():Null<String>
+		return try Path.directory(FileSystem.fullPath(Sys.programPath())) catch (_:Dynamic) null;
 }

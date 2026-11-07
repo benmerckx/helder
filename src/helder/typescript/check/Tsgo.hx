@@ -6,13 +6,60 @@ import helder.typescript.check.Syntax;
 
 // A tsgo API server (`tsc --api`), driven synchronously over its stdio pipes.
 // Each message is a msgpack array [type, method, payload]; requests carry
-// JSON, and source files come back in tsgo's binary AST encoding.
+// JSON, and source files come back in tsgo's binary AST encoding. As
+// wasm32-wasi (helder's compiler in a browser's worker: helder.compiler.web)
+// there are no processes: the same requests go to TypeScript's API as a
+// wasip1 reactor beside this module, in the same worker (TsgoWeb: its
+// in-process transport, `typescript/wasm`), synchronously.
 class Tsgo {
 	static inline var REQUEST = 1;
 	static inline var RESPONSE = 4;
 	static inline var ERROR = 5;
 	static inline var CALL = 6;
 	static inline var CALL_ERROR = 3;
+	#if (hxmc.target == "wasm32-wasi")
+	public function new(executable:String, cwd:String) {
+		if (TsgoWeb.open() != 0) throw "TSHX003: TypeScript's API is not loaded in this worker";
+	}
+
+	public static function find(from:String):{typescript:String, exe:String} {
+		var configured = Sys.getEnv("HELDER_TYPESCRIPT");
+		var dir = configured != null && configured != "" ? configured : null;
+		if (dir == null) for (start in [from, Sys.getCwd()]) {
+			var d = sys.FileSystem.fullPath(start);
+			while (dir == null && d != null && d != "") {
+				if (sys.FileSystem.exists(d + "/node_modules/typescript/dist/api/node/protocol.js")) dir = d + "/node_modules/typescript";
+				var up = haxe.io.Path.directory(d);
+				if (up == d || up == "") break;
+				d = up;
+			}
+		}
+		if (dir == null) throw "TSHX003: typescript is not installed (npm install -D typescript@^7.1)";
+		return {typescript: sys.FileSystem.fullPath(dir), exe: "wasm"};
+	}
+
+	public function call(method:String, params:Dynamic):Dynamic {
+		var result = request(method, haxe.Json.stringify(params));
+		return result.length == 0 ? null : haxe.Json.parse(result.toString());
+	}
+
+	public function request(method:String, payload:String):Bytes {
+		var n = send(Bytes.ofString(method), Bytes.ofString(payload));
+		var b = Bytes.alloc(n < 0 ? -n - 1 : n);
+		if (b.length > 0) hxmc.unsafe.Arena.scoped(a -> {
+			var p = a.alloc(b.length, 1);
+			TsgoWeb.take(p);
+			hxmc.unsafe.BytesPtr.copyIn(b, 0, p, b.length);
+		});
+		if (n < 0) throw "TSHX003: tsgo " + method + ": " + b.toString();
+		return b;
+	}
+
+	@:hxmc.noGc static function send(m:Bytes, p:Bytes):Int
+		return TsgoWeb.request(hxmc.unsafe.BytesPtr.of(m, 0, m.length), m.length, hxmc.unsafe.BytesPtr.of(p, 0, p.length), p.length);
+
+	public function close() {}
+	#else
 	var process:sys.io.Process;
 	var input:haxe.io.Output;
 	var output:haxe.io.Input;
@@ -129,4 +176,18 @@ class Tsgo {
 			process.close();
 		} catch (_:Dynamic) {}
 	}
+	#end
 }
+
+#if (hxmc.target == "wasm32-wasi")
+// TypeScript's API beside this module (helder.compiler.web's worker.mjs gives these imports)
+@:hxmc.c @:hxmc.fast @:hxmc.lib("helder_tsgo") extern class TsgoWeb {
+	// the session started (once; again after it stopped): 0, else not loaded
+	static function open():Int;
+	// a request (its method and JSON payload, UTF-8): the response's length,
+	// or -(an error message's length) - 1
+	static function request(method:hxmc.unsafe.Ptr, methodLength:Int, payload:hxmc.unsafe.Ptr, payloadLength:Int):Int;
+	// the last response (or error) into p
+	static function take(p:hxmc.unsafe.Ptr):Void;
+}
+#end

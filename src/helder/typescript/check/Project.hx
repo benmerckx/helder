@@ -30,7 +30,8 @@ class Project {
 	public static function check(entry:String, globals:String, ?after:Project->Void):Project {
 		read = [haxe.io.Path.normalize(sys.FileSystem.fullPath(entry))];
 		var found = Tsgo.find(haxe.io.Path.directory(entry));
-		var key = found.exe + "\n" + Sys.getCwd();
+		// (the worker's tsgo is one session for every directory: its paths are absolute)
+		var key = found.exe + "\n" + #if (hxmc.target == "wasm32-wasi") "/" #else Sys.getCwd() #end;
 		if (session != null && session.key != key) {
 			session.tsgo.close();
 			session = null;
