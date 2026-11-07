@@ -2,6 +2,7 @@ import helder.markup.Syntax;
 import helder.syntax.Cst;
 import helder.syntax.Document;
 import helder.syntax.Edits;
+import helder.syntax.Lexer;
 import helder.syntax.Scanner;
 import sys.FileSystem;
 import sys.io.File;
@@ -39,7 +40,7 @@ class Check {
 		for (d in ["src", "examples", "apps", "tests", "site"])
 			if (FileSystem.exists(d)) walk(d, files);
 		files.sort(Reflect.compare);
-		var read = 0, markup = 0, elements = 0, literals = 0, flat = [], bytes = 0, fuzzed = 0;
+		var read = 0, tags = 0, markup = 0, elements = 0, literals = 0, flat = [], bytes = 0, fuzzed = 0;
 		var largest = {path: "", lines: 0, ms: 0.0};
 		for (path in files) {
 			var lang = Lang.of(path);
@@ -62,12 +63,13 @@ class Check {
 			if (lines > largest.lines) largest = {path: path, lines: lines, ms: ms};
 			if (lang == Haxe) literals += againstParser(path, doc);
 			if (els.length > 0) fuzzed += fuzz(path, doc);
+			if (doc.structured && doc.backtracks.length == 0) tags += lexed(path, doc);
 			for (b in doc.backtracks)
 				Sys.println('syntax: $path:${doc.lineCol(b).line}: "<" read as code (' + haxe.Json.stringify(text.substr(b, 30)) + ")");
 		}
 		for (f in flat)
 			check('read structurally: $f', Lambda.exists(FLAT, x -> f.startsWith(x)));
-		Sys.println('syntax: $read files read and printed back ($markup with markup, $elements elements, ${Math.round(bytes / 1024)} KB), $literals Haxe literals as the macro\'s parser reads them, $fuzzed random edits'
+		Sys.println('syntax: $read files read and printed back ($markup with markup, $elements elements, ${Math.round(bytes / 1024)} KB), $literals Haxe literals as the macro\'s parser reads them, $fuzzed random edits, $tags tag names lexed line by line as tags'
 			+ (flat.length > 0 ? ', ${flat.length} flat' : ""));
 		// (the read of a file of 2000 lines and more: the largest, else one made of the todo example)
 		var big = largest.lines >= 2000 ? File.getContent(largest.path) : repeated("examples/todo/Todo.hx", 2000);
@@ -79,8 +81,48 @@ class Check {
 			best = Math.min(best, (haxe.Timer.stamp() - t0) * 1000);
 		}
 		Sys.println('syntax: a read of ${big.split("\n").length} lines (${largest.lines >= 2000 ? largest.path : "the todo example, repeated"}): ${Math.round(best * 10) / 10} ms');
+		// (the same file lexed line by line, as an editor highlights it)
+		var bigLines = big.split("\n"), lbest = 1e9, out = [];
+		for (_ in 0...runs) {
+			var lx = new Lexer(lang), st = lx.start(), t0 = haxe.Timer.stamp();
+			for (l in bigLines) {
+				out.resize(0);
+				st = lx.line(l, st, out);
+			}
+			lbest = Math.min(lbest, (haxe.Timer.stamp() - t0) * 1000);
+		}
+		Sys.println('syntax: its lines lexed for highlighting (helder.syntax.Lexer): ${Math.round(lbest * 10) / 10} ms');
 		Sys.println('syntax: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// the file lexed line by line (helder.syntax.Lexer, an editor's
+	// highlighting): its tokens in order inside each line, and every tag
+	// name of its tree a Tag token there; the tag names checked
+	static function lexed(path:String, doc:Document):Int {
+		var lx = new Lexer(doc.lang), st = lx.start(), out = [];
+		var lines = doc.text.split("\n"), at = 0, ordered = true;
+		var tagAt = new Map<Int, Int>();
+		for (l in lines) {
+			out.resize(0);
+			st = lx.line(l, st, out);
+			var k = 0, last = 0;
+			while (k < out.length) {
+				if (out[k] < last || out[k + 1] <= out[k] || out[k + 1] > l.length) ordered = false;
+				last = out[k + 1];
+				if (out[k + 2] == (TokenClass.Tag : Int)) tagAt.set(at + out[k], at + out[k + 1]);
+				k += 3;
+			}
+			at += l.length + 1;
+		}
+		check('$path: lexed tokens in order inside their lines', ordered);
+		var count = 0, missed = [];
+		doc.root.walk(n -> if (n.kind == TagName) {
+			count++;
+			if (tagAt.get(n.start) != n.end) missed.push(doc.lineCol(n.start).line + ":" + n.text(doc.text));
+		});
+		check('$path: every tag name lexed as a tag', missed.length == 0, missed.slice(0, 5).join(", "));
+		return count;
 	}
 
 	// (a seeded generator: the same edits each run)
