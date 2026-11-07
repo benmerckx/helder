@@ -26,6 +26,9 @@ class Run {
 	static final GFX_TARGET = Sys.getEnv("GFX_TARGET") ?? HOST;
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
+	// xvfb-run, returning once its X server is gone (tests/xvfb-run.sh: the
+	// next one's display is not the last one's still letting go)
+	static final XVFB = "sh " + FileSystem.fullPath("tests/xvfb-run.sh");
 
 	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf", "syntax"];
 
@@ -213,7 +216,7 @@ class Run {
 		// (in a window: examples/canvas-window's 30th frame, the canvas read back: something drawn)
 		native("bin/canvas/canvas-window", cps(["src", "examples/canvas-window"]).concat(["-main", "CanvasWindow"]), GFX_TARGET);
 		var cmd = exePath("bin/canvas/canvas-window", GFX_TARGET) + " --shot bin/canvas/window.png";
-		if (Sys.systemName() == "Linux") shell('xvfb-run -a $cmd') else shell(cmd);
+		if (Sys.systemName() == "Linux") shell('$XVFB -a $cmd') else shell(cmd);
 		run(NODE, ["tests/canvas/window.mjs", "bin/canvas/window.png"]);
 
 	}
@@ -292,7 +295,7 @@ class Run {
 	static function app() {
 		native('bin/os/$GFX_TARGET/AppLoopTest', cps(["src", "tests/os"]).concat(["-main", "AppLoopTest"]), GFX_TARGET);
 		var exe = exePath('bin/os/$GFX_TARGET/AppLoopTest', GFX_TARGET);
-		if (GFX_TARGET.startsWith("linux-")) shell('xvfb-run -a ' + exe) else run(exe, []);
+		if (GFX_TARGET.startsWith("linux-")) shell('$XVFB -a ' + exe) else run(exe, []);
 	}
 
 	// (the viewer's own tests from its directory, its project: helder test there)
@@ -319,25 +322,25 @@ class Run {
 		var cmd = '$wine$exe --new --exit-after 3 "apps/viewer/tests/fixtures/folder/photo 2.jpg"';
 		var out = 'bin/viewer-window.txt';
 		mkdirs("bin");
-		if (Sys.systemName() == "Linux") shell('xvfb-run -a $cmd > $out') else shell('$cmd > $out');
+		if (Sys.systemName() == "Linux") shell('$XVFB -a $cmd > $out') else shell('$cmd > $out');
 		var said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("viewer: photo 2.jpg · 5 / 6 · 1242×1048 (shown") < 0) throw new Failed('the viewer did not show the photo: $said');
 		// (its main screen's accessibility tree read whole over AT-SPI, as the ui-draw lane reads AccessApp's: Linux's)
 		if (GFX_TARGET.startsWith("linux-") && Sys.systemName() == "Linux") {
 			native('bin/ui/$GFX_TARGET/AtspiProbe', uiCp().concat(["-main", "AtspiProbe"]), GFX_TARGET);
-			shell('xvfb-run -a dbus-run-session -- sh -c \'$exe --new --exit-after 30 "apps/viewer/tests/fixtures/folder/photo 2.jpg" & p=$$!; '
+			shell('$XVFB -a dbus-run-session -- sh -c \'$exe --new --exit-after 30 "apps/viewer/tests/fixtures/folder/photo 2.jpg" & p=$$!; '
 				+ 'bin/ui/$GFX_TARGET/AtspiProbe "photo 2" "image:photo 2.jpg · 5 / 6 · 1242×1048" "menu item:File" "menu item:View"; s=$$?; kill $$p; exit $$s\'');
 		}
 		// (a PDF's first page, its pages counted)
 		var pdf = '$wine$exe --new --exit-after 3 apps/viewer/tests/fixtures/pdf/pages.pdf';
-		if (Sys.systemName() == "Linux") shell('xvfb-run -a $pdf > $out') else shell('$pdf > $out');
+		if (Sys.systemName() == "Linux") shell('$XVFB -a $pdf > $out') else shell('$pdf > $out');
 		said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("viewer: pages.pdf · 1 / 1 · page 1 / 3 (shown") < 0) throw new Failed('the viewer did not show the PDF\'s first page: $said');
 		// (again with no system font found: its own, not a stop)
 		var nofont = 'HELDER_NO_SYSTEM_FONTS=1 $cmd';
-		if (Sys.systemName() == "Linux") shell('HELDER_NO_SYSTEM_FONTS=1 xvfb-run -a $cmd > $out') else shell('$nofont > $out');
+		if (Sys.systemName() == "Linux") shell('HELDER_NO_SYSTEM_FONTS=1 $XVFB -a $cmd > $out') else shell('$nofont > $out');
 		said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("(shown") < 0) throw new Failed('without system fonts, the viewer did not show the photo: $said');
@@ -345,7 +348,7 @@ class Run {
 		mkdirs("bin/viewer");
 		run(NODE, ["apps/viewer/tests/bigpng.mjs", "bin/viewer/wide.png", "9000", "2000"]);
 		var wide = '$wine$exe --new --exit-after 4 bin/viewer/wide.png';
-		if (Sys.systemName() == "Linux") shell('xvfb-run -a $wide > $out') else shell('$wide > $out');
+		if (Sys.systemName() == "Linux") shell('$XVFB -a $wide > $out') else shell('$wide > $out');
 		said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("9000×2000 (shown") < 0) throw new Failed('the viewer did not show a 9000x2000 PNG in tiles: $said');
@@ -353,7 +356,7 @@ class Run {
 		var first = '$wine$exe --exit-after 6 apps/viewer/tests/fixtures/folder/alpha.png > bin/viewer/first.txt';
 		var second = '$wine$exe "apps/viewer/tests/fixtures/folder/photo 2.jpg" > bin/viewer/second.txt';
 		var both = '$first & sleep 3; $second; wait';
-		if (Sys.systemName() == "Linux") shell('xvfb-run -a sh -c \'$both\'') else shell(both);
+		if (Sys.systemName() == "Linux") shell('$XVFB -a sh -c \'$both\'') else shell(both);
 		var a = File.getContent("bin/viewer/first.txt"), b = File.getContent("bin/viewer/second.txt");
 		Sys.print(b + a);
 		if (b.indexOf("handed to the running viewer") < 0 || a.indexOf("viewer: photo 2.jpg") < 0) throw new Failed('the second launch did not hand its file to the first: $b / $a');
@@ -500,11 +503,11 @@ class Run {
 		native('bin/os/$GFX_TARGET/WindowTest', cps(["src", "tests/os"]).concat(["-main", "WindowTest"]), GFX_TARGET);
 		var exe = exePath('bin/os/$GFX_TARGET/WindowTest', GFX_TARGET);
 		var wine = GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-") ? "wine " : "";
-		if (Sys.systemName() == "Linux") shell('xvfb-run -a $wine$exe') else run(exe, []);
+		if (Sys.systemName() == "Linux") shell('$XVFB -a $wine$exe') else run(exe, []);
 		// (helder.ui.menu's model as each platform's menus: tests/os/MenuTest.hx)
 		native('bin/os/$GFX_TARGET/MenuTest', cps(["src", "tests/os"]).concat(["-main", "MenuTest"]), GFX_TARGET);
 		var menus = exePath('bin/os/$GFX_TARGET/MenuTest', GFX_TARGET);
-		if (Sys.systemName() == "Linux") shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a $wine$menus bin/os') else run(menus, ["bin/os"]);
+		if (Sys.systemName() == "Linux") shell('LIBGL_ALWAYS_SOFTWARE=1 $XVFB -a $wine$menus bin/os') else run(menus, ["bin/os"]);
 		// (the platform's spellchecker: tests/text/SpellTest.hx)
 		native('bin/text/$GFX_TARGET/SpellTest', cps(["src", "tests/text"]).concat(["-main", "SpellTest"]), GFX_TARGET);
 		var spell = exePath('bin/text/$GFX_TARGET/SpellTest', GFX_TARGET);
@@ -517,9 +520,9 @@ class Run {
 			native('bin/ui/$GFX_TARGET/WinTextTest', uiCp().concat(["-main", "WinTextTest"]), GFX_TARGET);
 			var text = exePath('bin/ui/$GFX_TARGET/WinTextTest', GFX_TARGET);
 			if (Sys.systemName() == "Linux") {
-				shell('xvfb-run -a $wine$tsf');
-				shell('HELDER_NO_TSF=1 xvfb-run -a $wine$tsf');
-				shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a $wine$text');
+				shell('$XVFB -a $wine$tsf');
+				shell('HELDER_NO_TSF=1 $XVFB -a $wine$tsf');
+				shell('LIBGL_ALWAYS_SOFTWARE=1 $XVFB -a $wine$text');
 			} else {
 				run(tsf, []);
 				run(tsf, [], ["HELDER_NO_TSF" => "1"]);
@@ -548,7 +551,7 @@ class Run {
 		for (m in ["WinAccessTest", "WinPatternsTest", "AccessApp", "WinAccessProbe"])
 			native('$b/$m', uiCp().concat(["-main", m]), t);
 		var wine = !HOST.startsWith("windows-");
-		var w = wine ? "wine " : "", x = wine ? "LIBGL_ALWAYS_SOFTWARE=1 HELDER_UNDER_WINE=1 xvfb-run -a " : "";
+		var w = wine ? "wine " : "", x = wine ? "LIBGL_ALWAYS_SOFTWARE=1 HELDER_UNDER_WINE=1 " + XVFB + " -a " : "";
 		var app = '$w$b/AccessApp.exe', probe = '$w$b/WinAccessProbe.exe';
 		shell('$x$w$b/WinAccessTest.exe');
 		shell('$x$w$b/WinPatternsTest.exe');
@@ -914,7 +917,7 @@ class Run {
 		run(exePath('bin/3d/$t/SceneUiTest', t), []);
 		// (the boundary tags in windows: <Surface>s, a <Scene> box, picking through it, <Ui>; Xvfb)
 		native('bin/3d/$t/SurfaceTest', cps(["src", "tests/gfx", "tests/3d-ui"]).concat(["-main", "SurfaceTest"]), t);
-		shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
+		shell('LIBGL_ALWAYS_SOFTWARE=1 $XVFB -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
 		sceneTs(t);
 		// (Model.of's files in the executable's data, helder.asset's Bundle: it
@@ -1045,7 +1048,7 @@ class Run {
 		var b = 'bin/ui/$GFX_TARGET';
 		var bless = BLESS ? " --bless" : "";
 		var gpu = "LIBGL_ALWAYS_SOFTWARE=1 env -u DISPLAY";
-		var xvfb = 'xvfb-run -a -s "-screen 0 640x480x24"';
+		var xvfb = '$XVFB -a -s "-screen 0 640x480x24"';
 		shell('$gpu $b/UiDrawTest tests/ui/draw.png $b/draw.png$bless');
 		shell('LIBGL_ALWAYS_SOFTWARE=1 $xvfb $b/UiDrawTest tests/ui/draw.png $b/window.png --window');
 		shell('$gpu $b/TodoTest tests/ui/todo.png $b/todo.png$bless');
@@ -1107,7 +1110,7 @@ class Run {
 		// (the dev loop's server, @hxmc/cli's dev.mjs, run by node with the compiler)
 		var compiler = "node_modules/.bin/haxe";
 		run(NODE, ["tests/os/dev/dev-web.mjs", compiler, "bin/dev/web"]);
-		if (HOST.startsWith("linux-")) shell('xvfb-run -a -s "-screen 0 640x480x24" $NODE tests/os/dev/dev-native.mjs $compiler bin/dev/native');
+		if (HOST.startsWith("linux-")) shell('$XVFB -a -s "-screen 0 640x480x24" $NODE tests/os/dev/dev-native.mjs $compiler bin/dev/native');
 		else run(NODE, ["tests/os/dev/dev-native.mjs", compiler, "bin/dev/native"]);
 		run(NODE, ["tests/os/dev/server-verify.mjs", compiler]);
 		run(NODE, ["tests/os/dev/dev-verify.mjs", compiler, "Counter", "web"]);
@@ -1120,7 +1123,7 @@ class Run {
 		var targets = [HOST].concat([for (t in (Sys.getEnv("DEV_HOST_TARGETS") ?? "").split(",")) if (t != "" && t != HOST) t]);
 		for (t in targets) {
 			var args = 'tests/os/dev/dev-host.mjs node_modules/.bin/haxe bin/dev-host/$t $t';
-			if (HOST.startsWith("linux-")) shell('xvfb-run -a -s "-screen 0 640x480x24" $NODE $args') else run(NODE, args.split(" "));
+			if (HOST.startsWith("linux-")) shell('$XVFB -a -s "-screen 0 640x480x24" $NODE $args') else run(NODE, args.split(" "));
 		}
 	}
 

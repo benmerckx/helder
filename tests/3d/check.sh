@@ -14,7 +14,7 @@ if [ -f "$bin/RenderTest.exe" ]; then
 	MINGW* | MSYS* | CYGWIN*) run() { "$bin/RenderTest.exe" "$@"; } ;;
 	*)
 		export WINEDEBUG=-all
-		run() { xvfb-run -a -s "-screen 0 640x480x24" "${WINE:-/usr/lib/wine/wine64}" "$bin/RenderTest.exe" "$@"; }
+		run() { sh "$here/../xvfb-run.sh" -a -s "-screen 0 640x480x24" "${WINE:-/usr/lib/wine/wine64}" "$bin/RenderTest.exe" "$@"; }
 		;;
 	esac
 else

@@ -19,7 +19,7 @@ if [ -f "$bin/GfxTest.exe" ]; then
 	MINGW* | MSYS* | CYGWIN*) run() { "$@"; } ;;
 	*)
 		export LIBGL_ALWAYS_SOFTWARE=1 WINEDEBUG=-all
-		run() { xvfb-run -a -s "-screen 0 640x480x24" "${WINE:-/usr/lib/wine/wine64}" "$@"; }
+		run() { sh "$here/../xvfb-run.sh" -a -s "-screen 0 640x480x24" "${WINE:-/usr/lib/wine/wine64}" "$@"; }
 		;;
 	esac
 	for s in triangle cube instances targets msaa mips formats; do
@@ -47,5 +47,5 @@ fi
 export LIBGL_ALWAYS_SOFTWARE=1
 for s in triangle cube instances targets msaa mips formats; do
 	env -u DISPLAY "$bin/GfxTest" headless $s "$here/$s.png" "$out/$s-headless.png"
-	xvfb-run -a -s "-screen 0 640x480x24" "$bin/GfxTest" window $s "$here/$s.png" "$out/$s-window.png" 5
+	sh "$here/../xvfb-run.sh" -a -s "-screen 0 640x480x24" "$bin/GfxTest" window $s "$here/$s.png" "$out/$s-window.png" 5
 done
