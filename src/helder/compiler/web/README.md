@@ -68,7 +68,31 @@ at `init`).
 
 A build's module is a wasm32-wasi program like any `helder build --target
 web` makes: `src/helder/os/browser.mjs` runs it with the imports of the
-packages it uses. `preview.mjs` runs one in a page or a worker with
-helder dev's imports (`hxmc_dev`), so the worker's `edit` and `reload`
-reach it: `preview.devtools(request)` hands a devtools request to the
-program and resolves with its response.
+packages it uses. `preview.mjs` runs one in a page (helder.os's browser
+imports draw on the DOM's canvases: a frame of its own keeps it apart)
+with helder dev's imports (`hxmc_dev`), so the worker's `edit` reaches it:
+`preview.devtools(request)` hands a devtools request to the program and
+resolves with its response, and `preview.swap(build)` runs a new build in
+the running one's place with its state (Hot's snapshot), as helder dev's
+page does.
+
+```js
+import { Preview } from 'helder/src/helder/compiler/web/preview.mjs';
+const preview = new Preview({ base: '/helder/src/helder/', fonts: [dejavu] });
+await preview.run(await c.build('/work/app'));
+c.running = (request) => preview.devtools(request);
+const e = await c.edit({ '/work/app/main.tsx': saved });
+if (e.kind === 'build') await preview.swap(await c.build('/work/app'));
+```
+
+## Building and testing
+
+`node src/helder/compiler/web/build.mjs [out]` writes the files the worker
+fetches (bin/compiler-web: `helder-compiler.wasm`, `tsc.wasm`,
+`sources.bundle`, their `.br`, `typescript/`, `manifest.json`); the
+compiler's module is kept in helder's cache (`HELDER_CACHE`) per hash of
+its sources. `bun run test compiler-web` builds them, then checks and
+builds todo and ts-todo in node (tests/compiler-web/node.mjs) and in
+headless Chromium (tests/compiler-web/browser.mjs: the worker, the
+preview in a frame, a literal edit patched and a structural one built and
+swapped in), and prints the numbers.

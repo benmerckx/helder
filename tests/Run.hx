@@ -79,6 +79,7 @@ class Run {
 		{name: "audio-web", about: "helder.os's audio on WebAudio in headless Chromium", run: audioWeb},
 		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, a tap and a drag without mouse events or scrolls, a pointer event sent from JavaScript (tests/os/PointersWeb.hx); App.onBack and App.backDepth's history entry, history back, Escape as the back, haxe.Timer.delay in App.run (tests/os/BackWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
+		{name: "compiler-web", about: "helder.compiler.web, helder's toolchain as wasm in a worker: its modules built (src/helder/compiler/web/build.mjs: bin/compiler-web), todo and ts-todo checked and built in node (tests/compiler-web/node.mjs: warm, a type error, a check writing nothing), then in headless Chromium the worker loaded (brotli), both built to wasm32 on the page and each run in a frame of its own (preview.mjs), a literal edit patched with no build and a structural one built and swapped in, each read back from the program's view (Ui.getTree), and the numbers printed (tests/compiler-web/browser.mjs)", run: compilerWeb},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI)", run: uiDraw},
 		{name: "syntax", about: "helder.syntax, the syntax trees the studio edits (src/helder/syntax; its edits' tests are the test lane's, Syntax.test.hx): every .ts and .tsx file, and every .hx file with markup, of the repository read and printed back byte for byte, read structurally, each Haxe markup literal read as the macro's parser reads it (tests/syntax/Check.hx, on Eval and natively: the read of the largest file timed)", run: syntaxLane},
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
@@ -1263,6 +1264,12 @@ class Run {
 		rmrf("bin/3d/assets");
 		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.asset.out=bin/3d/SceneWebTest.wasm"]));
 		run(NODE, ["tests/3d/web.mjs", "bin/3d/SceneWebTest.wasm", "bin/3d"]);
+	}
+
+	static function compilerWeb() {
+		run(NODE, ["src/helder/compiler/web/build.mjs", "bin/compiler-web"]);
+		run(NODE, ["tests/compiler-web/node.mjs", "bin/compiler-web"]);
+		run(NODE, ["tests/compiler-web/browser.mjs", "bin/compiler-web"]);
 	}
 
 	static function web() {
