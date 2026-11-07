@@ -209,13 +209,15 @@ class HostScreen {
 	public function mount() {
 		if (ui != null) return;
 		mountedAt = haxe.Timer.stamp();
-		context.run(() -> {
+		// (its state's keys in a scope of its name: kept across a reload whichever screens mount first, helder.dev.Hot)
+		context.run(() -> helder.dev.Hot.scope(name, () -> {
 			var u = new Ui(host.text, width, height);
 			u.dark = context.dark.peek();
 			ui = u;
 			controls = new Controls(story.seed);
 			Render.render(story.build(controls), u.root);
-		});
+			true;
+		}));
 	}
 
 	// something to do in it (an event's handling, a devtools method): f with its context current

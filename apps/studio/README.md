@@ -101,8 +101,9 @@ opens, not built, so the canvas is laid out before anything compiled.
   zoomed into, its scale), `Host.frame` and `Host.release` (the frames'
   textures), `Ui.getTree` and `Ui.nodesAt` naming a screen, live literals
   (`Hot.literals`: one program, every screen's next frame shows a patch),
-  reloads (`Runtime.reload`: the host's state in Hot's snapshot, the new
-  build started from it), `Host.snap` (a frame's pixels read back for
+  reloads (`Runtime.reload`: the host's state in Hot's snapshot, each
+  screen's keys in a scope of its name, the new build started from it with
+  the screens the last one had built), `Host.snap` (a frame's pixels read back for
   `run.snap`). The host ends with the studio (`HXMC_DEV_EXIT_WITH_SERVER`).
 - The compiler stays warm (helder.compiler.service). One build runs at a
   time; files edited during a build are written after it.
@@ -260,8 +261,6 @@ runs through shared memory).
 
 - A zoomed screen is drawn at the canvas' scale in halves up to 3, not
   tiled: deeper zooms scale its frame.
-- A reload restores the screens in view; the others start afresh when
-  shown (Hot's snapshot settles at the host's first frame).
 - A story's shortcuts bound at a module's start (Keymap.global there) are
   the program's main context's, not the screens'.
 - Selection is click only: no move, resize, snapping, layers or multiple

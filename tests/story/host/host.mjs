@@ -244,6 +244,8 @@ const st = await studio();
 if (h.n !== N || st.n !== N) throw new Error(`screens: host ${h.n}, studio ${st.n}, wanted ${N}`);
 rmSync(path.join(dir, 'host-frames'), { recursive: true, force: true });
 rmSync(path.join(dir, 'screens50'), { recursive: true, force: true });
+// (the studio's files for it: its build, the story file's link into the project just removed)
+rmSync('bin/studio/Todo', { recursive: true, force: true });
 const rows = [
 	`${N} screens of examples/todo (a dev build, offscreen on Mesa's llvmpipe; the headless host with LP_NUM_THREADS=2)`,
 	'',
