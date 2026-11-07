@@ -244,6 +244,8 @@ class TestCommand {
 				if (FileSystem.isDirectory(p)) clean(p) else if ((n.endsWith("_test.hx") || n.endsWith("_story.hx")) && !wanted.exists(p)) FileSystem.deleteFile(p);
 			}
 		clean(GEN);
+		// (a project of TypeScript tests only links none: the directory made for the mains all the same)
+		mkdirs(GEN);
 		for (f in files) {
 			mkdirs(Path.directory(f.linked));
 			Link.make(f.real, f.linked);
