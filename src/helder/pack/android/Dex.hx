@@ -40,6 +40,9 @@ class Dex {
 	static inline var CLASS_DATA = 0x2000;
 	static inline var CODE = 0x2001;
 	static inline var STRING_DATA = 0x2002;
+	static inline var ANNOTATION_SET = 0x1003;
+	static inline var ANNOTATION = 0x2004;
+	static inline var ANNOTATIONS_DIRECTORY = 0x2006;
 
 	public static function write(classes:Array<DexClass>):Bytes {
 		var pools = new Pools();
@@ -53,6 +56,9 @@ class Dex {
 				pools.field(c.name, f.name, f.type);
 			for (m in c.methods) {
 				pools.method(c.name, m.name, m.ret, m.params);
+				if (m.annotations != null)
+					for (t in m.annotations)
+						pools.type(t);
 				if (m.code != null) m.code.insns(pools);
 			}
 		}
@@ -164,6 +170,60 @@ class Dex {
 				}
 			}
 		}
+		// annotations (methods' only, each runtime-visible and without
+		// elements: @JavascriptInterface): an item per type, a set per list of
+		// them, a directory per class that has any
+		var annotationAt = pos(), nAnnotations = 0;
+		var annotationItems = new Map<String, Int>();
+		for (c in classes)
+			for (m in c.methods)
+				if (m.annotations != null)
+					for (t in m.annotations)
+						if (!annotationItems.exists(t)) {
+							annotationItems.set(t, pos());
+							data.u8(1); // VISIBILITY_RUNTIME
+							data.uleb(pools.typeIndex(t));
+							data.uleb(0);
+							nAnnotations++;
+						}
+		align4();
+		var setAt = pos(), nSets = 0;
+		var sets = new Map<String, Int>();
+		for (c in classes)
+			for (m in c.methods)
+				if (m.annotations != null && m.annotations.length > 0) {
+					var key = m.annotations.join(",");
+					if (sets.exists(key)) continue;
+					sets.set(key, pos());
+					// (sorted by type index)
+					var ts = m.annotations.copy();
+					ts.sort((a, b) -> pools.typeIndex(a) - pools.typeIndex(b));
+					data.u32(ts.length);
+					for (t in ts)
+						data.u32(annotationItems.get(t));
+					nSets++;
+				}
+		var directoryAt = pos(), nDirectories = 0;
+		var directories = [];
+		for (c in classes) {
+			var annotated = [for (m in c.methods) if (m.annotations != null && m.annotations.length > 0)
+				{i: pools.methodIndex(c.name, m.name, m.ret, m.params), off: sets.get(m.annotations.join(","))}];
+			if (annotated.length == 0) {
+				directories.push(0);
+				continue;
+			}
+			annotated.sort((a, b) -> a.i - b.i);
+			directories.push(pos());
+			data.u32(0); // the class's own
+			data.u32(0); // fields
+			data.u32(annotated.length);
+			data.u32(0); // parameters
+			for (a in annotated) {
+				data.u32(a.i);
+				data.u32(a.off);
+			}
+			nDirectories++;
+		}
 		// the map
 		align4();
 		var mapAt = pos();
@@ -179,6 +239,9 @@ class Dex {
 			[CODE, nCode, codeAt],
 			[STRING_DATA, nS, stringDataAt],
 			[CLASS_DATA, nC, classDataAt],
+			[ANNOTATION, nAnnotations, annotationAt],
+			[ANNOTATION_SET, nSets, setAt],
+			[ANNOTATIONS_DIRECTORY, nDirectories, directoryAt],
 			[MAP_LIST, 1, mapAt]
 		].filter(e -> e[1] > 0);
 		data.u32(map.length);
@@ -231,7 +294,7 @@ class Dex {
 			out.u32(pools.typeIndex(c.superName));
 			out.u32(interfaces[i]);
 			out.u32(NO_INDEX); // source file
-			out.u32(0); // annotations
+			out.u32(directories[i]);
 			out.u32(classData[i]);
 			out.u32(0); // static values
 		}
@@ -427,7 +490,9 @@ typedef DexMethod = {
 	ret:String,
 	params:Array<String>,
 	access:Int,
-	?code:DexCode
+	?code:DexCode,
+	// its annotations' types (runtime-visible, no elements: Landroid/webkit/JavascriptInterface;)
+	?annotations:Array<String>
 };
 
 // a method's code: its registers (the arguments are the last `ins`), the

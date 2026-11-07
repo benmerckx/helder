@@ -57,6 +57,9 @@ class AndroidWindow {
 	// events waiting for this thread
 	@:allow(helder.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;
 	@:allow(helder.os.android) static var textEvents:Null<((kind:EventKind, text:String, caret:Int) -> Void)->Void> = null;
+	// what else hands the program's thread its events at each pump (a web
+	// view's, helder.ui.platform.AndroidWebView: woken by MainThread.wake)
+	public static final pumped:Array<Void->Void> = [];
 	// a new activity in the running process (Glue: the content moves to it)
 	@:allow(helder.os.android) static var recreated:Null<Void->Void> = null;
 
@@ -188,6 +191,8 @@ class AndroidWindow {
 		// (the input the UI thread read: it wakes the looper)
 		input(onEvent);
 		if (textEvents != null) textEvents((kind, text, caret) -> dispatch(onEvent, kind, caret, 0, text));
+		for (f in pumped)
+			f();
 		// (a new window with a size: Resume; a size the system changed, or its safe area: Resize)
 		var w = current;
 		if (w == null || !ready()) return;

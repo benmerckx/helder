@@ -1,0 +1,62 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>helder webview check</title>
+<style>
+body { margin: 0; font: 16px/1.4 -apple-system, system-ui, sans-serif; background: #1e3a8a; color: #fff; }
+main { padding: 16px; }
+#state { font-size: 20px; }
+</style></head><body>
+<main><h1>WebView check</h1><p id="state">starting</p></main>
+<script>
+// tests/platform/WebViewCheck.hx's page: served by its WebContent (COOP and
+// COEP: cross-origin isolated), its wasm instantiated (served as
+// application/wasm), the result posted through the bridge; native's
+// replies (a string, then bytes) answered so it can check the round trip.
+const state = document.getElementById('state');
+const say = (s) => { state.textContent = s; };
+async function check() {
+	const r = { kind: 'result', isolated: self.crossOriginIsolated === true, sab: typeof SharedArrayBuffer === 'function',
+		secure: self.isSecureContext === true, origin: location.origin, ua: navigator.userAgent };
+	try {
+		// (the scheme handler's headers, as the page sees them)
+		const h = (await fetch('add.wasm')).headers;
+		r.coop = h.get('cross-origin-opener-policy');
+		r.coep = h.get('cross-origin-embedder-policy');
+		r.mime = h.get('content-type');
+	} catch (e) {
+		r.headersError = String(e);
+	}
+	try {
+		const { instance } = await WebAssembly.instantiateStreaming(fetch('add.wasm'));
+		r.wasm = instance.exports.add(2, 3);
+	} catch (e) {
+		r.wasm = -1;
+		r.wasmError = String(e);
+	}
+	try {
+		// (a shared memory: wasm threads' memory, only where cross-origin isolated)
+		const m = new WebAssembly.Memory({ initial: 1, maximum: 1, shared: true });
+		r.shared = m.buffer instanceof SharedArrayBuffer;
+	} catch (e) {
+		r.shared = false;
+	}
+	say('isolated ' + r.isolated + ', wasm ' + r.wasm);
+	helder.post(r);
+}
+helder.onmessage = (e) => {
+	if (typeof e.data === 'string') {
+		say('native: ' + e.data);
+		helder.post('round trip: ' + e.data);
+	} else if (e.data instanceof ArrayBuffer) {
+		const b = new Uint8Array(e.data);
+		say('bytes: ' + b.length);
+		// (sent back reversed: native checks both ways)
+		helder.post(new Uint8Array(b).reverse());
+	} else {
+		helder.post({ kind: 'json back', value: e.data });
+	}
+};
+console.log('webview page: script ran');
+check();
+</script>
+</body></html>

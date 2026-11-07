@@ -654,13 +654,93 @@ drawn from its bitmaps (scaled down as a browser does) or colour layers. In a br
 embedded in a drawn window, each in a rectangle the layout gives it:
 the native menus (a context menu, the menu bar), the platform's text
 editors where `Ui.policy` or a node says native (on the desktop helder
-draws its own by default), and later heavy views (a web
-view, video) when an app needs one. A window's `Ui.platform` is its
+draws its own by default), the system's web view (`WebView`, below),
+and later other heavy views (video) when an app needs one. A window's `Ui.platform` is its
 `PlatformViews` (`MacViews` on macOS, `WinViews` on Windows, `WebViews`
 in a browser; none on Linux and Android, where everything is drawn); a
 `PlatformEditor` is one text editor, `PlatformMenuItem` a menu's item as
 the platform takes it. The AppKit and Win32 calls they make beside
 helder.os's are theirs (`AkMsg`, `Win32`).
+
+### The web view
+
+`<webview>` (`helder.ui.platform.WebView`, a node) is the system's web
+view placed where it is laid out, over the drawn surface: on iOS and
+macOS a WKWebView (`AppleWebView`: a subview of the window's view,
+its UiWindow's surface's), on Android an `android.webkit.WebView` (`AndroidWebView`:
+a panel window of the activity's, since NativeActivity's own window draws
+no views, made and driven on Java's main thread); elsewhere nothing yet
+(its box is drawn). `WebShell.run` is an app that is a web view alone, on
+the whole screen (iOS: its window's root view; Android: the activity's
+content, `org.hxmc.Activity`; the desktop: a window with one WebView):
+the thin native shell around a web app (helder studio's web build on a
+phone, where only the system's web view runs wasm compiled at run time).
+
+```haxe
+var content = WebContent.bundle("web/");          // Asset.bytes("web/index.html") etc.: the bundle's files
+<webview src="index.html" content={content} flex-grow={1}
+	onMessage={e -> reply(e.text)} onTitle={e -> title(e.text)} onLoadError={e -> trace(e.text)}/>
+
+web.post("hello");                                 // the page's helder.onmessage (e.data)
+web.postJson({kind: "open", path: p});
+web.postBytes(bytes);                              // an ArrayBuffer there
+web.eval("document.title");
+web.snapshot(shot -> ...);                         // {width, height, pixels}: RGBA8, straight alpha
+
+WebShell.run({content: content, src: "index.html"}, (shell, e) -> if (e.kind == Message) shell.post("pong"));
+```
+
+- **Its own origin**: a `WebContent` serves the bundle's files
+  (`bundle(prefix)`: helder.asset's keys, which the program names), a
+  directory's (`directory(dir)`) or a function's (`handler(path ->
+  WebResponse)`). On iOS and macOS by a server of the app's own on the
+  loopback address (`WebServer`: `http://127.0.0.1:<port>/`, a potentially
+  trustworthy origin; WebKit isolates HTTP origins only, never a custom
+  scheme's page, as CI's simulator shows), or with `local = false` by
+  WKURLSchemeHandler for `app://localhost/`; on Android by
+  `shouldInterceptRequest` for `https://appassets.androidplatform.net/` (as
+  WebViewAssetLoader). The page is a secure context. Every response has
+  COOP `same-origin`, COEP `require-corp` and CORP `same-origin` (its
+  `headers`), and a MIME type by extension (`.wasm`: `application/wasm`):
+  `crossOriginIsolated`, SharedArrayBuffer and wasm threads on Apple's;
+  Android's WebView (Chrome 113 on CI's emulator) isolates no page, the
+  headers notwithstanding. The loopback server answers any process of the
+  machine: what it serves is the app's public files. `src` may be
+  a path of it.
+- **The bridge** (`WebBridge`): the page has `window.helder` before its own
+  scripts (Apple: a WKUserScript at the document's start; Android: put in
+  the HTML its content serves, and evaluated at each other page's start):
+  `helder.post(x)` a string, a value as JSON or bytes (an ArrayBuffer or
+  typed array, as base64) to `onMessage` (`WebViewEvent`: `text`,
+  `isJson`/`json()`, `bytes`), over WKScriptMessageHandler or a
+  `@JavascriptInterface` object (`org.hxmc.WebBridge`, on its JavaBridge
+  thread); native to the page by evaluating its `helder.__receive`, and
+  bytes fetched by the page from its own origin
+  (`/__helder/bytes/<id>`: an ArrayBuffer, no base64) where it has one.
+  What native code gives the page that a browser cannot (the stores' APIs
+  without a CORS relay, the keychain, files, the share sheet) goes through it.
+- **Its life**: `onNavigate`, `onUrlChange`, `onLoad`, `onTitle`,
+  `onProgress`, `onLoadError`, `onConsole` (Android's console; Apple's
+  console.* through the bridge), `onCrash` (the content process gone);
+  `url`, `title`, `progress`, `loading`; `goBack`, `goForward`, `reload`,
+  `stop`. The back gesture (iOS's edge swipe, Android's Back key) goes
+  back in its history (`backGesture`); the keyboard and the page's safe
+  area (`env(safe-area-inset-*)`) are the system's; pinch zoom off unless
+  `zoom`; `transparent`; the inspector (`isInspectable`,
+  `setWebContentsDebuggingEnabled`) in debug builds or with `inspectable`.
+- **A still** (`snapshot`): WKWebView's takeSnapshot (a block made by
+  hand: a global one, its invoke a callback), Android's View.draw into a
+  bitmap; RGBA8, for helder to composite a frame of it.
+
+Tests: CI's simulator and emulator (`tests/platform/webview-ios.sh`,
+`webview-android.sh`: `tests/platform/WebViewCheck.hx` in a drawn window
+and `WebShellCheck.hx` on the whole screen; a bundled page that reports
+`crossOriginIsolated`, instantiates a wasm module streamed as
+`application/wasm` and posts the result, native's string and bytes
+answered by the page and checked, a snapshot, then examples/todo's web
+build run in the same web view). Not yet: Windows' WebView2 and Linux's
+WebKitGTK (nothing is drawn there), the web view in a browser (an
+iframe), ArrayBuffers from the page without base64.
 
 ### Native or drawn, per widget
 

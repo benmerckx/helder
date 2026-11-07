@@ -8,7 +8,7 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
-import type {Event} from "helder/ui";
+import type {Event, WebViewEvent} from "helder/ui";
 import type {Signal, View} from "helder/view";
 
 declare const __haxe: {Story: "helder.story.Story", Controls: "helder.story.Story.Controls", Stories: "helder.story.Stories", Screens: "helder.story.Screens", __module: "helder.story.TypeScript"};
@@ -108,6 +108,15 @@ export interface NeutralAttributes {
 	onPan?: ((event: unknown) => void) | null;
 	onPinch?: ((event: unknown) => void) | null;
 	onScale?: ((event: unknown) => void) | null;
+	onMessage?: ((event: WebViewEvent) => void) | null;
+	onNavigate?: ((event: WebViewEvent) => void) | null;
+	onUrlChange?: ((event: WebViewEvent) => void) | null;
+	onLoad?: ((event: WebViewEvent) => void) | null;
+	onTitle?: ((event: WebViewEvent) => void) | null;
+	onProgress?: ((event: WebViewEvent) => void) | null;
+	onLoadError?: ((event: WebViewEvent) => void) | null;
+	onConsole?: ((event: WebViewEvent) => void) | null;
+	onCrash?: ((event: WebViewEvent) => void) | null;
 }
 
 declare global {
