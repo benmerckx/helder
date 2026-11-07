@@ -27,6 +27,7 @@ compilation server alike.
   Haxe's init macros, typing and filters, hxmc's lowering, codegen and
   link, a frontend's own), for the edit-loop lane (`bun run test
   edit-loop`).
+- `web/`: the toolchain in the browser (its README): the compiler and TypeScript's API as wasm in a worker, its message protocol (`protocol.d.ts`, `client.mjs`).
 - `service/`: the compiler as a library (its README): `Service`'s check,
   build, edit (live literals) and reload over a warm compilation server,
   the path `helder build`, `run` and `dev` take and the studio's.
