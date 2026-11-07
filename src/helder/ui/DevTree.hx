@@ -24,7 +24,11 @@ class DevTree {
 		if (uis.length > KEPT) uis.shift();
 	}
 
-	static function tree():Dynamic {
+	static function tree():Dynamic
+		return treeOf(uis);
+
+	// Ui.getTree's answer of these Uis (a story host's: one screen's)
+	public static function treeOf(uis:Array<Ui>):Dynamic {
 		var seen = new haxe.ds.ObjectMap<Node, Int>();
 		var roots = [for (ui in uis) {width: ui.width, height: ui.height, root: node(ui.root, seen), overlay: node(ui.overlay, seen)}];
 		ids = seen;
@@ -33,7 +37,11 @@ class DevTree {
 
 	// the source map's reverse lookup (NodeSources): {file, line, col} to the
 	// nodes made there, {nodes: [{id, tag, source, component}]}, ids as getTree's
-	static function nodesAt(p:Dynamic):Dynamic {
+	static function nodesAt(p:Dynamic):Dynamic
+		return nodesAtOf(uis, p);
+
+	// Ui.nodesAt's answer in these Uis
+	public static function nodesAtOf(uis:Array<Ui>, p:Dynamic):Dynamic {
 		var roots = [];
 		for (ui in uis) {
 			roots.push(ui.root);

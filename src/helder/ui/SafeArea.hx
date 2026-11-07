@@ -16,14 +16,18 @@ import helder.view.graph.Signal;
 // Code reads insets() (a signal: what reads it in an effect or a reactive
 // attribute follows it).
 class SafeArea {
-	// top, right, bottom, left in UI pixels
-	public static final insets:Signal<Edges> = Graph.signalOf(Edges.ZERO, {ownedWrite: true});
+	// top, right, bottom, left in UI pixels (the current screen's:
+	// helder.ui.ScreenContext, a story host's screens each their own)
+	public static var insets(get, never):Signal<Edges>;
+
+	static inline function get_insets():Signal<Edges>
+		return ScreenContext.current.safeArea;
 
 	// (UiWindow) the insets now: the signal set when they changed
 	public static function set(top:Float, right:Float, bottom:Float, left:Float) {
-		var e = insets.peek();
+		var s = ScreenContext.current.safeArea, e = s.peek();
 		if (e.top == top && e.right == right && e.bottom == bottom && e.left == left) return;
-		insets(new Edges(top, right, bottom, left));
+		s(new Edges(top, right, bottom, left));
 	}
 
 	// (markup: NodeRenderer.setProperty, a literal value naming env()) the

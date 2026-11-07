@@ -77,7 +77,7 @@ class Scrolling {
 		ui.scrolls.set(n, [n.scrollX, n.scrollY, tx, ty, Clock.now]);
 		ui.requestFrame();
 		if (a != null) return;
-		Clock.add(t -> {
+		Clock.addTo(ui.context, t -> {
 			var a = ui.scrolls.get(n);
 			if (a == null) return false;
 			var k = Math.min(1, Math.max(0, (t - a[4]) / ui.scrollDuration));

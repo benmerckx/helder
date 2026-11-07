@@ -314,7 +314,9 @@ class Renderer implements Canvas {
 			textures.set(img.id, e);
 		} else {
 			var t = e.texture;
-			if (e.page >= 0) img.premultiplied(pre -> device.writeTexture(t, pre, e.x, e.y, e.width, e.height));
+			// (a browser's image replaced by another, a frame of a worker's: uploaded from its bitmap)
+			if (e.page < 0 && img.browser != 0 && !img.hasPixels && device.decodesImages) device.writeTextureImage(t, img.browser);
+			else if (e.page >= 0) img.premultiplied(pre -> device.writeTexture(t, pre, e.x, e.y, e.width, e.height));
 			else img.premultiplied(pre -> device.writeTexture(t, pre));
 			e.version = img.version;
 		}

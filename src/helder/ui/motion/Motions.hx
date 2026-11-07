@@ -2,6 +2,7 @@ package helder.ui.motion;
 
 import helder.canvas.Matrix;
 import helder.ui.Color;
+import helder.ui.ScreenContext;
 
 // Motion as property tracks: what moves a node's presented state (its
 // Present's tracks) when its layout, its style or its place in the tree
@@ -48,9 +49,8 @@ class Motions {
 	// settled within this of an edge (pixels)
 	public static inline var EDGE_EPS = 0.01;
 
-	// what moves (each Present once)
-	static final active:Array<Present> = [];
-	static var ticking = false;
+	// what moves (each Present once), each screen's on its own clock
+	// (helder.ui.ScreenContext.motions: a story host's screens apart)
 	// (the Ui updates so far: a matched source kept for the next one)
 	static var updates = 0;
 	static final sources:Array<Source> = [];
@@ -110,15 +110,16 @@ class Motions {
 
 	// (moving: stepped on the Clock)
 	static function activate(p:Present) {
+		var u = uiOf(p.node);
+		var c = u == null ? ScreenContext.current : u.context;
 		if (!p.active) {
 			p.active = true;
-			active.push(p);
+			c.motions.push(p);
 		}
-		if (!ticking) {
-			ticking = true;
-			Clock.add(step);
+		if (!c.motionTicking) {
+			c.motionTicking = true;
+			Clock.addTo(c, t -> step(c, t));
 		}
-		var u = uiOf(p.node);
 		if (u != null) u.requestFrame();
 	}
 
@@ -476,8 +477,8 @@ class Motions {
 	// --- the clock ---
 
 	// (each moving track sampled at now; their values written, frames asked; the settled let go)
-	static function step(now:Float):Bool {
-		var i = 0;
+	static function step(c:ScreenContext, now:Float):Bool {
+		var i = 0, active = c.motions;
 		while (i < active.length) {
 			var p = active[i];
 			sampleAll(p, now);
@@ -492,7 +493,7 @@ class Motions {
 			i++;
 		}
 		if (active.length == 0) {
-			ticking = false;
+			c.motionTicking = false;
 			return false;
 		}
 		return true;
@@ -555,7 +556,7 @@ class Motions {
 
 	// how many nodes move now
 	public static function moving():Int
-		return active.length;
+		return ScreenContext.current.motions.length;
 }
 
 // (a matched element that left: where it was seen, its edges' velocities, its radius and fill)

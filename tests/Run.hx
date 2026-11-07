@@ -84,6 +84,7 @@ class Run {
 		{name: "syntax-run", about: "helder.syntax's edits on the examples (tests/syntax/Examples.hx; Linux: Mesa's llvmpipe, no display): todo, ts-todo, mail, the guide's screen and the viewer's shell and shader copied into bin/syntax/run and edited (attributes set, added and removed, literals, children inserted, elements moved, deleted, wrapped, unwrapped and renamed, a component renamed, a definition's field), each edit's change only in its span and undone by its inverse; each built and run headless (helder run --headless), its --tree showing each change; ts-todo's story renamed and its tests run (helder test)", run: syntaxRun},
 		{name: "studio", about: "helder studio (apps/studio; Linux: Mesa's llvmpipe, no display) run headless on copies of examples/todo and examples/ts-todo by tests/studio/edit.json: every screen shown (each story a dev build in a process of its own), one zoomed into, its title clicked and selected, its colour changed in the inspector (the value's span alone, a live literal patched, the program's frame showing it within 3 frames), a padding added and undone (built twice), tag=\"title\" typed into the code view (built, the node tagged), the prompt bar's /tree; the files at the end and every edit's span checked, the overview, zoomed and selected frames against tests/studio's goldens, the times printed (tests/studio/Check.hx); `helder studio --help`", run: studioLane},
 		{name: "demos", about: "the showcase demos run headless (Linux: Mesa's llvmpipe, no display) at half scale: examples/showreel's scenes each by --scene, examples/fx's gallery, its --tour with an effect open and its reduced-motion stills, examples/literal's and examples/notes' demo scripts (their pointer and keys); each one's stills at a few times against tests/demos's goldens, within a tolerance (tests/demos/Check.hx)", run: demosLane},
+		{name: "story-host", about: "helder.story.Host, the studio's preview host (Linux: Mesa's llvmpipe, no display): 50 stories of examples/todo (tests/story/host/host.mjs gen) mounted in one program, each its own root and ScreenContext, drawn offscreen, against today's process a screen (helder.story.Screens, helder.headless's serve mode): the start to every screen's first frame and the memory then (resident, Pss); the host's turns with one screen focused (only it draws) and none (none draws): bin/story-host/results.md", run: storyHost},
 		{name: "motion-bench", about: "helder.ui.motion's budget measured (Linux: Mesa's llvmpipe, no display): tests/bench/MotionStress.hx, 1,000 boxes under motion retargeted every 0.25 s, run headless with --stats, against the same boxes drawn each frame without motion: ms a frame (median, p95) between retargets and at them, GC bytes a frame (checked: as many moving as still, no allocation in the steady state): bin/motion-bench/results.md", run: motionBench},
 		{name: "code-bench", about: "helder.ui.code's budgets measured, not checked (Linux: Mesa's llvmpipe, no display): examples/code-editor on a 10,000-line TSX file run headless with --stats (tests/bench/code.mjs: keystrokes, the wheel down and back up, idle frames: ms against the 8 ms budget, GC bytes a frame), and the editor's own work without the renderer (tests/bench/CodeBench.hx, natively)", run: codeBench},
 		{name: "million-bench", about: "helder.ui's VirtualList measured, not checked (Linux: Mesa's llvmpipe, no display): examples/million (a million rows of their own heights) run headless with --stats on a script of the wheel over new rows and over rows made before, jumps to the end and back, rows put in above the view and the keyboard (tests/bench/million.mjs: each phase's ms and GC bytes a frame against the 8 ms budget), then tests/bench/MillionBench.hx: the list's own work a frame natively without the renderer, and what it holds (tests/bench/results/million.md)", run: millionBench},
@@ -1107,6 +1108,16 @@ class Run {
 		}
 		exe('$b/Check', cps(["src", "tests/demos"]).concat(["-main", "Check"]));
 		run(exePath('$b/Check', HOST), [b].concat(BLESS ? ["--bless"] : []));
+	}
+
+	static function storyHost() {
+		var b = "bin/story-host";
+		rmrf(b);
+		run(NODE, ["tests/story/host/host.mjs", "gen", b]);
+		var cp = cps(["src", "examples/todo", '$b/gen']).concat(["-D", "hxmc.dev", "-D", "helder.headless"]);
+		native('$b/BenchHost', cp.concat(["-main", "BenchHost"]), HOST);
+		native('$b/BenchScreens', cp.concat(["-main", "BenchScreens"]), HOST);
+		run(NODE, ["tests/story/host/host.mjs", "measure", b]);
 	}
 
 	static function motionBench() {

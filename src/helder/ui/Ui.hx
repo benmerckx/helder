@@ -170,7 +170,12 @@ class Ui {
 	public static inline var SCROLLBAR_INSET = 2.0;
 	public static inline var MIN_THUMB = 20.0;
 
+	// the screen it is part of (helder.ui.ScreenContext: the program's main
+	// one, or a story host's screen's): its clock's what animates in it
+	public final context:ScreenContext;
+
 	public function new(text:TextEngine, width:Float, height:Float) {
+		context = ScreenContext.current;
 		this.text = text;
 		this.width = width;
 		this.height = height;
@@ -1366,7 +1371,7 @@ class Ui {
 			pendingAction = best;
 			pendingFrom = focus;
 			var serial = ++pendingSerial, start = -1.0;
-			Clock.add(t -> {
+			Clock.addTo(context, t -> {
 				if (serial != pendingSerial) return false;
 				if (start < 0) start = t;
 				if (t - start < helder.ui.actions.Keymap.timeout) return true;

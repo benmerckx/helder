@@ -190,7 +190,7 @@ class UiWindow {
 
 	// there is something new to draw
 	public function needsFrame():Bool
-		return redraw || ui.needsFrame || Clock.active || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale
+		return redraw || ui.needsFrame || Clock.active || ScreenContext.main.nextTimer() <= helder.headless.Time.stamp() || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale
 			|| (Ui.accessEpoch != accessSent && accessListening()) || accessPending();
 
 	// draws a frame (the loop calls it when needsFrame): the clock ticked

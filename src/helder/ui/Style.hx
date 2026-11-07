@@ -751,7 +751,7 @@ class Style {
 		}
 		if (!r.ticking) {
 			r.ticking = true;
-			Clock.add(step);
+			Clock.addFor(node, step);
 		}
 		node.styleChanged(false);
 		return true;

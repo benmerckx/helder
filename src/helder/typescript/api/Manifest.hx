@@ -147,6 +147,8 @@ class Manifest {
 			Reflect.setField(statics, f.name, m);
 			var n = f.name;
 			if (m.kind != "const" && m.mount != true) keep.push(named(macro @:privateAccess $p{tpath}.$n, f));
+			// (a static property's setter: written, never run)
+			if (m.set != null) keep.push(macro @:privateAccess $p{tpath}.$n = cast(null : Dynamic));
 		}
 		var self:ComplexType = TPath({
 			pack: cls.pack,

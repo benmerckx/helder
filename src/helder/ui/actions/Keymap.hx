@@ -23,8 +23,14 @@ class Keymap {
 	public static var mac = false;
 	// how long a chord waits for its next keystroke (seconds)
 	public static var timeout = 1.0;
-	// the app's keymap, every window's unless given its own (Ui.keymap)
-	public static final global = new Keymap();
+	// the app's keymap, every window's unless given its own (Ui.keymap): the
+	// current screen's (helder.ui.ScreenContext: a story host's screens each
+	// have their own; the program's main context has app's)
+	public static var global(get, never):Keymap;
+	static final app = new Keymap();
+
+	static inline function get_global():Keymap
+		return helder.ui.ScreenContext.current.keymap;
 
 	final defaults:Array<Binding> = [];
 	var user:Array<Binding> = [];

@@ -36,11 +36,20 @@ class Store {
 
 	final values = new Map<String, String>();
 	final web:Bool;
+	// (a scope's: in memory, never read or written)
+	var memory = false;
 
-	function new(name:String, path:String, web:Bool) {
+	// the stores open() gives while set (null: the platform's): a screen's of
+	// a story host (helder.ui.ScreenContext, which sets it while current),
+	// each name's store in memory, kept for the run
+	public static var scope:Null<Map<String, Store>> = null;
+
+	function new(name:String, path:String, web:Bool, memory = false) {
 		this.name = name;
 		this.path = path;
 		this.web = web;
+		this.memory = memory;
+		if (memory) return;
 		var text:Null<String> = null;
 		#if helder.headless
 		if (path == "") return;
@@ -62,6 +71,14 @@ class Store {
 	// the store of that name (letters, digits, '.', '-' and '_'), in the platform's place or in dir
 	public static function open(name:String, ?dir:String):Store {
 		if (!~/^[A-Za-z0-9._-]+$/.match(name) || name.charAt(0) == ".") throw 'helder.os.Store: a name of letters, digits, ".", "-" and "_": $name';
+		if (scope != null && dir == null) {
+			var s = scope.get(name);
+			if (s == null) {
+				s = new Store(name, "", false, true);
+				scope.set(name, s);
+			}
+			return s;
+		}
 		#if (hxmc.target == "wasm32-wasi")
 		if (dir == null && helder.os.web.Dom.store_available() != 0) return new Store(name, "", true);
 		#end
@@ -135,6 +152,7 @@ class Store {
 	}
 
 	function write() {
+		if (memory) return;
 		#if helder.headless
 		if (path == "" && !web) return;
 		#end

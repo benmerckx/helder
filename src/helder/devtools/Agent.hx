@@ -30,9 +30,32 @@ class Agent {
 	public static function method(name:String, f:Dynamic->Dynamic)
 		methods.set(name, f);
 
+	// a transport of the program's own instead of Hot's connection (a web
+	// worker's messages: helder.story.web.Preview), each line given to it
+	static var sink:Null<String->Void> = null;
+
+	// the protocol spoken over send (its lines), not Hot's connection: the
+	// methods ready, the hello sent; the messages come to dispatch
+	public static function serve(send:String->Void) {
+		sink = send;
+		begin0();
+	}
+
+	// a message of the protocol from serve's other end
+	public static function dispatch(m:Dynamic)
+		receive(m);
+
+	// an answer to a request dispatch did not answer itself (a method of the transport's own)
+	public static function respond(id:Dynamic, result:Dynamic, ?error:{code:Int, message:String})
+		reply(id, result, error);
+
 	// Hot.init, connected: the hello, when the dev server speaks the protocol
 	@:allow(helder.dev.Hot) static function start() {
 		if (Sys.getEnv("HXMC_DEV_PROTOCOL") != Std.string(PROTOCOL)) return;
+		begin0();
+	}
+
+	static function begin0() {
 		on = true;
 		methods.set("Runtime.state", _ -> helder.dev.Hot.state());
 		methods.set("Log.enable", _ -> {
@@ -99,13 +122,16 @@ class Agent {
 	}
 
 	static function reply(id:Dynamic, result:Dynamic, error:Dynamic)
-		helder.dev.Hot.sendLine(error != null ? Json.stringify({jsonrpc: "2.0", id: id, error: error}) : Json.stringify({jsonrpc: "2.0", id: id, result: result ?? ok()}));
+		line(error != null ? Json.stringify({jsonrpc: "2.0", id: id, error: error}) : Json.stringify({jsonrpc: "2.0", id: id, result: result ?? ok()}));
 
 	public static function notify(method:String, params:Dynamic)
-		if (on) helder.dev.Hot.sendLine(Json.stringify({jsonrpc: "2.0", method: method, params: params}));
+		if (on) line(Json.stringify({jsonrpc: "2.0", method: method, params: params}));
 
 	static function request(method:String, params:Dynamic)
-		helder.dev.Hot.sendLine(Json.stringify({jsonrpc: "2.0", id: nextId++, method: method, params: params}));
+		line(Json.stringify({jsonrpc: "2.0", id: nextId++, method: method, params: params}));
+
+	static function line(s:String)
+		if (sink != null) sink(s) else helder.dev.Hot.sendLine(s);
 
 	// (Log enabled) a trace as an entry, not printed: helder dev prints it
 	static function logTrace(v:Dynamic, ?pos:haxe.PosInfos) {

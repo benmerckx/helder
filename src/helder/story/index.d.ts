@@ -64,7 +64,9 @@ export declare const tree: typeof Stories.tree;
 // (the first without). The studio starts one such process for each screen,
 // so a screen's state (a TypeScript module's signals) is its own. Over the
 // devtools protocol, `Studio.screens` answers which one this is and the
-// others: {screen, screens: [{name, width, height}]}.
+// others: {screen, screens: [{name, width, height}]}. Built for the web
+// (wasm32-wasi) it is the studio's preview host there instead: every story
+// in one program (helder.story.Host) in a worker (helder.story.web.Preview).
 //
 //   // the studio's generated main (bin/studio/<name>/ScreensMain.hx, screens.tsx)
 //   helder.story.Screens.run(helder.story.Stories.of("Todo_story"));
