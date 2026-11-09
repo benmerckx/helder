@@ -1135,6 +1135,7 @@ class Ui {
 		var target = hit(x, y);
 		if (target == null) return;
 		var e = Event.of(Wheel, target, x, y);
+		e.mods = mods;
 		e.deltaX = deltaX;
 		e.deltaY = deltaY;
 		bubble(e);

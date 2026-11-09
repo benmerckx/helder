@@ -162,6 +162,14 @@ function tests() {
 			equals(list.scrollY, 0.0);
 			assert(log.contains("item move 2") && !log.contains("item click 2") && log.contains("item click 1"), log.join(", "));
 		});
+		test("a wheel carries the keys held (a zoom's secondary)", () -> {
+			var mods = -1;
+			ui.root.onWheel = e -> mods = e.mods;
+			ui.keyDown(Key.META, 0);
+			ui.wheel(50, 25, 0, -10);
+			ui.keyUp(Key.META, Key.MOD_META);
+			equals(mods, Key.MOD_META);
+		});
 		test("whose a press is: a node's, not the root's nor a world's under the ui", () -> {
 			var world = box(ui.root, 200, 0, 50, 50, new WorldBox("scene"));
 			ui.update();
