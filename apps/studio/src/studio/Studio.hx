@@ -149,6 +149,8 @@ class Studio {
 		agent = new Agent.LocalAgent(this);
 		editor = new CodeEditor("", null);
 		editor.view.fontFamily = Theme.CODE;
+		editor.view.fontSize = Theme.CODE_SIZE;
+		editor.view.lineHeight = Theme.CODE_LINE;
 		editor.onChange = codeChanged;
 		docs.onChange = changed;
 		if (previews != null) {
@@ -432,7 +434,7 @@ class Studio {
 	// (compact as just measured: its signal's write lands at the frame's end, a fit after it in the same frame needs it)
 	var compactNow = false;
 
-	// the stage's points the cards cover (the canvas is under them): the
+	// the stage's points the panels cover (the canvas is under them): the
 	// sidebar and the code at the left, the inspector at the right, the
 	// toolbar above, the prompt bar below; compact, none
 	public function insets(?m:String):{left:Float, right:Float, top:Float, bottom:Float} {
@@ -441,10 +443,10 @@ class Studio {
 			var d = detentNow, open = sheetNow == null ? 0 : sheetHeight(d == "full" ? "half" : d);
 			return {left: 0, right: 0, top: Theme.TOPBAR, bottom: Theme.BAR + open};
 		}
-		var code = (m ?? modeNow) == "code", g = Theme.GAP;
+		var code = (m ?? modeNow) == "code";
 		return {
-			left: Theme.SIDEBAR + g + (code ? Shell.codeWidth(this) + g : 0),
-			right: code ? 0 : Theme.INSPECTOR + g,
+			left: Theme.SIDEBAR + (code ? Shell.codeWidth(this) : 0),
+			right: code ? 0 : Theme.INSPECTOR,
 			top: Theme.HEADER,
 			bottom: code ? 0 : Theme.ASK_SPACE
 		};

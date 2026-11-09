@@ -19,6 +19,8 @@ import hxmc.unsafe.*;
 	static function scale():Float;
 	// the page's prefers-color-scheme: dark (1) or not (0)
 	static function prefers_dark():Int;
+	// the page on an Apple system (1: macOS, iOS; navigator's platform), else 0
+	static function apple():Int;
 	// the next pending event into ev (twelve Int32: canvas, EventKind, key (a
 	// TextInput's code point, a TextEditing's string handle, a pointer's
 	// pointerId, 0 for none), x, y, button, mods; a pointer's: x and y in

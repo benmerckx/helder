@@ -119,7 +119,7 @@ class Script {
 	public static function bindings(keymap:Keymap):Array<String>
 		return [for (b in keymap.bindings()) b.toString()];
 
-	// on macOS secondary is Command (UiWindow sets it)
+	// on macOS secondary is Command (Keymap.mac, known at start)
 	public static function setMac(mac:Bool):Void
 		Keymap.mac = mac;
 

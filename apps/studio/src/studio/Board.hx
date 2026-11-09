@@ -15,8 +15,8 @@ using StringTools;
 // a design's frame its own nodes, interpreted here (Designs).
 // Pan with a drag or the wheel, zoom with secondary and the wheel (a
 // trackpad's pinch) or two fingers; a screen clicked zooms into it on a
-// spring, a click inside the zoomed screen selects the node there (the
-// program's tree, the node's source), outlined.
+// short spring, a click inside the zoomed screen selects the node there
+// (the program's tree, the node's source), outlined at once.
 // The world (the screens) is one node under the camera's transform; what is
 // read at any zoom (flows' titles, captions, the selection) is drawn in the
 // stage's own points from the camera.
@@ -109,9 +109,10 @@ class Board implements Markup {
 					color={c("fg3")} opacity={titleShown(studio, f().y) ? 1 : 0}>{f().name}</text>
 			}</For>
 			<For each={studio.layout.screens()} by={(r:Rect) -> r.name}>{(r:Read<Rect>) ->
-				<view tag={"caption-" + Shell.slug(r().name)} position="absolute" left={sx(studio, r().x) - 6} top={sy(studio, r().y) - 24} height={19} padding="0 6"
-					radius={Theme.RADIUS - 1} justify="center" background={studio.focused() == r().name ? c("accent") : c("canvas")} instant>
-					<text font-size={Theme.SMALL} max-lines={1} color={studio.focused() == r().name ? c("accent-fg") : c("fg2")}>{label(studio, r().name)}</text>
+				<view tag={"caption-" + Shell.slug(r().name)} position="absolute" left={sx(studio, r().x) - 4} top={sy(studio, r().y) - 22} height={18} padding="0 4"
+					justify="center">
+					<text font-size={Theme.SMALL} max-lines={1} font-weight={studio.focused() == r().name ? Theme.MEDIUM : 400}
+						color={studio.focused() == r().name ? c("accent-ink") : c("fg3")}>{label(studio, r().name)}</text>
 				</view>
 			}</For>
 			<Show when={selected(studio) != null}>{selectionBox(studio)}</Show>
@@ -119,7 +120,8 @@ class Board implements Markup {
 				<view tag="selection-other" position="absolute" left={b().x} top={b().y} width={b().w} height={b().h} border-width={1} border-color={c("sel")}/>
 			}</For>
 			<For each={handles(studio)}>{(h:Read<{x:Float, y:Float}>) ->
-				<view tag="handle" position="absolute" left={h().x - 4} top={h().y - 4} width={8} height={8} radius={2} background="#ffffff" border-width={1.5} border-color={c("sel")}/>
+				<view tag="handle" position="absolute" left={h().x - Theme.HANDLE / 2} top={h().y - Theme.HANDLE / 2} width={Theme.HANDLE} height={Theme.HANDLE} radius={1}
+					background="#ffffff" border-width={1} border-color={c("sel")}/>
 			}</For>
 			<For each={guides(studio)}>{(g:Read<{x:Float, y:Float, w:Float, h:Float}>) ->
 				<view tag="guide" position="absolute" left={g().x} top={g().y} width={g().w} height={g().h} background={c("sel")}/>
@@ -162,7 +164,7 @@ class Board implements Markup {
 		];
 	}
 
-	// the selected node's box (the zoomed screen's), outlined
+	// the selected node's box (the zoomed screen's), outlined: at once, where the node is
 	static function selectionBox(studio:Studio):View {
 		function box():{x:Float, y:Float, w:Float, h:Float} {
 			var s = selected(studio), r = s == null ? null : studio.layout.rect(s.screen);
@@ -171,18 +173,7 @@ class Board implements Markup {
 			var kk = studio.camera.k;
 			return {x: studio.camera.sx(r.x + s.x), y: studio.camera.sy(r.y + s.y), w: s.width * kk, h: s.height * kk};
 		}
-		// (a node selected: the box springs to it, helder.ui.motion; the camera moving it: with the camera, at once)
-		var camAt = -1, was:Null<Studio.Selection> = null;
-		function still():Bool {
-			var s = selected(studio), cc = studio.camera.changed();
-			if (s != was) {
-				was = s;
-				camAt = cc;
-			}
-			return cc != camAt;
-		}
-		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1.5}
-			border-color={c("sel")} motion="snappy" instant={still()}/>;
+		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1} border-color={c("sel")}/>;
 	}
 
 	// (the selection while its screen is the one zoomed into)

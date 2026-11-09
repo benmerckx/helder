@@ -12,11 +12,11 @@ import studio.Theme.c;
 using StringTools;
 
 // The studio's window (Theme's look): the canvas under everything (Board),
-// cards inset over it: the sidebar (the window's buttons, the project, its
-// pages and frames, the layers), the inspector (Inspector) or the code
-// (Code); the toolbar between them (a breadcrumb, the command field, undo
-// and redo, Design and Code), its empty parts dragging the window (an
-// inset title bar: helder.os's). Compact (a phone, a tablet upright): a
+// panels flush with the window around it: the sidebar (the window's
+// buttons and the project in one row, its pages and frames, the layers),
+// the inspector (Inspector) or the code (Code); the toolbar between them
+// (a breadcrumb, the command field, undo and redo, Design and Code, Play),
+// its empty parts dragging the window (an inset title bar: helder.os's). Compact (a phone, a tablet upright): a
 // top bar above the canvas, the panels sheets over it (Sheets).
 class Shell implements Markup {
 	public static function view(studio:Studio):View {
@@ -44,36 +44,35 @@ class Shell implements Markup {
 		</view>;
 	}
 
-	// the canvas under the cards and the toolbar
+	// the canvas between the panels, flush with the window: the sidebar
+	// left, the inspector (or the code) right, the toolbar above the canvas
 	static function desktop(studio:Studio):View
 		return <view tag="desktop" grow={1}>
 			<view position="absolute" inset={0}>{Board.view(studio)}</view>
 			{toolbar(studio)}
-			<view tag="sidebar-card" slot="card" motion-color="snappy" position="absolute" left={Theme.GAP} top={Theme.GAP} bottom={Theme.GAP} width={Theme.SIDEBAR}>
+			<view tag="sidebar-card" slot="panel" position="absolute" left={0} top={0} bottom={0} width={Theme.SIDEBAR} border-width="0 1 0 0">
 				{sidebar(studio)}
 			</view>
 			<Show when={studio.mode() == "code"}>{codeCard(studio)}</Show>
 			<Show when={studio.mode() == "file"}>
-				<view tag="file-card" slot="card" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={Theme.GAP} top={Theme.HEADER + Theme.GAP}
-					bottom={Theme.GAP} transition="fade" motion="snappy">{FileView.view(studio)}</view>
+				<view tag="file-card" slot="panel" position="absolute" left={Theme.SIDEBAR} right={0} top={Theme.HEADER} bottom={0}>{FileView.view(studio)}</view>
 			</Show>
 			<Show when={studio.playing() != null}>
-				<view tag="player-card" slot="card" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={Theme.GAP} top={Theme.HEADER + Theme.GAP}
-					bottom={Theme.GAP} transition="fade scale" motion="snappy">{Play.view(studio)}</view>
+				<view tag="player-card" slot="panel" position="absolute" left={Theme.SIDEBAR} right={0} top={Theme.HEADER} bottom={0} transition="fade scale(0.98)"
+					motion="snappy"><view grow={1} min-height={0} instant>{Play.view(studio)}</view></view>
 			</Show>
 			<Show when={studio.mode() != "code" && studio.mode() != "file" && studio.playing() == null}>
-				<view tag="inspector-card" slot="card" motion-color="snappy" position="absolute" right={Theme.GAP} top={Theme.GAP} bottom={Theme.GAP} width={Theme.INSPECTOR}
+				<view tag="inspector-card" slot="panel" position="absolute" right={0} top={0} bottom={0} width={Theme.INSPECTOR} border-width="0 0 0 1"
 					onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>{Inspector.card(studio)}</view>
 			</Show>
 		</view>;
 
 	// the code beside the canvas, between the sidebar and the frame shown
 	static function codeCard(studio:Studio):View
-		return <view tag="code" slot="card" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} top={Theme.HEADER + Theme.GAP} bottom={Theme.GAP}
-			width={codeWidth(studio)} transition="fade slide-left(12)" motion="snappy">
-			<view tag="code-head" direction="row" align-items="center" column-gap={8} height={34} padding="0 12" border-width="0 0 1 0"
-				border-color={c("line")} font-size={Theme.SMALL} color={c("fg2")}>
-				<image src={Icons.fileCode} width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg3")}/>
+		return <view tag="code" slot="panel" position="absolute" left={Theme.SIDEBAR} top={Theme.HEADER} bottom={0} width={codeWidth(studio)} border-width="0 1 0 0">
+			<view tag="code-head" direction="row" align-items="center" column-gap={6} height={Theme.ROW + 6} padding={'0 ${Theme.PAD}'} border-width="0 0 1 0"
+				border-color={c("line")} font-size={Theme.SMALL} color={c("fg2")} shrink={0}>
+				<image src={Icons.fileCode} width={Theme.ICON_XS} height={Theme.ICON_XS} color={c("kind-code")}/>
 				<text tag="code-file" font-family={Theme.CODE}>{fileLabel(studio, studio.codeFile())}</text>
 				<view grow={1}/>
 				<text tag="code-diagnostics" color={c("red")}>{diagnosticsLabel(studio)}</text>
@@ -83,59 +82,65 @@ class Shell implements Markup {
 
 	public static function codeWidth(studio:Studio):Float {
 		studio.stageSize();
-		return Math.round(Math.max(360, (studio.stageWidth - Theme.SIDEBAR - 3 * Theme.GAP) * 0.55));
+		return Math.round(Math.max(360, (studio.stageWidth - Theme.SIDEBAR) * 0.55));
 	}
 
-	// the toolbar over the canvas: where you are, the command field, the buttons
+	// the toolbar between the panels: where you are, the command field, the buttons
 	static function toolbar(studio:Studio):View
-		return <view tag="header" drag-region motion-color="snappy" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={studio.mode() == "code" || studio.mode() == "file" || studio.playing() != null ? Theme.GAP : Theme.INSPECTOR + 2 * Theme.GAP}
-			top={0} height={Theme.HEADER + Theme.GAP} padding={'${Theme.GAP} 4 0'} direction="row" align-items="center" column-gap={10}>
+		return <view tag="header" slot="panel" drag-region position="absolute" left={Theme.SIDEBAR}
+			right={studio.mode() == "code" || studio.mode() == "file" || studio.playing() != null ? 0 : Theme.INSPECTOR} top={0} height={Theme.HEADER}
+			padding={'0 ${Theme.PAD - 4} 0 ${Theme.PAD}'} border-width="0 0 1 0" direction="row" align-items="center" column-gap={8} overflow="visible">
 			{crumbs(studio)}
-			<view grow={1} min-width={8}/>
+			<view grow={1} min-width={4}/>
 			{commandField(studio)}
-			<view grow={1} min-width={8}/>
+			<view grow={1} min-width={4}/>
 			{buttons(studio)}
 		</view>;
 
-	// project / page / frame
+	// page / frame (the project is the sidebar's, above)
 	static function crumbs(studio:Studio):View {
-		var p = studio.project;
-		return <view tag="crumb" direction="row" align-items="center" column-gap={6} shrink={1} min-width={0} color={c("fg2")}>
-			<text tag="crumb-project" font-weight={Theme.MEDIUM} color={c("fg")} max-lines={1}>{p == null ? "helder studio" : p.name}</text>
+		return <view tag="crumb" direction="row" align-items="center" column-gap={4} shrink={0} max-width={280} color={c("fg2")}>
+			<Show when={crumbPage(studio) == null}>
+				<text tag="crumb-page" max-lines={1} text-overflow="ellipsis" color={c("fg2")}>{studio.mode() == "design" ? "All frames" : ""}</text>
+			</Show>
 			<Show when={crumbPage(studio) != null}>
-				<image src={Icons.chevronRight} width={12} height={12} color={c("fg3")}/>
-				<text tag="crumb-page" max-lines={1} text-overflow="ellipsis" cursor="pointer" onClick={_ -> if (studio.mode() == "design") studio.showPage(crumbPage(studio))}>{crumbPage(studio)}</text>
+				<text tag="crumb-page" shrink={1} min-width={0} max-lines={1} text-overflow="ellipsis" cursor="pointer"
+					onClick={_ -> if (studio.mode() == "design") studio.showPage(crumbPage(studio))}>{crumbPage(studio)}</text>
 			</Show>
 			<Show when={crumbFrame(studio) != null}>
-				<image src={Icons.chevronRight} width={12} height={12} color={c("fg3")}/>
-				<text tag="crumb-screen" max-lines={1} text-overflow="ellipsis" color={c("fg")}>{crumbFrame(studio)}</text>
+				<image src={Icons.chevronRight} width={Theme.ICON_XS} height={Theme.ICON_XS} color={c("fg3")} shrink={0}/>
+				<text tag="crumb-screen" shrink={0} max-lines={1} font-weight={Theme.MEDIUM} color={c("fg")}>{crumbFrame(studio)}</text>
 			</Show>
 		</view>;
 	}
 
-	// the command field: a frame, a file or a tool by name (secondary-K)
+	// the command field: a frame, a file or a tool by name (secondary-K: ⌘K on macOS, in the browser too)
 	static function commandField(studio:Studio):View
-		return <view:button tag="command" slot="command" role="button" label="Jump to a frame, a file or a tool" focusable width={260} shrink={4} min-width={120}
-			onPress={() -> studio.commandOpen(true)}>
-			<image src={Icons.search} width={Theme.ICON_S} height={Theme.ICON_S}/>
-			<text grow={1} max-lines={1} font-size={Theme.SMALL}>Jump to…</text>
-			<text slot="kbd">{helder.ui.actions.Keymap.mac ? "⌘K" : "Ctrl K"}</text>
+		return <view:button tag="command" slot="command" role="button" label="Jump to a frame, a file or a tool" focusable width={220} shrink={8}
+			min-width={150} onPress={() -> studio.commandOpen(true)}>
+			<image src={Icons.search} width={Theme.ICON_XS} height={Theme.ICON_XS} shrink={0}/>
+			<text grow={1} shrink={0} max-lines={1}>Jump to…</text>
+			<text slot="kbd" shrink={0}>{shortcut("K")}</text>
 		</view:button>;
 
+	// a shortcut as the platform writes it: ⌘K on macOS, Ctrl K elsewhere
+	public static function shortcut(key:String):String
+		return helder.ui.actions.Keymap.mac ? "⌘" + key : "Ctrl " + key;
+
 	static function buttons(studio:Studio):View
-		return <view direction="row" align-items="center" column-gap={4}>
+		return <view direction="row" align-items="center" column-gap={2} shrink={0}>
 			<view:button tag="undo" slot="button" role="button" label="Undo" focusable data-disabled={studio.docs.canUndo() ? "false" : "true"}
-				onPress={() -> studio.undo()}><image src={Icons.undo} width={Theme.ICON} height={Theme.ICON}/></view:button>
+				onPress={() -> studio.undo()}><image src={Icons.undo} width={Theme.ICON_S} height={Theme.ICON_S}/></view:button>
 			<view:button tag="redo" slot="button" role="button" label="Redo" focusable data-disabled={studio.docs.canRedo() ? "false" : "true"}
-				onPress={() -> studio.redo()}><image src={Icons.redo} width={Theme.ICON} height={Theme.ICON}/></view:button>
-			<view width={4}/>
+				onPress={() -> studio.redo()}><image src={Icons.redo} width={Theme.ICON_S} height={Theme.ICON_S}/></view:button>
+			<view width={6}/>
 			<view slot="seg">
 				<view:button tag="seg-design" slot="seg-item" role="button" label="Design" focusable data-on={studio.mode() != "code" ? "true" : "false"}
-					onPress={() -> studio.setMode("design")}><image src={Icons.penTool} width={Theme.ICON_S} height={Theme.ICON_S}/><text>Design</text></view:button>
+					onPress={() -> studio.setMode("design")}><image src={Icons.penTool} width={Theme.ICON_XS} height={Theme.ICON_XS}/><text>Design</text></view:button>
 				<view:button tag="seg-code" slot="seg-item" role="button" label="Code" focusable data-on={studio.mode() == "code" ? "true" : "false"}
-					onPress={() -> studio.setMode("code")}><image src={Icons.code} width={Theme.ICON_S} height={Theme.ICON_S}/><text>Code</text></view:button>
+					onPress={() -> studio.setMode("code")}><image src={Icons.code} width={Theme.ICON_XS} height={Theme.ICON_XS}/><text>Code</text></view:button>
 			</view>
-			<view width={4}/>
+			<view width={6}/>
 			{Play.button(studio)}
 		</view>;
 
@@ -144,8 +149,8 @@ class Shell implements Markup {
 	static function compact(studio:Studio):View
 		return <view tag="main" grow={1} min-width={0} background={c("canvas")}>
 			<view position="absolute" inset={0}>{Board.view(studio)}</view>
-			<view tag="header" motion-color="snappy" position="absolute" left={0} right={0} top={0} height={Theme.TOPBAR} direction="row" align-items="center" column-gap={4}
-				padding="0 8 0 14" background={c("bg")} border-width="0 0 1 0" border-color={c("line")}>
+			<view tag="header" position="absolute" left={0} right={0} top={0} height={Theme.TOPBAR} direction="row" align-items="center" column-gap={2}
+				padding={'0 6 0 ${Theme.PAD + 2}'} background={c("bg")} border-width="0 0 1 0" border-color={c("line")}>
 				<view tag="crumb" direction="row" align-items="center" shrink={1} min-width={0} grow={1}>
 					<text tag="crumb-screen" max-lines={1} text-overflow="ellipsis" font-weight={Theme.MEDIUM}>{crumbFrame(studio) ?? crumbPage(studio) ?? (studio.project?.name ?? "helder studio")}</text>
 				</view>
@@ -168,26 +173,18 @@ class Shell implements Markup {
 			<Show when={studio.playing() == null}>{Sheets.bar(studio)}</Show>
 		</view>;
 
-	// (top: the window's buttons' row; not in a sheet, nor without an inset
-	// title bar: the browser's, full screen)
+	// (top: the window's; its buttons in the project's row, not in a sheet,
+	// nor without an inset title bar: the browser's, full screen)
 	public static function sidebar(studio:Studio, top = true):View {
 		var p = studio.project, bar = () -> top && SafeArea.titlebar() != null;
 		return <view tag="sidebar" grow={1} min-height={0}>
-			<Show when={bar()}>
-				<view tag="sidebar-top" direction="row" align-items="center" drag-region height={Theme.HEADER} padding="0 12" shrink={0}>
-					<WindowControls/>
-				</view>
-			</Show>
-			<view tag="project" direction="row" align-items="center" column-gap={9} padding={top && !bar() ? "12 12 10" : "0 12 10"} shrink={0}>
-				<view width={24} height={24} radius={Theme.RADIUS} background={c("well")} align-items="center" justify="center">
-					<image src={Icons.folder} width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg2")}/>
-				</view>
-				<view shrink={1} min-width={0}>
-					<text font-weight={Theme.MEDIUM} max-lines={1} text-overflow="ellipsis">{p == null ? "helder studio" : p.name}</text>
-					<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1}>{projectKind(p)}</text>
-				</view>
+			<view tag="project" direction="row" align-items="center" column-gap={8} drag-region={top} height={Theme.HEADER} padding={'0 ${Theme.PAD}'}
+				shrink={0} border-width="0 0 1 0" border-color={c("line")}>
+				<Show when={bar()}><view tag="sidebar-top" direction="row" align-items="center" padding="0 6 0 0"><WindowControls/></view></Show>
+				<text font-weight={Theme.MEDIUM} shrink={1} min-width={0} max-lines={1} text-overflow="ellipsis">{p == null ? "helder studio" : p.name}</text>
+				<text font-size={Theme.SMALL} color={c("fg3")} shrink={0} max-lines={1}>{projectKind(p)}</text>
 			</view>
-			<view tag="nav" padding="0 6 6" shrink={0}>
+			<view tag="nav" padding="6 6" shrink={0}>
 				{nav(studio, "nav-all", "All frames", Icons.layoutGrid, () -> studio.mode() == "design" && studio.focused() == null, () -> {
 					studio.lower();
 					studio.setMode("design");
@@ -198,8 +195,8 @@ class Shell implements Markup {
 					studio.setMode("stories");
 				})}
 			</view>
-			<view tag="files" slot="section" grow={1} min-height={0} padding="10 6 6">
-				<view slot="section-head" padding="2 6 6"><image src={Icons.folder} width={12} height={12}/><text>Files</text></view>
+			<view tag="files" slot="section" grow={1} min-height={0} padding="4 6 6" row-gap={0}>
+				<view slot="section-head" padding="0 8"><text>Files</text></view>
 				<view grow={1} min-height={0}><VirtualList tag="screens" each={studio.tree == null ? [] : studio.tree.rows()} by={(r:FileTree.TreeRow) -> r.key}
 					estimate={Theme.ROW} label="Files">{(r:Read<FileTree.TreeRow>, i:Int) -> treeRow(studio, r())}</VirtualList></view>
 			</view>
@@ -218,7 +215,7 @@ class Shell implements Markup {
 	// under its file (focused on the canvas)
 	static function treeRow(studio:Studio, r:FileTree.TreeRow):View {
 		var e = r.entry, info = r.screen, tree = studio.tree;
-		var pad = '0 8 0 ${6 + r.depth * 14}';
+		var pad = '0 8 0 ${4 + r.depth * 12}';
 		if (info != null)
 			return <view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" padding={pad} role="button" label={info.name} focusable
 				data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
@@ -226,19 +223,19 @@ class Shell implements Markup {
 					if (studio.mode() != "design") studio.setMode("design");
 					studio.focus(info.name);
 				}}>
-				<view width={12}/>
+				<view width={Theme.ICON_XS}/>
 				<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("accent-ink") : c("fg3")}/>
 				<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
 			</view:button>;
 		var on = studio.focused() == null && studio.shown() == e.path;
 		return <view:button tag={tree.tag(e.path)} slot="nav-item" padding={pad} role="button" label={tree.relative(e.path)} focusable
 			data-on={on ? "true" : "false"} drag-data={e.kind == Image ? e.path : null} onPress={() -> studio.openFile(e)}>
-			<view tag={"toggle-" + slug(tree.relative(e.path))} width={12} height={Theme.ROW} align-items="center" justify="center"
+			<view tag={"toggle-" + slug(tree.relative(e.path))} width={Theme.ICON_XS} align-self="stretch" align-items="center" justify="center"
 				onClick={ev -> if (r.hasChildren) {
 					ev.stop();
 					tree.toggle(e);
 				}}>
-				{r.hasChildren ? <image src={tree.open(e) ? Icons.chevronDown : Icons.chevronRight} width={12} height={12} color={c("fg3")}/> : null}
+				{r.hasChildren ? <image src={tree.open(e) ? Icons.chevronDown : Icons.chevronRight} width={Theme.ICON_XS} height={Theme.ICON_XS} color={c("fg3")}/> : null}
 			</view>
 			<image src={e.kind == Dir && tree.open(e) ? Icons.folderOpen : FileView.icon(e.kind)} width={Theme.ICON_S} height={Theme.ICON_S}
 				color={on ? c("accent-ink") : c(FileView.hue(e.kind))}/>

@@ -25,10 +25,10 @@ class Command implements Markup {
 			return [for (i in items(studio)) if (matches(i.label + " " + i.detail, q)) i].slice(0, 12);
 		}
 		return <view tag="command-layer" position="absolute" inset={0} onClick={_ -> studio.commandOpen(false)}>
-			<view tag="command-list" slot="floating" position="absolute" top={Theme.HEADER + 4} left={left(studio)} width={480} padding={6}
-				shadow="0 16 48 rgba(0,0,0,0.5)" transition="fade scale" motion="snappy" onClick={e -> e.stop()}>
-				<view direction="row" align-items="center" column-gap={8} height={36} padding="0 8" border-width="0 0 1 0" border-color={c("line")}>
-					<image src={Icons.search} width={Theme.ICON} height={Theme.ICON} color={c("fg3")}/>
+			<view tag="command-list" slot="floating" position="absolute" top={Theme.HEADER - 4} left={left(studio)} width={480} padding={4}
+				shadow={Theme.POPOVER} onClick={e -> e.stop()}>
+				<view direction="row" align-items="center" column-gap={8} height={32} padding="0 8" border-width="0 0 1 0" border-color={c("line")}>
+					<image src={Icons.search} width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg3")}/>
 					<field tag="command-input" slot="ask-input" label="Jump to" value={query} placeholder="A frame, a file or a tool…"
 						ref={(n:Node) -> haxe.Timer.delay(() -> n.focus(), 0)} onInput={e -> {
 							query(e.text);
@@ -40,7 +40,7 @@ class Command implements Markup {
 							if (e.key == Key.ENTER && list.length > 0) pick(list[Std.int(Math.min(at.peek(), list.length - 1))]);
 						}}/>
 				</view>
-				<view padding="6 0 0" row-gap={1}>
+				<view padding="4 0 0" row-gap={0}>
 					<For each={shown()}>{(i:Read<Item>) ->
 						<view:button tag={"command-" + Shell.slug(i().label)} slot="menu-item" role="button" label={i().label}
 							data-on={shown().indexOf(i()) == at() ? "true" : "false"} onPress={() -> pick(i())}>
@@ -57,7 +57,7 @@ class Command implements Markup {
 	static function left(studio:Studio):Float {
 		studio.stageSize();
 		var i = studio.insets();
-		return Math.max(Theme.GAP, i.left + (studio.stageWidth - i.left - i.right - 480) / 2);
+		return Math.max(Theme.PAD, i.left + (studio.stageWidth - i.left - i.right - 480) / 2);
 	}
 
 	// the frames, the files, the tools

@@ -19,8 +19,20 @@ import helder.ui.actions.ContextPredicate;
 // (Ui's pending chord) for timeout seconds, then runs what its keys alone
 // are bound to, if anything.
 class Keymap {
-	// secondary is Command (macOS), else Control; UiWindow sets it
-	public static var mac = false;
+	// secondary is Command (macOS; a browser on a Mac or an iPad), else
+	// Control: known at start, before a window (a shortcut's label made
+	// before it reads it); tests and scripts set it
+	public static var mac = apple();
+
+	static function apple():Bool {
+		#if (target.name == "hxmc" && hxmc.target == "wasm32-wasi")
+		return helder.os.web.Dom.apple() == 1;
+		#elseif (target.name == "hxmc")
+		return hxmc.unsafe.Mem.os() == 1;
+		#else
+		return false;
+		#end
+	}
 	// how long a chord waits for its next keystroke (seconds)
 	public static var timeout = 1.0;
 	// the app's keymap, every window's unless given its own (Ui.keymap): the

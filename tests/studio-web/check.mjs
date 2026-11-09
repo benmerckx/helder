@@ -181,13 +181,29 @@ async function pixel(pg, x, y) {
 }
 const red = (c) => c[0] > 200 && c[1] < 110 && c[2] < 110;
 
+// whether any pixel in a box of the page (CSS pixels) is red: a title's strokes wherever its glyphs fall
+async function redIn(pg, x0, y0, x1, y1) {
+	return pg.evaluate(async ([x0, y0, x1, y1]) => {
+		const h = window.studioWeb.host;
+		const p = h.gfx.readPixels();
+		h.os.redraw();
+		const d = await p, k = d.width / window.innerWidth;
+		for (let y = Math.round(y0 * k); y < y1 * k; y++)
+			for (let x = Math.round(x0 * k); x < x1 * k; x++) {
+				const i = (y * d.width + x) * 4;
+				if (d.data[i] > 200 && d.data[i + 1] < 110 && d.data[i + 2] < 110) return true;
+			}
+		return false;
+	}, [x0, y0, x1, y1]);
+}
+
 // the colour typed into the inspector's colour field (at x, y): a live literal patched, its frames
 async function recolour(pg, x, y, tap) {
 	const before = await lastFrame(pg);
 	if (tap) await pg.touchscreen.tap(x, y);
 	else await pg.mouse.click(x, y);
 	await pg.waitForTimeout(300);
-	await pg.keyboard.press('Control+a');
+	await pg.keyboard.press('ControlOrMeta+a');
 	await pg.keyboard.type('#ef4444');
 	await pg.keyboard.press('Enter');
 	const patched = await event(pg, 'patched', (e) => e.frame >= before);
@@ -224,7 +240,7 @@ async function recolour(pg, x, y, tap) {
 	check(sel && sel.tag === 'text' && sel.screen === 'Todo/Three items' && sel.rect.join() === '24,24,432,35', 'the title selected: ' + JSON.stringify(sel && [sel.screen, sel.tag, sel.rect]));
 	await pg.waitForTimeout(400);
 	await pg.screenshot({ path: path.join(out, 'desktop-selected.png') });
-	const p = await recolour(pg, 1076, 327, false);
+	const p = await recolour(pg, 1076, 226, false);
 	numbers.push(['desktop patch', p]);
 	check(red(await pixel(pg, 380, 124)), 'the title red in the studio\'s canvas (the preview\'s frame, composited)');
 	await pg.screenshot({ path: path.join(out, 'desktop-colored.png') });
@@ -236,7 +252,7 @@ async function recolour(pg, x, y, tap) {
 	await pg.waitForFunction(() => window.studioWeb.compiler !== undefined, null, { timeout: 60000 }).catch(() => {});
 	const compiler = await pg.evaluate(() => !!window.studioWeb.compiler);
 	const before = await lastFrame(pg);
-	await pg.mouse.click(1076, 173);
+	await pg.mouse.click(1025, 121);
 	await pg.waitForTimeout(200);
 	await pg.keyboard.type('20');
 	await pg.keyboard.press('Enter');
@@ -355,9 +371,9 @@ async function recolour(pg, x, y, tap) {
 	check(await press(pg, 'Inspect'), 'phone: the inspector\'s sheet opened from the bar');
 	await pg.waitForTimeout(800);
 	await pg.screenshot({ path: path.join(out, 'phone-selected.png') });
-	const p = await recolour(pg, 250, 730, true);
+	const p = await recolour(pg, 250, 665, true);
 	numbers.push(['phone patch', p]);
-	check(red(await pixel(pg, 52, 212)), 'phone: the title red in the studio\'s canvas');
+	check(await redIn(pg, 60, 80, 140, 120), 'phone: the title red in the studio\'s canvas');
 	// two fingers apart over the canvas: zoomed in
 	const cdp = await pg.context().newCDPSession(pg);
 	const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
@@ -385,7 +401,7 @@ async function recolour(pg, x, y, tap) {
 	await pg.waitForTimeout(800);
 	const fills = (e) => {
 		if (!e) return false;
-		const [x, y, w, h] = e.rect, [sw, sh] = e.stage, top = 48, pad = 12, aw = sw - 2 * pad, ah = sh - top - 2 * pad;
+		const [x, y, w, h] = e.rect, [sw, sh] = e.stage, top = 44, pad = 12, aw = sw - 2 * pad, ah = sh - top - 2 * pad;
 		const fit = Math.abs(w - aw) <= 1 || Math.abs(h - ah) <= 1;
 		const centred = Math.abs(x + w / 2 - sw / 2) <= 1 && Math.abs(y + h / 2 - (top + (sh - top) / 2)) <= 1;
 		return e.compact && fit && centred && w <= aw + 1 && h <= ah + 1;

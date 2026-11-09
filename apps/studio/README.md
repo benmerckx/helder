@@ -438,45 +438,57 @@ without it nothing changes. Two links open files an agent made:
 ## Look
 
 Every value of the look is in `src/studio/Theme.hx`: the colours as
-tokens (the code view's too), the type, the radii, the layout's sizes and
-the canvas' spring, and a helder.ui StyleSheet of the studio's parts by
-slot. Its direction is Spacedrive's interface, made the studio's own:
+tokens (the code view's too), the type, the radii, the layout's sizes, the
+canvas' spring and the one shadow, and a helder.ui StyleSheet of the
+studio's parts by slot. Its direction is paper.design's interface (calm,
+dense, precise), made the studio's own:
 
-- **Near neutral darks**, a hint of cool at most (toward the earlier
-  black and white wireframe): the canvas darkest (`canvas`), the cards a
-  step up (`bg`), fields and hovers above (`well`, `hover`, `active`); text
-  in three greys, near white at the top (`fg`, `fg2`, `fg3`); hairlines
-  faint (`line`, `edge`: white at 7% and 14%).
-- **Cards over the canvas**: the sidebar and the inspector (or the code)
-  are cards inset 8 points from the window, radius 12, a faint edge; the
-  canvas runs under them (the camera fits what is in focus between them:
-  `Studio.insets`). The toolbar sits between them on the canvas: a
-  breadcrumb (project, page, frame), the command field (secondary-K:
-  `Command`, a frame, a file or a tool by name; arrows and Enter), undo,
-  redo, Design and Code. Its empty parts and the sidebar's top drag the
-  window: the title bar is inset into the app (helder.os's `TitleBar`), the
-  window's buttons in the sidebar's card (`<WindowControls/>`; no row for
-  them without an inset title bar: in the browser, full screen).
-- **One accent**, a blue (`accent`), for what is current or acts: the
+- **Near neutral darks**, a hint of cool at most: the canvas darkest
+  (`canvas`), the panels a step up (`bg`), fields and hovers above
+  (`well`, `hover`, `active`); text in three greys, near white at the top
+  (`fg`, `fg2`, `fg3`); hairlines faint (`line`, `edge`: white at 7% and
+  14%).
+- **Panels flush with the window**, a hairline between them and the
+  canvas, no cards, no shadows: the sidebar left, the inspector (or the
+  code) right, the toolbar between them above the canvas, its hairline
+  and the sidebar's top row's one line across. The canvas runs under them
+  (the camera fits what is in focus between them: `Studio.insets`). The
+  sidebar's top row holds the window's buttons (`<WindowControls/>`, an
+  inset title bar: helder.os's `TitleBar`; none in the browser) and the
+  project. The toolbar: a breadcrumb (page, frame; the project is the
+  sidebar's), the command field (secondary-K, written ⌘K on macOS and in a
+  browser on a Mac, Ctrl K elsewhere: `Command`, a frame, a file or a tool
+  by name), undo, redo, Design and Code (a segmented control), Play. Its
+  empty parts and the sidebar's top drag the window.
+- **Dense**: 12-point type in the panels (11 for values and notes), rows
+  24 points (layers 22), the inspector's values short fields with their
+  label inside (`W 342`, `H 52`, `Padding 10 12`), two numbers to a row, a
+  colour a row with its swatch; a layout's direction a segmented control.
+  Sections are a word in medium weight over their rows, a hairline above:
+  hierarchy by weight and grey, not boxes. Radii 4 (controls, rows) and 6
+  (what floats: the command field, menus, the prompt bar); a phone's sheet
+  10. On a phone (narrower than helder.ui's `md`) rows and fields are a
+  finger's: 32 and 30.
+- **One accent**, a blue (`accent`), for what is selected or acts: the
   selection's outline and handles (white squares edged in it), the snaps'
-  guides, the frame in focus (its outline, its name a blue pill), focus
-  (a ring, `focus`), Play, the switch's current side. The current page,
-  file, frame, layer and sheet's tab are a tint of it (`on`), their icons
-  in it (`accent-ink`). Files' icons a quiet hue by kind (`kind-*`: a
-  design's violet, a story's orange, code blue, an image green).
-- **Icons throughout**: Lucide's (ISC, `icons/`, only those used,
-  embedded by `Icons.hx`, strokes 1.75): a page's kind, a frame, a layer's
-  element, each section, the toolbar's buttons.
-- **Sections** with an icon and a header in small capitals; a row's label
-  left, its value right (the inspector's fields, in Geist Mono). Radii 6
-  (controls, rows), 8 (the command field, menus), 12 (cards); titles
-  medium (500).
+  guides, the frame in focus (its outline, its name in it), focus (a ring,
+  `focus`), Play, the switch's current side. The current page, file,
+  frame, layer and sheet's tab are a tint of it (`on`), their icons in it
+  (`accent-ink`). Files' icons a quiet hue by kind (`kind-*`: a design's
+  violet, a story's orange, code blue, an image green); everything else
+  grey.
+- **Icons** where they name a thing: Lucide's (ISC, `icons/`, only those
+  used, embedded by `Icons.hx`, strokes 1.75): a page's kind, a frame, a
+  layer's element, the toolbar's buttons.
 - **The code's hues** (violet keywords, blue tags, rose attributes, green
-  strings, orange numbers) retuned to the darks; its cursor and selection
-  the accent's.
-- **Motion**: hovers and the current row's fill ease on helder.ui's
-  springs (`motion-color="snappy"` on the window), the selection's box
-  springs to a new node, cards and lists enter with `fade`.
+  strings, orange numbers) retuned to the darks, at 12 points on 18; its
+  cursor and selection the accent's.
+- **Motion only where something moves**: a hover, a selection, a focus,
+  a tab or a row's tint change at once (no springs on colours, the
+  selection's box where its node is, nothing fading in). What moves: the
+  camera (pan, zoom, pinch; zoom to fit and to a frame on a short spring,
+  `ZOOM`), a phone's sheet (slid up, dragged and flung; its content at
+  once), Play opening (a quick fade and scale).
 
 Dark first: every colour is a token, so a light theme is a sheet of the
 same names. The fonts are Hanken Grotesk for the interface and Geist Mono

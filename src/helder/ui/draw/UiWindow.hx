@@ -116,8 +116,6 @@ class UiWindow {
 	// (antialias: the device's frames multisampled, 4 samples a pixel, where the GPU has them)
 	public function new(title:String, width:Int, height:Int, ?text:TextEngine, antialias = true, titlebar:helder.os.TitleBar = Standard) {
 		window = new helder.os.Window(title, width, height, titlebar);
-		// (secondary is Command, shortcuts labelled as macOS's menus do)
-		helder.ui.actions.Keymap.mac = Mem.os() == 1;
 		// (Android: text fields get the soft keyboard and the input method)
 		if (Mem.target() >= 9) helder.os.android.TextInput.enable();
 		device = Device.create(window.surface, {antialias: antialias});

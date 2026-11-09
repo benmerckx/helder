@@ -208,23 +208,24 @@ In this order: the look first, so that the new panels and sheets are made
 in it. The look, the free canvas, Play and phones' sheets are built
 (README.md); the screens are not tiled yet.
 
-- **The look** (the direction: Spacedrive's interface): near neutral darks,
-  a hint of cool (the canvas darkest, panels a step up, fields and hover
-  above), text in three greys, crisp; the sidebar and the
-  inspector as cards inset over the canvas (radius 12, an 8-point gap, a
-  faint edge) rather than regions split by hairlines; one accent, a blue,
-  for what is current or acts (the selection's outline and handles,
-  guides, focus, Play; the current page, layer and tab a tint of it, their
-  icons in it; files' icons a quiet hue by kind); icons throughout (Lucide's, MIT, as
-  SVGs: a page's kind, a layer's element, the toolbar's buttons);
-  sections with an icon and a small-caps header, labels left and values
-  right; a frame's selected name a blue pill; radii 6, 8 and 12, hairlines
-  faint, titles medium; the code's hues on the new darks; hovers and the
-  selection eased with helder.ui's springs. The toolbar: a breadcrumb
-  (project, page, frame), a command field (secondary-K: a frame, a tool,
-  later the prompt), icon buttons; the window's own buttons in the
-  sidebar's card (helder.os's inset title bar, the roadmap's). Dark first;
-  every colour a token, so a light theme is a later addition.
+- **The look** (the direction: paper.design's interface, earlier
+  Spacedrive's): near neutral darks, a hint of cool (the canvas darkest,
+  panels a step up, fields and hover above), text in three greys, crisp;
+  the sidebar, the inspector and the toolbar flush with the window,
+  hairlines between them and the canvas, no cards and no shadows; dense
+  (12-point type, 24-point rows, the inspector's values short fields with
+  their label inside, two to a row, segmented controls where a choice
+  fits); hierarchy by weight and grey, sections a word in medium weight;
+  one accent, a blue, for what is selected or acts (the selection's
+  outline and handles, guides, focus, Play; the current page, layer and
+  tab a tint of it, their icons in it; files' icons a quiet hue by kind);
+  icons where they name a thing (Lucide's, as SVGs); radii 4 and 6; state
+  changes at once, motion only where something moves (the camera, a
+  phone's sheet, Play opening). The toolbar: a breadcrumb (page, frame), a
+  command field (secondary-K, ⌘K on a Mac, in the browser too: a frame, a
+  tool, later the prompt), icon buttons; the window's own buttons in the
+  sidebar's top row (helder.os's inset title bar, the roadmap's). Dark
+  first; every colour a token, so a light theme is a later addition.
 - **A free canvas** (built: README.md's "A free canvas"), Figma's: every frame (design, story, app) where it
   was dragged, no rows; no mode for a screen zoomed into: a click selects
   at any zoom, a double click enters a frame's contents; pan, zoom and

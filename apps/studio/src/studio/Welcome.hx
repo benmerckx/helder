@@ -23,7 +23,7 @@ class Welcome implements Markup {
 		#end
 		return <scroll tag="welcome" grow={1} background={c("bg")} color={c("fg")} font-family={Theme.UI} font-size={Theme.BODY}
 			ref={(n:Node) -> n.theme = Theme.sheet} align-items="center" padding="56 20">
-			<view width="100%" max-width={420} row-gap={6} transition="fade slide-up(12)" motion="snappy">
+			<view width="100%" max-width={420} row-gap={6}>
 				<text font-weight={Theme.MEDIUM} padding="0 8 14">helder studio</text>
 				<view:button tag="new-project" slot="nav-item" role="button" label="New project" focusable onPress={() -> newProject()}>
 					<text>New project</text>

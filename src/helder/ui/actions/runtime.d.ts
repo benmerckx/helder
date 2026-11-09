@@ -56,7 +56,7 @@ export declare class Script {
 	static label(keymap: unknown, action: any, context?: string): string | null;
 	// the keymap's bindings as text ("ctrl-k ctrl-s -> viewer::Next in Editor")
 	static bindings(keymap: unknown): string[];
-	// on macOS secondary is Command (UiWindow sets it)
+	// on macOS secondary is Command (Keymap.mac, known at start)
 	static setMac(mac: boolean): void;
 	// the Ui a node is in (a ref's, once mounted: its window's), null: none
 	static uiOf(node: unknown): unknown | null;

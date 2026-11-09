@@ -54,12 +54,11 @@ class Play implements Markup {
 				<view:button tag="play-target" slot="button" role="button" label={"Play in: " + label(studio.target())} focusable data-on={picking() ? "true" : "false"}
 					onPress={() -> picking(!picking.peek())}>
 					<image src={icon(studio.target())} width={Theme.ICON_S} height={Theme.ICON_S}/>
-					<image src={Icons.chevronDown} width={12} height={12}/>
+					<image src={Icons.chevronDown} width={Theme.ICON_XS} height={Theme.ICON_XS}/>
 				</view:button>
 			</Show>
 			<Show when={picking()}>
-				<view tag="play-targets" slot="floating" position="absolute" top={Theme.HEADER} right={0} width={210} padding={6} shadow="0 12 32 rgba(0,0,0,0.45)"
-					transition="fade" motion="snappy">
+				<view tag="play-targets" slot="floating" position="absolute" top={Theme.HEADER - 6} right={0} width={210} padding={4} shadow={Theme.POPOVER}>
 					{[for (t in targetsHere()) <view:button tag={"target-" + t} slot="menu-item" role="button" label={label(t)} data-on={studio.target() == t ? "true" : "false"}
 						onPress={() -> {
 							studio.target(t);
@@ -89,10 +88,10 @@ class Play implements Markup {
 			<view height={studio.sheet() == null ? 0.0 : studio.sheetHeight(studio.detent())} shrink={0}/>
 		</view>;
 		return <view tag="player" grow={1} min-height={0} background={c("canvas")} onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<view tag="player-head" direction="row" align-items="center" column-gap={10} height={44} padding="0 10 0 14" background={c("bg")}
+			<view tag="player-head" direction="row" align-items="center" column-gap={8} height={Theme.HEADER} padding={'0 8 0 ${Theme.PAD}'} background={c("bg")}
 				border-width="0 0 1 0" border-color={c("line")} shrink={0}>
 				<image src={p.kind == "design" ? Icons.penTool : p.kind == "app" ? Icons.appWindow : p.kind == "target" ? icon(studio.target()) : Icons.bookOpen}
-					width={Theme.ICON} height={Theme.ICON} color={c("fg2")}/>
+					width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg2")}/>
 				<text font-weight={Theme.MEDIUM} max-lines={1}>{info == null ? label(studio.target()) : info.label}</text>
 				<text tag="player-note" font-size={Theme.SMALL} color={c("fg3")} max-lines={1} shrink={1}>{p.kind == "target" ? studio.playLog() : p.note}</text>
 				<view grow={1}/>
@@ -154,8 +153,8 @@ class Play implements Markup {
 			var below = studio.sheet() == null ? 0.0 : studio.sheetHeight(studio.detent());
 			return Math.min((studio.stageWidth - 2 * PAD) / Math.max(1, w), (studio.stageHeight - Theme.TOPBAR - below - 2 * PAD) / Math.max(1, h));
 		}
-		var aw = studio.stageWidth - (studio.compact() ? 0 : Theme.SIDEBAR + 3 * Theme.GAP) - (panel ? Theme.INSPECTOR : 0) - 48;
-		var ah = studio.stageHeight - (studio.compact() ? 0 : Theme.HEADER + 2 * Theme.GAP) - 44 - 48;
+		var aw = studio.stageWidth - Theme.SIDEBAR - (panel ? Theme.INSPECTOR : 0) - 48;
+		var ah = studio.stageHeight - Theme.HEADER - Theme.HEADER - 48;
 		return Math.min(1, Math.min(aw / Math.max(1, w), ah / Math.max(1, h)));
 	}
 
@@ -170,7 +169,7 @@ class Play implements Markup {
 			return {x: e.localX / k, y: e.localY / k};
 		}
 		return <view tag="player-screen" ref={(n:Node) -> studio.playScreen = n} width={s.width() * fit(studio, s.width(), s.height(), p.kind == "story")}
-			height={s.height() * fit(studio, s.width(), s.height(), p.kind == "story")} radius={2} overflow="hidden" shadow="0 16 48 rgba(0,0,0,0.45)"
+			height={s.height() * fit(studio, s.width(), s.height(), p.kind == "story")} border-width={1} border-color={c("line")} overflow="hidden"
 			onPointerDown={e -> {
 				down = true;
 				var q = at(e);
@@ -194,7 +193,7 @@ class Play implements Markup {
 	// a design's frame at its size (fitted), its nodes as the canvas draws them
 	static function design(studio:Studio, info:Project.ScreenInfo):View {
 		var w = info.width > 0 ? info.width : 390, h = info.height > 0 ? info.height : 844, k = fit(studio, w, h, false);
-		return <view tag="player-design" width={w * k} height={h * k} radius={2} overflow="hidden" shadow="0 16 48 rgba(0,0,0,0.45)">
+		return <view tag="player-design" width={w * k} height={h * k} border-width={1} border-color={c("line")} overflow="hidden">
 			<view width={w} height={h} transform-origin="left top" transform={'scale($k)'} pointer-events="none" background="#ffffff" color="#000000"
 				font-family={helder.ui.Style.DEFAULT_FAMILY} font-size={helder.ui.Style.DEFAULT_SIZE} font-weight={helder.ui.Style.DEFAULT_WEIGHT}
 				ref={(n:Node) -> n.theme = {rules: []}}>{studio.designs.content(info.name)}</view>
@@ -205,7 +204,7 @@ class Play implements Markup {
 	public static function controls(studio:Studio):View {
 		return <view>
 			<view slot="section" border-width={0}>
-				<view slot="section-head"><image src={Icons.ruler} width={12} height={12}/><text>Controls</text></view>
+				<view slot="section-head"><text>Controls</text></view>
 				<Show when={studio.playControls().length > 0} fallback={<text font-size={Theme.SMALL} color={c("fg3")}>{"This story has no controls."}</text>}>
 					<For each={studio.playControls()} by={(x:Dynamic) -> x.name}>{(x:Read<Dynamic>) -> {
 						var ctl:Dynamic = x();

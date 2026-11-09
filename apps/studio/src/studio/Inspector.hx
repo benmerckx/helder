@@ -15,18 +15,18 @@ using StringTools;
 // written back there (Studio.setAttribute: an attribute set or added, the
 // file's formatting kept, one history). A live literal's change shows in
 // the screens' next frame (patched, then saved); another builds. A number's
-// label scrubs it: dragged left or right, a point per two.
+// label scrubs it: dragged left or right, a point per two. Paper's way:
+// each value a short field, its label inside, two to a row.
 class Inspector implements Markup {
-	// the desktop's card at the right (compact: its sheet): what is selected, its sections; else
+	// the desktop's panel at the right (compact: its sheet): what is selected, its sections; else
 	// the frame in focus, else the project
 	public static function card(studio:Studio):View
 		return <view tag="inspector" grow={1} min-height={0}>
-			<view tag="inspector-head" padding="14 14 12" shrink={0} row-gap={3}>
-				<view direction="row" align-items="center" column-gap={8}>
-					<image src={headIcon(studio)} width={Theme.ICON} height={Theme.ICON} color={c("accent-ink")}/>
-					<text tag="inspector-title" font-weight={Theme.MEDIUM} max-lines={1} text-overflow="ellipsis">{title(studio)}</text>
-				</view>
-				<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1} text-overflow="ellipsis">{subtitle(studio)}</text>
+			<view tag="inspector-head" direction="row" align-items="center" column-gap={6} height={Theme.HEADER} padding={'0 ${Theme.PAD}'} shrink={0}>
+				<image src={headIcon(studio)} width={Theme.ICON_S} height={Theme.ICON_S} color={c("accent-ink")} shrink={0}/>
+				<text tag="inspector-title" font-weight={Theme.MEDIUM} shrink={1} min-width={0} max-lines={1} text-overflow="ellipsis">{title(studio)}</text>
+				<view grow={1}/>
+				<text tag="inspector-source" font-family={studio.selection() != null ? Theme.CODE : Theme.UI} font-size={Theme.SMALL} color={c("fg3")} shrink={0} max-lines={1}>{subtitle(studio)}</text>
 			</view>
 			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
 		</view>;
@@ -65,43 +65,49 @@ class Inspector implements Markup {
 			case App: "App";
 		}
 
-	// a section: its icon and header, its rows
-	static function section(tag:String, icon:helder.ui.Svg, title:String, rows:View):View
+	// a section: its header (a word), its rows
+	static function section(tag:String, title:String, rows:View):View
 		return <view tag={tag} slot="section">
-			<view slot="section-head"><image src={icon} width={12} height={12}/><text>{title}</text></view>
+			<view slot="section-head"><text>{title}</text></view>
 			{rows}
 		</view>;
 
+	// the fields: two numbers to a row (a label inside each), a colour's a row with its swatch
 	static function fields(studio:Studio):View {
 		return <view>
-			<Show when={studio.selection() != null} fallback={<view slot="section">
-				<text color={c("fg3")} font-size={Theme.SMALL} padding="2 0">{empty(studio)}</text>
+			<Show when={studio.selection() != null} fallback={<view slot="section" padding={Theme.PAD}>
+				<text color={c("fg3")} font-size={Theme.SMALL}>{empty(studio)}</text>
 			</view>}>
-				{section("section-layout", Icons.ruler, "Layout", <view>
-					{field(studio, "width", "Width", true)}
-					{field(studio, "height", "Height", true)}
-					{field(studio, "padding", "Padding", true)}
-					{field(studio, gapName(studio), "Gap", true)}
+				{section("section-layout", "Layout", <view row-gap={6}>
+					<Show when={!hasText(studio)}>{direction(studio)}</Show>
+					<view slot="fields">{field(studio, "width", "W", true)}{field(studio, "height", "H", true)}</view>
+					<view slot="fields">{field(studio, "padding", "Padding", true)}{field(studio, gapName(studio), "Gap", true)}</view>
 				</view>)}
-				{section("section-style", Icons.palette, "Style", <view>
-					{field(studio, "background", "Fill", false)}
-					{field(studio, "radius", "Radius", true)}
-					{field(studio, "color", "Color", false)}
+				{section("section-style", "Style", <view row-gap={6}>
+					<view slot="fields">{field(studio, "background", "Fill", false)}</view>
+					<view slot="fields">{field(studio, "color", "Color", false)}</view>
+					<view slot="fields">{field(studio, "radius", "Radius", true)}<view grow={1} basis={0}/></view>
 				</view>)}
 				<Show when={hasText(studio)}>
-					{section("section-text", Icons.textCursor, "Text", <view slot="field">
-						<text slot="field-label" cursor="default">Text</text>
+					{section("section-text", "Text", <view slot="field">
 						<field tag="field-text" slot="field-input" label="Text" value={textValue(studio)} onInput={e -> studio.setText(e.text)}
 							onBlur={() -> studio.endGesture()}/>
 					</view>)}
 				</Show>
-				{section("section-source", Icons.code, "Source", <view slot="field">
-					<text slot="field-label" cursor="default">File</text>
-					<view grow={1}/>
-					<text tag="inspector-source" color={c("fg2")}>{source(studio)}</text>
-				</view>)}
 			</Show>
 		</view>;
+	}
+
+	// the layout's direction: a column (helder.ui's default) or a row
+	static function direction(studio:Studio):View {
+		function item(v:String, label:String):View
+			return <view:button tag={"direction-" + v} slot="seg-item" grow={1} role="button" label={label} focusable
+				data-on={(value(studio, "direction") == "row" ? "row" : "column") == v ? "true" : "false"} onPress={() -> {
+					if (value(studio, "direction") == "" && v == "column") return;
+					studio.setAttribute("direction", v);
+					studio.endGesture();
+				}}><text>{label}</text></view:button>;
+		return <view tag="field-direction" slot="seg">{item("column", "Column")}{item("row", "Row")}</view>;
 	}
 
 	static function empty(studio:Studio):String {
@@ -109,11 +115,12 @@ class Inspector implements Markup {
 		return studio.focused() != null ? '$verb a part of the frame to select it.' : '$verb a frame to select it, or choose one in the sidebar.';
 	}
 
-	// one attribute's row: its label (a number's scrubs it), its value as written
+	// one attribute's field: its label inside (a number's scrubs it), a colour's swatch, its value as written
 	static function field(studio:Studio, name:String, label:String, number:Bool):View {
 		var start = 0.0;
 		return <view tag={"field-" + name} slot="field">
-			<text tag={"scrub-" + name} slot="field-label" onPan={g -> {
+			<text tag={"scrub-" + name} slot="field-label" cursor={number ? "ew-resize" : "default"} onPan={g -> {
+				if (!number) return;
 				switch g.state {
 					case Began:
 						start = Std.parseFloat(value(studio, name));
@@ -124,11 +131,16 @@ class Inspector implements Markup {
 						studio.endGesture();
 				}
 			}}>{label}</text>
+			<Show when={!number && value(studio, name) != ""}><view slot="swatch" background={swatch(value(studio, name))}/></Show>
 			<field tag={"input-" + name} slot="field-input" label={label} value={value(studio, name)} placeholder={placeholder(studio, name)}
 				onInput={e -> if (valid(name, e.text, number)) studio.setAttribute(name, e.text)}
 				onKeyDown={e -> if (e.key == Key.ENTER) studio.endGesture()} onBlur={() -> studio.endGesture()}/>
 		</view>;
 	}
+
+	// (a colour's swatch: what it is written as, else none)
+	static function swatch(v:String):Color
+		return v == "" ? Color.TRANSPARENT : try Color.parse(v) catch (_:Dynamic) Color.TRANSPARENT;
 
 	// (a value worth writing: a number for a number's field, a colour for a colour's)
 	static function valid(name:String, text:String, number:Bool):Bool {

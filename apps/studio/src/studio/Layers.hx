@@ -19,26 +19,26 @@ class Layers implements Markup {
 	public static function view(studio:Studio):View {
 		// (the row dragged and by how far, stage points)
 		var moving:Signal<Null<{key:String, dy:Float}>> = signal(null);
-		return <view tag="layers" slot="section" max-height="45%" shrink={0} padding="10 6 6" transition="fade" motion="snappy"
+		return <view tag="layers" slot="section" max-height="45%" shrink={0} padding="4 6 6" row-gap={0}
 			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<view:button tag="layers-toggle" slot="section-head" padding="2 6 6" role="button" label={studio.layersOpen() ? "Hide the layers" : "Show the layers"}
+			<view:button tag="layers-toggle" slot="section-head" padding="0 8" role="button" label={studio.layersOpen() ? "Hide the layers" : "Show the layers"}
 				cursor="pointer" onPress={() -> studio.layersOpen(!studio.layersOpen.peek())}>
-				<image src={Icons.layers} width={12} height={12}/><text grow={1}>Layers</text>
-				<image src={studio.layersOpen() ? Icons.chevronDown : Icons.chevronRight} width={12} height={12}/>
+				<text grow={1}>Layers</text>
+				<image src={studio.layersOpen() ? Icons.chevronDown : Icons.chevronRight} width={Theme.ICON_XS} height={Theme.ICON_XS} color={c("fg3")}/>
 			</view:button>
 			<Show when={studio.layersOpen()}><scroll min-height={0}>
 				<For each={rows(studio)} by={(r:Row) -> r.key}>{(r:Read<Row>) ->
-					<view tag={"layer-" + r().key} slot="nav-item" role="button" label={r().label} height={Theme.LAYER} padding={'0 8 0 ${8 + r().depth * 14}'}
+					<view tag={"layer-" + r().key} slot="nav-item" data-layer="true" role="button" label={r().label} padding={'0 8 0 ${8 + r().depth * 12}'}
 						data-on={r().on ? "true" : "false"} transform={offset(moving, r().key)} instant
 						onClick={e -> select(studio, r(), e.mods & Key.MOD_SHIFT != 0)}
 						onPan={g -> {
 							var row = r();
 							if (g.state == Ended || g.state == Cancelled) {
 								moving(null);
-								if (g.state == Ended) reorder(studio, row, Math.round(g.ty / Theme.LAYER));
+								if (g.state == Ended) reorder(studio, row, Math.round(g.ty / (studio.stageWidth < 768 ? Theme.TOUCH_ROW : Theme.LAYER)));
 							} else moving({key: row.key, dy: g.ty});
 						}}>
-						<image src={r().icon} width={Theme.ICON_S} height={Theme.ICON_S} color={r().on ? c("accent-ink") : c("fg3")}/>
+						<image src={r().icon} width={Theme.ICON_XS} height={Theme.ICON_XS} color={r().on ? c("accent-ink") : c("fg3")}/>
 						<text max-lines={1} text-overflow="ellipsis">{r().label}</text>
 					</view>
 				}</For>

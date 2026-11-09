@@ -19,9 +19,9 @@ class Prompt implements Markup {
 			studio.ask(text.peek());
 			text("");
 		}
-		return <view tag="ask" slot="floating" position="absolute" bottom={14} left={left(studio)} width={width(studio)} direction="row" align-items="center"
-			column-gap={10} padding="9 12" shadow="0 8 24 rgba(0,0,0,0.35)" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<image src={Icons.sparkles} width={Theme.ICON} height={Theme.ICON} color={c("accent")}/>
+		return <view tag="ask" slot="floating" position="absolute" bottom={Theme.PAD} left={left(studio)} width={width(studio)} direction="row" align-items="center"
+			column-gap={8} height={34} padding="0 10" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			<image src={Icons.sparkles} width={Theme.ICON_S} height={Theme.ICON_S} color={c("accent-ink")}/>
 			<field tag="prompt" slot="ask-input" label="Prompt" value={text} placeholder={studio.context().label} onInput={e -> text(e.text)}
 				onKeyDown={e -> if (e.key == Key.ENTER) send()}/>
 			<text tag="ask-reply" shrink={1} min-width={0} max-width="50%" color={c("fg3")} font-size={Theme.SMALL} max-lines={1}
@@ -29,7 +29,7 @@ class Prompt implements Markup {
 		</view>;
 	}
 
-	// (centred between the cards)
+	// (centred between the panels)
 	static function width(studio:Studio):Float {
 		studio.stageSize();
 		var i = studio.insets();

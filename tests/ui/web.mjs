@@ -124,11 +124,11 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	await click('draft');
 	await p.keyboard.type('Ship it');
 	// cut to the clipboard, then pasted back
-	await p.keyboard.press('Control+A');
-	await p.keyboard.press('Control+X');
+	await p.keyboard.press('ControlOrMeta+A');
+	await p.keyboard.press('ControlOrMeta+X');
 	await settle();
 	const cut = await p.evaluate(() => navigator.clipboard.readText());
-	await p.keyboard.press('Control+V');
+	await p.keyboard.press('ControlOrMeta+V');
 	await settle();
 	await click('add');
 	await click('checkbox');

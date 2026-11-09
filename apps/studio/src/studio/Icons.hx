@@ -23,11 +23,9 @@ class Icons {
 	public static final frame = load(Asset.embed("icons/frame.svg"));
 	public static final globe = load(Asset.embed("icons/globe.svg"));
 	public static final image = load(Asset.embed("icons/image.svg"));
-	public static final layers = load(Asset.embed("icons/layers.svg"));
 	public static final layoutGrid = load(Asset.embed("icons/layout-grid.svg"));
 	public static final maximize = load(Asset.embed("icons/maximize.svg"));
 	public static final monitor = load(Asset.embed("icons/monitor.svg"));
-	public static final palette = load(Asset.embed("icons/palette.svg"));
 	public static final penTool = load(Asset.embed("icons/pen-tool.svg"));
 	public static final play = load(Asset.embed("icons/play.svg"));
 	public static final redo = load(Asset.embed("icons/redo-2.svg"));
@@ -37,7 +35,6 @@ class Icons {
 	public static final smartphone = load(Asset.embed("icons/smartphone.svg"));
 	public static final sparkles = load(Asset.embed("icons/sparkles.svg"));
 	public static final element = load(Asset.embed("icons/square.svg"));
-	public static final textCursor = load(Asset.embed("icons/text-cursor.svg"));
 	public static final font = load(Asset.embed("icons/type.svg"));
 	public static final undo = load(Asset.embed("icons/undo-2.svg"));
 
