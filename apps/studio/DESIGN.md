@@ -208,13 +208,13 @@ In this order: the look first, so that the new panels and sheets are made
 in it. The look, the free canvas, Play and phones' sheets are built
 (README.md); the screens are not tiled yet.
 
-- **The look** (the direction: Spacedrive's interface): cool, blue-tinted
-  darks instead of neutral greys (the canvas darkest, panels a step up,
-  fields and hover above), text in three cool greys; the sidebar and the
+- **The look** (the direction: Spacedrive's interface): near neutral darks,
+  a hint of cool (the canvas darkest, panels a step up, fields and hover
+  above), text in three greys, crisp; the sidebar and the
   inspector as cards inset over the canvas (radius 12, an 8-point gap, a
   faint edge) rather than regions split by hairlines; one accent, a blue,
-  for whatever is active (the selection's outline and handles, guides, the
-  current page and layer, focus); icons throughout (Lucide's, MIT, as
+  used sparingly (the selection's outline and handles, guides, focus,
+  Play; the current page and layer a lighter fill); icons throughout (Lucide's, MIT, as
   SVGs: a page's kind, a layer's element, the toolbar's buttons);
   sections with an icon and a small-caps header, labels left and values
   right; a frame's selected name a blue pill; radii 6, 8 and 12, hairlines

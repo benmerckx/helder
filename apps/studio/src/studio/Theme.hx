@@ -2,11 +2,11 @@ package studio;
 
 import helder.ui.*;
 
-// The studio's look, every value of it here (README.md's "Look"): cool,
-// blue-tinted darks (the canvas darkest, the cards a step up, fields and
-// hovers above), text in three cool greys, one blue accent for whatever is
-// active (the selection, its handles, guides, the current page, layer and
-// file, focus); the sidebar, the inspector and the toolbar's fields as
+// The studio's look, every value of it here (README.md's "Look"): near
+// neutral darks, a hint of cool (the canvas darkest, the cards a step up,
+// fields and hovers above), text in three greys, crisp at the top; one blue
+// accent kept for few things (the selection, its handles, guides, focus,
+// Play), the current page, layer and file a lighter fill; the sidebar, the inspector and the toolbar's fields as
 // cards inset over the canvas, edged by faint hairlines; radii 6, 8 and
 // 12; titles medium. Hanken Grotesk for the interface, Geist Mono for
 // values. Dark first: the sheet's light colours are its dark ones until a
@@ -60,21 +60,24 @@ class Theme {
 	public static final ZOOM = helder.ui.motion.Curve.spring(0.43, 0);
 
 	public static final colors:Map<String, Color> = withCode([
-		// the darks, blue-tinted: the canvas under everything, the cards, fields, hovers, what is pressed or current
-		"canvas" => Color.parse("#0e0f14"),
-		"bg" => Color.parse("#17181f"),
-		"well" => Color.parse("#1f2029"),
-		"hover" => Color.parse("#252632"),
-		"active" => Color.parse("#2c2d3a"),
+		// the darks, near neutral (a hint of cool): the canvas under everything, the cards, fields, hovers, what is pressed
+		"canvas" => Color.parse("#0b0b0d"),
+		"bg" => Color.parse("#141416"),
+		"well" => Color.parse("#1c1c1f"),
+		"hover" => Color.parse("#232326"),
+		"active" => Color.parse("#2c2c30"),
+		// what is current (a file, a layer, a sheet's tab): a lighter fill, not the accent
+		"on" => Color.parse("rgba(255, 255, 255, 0.09)"),
 		// hairlines: a card's edge, between sections; a frame's outline
-		"line" => Color.parse("rgba(160, 170, 255, 0.07)"),
-		"edge" => Color.parse("rgba(160, 170, 255, 0.14)"),
-		// text: primary, secondary, quiet (cool greys)
-		"fg" => Color.parse("#e3e5ee"),
-		"fg2" => Color.parse("#9a9eb2"),
-		"fg3" => Color.parse("#5f6378"),
-		// the accent: whatever is active; soft, its fill behind text; on it, white
+		"line" => Color.parse("rgba(255, 255, 255, 0.07)"),
+		"edge" => Color.parse("rgba(255, 255, 255, 0.14)"),
+		// text: primary, secondary, quiet (greys, near white at the top)
+		"fg" => Color.parse("#f0f0f2"),
+		"fg2" => Color.parse("#a3a3aa"),
+		"fg3" => Color.parse("#66666d"),
+		// the accent, kept for few things: the selection, its handles, focus, Play; soft, its fill behind text; on it, white
 		"accent" => Color.parse("#3b82f6"),
+		"accent-hover" => Color.parse("#4b8ef7"),
 		"accent-soft" => Color.parse("rgba(59, 130, 246, 0.16)"),
 		"accent-fg" => Color.parse("#ffffff"),
 		// the selection: the accent; a dark hairline outside it, for a node selected on a light screen
@@ -82,17 +85,17 @@ class Theme {
 		"sel-soft" => Color.parse("rgba(59, 130, 246, 0.28)"),
 		"sel-halo" => Color.parse("rgba(0, 0, 0, 0.45)"),
 		// under what covers the canvas; a card's shadow
-		"scrim" => Color.parse("rgba(5, 6, 10, 0.55)"),
-		"shade" => Color.parse("rgba(0, 0, 0, 0.35)"),
-		// the code's hues, tuned to the darks
-		"violet" => Color.parse("#b4a0f0"),
-		"blue" => Color.parse("#7aa8f5"),
-		"teal" => Color.parse("#7fd0d6"),
-		"green" => Color.parse("#9fd19b"),
-		"orange" => Color.parse("#f0a878"),
-		"sand" => Color.parse("#e6cc8a"),
-		"rose" => Color.parse("#ee9fb5"),
-		"red" => Color.parse("#f07f7f"),
+		"scrim" => Color.parse("rgba(4, 4, 6, 0.6)"),
+		"shade" => Color.parse("rgba(0, 0, 0, 0.4)"),
+		// the code's hues, quieter: less saturated, tuned to the neutral darks
+		"violet" => Color.parse("#b9aee0"),
+		"blue" => Color.parse("#93b0dc"),
+		"teal" => Color.parse("#8cc4c4"),
+		"green" => Color.parse("#a8c9a0"),
+		"orange" => Color.parse("#dfae8c"),
+		"sand" => Color.parse("#dcc994"),
+		"rose" => Color.parse("#dba7b6"),
+		"red" => Color.parse("#ec8383"),
 	]);
 
 	// the code view's colours (helder.ui.code's CodeTheme tokens): its chrome the
@@ -128,7 +131,7 @@ class Theme {
 			// a row of the sidebar (a file, a frame, a layer): data-on, the current one
 			{slot: "nav-item", style: {direction: Row, alignItems: Center, columnGap: 7, height: ROW, padding: [0, 8], radius: RADIUS, color: t("fg2"), cursor: Pointer}},
 			{slot: "nav-item", when: ["hover"], style: {background: t("hover"), color: t("fg")}},
-			{slot: "nav-item", when: ["data-on=true"], style: {background: t("accent-soft"), color: t("fg")}},
+			{slot: "nav-item", when: ["data-on=true"], style: {background: t("on"), color: t("fg")}},
 			// buttons: an icon or a word, quiet until hovered
 			{slot: "button", style: {direction: Row, alignItems: Center, justify: Center, columnGap: 6, height: 28, minWidth: 28, padding: [0, 7], radius: RADIUS,
 				color: t("fg2"), cursor: Pointer}},
@@ -138,7 +141,7 @@ class Theme {
 			// the accent's button (Play)
 			{slot: "primary", style: {direction: Row, alignItems: Center, columnGap: 6, height: 28, padding: [0, 11, 0, 9], radius: RADIUS, background: t("accent"),
 				color: t("accent-fg"), fontWeight: MEDIUM, cursor: Pointer}},
-			{slot: "primary", when: ["hover"], style: {background: Color.parse("#4b8ef7")}},
+			{slot: "primary", when: ["hover"], style: {background: t("accent-hover")}},
 			// the switch (Design, Code): a well, the current one raised
 			{slot: "seg", style: {direction: Row, padding: 2, columnGap: 2, radius: RADIUS_M, background: t("well")}},
 			{slot: "seg-item", style: {direction: Row, alignItems: Center, columnGap: 6, height: 24, padding: [0, 9], radius: RADIUS, color: t("fg3"), cursor: Pointer}},
@@ -166,7 +169,7 @@ class Theme {
 			{slot: "floating", style: {background: t("bg"), radius: RADIUS_L, borderWidth: 1, borderColor: t("edge")}},
 			{slot: "menu-item", style: {direction: Row, alignItems: Center, columnGap: 8, height: 30, padding: [0, 10], radius: RADIUS, color: t("fg2"), cursor: Pointer}},
 			{slot: "menu-item", when: ["hover"], style: {background: t("hover"), color: t("fg")}},
-			{slot: "menu-item", when: ["data-on=true"], style: {background: t("accent-soft"), color: t("fg")}},
+			{slot: "menu-item", when: ["data-on=true"], style: {background: t("on"), color: t("fg")}},
 			// compact: a sheet over the canvas, its handle
 			{slot: "sheet", style: {background: t("bg"), borderColor: t("edge"), corners: [RADIUS_L, RADIUS_L, 0, 0]}},
 			{slot: "sheet-handle", style: {width: 36, height: 4, radius: 2, background: t("edge")}},

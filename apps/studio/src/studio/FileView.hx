@@ -24,7 +24,7 @@ class FileView implements Markup {
 		var actual = signal(false);
 		return <view tag="file-view" grow={1} min-height={0}>
 			<view tag="file-head" direction="row" align-items="center" column-gap={10} height={44} padding="0 14" border-width="0 0 1 0" border-color={c("line")} shrink={0}>
-				<image src={icon(kind)} width={Theme.ICON} height={Theme.ICON} color={c("accent")}/>
+				<image src={icon(kind)} width={Theme.ICON} height={Theme.ICON} color={c("fg2")}/>
 				<text font-weight={Theme.MEDIUM} max-lines={1}>{haxe.io.Path.withoutDirectory(path)}</text>
 				<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1} shrink={1}>{info(studio, path, kind)}</text>
 				<view grow={1}/>

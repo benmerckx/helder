@@ -23,7 +23,7 @@ class Inspector implements Markup {
 		return <view tag="inspector" grow={1} min-height={0}>
 			<view tag="inspector-head" padding="14 14 12" shrink={0} row-gap={3}>
 				<view direction="row" align-items="center" column-gap={8}>
-					<image src={headIcon(studio)} width={Theme.ICON} height={Theme.ICON} color={c("accent")}/>
+					<image src={headIcon(studio)} width={Theme.ICON} height={Theme.ICON} color={c("fg2")}/>
 					<text tag="inspector-title" font-weight={Theme.MEDIUM} max-lines={1} text-overflow="ellipsis">{title(studio)}</text>
 				</view>
 				<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1} text-overflow="ellipsis">{subtitle(studio)}</text>
