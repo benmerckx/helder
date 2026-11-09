@@ -6,7 +6,9 @@
 // first finger primary, buffer pixels, a touch's tap and drag its pointer's
 // events alone (no click, no scrolls, no glide after a drag), moves between two frames
 // as one with samples, a cancel, Pointers' frames; a pointer event sent from
-// JavaScript (setPointerCapture's NotFoundError caught).
+// JavaScript (setPointerCapture's NotFoundError caught); the wheel with
+// Control prevented (a pinch: not the page's zoom), a plain one not, and
+// Safari's gesture events made such wheels.
 //   node tests/os/pointers-web.mjs <PointersWeb.wasm>
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -151,6 +153,38 @@ try {
 	});
 	l = await lines();
 	check('a pointer event from JavaScript: setPointerCapture caught, the press delivered', sent === 'NotFoundError' && thrown.length === 0 && l.some((s) => s.startsWith('down 1 touch 40,40')) && l.some((s) => s.startsWith('up 1 touch')), `${sent} ${thrown.join(' / ')} ${l.join(' / ')}`);
+
+	// the wheel: Control's (a pinch in Chrome) the program's, not the
+	// page's zoom; a plain one left to the page
+	await p.evaluate(() => {
+		window.prevented = [];
+		addEventListener('wheel', (e) => window.prevented.push(e.defaultPrevented));
+	});
+	await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 100, y: 50, deltaX: 0, deltaY: -10, modifiers: 2 });
+	l = await lines();
+	let prevented = await p.evaluate(() => window.prevented.splice(0));
+	const zoom = await p.evaluate(() => visualViewport.scale);
+	check('a wheel with Control: a scroll with Control, prevented, the page not zoomed', l.some((s) => /^scroll -\d+ 200,100 mods 2$/.test(s)) && prevented.join() === 'true' && zoom === 1, `${l.join(' / ')} ${prevented} ${zoom}`);
+	await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 100, y: 50, deltaX: 0, deltaY: 10 });
+	l = await lines();
+	prevented = await p.evaluate(() => window.prevented.splice(0));
+	check('a plain wheel: a scroll, left to the page', l.some((s) => /^scroll \d+ 200,100 mods 0$/.test(s)) && prevented.join() === 'false', `${l.join(' / ')} ${prevented}`);
+	// Safari's pinch (its gesture events, which Chromium has not: made by
+	// hand): a scroll with Control of -100 ln of each step's ratio, prevented
+	// (each in a frame of its own: a frame's scrolls are added up)
+	const gestures = await p.evaluate(async () => {
+		const c = document.getElementById('c'), r = c.getBoundingClientRect(), out = [];
+		for (const [type, scale] of [['gesturestart', 1], ['gesturechange', 2], ['gesturechange', 1], ['gestureend', 1]]) {
+			const e = new Event(type, { bubbles: true, cancelable: true });
+			Object.assign(e, { scale, clientX: r.left + 100, clientY: r.top + 50 });
+			c.dispatchEvent(e);
+			out.push(e.defaultPrevented);
+			await new Promise((f) => setTimeout(f, 150));
+		}
+		return out;
+	});
+	l = await lines();
+	check("Safari's pinch: scrolls with Control, prevented", l.includes('scroll -139 200,100 mods 2') && l.includes('scroll 139 200,100 mods 2') && gestures.every((x) => x), `${l.join(' / ')} ${gestures}`);
 	const errors = (await p.evaluate(() => window.log)).filter((s) => s.startsWith('stderr'));
 	check('no errors', errors.length === 0, errors.join(' / '));
 } finally {

@@ -187,6 +187,11 @@ export default function (host) {
 		return false;
 	}
 
+	// a pinch's step from scale a to b as a wheel's deltaY (CSS pixels), as Chrome makes it
+	function pinch(a, b) {
+		return a > 0 && b > 0 ? -100 * Math.log(b / a) : 0;
+	}
+
 	function listen(c, h) {
 		const pos = (e) => [Math.round(e.offsetX * c.width / Math.max(1, c.clientWidth)), Math.round(e.offsetY * c.height / Math.max(1, c.clientHeight))];
 		const off = new AbortController();
@@ -268,10 +273,38 @@ export default function (host) {
 		// moves, and its release still comes, at positions outside it)
 		on('pointerdown', (e) => e.pointerType === 'mouse' && capture(e));
 		// (the deltas in canvas pixels, in 1/256ths: in key and button; lines 40 pixels, pages the canvas)
+		// (not passive: a pinch, which Chrome and Firefox send as a wheel
+		// with Control, and Control with the wheel, are the program's, not
+		// the page's zoom; other wheels still scroll a page around the canvas)
+		let scale = 1, wheeled = false;
 		on('wheel', (e) => {
+			if (e.ctrlKey) {
+				e.preventDefault();
+				wheeled = true;
+			}
 			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * pixelRatio() * 256;
 			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e)]);
-		}, { passive: true });
+		}, { passive: false });
+		// Safari's pinch: gesture events (scale since the gesture began), the
+		// page's zoom unless prevented; made the wheel with Control that
+		// Chrome makes of one (-100 ln of the ratio between two of them, in
+		// CSS pixels), so programs have one path (none if the pinch came as
+		// wheels too, as a later Safari might send it)
+		on('gesturestart', (e) => {
+			e.preventDefault();
+			scale = 1;
+			wheeled = false;
+		});
+		on('gesturechange', (e) => {
+			e.preventDefault();
+			if (wheeled) return;
+			const dy = pinch(scale, e.scale);
+			if (!dy) return;
+			scale = e.scale;
+			const r = c.getBoundingClientRect(), x = Math.round((e.clientX - r.left) * c.width / Math.max(1, c.clientWidth)), y = Math.round((e.clientY - r.top) * c.height / Math.max(1, c.clientHeight));
+			push([h, SCROLL, 0, x, y, Math.round(dy * pixelRatio() * 256), mods(e) | 2]);
+		});
+		on('gestureend', (e) => e.preventDefault());
 		// touches and pens: their pointer events (pointerId, PointerType,
 		// sub-pixel positions in 1/256ths, button, mods, the type and the
 		// buttons, pressure in 1/65536ths, the time in 1/16 ms, tilt), each

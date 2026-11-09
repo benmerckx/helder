@@ -84,7 +84,13 @@ the frame's extents, `_NET_FRAME_EXTENTS`, taken off when moving; macOS:
 from the main screen's top left). A trackpad's pinch on macOS is a
 `Scroll` with `Mods.CONTROL` (`deltaY` -180 ln(scale): as browsers send
 one, as Control and the wheel; Windows' precision touchpads send it so
-themselves). Tests: `bun run test window` (tests/os/WindowTest.hx: on X11
+themselves). In the browser the canvas's wheel listener is not passive:
+a wheel with Control (Chrome's and Firefox's pinch, Control and the wheel)
+is prevented, the program's and not the page's zoom, other wheels left to
+scroll a page around it; Safari's pinch, its `gesturestart` and
+`gesturechange` (prevented too), comes as the same `Scroll` with
+`Mods.CONTROL` (-100 ln of the scale's step, in CSS pixels, as Chrome makes
+it). Tests: `bun run test window` (tests/os/WindowTest.hx: on X11
 a second connection drags two files over the window speaking XDND, on
 Windows an HDROP posted as `WM_DROPFILES`, under Wine too
 (`GFX_TARGET=windows-x86_64`), on macOS a dragging info of the test's
@@ -359,7 +365,8 @@ no allocation: natively and as wasm32-wasi, the test lane),
 `bun run test touch-web` (`tests/os/PointersWeb.hx` in headless
 Chromium: two fingers, a pen and the mouse through the DevTools
 protocol, samples, a cancel, a tap and a drag without mouse events or
-scrolls), `src/helder/os/Glide.test.hx` (a fling's glide). Android's and
+scrolls, a wheel with Control prevented and a plain one not, Safari's
+gesture events made by hand), `src/helder/os/Glide.test.hx` (a fling's glide). Android's and
 iOS's on CI's emulator and simulator: `tests/gfx/android.sh` and `ios.sh`
 (the cube's Spin on a finger's pointer: a tap's PointerDown and PointerUp,
 a drag held turning the cube and holding it still while it rests, a

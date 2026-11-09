@@ -39,7 +39,7 @@ class PointersWeb {
 				case MouseDown | MouseUp:
 					Sys.println((e.kind == MouseDown ? "mouse-down" : "mouse-up") + ' ${e.button}');
 				case Scroll:
-					Sys.println('scroll ${Math.round(e.deltaY)}');
+					Sys.println('scroll ${Math.round(e.deltaY)} ${e.x},${e.y} mods ${e.mods}');
 				case _:
 			}
 		});
