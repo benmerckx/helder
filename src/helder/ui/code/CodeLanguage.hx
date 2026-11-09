@@ -20,7 +20,7 @@ interface CodeLanguage {
 	function lineComment():Null<String>;
 }
 
-// helder.syntax's Lexer as a CodeLanguage (TypeScript, TSX, Haxe)
+// helder.syntax's Lexer as a CodeLanguage (TypeScript, TSX, Haxe, design files)
 class SyntaxLanguage implements CodeLanguage {
 	final lexer:Lexer;
 	final named:String;
@@ -31,6 +31,7 @@ class SyntaxLanguage implements CodeLanguage {
 			case Ts: "typescript";
 			case Tsx: "tsx";
 			case Haxe: "haxe";
+			case Markup: "helder";
 		}
 	}
 
@@ -48,7 +49,8 @@ class SyntaxLanguage implements CodeLanguage {
 }
 
 // The languages by file extension: TypeScript (.ts, .mts, .cts, .js),
-// TSX (.tsx, .jsx) and Haxe (.hx) built in; register adds more
+// TSX (.tsx, .jsx), Haxe (.hx) and design files (.helder) built in;
+// register adds more
 class CodeLanguages {
 	static final factories:Map<String, Void->CodeLanguage> = [
 		"ts" => () -> new SyntaxLanguage(Ts),
@@ -58,7 +60,8 @@ class CodeLanguages {
 		"mjs" => () -> new SyntaxLanguage(Ts),
 		"tsx" => () -> new SyntaxLanguage(Tsx),
 		"jsx" => () -> new SyntaxLanguage(Tsx),
-		"hx" => () -> new SyntaxLanguage(Haxe)
+		"hx" => () -> new SyntaxLanguage(Haxe),
+		"helder" => () -> new SyntaxLanguage(Markup)
 	];
 
 	// a language for files ending in .ext (made fresh for each editor: a language may keep state)

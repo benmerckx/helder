@@ -3,14 +3,16 @@ package helder.syntax;
 import helder.syntax.Cst;
 
 // The languages helder.syntax reads: TypeScript (.ts: no markup), TSX
-// (.tsx) and Haxe (.hx: its markup literals)
+// (.tsx), Haxe (.hx: its markup literals) and a design file's (.helder:
+// markup alone, its holes' code read as TSX's)
 enum abstract Lang(Int) {
 	var Ts;
 	var Tsx;
 	var Haxe;
+	var Markup;
 
 	public static function of(path:String):Lang
-		return StringTools.endsWith(path, ".tsx") ? Tsx : StringTools.endsWith(path, ".hx") ? Haxe : Ts;
+		return StringTools.endsWith(path, ".tsx") ? Tsx : StringTools.endsWith(path, ".hx") ? Haxe : StringTools.endsWith(path, ".helder") ? Markup : Ts;
 }
 
 // A file read into its concrete syntax tree (Cst), from its text alone (no

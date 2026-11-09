@@ -24,6 +24,14 @@ function tests() {
 			equals(h.print(), hx);
 			equals([for (e in h.elements()) e.name], ["view", "text", "Show"]);
 		});
+		test("a design file: markup alone, from its start", () -> {
+			var text = '<Design>\n\t<Frame name="Home" width={390} canvas:at="0 0">\n\t\t<text color="#111">It\'s {"here"}</text>\n\t</Frame>\n</Design>\n';
+			var doc = Document.parse(text, Lang.of("app.helder"));
+			equals(doc.structured, true);
+			equals(doc.print(), text);
+			equals([for (e in doc.elements()) e.name], ["Design", "Frame", "text"]);
+			edit(text, Markup, d -> Edits.setAttribute(d, d.elementsNamed("text")[0], "color", AString("#ef4444")), StringTools.replace(text, "#111", "#ef4444"));
+		});
 		test("a comparison, a generic, a generic arrow read as code", () -> {
 			var doc = Document.parse("const f = <T,>(x: T) => x; if (a <b) g<string>(c);\n", Tsx);
 			equals(doc.elements().length, 0);
