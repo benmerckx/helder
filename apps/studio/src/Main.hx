@@ -42,7 +42,10 @@ class Main implements Markup {
 		helder.ui.actions.Keymap.global.bind("secondary-z", studio.Shell.StudioAction.Undo)
 			.bind("secondary-shift-z", studio.Shell.StudioAction.Redo)
 			.bind("secondary-y", studio.Shell.StudioAction.Redo)
-			.bind("escape", studio.Shell.StudioAction.Overview);
+			.bind("escape", studio.Shell.StudioAction.Overview)
+			.bind("secondary-k", studio.Shell.StudioAction.Jump)
+			.bind("shift-1", studio.Shell.StudioAction.FitAll)
+			.bind("shift-2", studio.Shell.StudioAction.FitSelection);
 		var s = new Studio(dir, {events: events, mcpPort: port, holdWhile: holdWhile});
 		UiWindow.run(<Surface title={s.project == null ? "helder studio" : s.project.name + " · helder studio"} width={width} height={height} titlebar="inset"
 			theme={studio.Theme.sheet} background={studio.Theme.c("bg")} dark={true} ref={w -> {

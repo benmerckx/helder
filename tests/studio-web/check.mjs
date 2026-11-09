@@ -211,17 +211,17 @@ async function recolour(pg, x, y, tap) {
 	numbers.push(['todo (4 screens)', 'desktop', started, shown]);
 	await pg.waitForTimeout(400);
 	await golden(pg, 'desktop-overview');
-	await pg.mouse.click(700, 210);
+	await pg.mouse.click(580, 200);
 	await pg.waitForTimeout(1600);
 	await golden(pg, 'desktop-zoomed');
-	await pg.mouse.click(560, 110);
+	await pg.mouse.click(420, 122);
 	const sel = await event(pg, 'selected');
 	check(sel && sel.tag === 'text' && sel.screen === 'Todo/Three items' && sel.rect.join() === '24,24,432,35', 'the title selected: ' + JSON.stringify(sel && [sel.screen, sel.tag, sel.rect]));
 	await pg.waitForTimeout(400);
 	await pg.screenshot({ path: path.join(out, 'desktop-selected.png') });
-	const p = await recolour(pg, 1080, 262, false);
+	const p = await recolour(pg, 1076, 327, false);
 	numbers.push(['desktop patch', p]);
-	check(red(await pixel(pg, 380, 122)), 'the title red in the studio\'s canvas (the preview\'s frame, composited)');
+	check(red(await pixel(pg, 380, 124)), 'the title red in the studio\'s canvas (the preview\'s frame, composited)');
 	await pg.screenshot({ path: path.join(out, 'desktop-colored.png') });
 	// (an agent's run.snap of a story's screen: the preview's frame as a PNG, made by the page)
 	const shot = await pg.evaluate(() => window.studioWeb.call('run.snap', { screen: 'Todo/Three items' }));
@@ -231,7 +231,7 @@ async function recolour(pg, x, y, tap) {
 	await pg.waitForFunction(() => window.studioWeb.compiler !== undefined, null, { timeout: 60000 }).catch(() => {});
 	const compiler = await pg.evaluate(() => !!window.studioWeb.compiler);
 	const before = await lastFrame(pg);
-	await pg.mouse.click(1080, 140);
+	await pg.mouse.click(1076, 173);
 	await pg.waitForTimeout(200);
 	await pg.keyboard.type('20');
 	await pg.keyboard.press('Enter');

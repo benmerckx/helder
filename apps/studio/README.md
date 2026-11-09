@@ -348,14 +348,44 @@ without it nothing changes. Two links open files an agent made:
 ## Look
 
 Every value of the look is in `src/studio/Theme.hx`: the colours as
-tokens (the code view's too), the type, the radius, the layout's sizes
-and the canvas' spring, and a helder.ui StyleSheet of the studio's parts
-by slot. For now it is a wireframe until the visual design is settled:
-one grey ramp, hues only in the code's syntax, text in three greys, hairlines only between
-regions, no gradients or shadows, selection and focus outlined in
-near-white; one body and one small size, regular and medium. Refine it
-there. The fonts are Hanken Grotesk for the interface and Geist Mono for
-values (`fonts/`, SIL Open Font License).
+tokens (the code view's too), the type, the radii, the layout's sizes and
+the canvas' spring, and a helder.ui StyleSheet of the studio's parts by
+slot. Its direction is Spacedrive's interface, made the studio's own:
+
+- **Cool, blue-tinted darks** instead of neutral greys: the canvas
+  darkest (`canvas`), the cards a step up (`bg`), fields and hovers above
+  (`well`, `hover`, `active`); text in three cool greys (`fg`, `fg2`,
+  `fg3`); hairlines faint (`line`, `edge`: a blue-grey at 7% and 14%).
+- **Cards over the canvas**: the sidebar and the inspector (or the code)
+  are cards inset 8 points from the window, radius 12, a faint edge; the
+  canvas runs under them (the camera fits what is in focus between them:
+  `Studio.insets`). The toolbar sits between them on the canvas: a
+  breadcrumb (project, page, frame), the command field (secondary-K:
+  `Command`, a frame, a file or a tool by name; arrows and Enter), undo,
+  redo, Design and Code. Its empty parts and the sidebar's top drag the
+  window: the title bar is inset into the app (helder.os's `TitleBar`), the
+  window's buttons in the sidebar's card (`<WindowControls/>`).
+- **One accent**, a blue (`accent`), for whatever is active: the
+  selection's outline and handles (white squares edged in it), the snaps'
+  guides, the frame in focus (its outline, its name a blue pill), the
+  current page, frame and layer (a soft fill, `accent-soft`), focus.
+- **Icons throughout**: Lucide's (ISC, `icons/`, only those used,
+  embedded by `Icons.hx`, strokes 1.75): a page's kind, a frame, a layer's
+  element, each section, the toolbar's buttons.
+- **Sections** with an icon and a header in small capitals; a row's label
+  left, its value right (the inspector's fields, in Geist Mono). Radii 6
+  (controls, rows), 8 (the command field, menus), 12 (cards); titles
+  medium (500).
+- **The code's hues** (violet keywords, blue tags, rose attributes, green
+  strings, orange numbers) retuned to the darks; its cursor and selection
+  the accent's.
+- **Motion**: hovers and the current row's fill ease on helder.ui's
+  springs (`motion-color="snappy"` on the window), the selection's box
+  springs to a new node, cards and lists enter with `fade`.
+
+Dark first: every colour is a token, so a light theme is a sheet of the
+same names. The fonts are Hanken Grotesk for the interface and Geist Mono
+for values (`fonts/`, SIL Open Font License).
 
 ## Checks and numbers
 

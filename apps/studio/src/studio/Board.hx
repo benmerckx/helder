@@ -57,8 +57,7 @@ class Board implements Markup {
 				{overlay(studio)}
 			</Show>
 			<Show when={studio.mode() == "stories"}>{stories(studio)}</Show>
-			<Show when={studio.focused() != null && studio.mode() == "design" && !studio.drawer()}>{Inspector.view(studio)}</Show>
-			<Show when={studio.layers(studio.focused()) && studio.mode() == "design" && !studio.compact()}>{Layers.view(studio)}</Show>
+			<Show when={studio.compact() && studio.focused() != null && studio.mode() == "design" && !studio.drawer()}>{Inspector.view(studio)}</Show>
 			<Show when={studio.mode() != "code" && !(studio.compact() && studio.focused() != null)}>{Prompt.view(studio)}</Show>
 		</view>;
 	}
@@ -102,19 +101,21 @@ class Board implements Markup {
 	static function overlay(studio:Studio):View {
 		return <view tag="overlay" position="absolute" inset={0} pointer-events="none">
 			<For each={flows(studio)}>{(f:Read<{name:String, x:Float, y:Float}>) ->
-				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 46} font-size={Theme.SMALL}
-					color={c("fg2")} opacity={titleShown(studio, f().y) ? 1 : 0}>{f().name}</text>
+				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 50} font-size={Theme.SMALL} font-weight={Theme.MEDIUM}
+					color={c("fg3")} opacity={titleShown(studio, f().y) ? 1 : 0}>{f().name}</text>
 			}</For>
 			<For each={studio.layout.screens()} by={(r:Rect) -> r.name}>{(r:Read<Rect>) ->
-				<text tag={"caption-" + Shell.slug(r().name)} position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 20} font-size={Theme.SMALL}
-					color={studio.focused() == r().name ? c("fg2") : c("fg3")}>{label(studio, r().name)}</text>
+				<view tag={"caption-" + Shell.slug(r().name)} position="absolute" left={sx(studio, r().x) - 6} top={sy(studio, r().y) - 24} height={19} padding="0 6"
+					radius={Theme.RADIUS - 1} justify="center" background={studio.focused() == r().name ? c("accent") : c("canvas")} instant>
+					<text font-size={Theme.SMALL} max-lines={1} color={studio.focused() == r().name ? c("accent-fg") : c("fg2")}>{label(studio, r().name)}</text>
+				</view>
 			}</For>
 			<Show when={selected(studio) != null}>{selectionBox(studio)}</Show>
 			<For each={otherBoxes(studio)}>{(b:Read<{x:Float, y:Float, w:Float, h:Float}>) ->
 				<view tag="selection-other" position="absolute" left={b().x} top={b().y} width={b().w} height={b().h} border-width={1} border-color={c("sel")}/>
 			}</For>
 			<For each={handles(studio)}>{(h:Read<{x:Float, y:Float}>) ->
-				<view tag="handle" position="absolute" left={h().x - 3} top={h().y - 3} width={7} height={7} background={c("canvas")} border-width={1} border-color={c("sel")}/>
+				<view tag="handle" position="absolute" left={h().x - 4} top={h().y - 4} width={8} height={8} radius={2} background="#ffffff" border-width={1.5} border-color={c("sel")}/>
 			}</For>
 			<For each={guides(studio)}>{(g:Read<{x:Float, y:Float, w:Float, h:Float}>) ->
 				<view tag="guide" position="absolute" left={g().x} top={g().y} width={g().w} height={g().h} background={c("sel")}/>
@@ -176,8 +177,8 @@ class Board implements Markup {
 			}
 			return cc != camAt;
 		}
-		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1}
-			border-color={c("sel")} outline-width={1} outline-color={c("sel-halo")} motion="snappy" instant={still()}/>;
+		return <view tag="selection" position="absolute" left={box().x} top={box().y} width={box().w} height={box().h} border-width={1.5}
+			border-color={c("sel")} motion="snappy" instant={still()}/>;
 	}
 
 	// (the selection while its screen is the one zoomed into)
@@ -206,7 +207,7 @@ class Board implements Markup {
 	// (a flow's title above its row: the first's always, the others' while the rows are far enough apart to hold it, not over the row before)
 	static function titleShown(studio:Studio, wy:Float):Bool {
 		studio.camera.changed();
-		return wy <= 0 || Theme.FLOW_GAP * studio.camera.k >= 50;
+		return studio.focused() == null && (wy <= 0 || Theme.FLOW_GAP * studio.camera.k >= 50);
 	}
 
 	static function flows(studio:Studio):Array<{name:String, x:Float, y:Float}> {

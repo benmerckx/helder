@@ -57,6 +57,8 @@ class Studio {
 	public final compact = signal(false);
 	public final drawer = signal(false);
 	public final sheetOpen = signal(true);
+	// the command field's list open (secondary-K: Command)
+	public final commandOpen = signal(false);
 	// the status line's message, the agent's last reply
 	public final message = signal("");
 	public final reply = signal("");
@@ -227,8 +229,8 @@ class Studio {
 		if (mode.peek() == "stories") mode("design");
 		focused(null);
 		selection(null);
-		var b = layout.bounds(page);
-		var v = Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, 0, Theme.ASK_SPACE, Theme.TITLES);
+		var b = layout.bounds(page), i = insets();
+		var v = Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, i.right, i.bottom, i.top + Theme.TITLES, i.left);
 		camera.fly(v.x, v.y, v.k);
 		log("page", {page: page});
 	}
@@ -255,19 +257,41 @@ class Studio {
 	function fitTo(name:Null<String>, fly:Bool, ?m:String) {
 		if (stageWidth <= 0) return;
 		var code = (m ?? mode.peek()) == "code";
-		var small = compact.peek();
+		var small = compact.peek(), i = insets(m);
 		var v = if (name == null) {
 			var b = layout.bounds();
-			Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, 0, Theme.ASK_SPACE, Theme.TITLES);
+			Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, i.right, i.bottom, i.top + Theme.TITLES, i.left);
 		} else {
 			var r = layout.rect(name);
 			if (r == null) return;
 			if (small) Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 14, 0, code ? 0 : (sheetOpen.peek() ? Theme.SHEET : Theme.SHEET_PEEK) + 8, 18)
-			else Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, code ? 0 : Theme.INSPECTOR + 24, code ? 0 : Theme.ASK_SPACE, 14,
-				code || !layers(name) ? 0 : Theme.LAYERS + 24);
+			else Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, i.right, i.bottom, i.top + 14, i.left);
 		}
 		if (fly) camera.fly(v.x, v.y, v.k) else camera.jump(v.x, v.y, v.k);
 	}
+
+	// the stage's points the cards cover (the canvas is under them): the
+	// sidebar and the code at the left, the inspector at the right, the
+	// toolbar above, the prompt bar below; compact, none
+	public function insets(?m:String):{left:Float, right:Float, top:Float, bottom:Float} {
+		if (compact.peek()) return {left: 0, right: 0, top: 0, bottom: Theme.ASK_SPACE};
+		var code = (m ?? mode.peek()) == "code", g = Theme.GAP;
+		return {
+			left: Theme.SIDEBAR + g + (code ? Shell.codeWidth(this) + g : 0),
+			right: code ? 0 : Theme.INSPECTOR + g,
+			top: Theme.HEADER,
+			bottom: code ? 0 : Theme.ASK_SPACE
+		};
+	}
+
+	// every frame fitted (shift-1)
+	public function fitAll() {
+		if (focused.peek() != null) focus(null) else fitTo(null, true);
+	}
+
+	// the selection fitted (shift-2): the frame in focus, else every frame
+	public function fitSelection()
+		fitTo(focused.peek(), true);
 
 	// whether a screen shows the layers' panel when zoomed into (a design's frame)
 	public function layers(name:Null<String>):Bool {
@@ -760,9 +784,23 @@ class Studio {
 			var name = focused.peek();
 			var s = name == null ? null : Lambda.find(project.screens, x -> x.name == name);
 			file = s?.file;
-			if (file == null || file == "") file = project.sources()[0];
+			if (file == null || file == "") file = codeFile.peek() ?? project.sources()[0];
 		}
 		if (file == null) return;
+		load(file);
+		decorate();
+	}
+
+	// a file in the code view (the command field's, the sidebar's), nothing selected
+	public function openCode(file:String) {
+		selection(null);
+		others([]);
+		focused(null);
+		load(file);
+		setMode("code");
+	}
+
+	function load(file:String) {
 		if (codeFile.peek() != file) {
 			codeFile(file);
 			applyingToEditor = true;
@@ -771,7 +809,6 @@ class Studio {
 			applyingToEditor = false;
 			if (previews != null) editor.setDiagnostics(previews.diagnostics.peek(), file);
 		}
-		decorate();
 	}
 
 	// the selected element marked and revealed, the caret after its tag's name

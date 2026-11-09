@@ -17,15 +17,22 @@ using StringTools;
 // the screens' next frame (patched, then saved); another builds. A number's
 // label scrubs it: dragged left or right, a point per two.
 class Inspector implements Markup {
+	// compact: the bottom sheet (Board's, over the canvas)
 	public static function view(studio:Studio):View
-		return <Show when={studio.compact()} fallback={panel(studio)}>{sheet(studio)}</Show>;
+		return sheet(studio);
 
-	// beside the screen, floating over the canvas
-	static function panel(studio:Studio):View
-		return <view tag="inspector" slot="floating" position="absolute" right={12} top={12} width={Theme.INSPECTOR} padding="8 12"
-			transition="fade slide-left(16)" motion="snappy"
-			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			{fields(studio)}
+	// the desktop's card at the right: what is selected, its sections; else
+	// the frame in focus, else the project
+	public static function card(studio:Studio):View
+		return <view tag="inspector" grow={1} min-height={0}>
+			<view tag="inspector-head" padding="14 14 12" shrink={0} row-gap={3}>
+				<view direction="row" align-items="center" column-gap={8}>
+					<image src={headIcon(studio)} width={Theme.ICON} height={Theme.ICON} color={c("accent")}/>
+					<text tag="inspector-title" font-weight={Theme.MEDIUM} max-lines={1} text-overflow="ellipsis">{title(studio)}</text>
+				</view>
+				<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1} text-overflow="ellipsis">{subtitle(studio)}</text>
+			</view>
+			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
 		</view>;
 
 	// compact: a bottom sheet over the canvas, sliding up when a screen is
@@ -33,43 +40,86 @@ class Inspector implements Markup {
 	// fitted above it on the camera's spring, its height on motion's
 	static function sheet(studio:Studio):View
 		return <view tag="inspector" slot="sheet" border-width="1 0 0 0" position="absolute" left={0} right={0} bottom={0} height={studio.sheetOpen() ? Theme.SHEET : Theme.SHEET_PEEK}
-			padding="0 16 10" overflow="hidden" transition="slide-up(80) fade" motion="snappy" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			overflow="hidden" transition="slide-up(80) fade" motion="snappy" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
 			<view:button tag="sheet-toggle" role="button" label={studio.sheetOpen() ? "Close the inspector" : "Open the inspector"} focusable
 				align-items="center" row-gap={8} padding="8 0 6" cursor="pointer" onPress={() -> studio.toggleSheet()}>
 				<view slot="sheet-handle"/>
-				<text color={c("fg2")} font-size={Theme.SMALL}>{sheetTitle(studio)}</text>
+				<text color={c("fg2")} font-size={Theme.SMALL}>{title(studio)}</text>
 			</view:button>
 			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
 		</view>;
 
-	static function sheetTitle(studio:Studio):String {
-		var s = studio.selection();
-		return s == null ? "Inspector" : s.tag;
+	static function headIcon(studio:Studio):helder.ui.Svg
+		return studio.selection() != null ? (hasText(studio) ? Icons.font : Icons.element) : studio.focused() != null ? Icons.frame : Icons.folder;
+
+	static function title(studio:Studio):String {
+		var s = studio.selection(), f = studio.focused();
+		if (s != null) return s.tag;
+		if (f != null) {
+			var info = studio.project?.screen(f);
+			return info == null ? f : info.label;
+		}
+		return studio.project == null ? "helder studio" : studio.project.name;
 	}
+
+	static function subtitle(studio:Studio):String {
+		var s = studio.selection(), f = studio.focused();
+		if (s != null) return source(studio);
+		var info = f == null ? null : studio.project?.screen(f);
+		if (info != null) return kind(info) + " · " + Math.round(info.width > 0 ? info.width : 390) + " × " + Math.round(info.height > 0 ? info.height : 844);
+		var p = studio.project;
+		return p == null ? "" : p.screens.length + " frames";
+	}
+
+	static function kind(info:Project.ScreenInfo):String
+		return switch info.source {
+			case Design(_): "Design";
+			case Story(_): "Story";
+			case App: "App";
+		}
+
+	// a section: its icon and header, its rows
+	static function section(tag:String, icon:helder.ui.Svg, title:String, rows:View):View
+		return <view tag={tag} slot="section">
+			<view slot="section-head"><image src={icon} width={12} height={12}/><text>{title}</text></view>
+			{rows}
+		</view>;
 
 	static function fields(studio:Studio):View {
 		return <view>
-			<Show when={studio.selection() != null} fallback={<text color={c("fg3")} font-size={Theme.SMALL} padding="4 0">{studio.compact() ? "Tap" : "Click"} a part of the screen to select it.</text>}>
-				{field(studio, "width", "Width", true)}
-				{field(studio, "height", "Height", true)}
-				{field(studio, "padding", "Padding", true)}
-				{field(studio, gapName(studio), "Gap", true)}
-				{field(studio, "background", "Fill", false)}
-				{field(studio, "radius", "Radius", true)}
-				{field(studio, "color", "Color", false)}
+			<Show when={studio.selection() != null} fallback={<view slot="section">
+				<text color={c("fg3")} font-size={Theme.SMALL} padding="2 0">{empty(studio)}</text>
+			</view>}>
+				{section("section-layout", Icons.ruler, "Layout", <view>
+					{field(studio, "width", "Width", true)}
+					{field(studio, "height", "Height", true)}
+					{field(studio, "padding", "Padding", true)}
+					{field(studio, gapName(studio), "Gap", true)}
+				</view>)}
+				{section("section-style", Icons.palette, "Style", <view>
+					{field(studio, "background", "Fill", false)}
+					{field(studio, "radius", "Radius", true)}
+					{field(studio, "color", "Color", false)}
+				</view>)}
 				<Show when={hasText(studio)}>
-					<view slot="field">
+					{section("section-text", Icons.textCursor, "Text", <view slot="field">
 						<text slot="field-label" cursor="default">Text</text>
 						<field tag="field-text" slot="field-input" label="Text" value={textValue(studio)} onInput={e -> studio.setText(e.text)}
 							onBlur={() -> studio.endGesture()}/>
-					</view>
+					</view>)}
 				</Show>
-				<view slot="field">
-					<text slot="field-label" cursor="default">Source</text>
-					<text tag="inspector-source" padding="3 7" color={c("fg2")}>{source(studio)}</text>
-				</view>
+				{section("section-source", Icons.code, "Source", <view slot="field">
+					<text slot="field-label" cursor="default">File</text>
+					<view grow={1}/>
+					<text tag="inspector-source" color={c("fg2")}>{source(studio)}</text>
+				</view>)}
 			</Show>
 		</view>;
+	}
+
+	static function empty(studio:Studio):String {
+		var verb = studio.compact() ? "Tap" : "Click";
+		return studio.focused() != null ? '$verb a part of the frame to select it.' : '$verb a frame to select it, or choose one in the sidebar.';
 	}
 
 	// one attribute's row: its label (a number's scrubs it), its value as written

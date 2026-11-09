@@ -3,7 +3,7 @@
     {"t": 0.3, "type": "mark", "name": "overview"},
     {"t": 0.4, "type": "tap", "tag": "screen-todo-three-items"},
     {"t": 1.6, "type": "mark", "name": "zoomed"},
-    {"t": 1.7, "type": "tap", "tag": "stage", "ox": 160, "oy": 66},
+    {"t": 1.7, "type": "tap", "tag": "stage", "ox": 400, "oy": 123},
     {"t": 2.4, "type": "mark", "name": "selected"},
     {"t": 2.5, "type": "tap", "tag": "input-color"},
     {"t": 2.6, "type": "key", "name": "a", "secondary": true},

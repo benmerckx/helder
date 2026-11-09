@@ -19,12 +19,12 @@ class Layers implements Markup {
 	public static function view(studio:Studio):View {
 		// (the row dragged and by how far, stage points)
 		var moving:Signal<Null<{key:String, dy:Float}>> = signal(null);
-		return <view tag="layers" slot="floating" position="absolute" left={12} top={12} width={Theme.LAYERS} max-height="70%" padding="6 0"
-			transition="fade slide-right(16)" motion="snappy" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<text padding="2 12 6" color={c("fg3")} font-size={Theme.SMALL}>Layers</text>
-			<scroll min-height={0} padding="0 6">
+		return <view tag="layers" slot="section" max-height="45%" shrink={0} padding="10 6 6" transition="fade" motion="snappy"
+			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			<view slot="section-head" padding="2 6 6"><image src={Icons.layers} width={12} height={12}/><text>Layers</text></view>
+			<scroll min-height={0}>
 				<For each={rows(studio)} by={(r:Row) -> r.key}>{(r:Read<Row>) ->
-					<view tag={"layer-" + r().key} slot="nav-item" role="button" label={r().label} height={Theme.LAYER} padding={'0 8 0 ${8 + r().depth * 12}'}
+					<view tag={"layer-" + r().key} slot="nav-item" role="button" label={r().label} height={Theme.LAYER} padding={'0 8 0 ${8 + r().depth * 14}'}
 						data-on={r().on ? "true" : "false"} transform={offset(moving, r().key)} instant
 						onClick={e -> select(studio, r(), e.mods & Key.MOD_SHIFT != 0)}
 						onPan={g -> {
@@ -34,6 +34,7 @@ class Layers implements Markup {
 								if (g.state == Ended) reorder(studio, row, Math.round(g.ty / Theme.LAYER));
 							} else moving({key: row.key, dy: g.ty});
 						}}>
+						<image src={r().icon} width={Theme.ICON_S} height={Theme.ICON_S} color={r().on ? c("accent") : c("fg3")}/>
 						<text max-lines={1} text-overflow="ellipsis">{r().label}</text>
 					</view>
 				}</For>
@@ -58,7 +59,7 @@ class Layers implements Markup {
 		var out:Array<Row> = [];
 		function add(el:Element, key:String, depth:Int) {
 			var on = sel != null && sel.screen == f && (sel.start == el.start || Lambda.exists(others, o -> o.start == el.start));
-			out.push({key: key, label: label(el), depth: depth, start: el.start, on: on, screen: info.name});
+			out.push({key: key, label: label(el), depth: depth, start: el.start, on: on, screen: info.name, icon: icon(el, depth)});
 			var k = 0;
 			for (c in el.elements())
 				if (c.name != "note") add(c, key + "-" + k++, depth + 1);
@@ -66,6 +67,10 @@ class Layers implements Markup {
 		add(frame, "0", 0);
 		return out;
 	}
+
+	// (an element's icon: the frame's, text's, an image's, a box's)
+	static function icon(el:Element, depth:Int):helder.ui.Svg
+		return depth == 0 ? Icons.frame : el.name == "text" ? Icons.font : el.name == "image" ? Icons.image : el.name.charAt(0) == el.name.charAt(0).toUpperCase() ? Icons.component : Icons.element;
 
 	// (an element's name, its text when it holds a run of it)
 	static function label(el:Element):String {
@@ -124,4 +129,5 @@ class Layers implements Markup {
 	public final start:Int;
 	public final on:Bool;
 	public final screen:String;
+	public final icon:helder.ui.Svg;
 }

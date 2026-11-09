@@ -20,7 +20,8 @@ class Prompt implements Markup {
 			text("");
 		}
 		return <view tag="ask" slot="floating" position="absolute" bottom={14} left={left(studio)} width={width(studio)} direction="row" align-items="center"
-			column-gap={12} padding="9 12" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			column-gap={10} padding="9 12" shadow="0 8 24 rgba(0,0,0,0.35)" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			<image src={Icons.sparkles} width={Theme.ICON} height={Theme.ICON} color={c("accent")}/>
 			<field tag="prompt" slot="ask-input" label="Prompt" value={text} placeholder={studio.context().label} onInput={e -> text(e.text)}
 				onKeyDown={e -> if (e.key == Key.ENTER) send()}/>
 			<text tag="ask-reply" shrink={1} min-width={0} max-width="50%" color={c("fg3")} font-size={Theme.SMALL} max-lines={1}
@@ -28,13 +29,16 @@ class Prompt implements Markup {
 		</view>;
 	}
 
+	// (centred between the cards)
 	static function width(studio:Studio):Float {
 		studio.stageSize();
-		return Math.min(Theme.ASK, studio.stageWidth * (studio.compact() ? 0.92 : 0.72));
+		var i = studio.insets();
+		return Math.min(Theme.ASK, (studio.stageWidth - i.left - i.right) * (studio.compact() ? 0.92 : 0.8));
 	}
 
 	static function left(studio:Studio):Float {
 		studio.stageSize();
-		return (studio.stageWidth - width(studio)) / 2;
+		var i = studio.insets();
+		return i.left + (studio.stageWidth - i.left - i.right - width(studio)) / 2;
 	}
 }
