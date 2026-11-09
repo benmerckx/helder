@@ -168,16 +168,17 @@ class Shell implements Markup {
 			<Show when={studio.playing() == null}>{Sheets.bar(studio)}</Show>
 		</view>;
 
-	// (top: the window's buttons' row; not in a sheet)
+	// (top: the window's buttons' row; not in a sheet, nor without an inset
+	// title bar: the browser's, full screen)
 	public static function sidebar(studio:Studio, top = true):View {
-		var p = studio.project;
+		var p = studio.project, bar = () -> top && SafeArea.titlebar() != null;
 		return <view tag="sidebar" grow={1} min-height={0}>
-			<Show when={top}>
+			<Show when={bar()}>
 				<view tag="sidebar-top" direction="row" align-items="center" drag-region height={Theme.HEADER} padding="0 12" shrink={0}>
 					<WindowControls/>
 				</view>
 			</Show>
-			<view tag="project" direction="row" align-items="center" column-gap={9} padding="0 12 10" shrink={0}>
+			<view tag="project" direction="row" align-items="center" column-gap={9} padding={top && !bar() ? "12 12 10" : "0 12 10"} shrink={0}>
 				<view width={24} height={24} radius={Theme.RADIUS} background={c("well")} align-items="center" justify="center">
 					<image src={Icons.folder} width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg2")}/>
 				</view>
@@ -226,7 +227,7 @@ class Shell implements Markup {
 					studio.focus(info.name);
 				}}>
 				<view width={12}/>
-				<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("fg") : c("fg3")}/>
+				<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("accent-ink") : c("fg3")}/>
 				<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
 			</view:button>;
 		var on = studio.focused() == null && studio.shown() == e.path;
@@ -240,14 +241,14 @@ class Shell implements Markup {
 				{r.hasChildren ? <image src={tree.open(e) ? Icons.chevronDown : Icons.chevronRight} width={12} height={12} color={c("fg3")}/> : null}
 			</view>
 			<image src={e.kind == Dir && tree.open(e) ? Icons.folderOpen : FileView.icon(e.kind)} width={Theme.ICON_S} height={Theme.ICON_S}
-				color={e.kind == Dir ? c("fg3") : on ? c("fg") : c("fg3")}/>
+				color={on ? c("accent-ink") : c(FileView.hue(e.kind))}/>
 			<text max-lines={1} text-overflow="ellipsis">{e.name}</text>
 		</view:button>;
 	}
 
 	static function nav(studio:Studio, tag:String, label:String, icon:helder.ui.Svg, on:Void->Bool, press:Void->Void):View
 		return <view:button tag={tag} slot="nav-item" role="button" label={label} focusable data-on={on() ? "true" : "false"} onPress={() -> press()}>
-			<image src={icon} width={Theme.ICON_S} height={Theme.ICON_S}/>
+			<image src={icon} width={Theme.ICON_S} height={Theme.ICON_S} color={on() ? c("accent-ink") : null}/>
 			<text>{label}</text>
 		</view:button>;
 
