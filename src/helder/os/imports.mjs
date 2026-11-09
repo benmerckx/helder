@@ -554,7 +554,7 @@ export default function (host) {
 		width: (h) => host.handles.get(h).width,
 		height: (h) => host.handles.get(h).height,
 		scale: () => pixelRatio(),
-		prefers_dark: () => (matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0),
+		prefers_dark: () => (globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ? 1 : 0),
 		vibrate(ms) {
 			try {
 				navigator.vibrate?.(ms);

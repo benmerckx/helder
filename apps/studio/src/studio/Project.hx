@@ -76,7 +76,8 @@ class Project {
 		var l:haxe.DynamicAccess<String> = info.links ?? {};
 		for (k => v in l)
 			links.set(k, v);
-		findScreens(found(dir), true);
+		// (no App screen for design files alone: a new project's, an example's)
+		findScreens(found(dir), info.preview == true || Lambda.exists(sources(), f -> !f.endsWith(".helder")));
 		typescript = Lambda.exists(screens, s -> StringTools.endsWith(s.file, ".tsx") || StringTools.endsWith(s.file, ".ts"));
 	}
 

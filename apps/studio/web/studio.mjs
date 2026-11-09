@@ -11,8 +11,11 @@
 //   (Files: studio_web's fs_*); a file the studio writes is written back
 //   to OPFS at once, and to the folder it was opened from when the page may
 //   write there (the File System Access API's handle, kept in IndexedDB).
-// - Opening: ?project=<name> opens an OPFS project; without it the studio
-//   shows its welcome (Welcome.hx): a folder picked (showDirectoryPicker:
+// - Opening: ?project=<name> opens an OPFS project, ?example=<name> a
+//   bundled example (its copy in OPFS, made the first time), ?new a new
+//   project (new/app.helder, one design file: nothing built, a free name,
+//   "project", "project-2"...); without them the studio shows its welcome
+//   (Welcome.hx): a new project, a folder picked (showDirectoryPicker:
 //   its sources copied into OPFS) or an example bundled with the page
 //   (examples/<name>/project.json and preview.wasm, as `helder studio
 //   <project> -- --export-web` writes them; examples/index.json lists them)
@@ -109,6 +112,14 @@ async function openExample(name) {
 	go(name);
 }
 
+async function newProject() {
+	const names = await projectNames();
+	let name = 'project';
+	for (let n = 2; names.includes(name); n++) name = 'project-' + n;
+	await writeFile(`projects/${name}/app.helder`, await fetch('new/app.helder').then((r) => r.text()));
+	go(name);
+}
+
 async function openFolder() {
 	let handle;
 	try {
@@ -131,6 +142,8 @@ async function openFolder() {
 
 function go(name) {
 	const u = new URL(location.href);
+	u.searchParams.delete('example');
+	u.searchParams.delete('new');
 	u.searchParams.set('project', name);
 	location.href = u.href;
 }
@@ -138,6 +151,12 @@ function go(name) {
 // ---- the project
 
 const projectName = params.get('project');
+// (a link's example: the copy already in OPFS when there is one, its edits kept; the welcome's is a fresh copy)
+if (!projectName && params.has('example')) {
+	const name = params.get('example');
+	if ((await projectNames()).includes(name)) go(name);
+	else await openExample(name);
+} else if (!projectName && params.has('new')) await newProject();
 const files = new Map(), dirs = new Set();
 let meta = null, previewBytes = null, folder = null;
 if (projectName) {
@@ -287,7 +306,8 @@ async function compilerClient() {
 	state.compiler = !!compiler;
 	return compiler;
 }
-if (projectName) compilerClient();
+// (started at once for code only: design files need no build, and the toolchain is 14 MB to download)
+if ([...files.keys()].some((f) => /\.(hx|tsx?)$/.test(f))) compilerClient();
 
 // a build of the preview (the request: {entry, args}, the project's paths):
 // the project's files written to the compiler under /work/<name> (its
@@ -362,6 +382,7 @@ function studioWeb(host) {
 			},
 			examples: () => text(JSON.stringify(examples)),
 			projects: () => text(JSON.stringify([])),
+			new_project: () => void newProject(),
 			open_folder: () => void openFolder(),
 			open_example: (n) => void openExample(str(n)),
 			open_project: (n) => go(str(n)),

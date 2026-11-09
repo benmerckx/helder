@@ -1,0 +1,22 @@
+<Design>
+	<Frame name="Home" width={390} height={844} canvas:at="0 0" background="#ffffff" padding="64 24 24" row-gap={12}>
+		<note>A design file: drawn at once, nothing built. Select, move, resize; the inspector edits it.</note>
+		<text tag="title" font-size={32} font-weight={700} color="#111827">Hello</text>
+		<text color="#6b7280">A first screen. Edit the text, the colours, the spacing.</text>
+		<view direction="row" column-gap={8} padding="16 0 0">
+			<view padding="10 16" background="#111827" radius={10}>
+				<text color="#ffffff" font-weight={600}>Start</text>
+			</view>
+			<view padding="10 16" radius={10} border-width={1} border-color="#d1d5db">
+				<text color="#111827">Later</text>
+			</view>
+		</view>
+	</Frame>
+	<Frame name="Next" width={390} height={844} canvas:at="430 0" background="#f9fafb" padding="64 24 24" row-gap={16}>
+		<text font-size={24} font-weight={700} color="#111827">Next</text>
+		<view padding="16" background="#ffffff" radius={12} border-width={1} border-color="#e5e7eb" row-gap={4}>
+			<text font-weight={600}>A card</text>
+			<text color="#6b7280">Frames are screens. Add one beside this.</text>
+		</view>
+	</Frame>
+</Design>

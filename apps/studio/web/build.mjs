@@ -4,6 +4,7 @@
 //   node apps/studio/web/build.mjs <out> [--compiler <dir>] [project[=label]...]
 //
 //   <out>/index.html, studio.mjs          the page (apps/studio/web)
+//   <out>/new/app.helder                  a new project (?new, the welcome's)
 //   <out>/studio.wasm, helder/...         the studio built for the web, its packages' browser modules
 //   <out>/helder/story/web/worker.mjs     the preview host's worker (helder.story.web.Preview)
 //   <out>/fonts/                          DejaVu Sans, the previews' text
@@ -69,11 +70,12 @@ for (const given of projects) {
 	const dest = path.resolve(out, 'examples', name);
 	step(['studio', path.resolve(dir), '--', '--export-web', dest], `${name}'s preview built for the web`);
 	const meta = JSON.parse(readFileSync(path.join(dest, 'project.json'), 'utf8'));
-	index.push({ name, label: label ?? meta.label, screens: meta.screens });
+	index.push({ name, label: label ?? meta.label, summary: meta.summary ?? undefined, screens: meta.screens });
 }
 writeFileSync(path.join(out, 'examples/index.json'), JSON.stringify(index, null, '\t') + '\n');
 
-// the page
+// the page, and a new project's template
 cpSync(path.join(here, 'studio.mjs'), path.join(out, 'studio.mjs'));
+cpSync(path.join(here, 'new'), path.join(out, 'new'), { recursive: true });
 writeFileSync(path.join(out, 'index.html'), readFileSync(path.join(here, 'index.html'), 'utf8').replace('/*IMPORTS*/[]', JSON.stringify(imports)));
 console.log(`studio-web: ${out}: the studio, ${index.length} example(s)`);

@@ -38,6 +38,12 @@ class Mail implements Markup {
 		UiWindow.run(<Surface title="Mail" width={860} height={560} theme={sheet}>{new Mail().view()}</Surface>);
 	}
 
+	// (the client in its sheet, as the window shows it: Mail.story.hx's screen)
+	public static function themed():View {
+		declare();
+		return <view grow={1} ref={(n:Node) -> n.theme = sheet}>{new Mail().view()}</view>;
+	}
+
 	public final folders:Array<Folder> = [
 		{name: "Inbox", level: 0},
 		{name: "Receipts", level: 1},

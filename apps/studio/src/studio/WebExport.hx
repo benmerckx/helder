@@ -16,8 +16,9 @@ using StringTools;
 // helder.story.web.Preview, the preview host the page runs in a worker),
 // a dev build with its live literals' tables. Written to <dir>:
 //
-//   preview.wasm    the program
-//   project.json    {name, label, files: {path: text}, imports: [package],
+//   preview.wasm    the program (none for a project of design files alone)
+//   project.json    {name, label, summary (its sources' `// title:` and
+//                   `// summary:`, as the examples' headers), files: {path: text}, imports: [package],
 //                   root: the project's directory where it was built,
 //                   links: {built path: path}, tables: [{file, content, entries}],
 //                   screens}
@@ -32,7 +33,7 @@ class WebExport {
 		var wasm = FileSystem.fullPath(out) + "/preview.wasm";
 		var literals = '${p.out}/web-literals';
 		removeTree(literals);
-		var r = Async.run(task -> {
+		var r = p.entry == null ? null : Async.run(task -> {
 			if (p.typescript) helder.cli.Compiler.typescript(p.entry.helder);
 			var s = Service.start(task, {tool: helder.cli.Compiler.tool(), env: Process.environment(), std: helder.cli.Compiler.hxmcStd()}, m -> Sys.println('studio: $m'));
 			if (s == null) return null;
@@ -43,7 +44,7 @@ class WebExport {
 			s.stop();
 			r;
 		});
-		if (r == null || !r.ok) {
+		if (p.entry != null && (r == null || !r.ok)) {
 			if (r != null) Sys.println(r.messages);
 			Sys.println('studio: ${p.name}: the web preview did not build');
 			return 1;
@@ -66,17 +67,25 @@ class WebExport {
 			}
 		var manifest = {
 			name: p.name,
-			label: p.name,
+			label: header(p, "title") ?? p.name,
+			summary: header(p, "summary"),
 			root: p.dir,
 			files: files,
-			imports: helder.cli.Page.packages(BuildInfo.helderSrc(), wasm),
+			imports: r == null ? [] : helder.cli.Page.packages(BuildInfo.helderSrc(), wasm),
 			links: links,
 			tables: tables,
 			screens: p.screens.length,
 		};
 		File.saveContent('$out/project.json', Json.stringify(manifest));
-		Sys.println('studio: ${p.name}: ${p.screens.length} screens for the web in ${r.ms} ms, ${tables.length} sources\' live literals, $out');
+		Sys.println('studio: ${p.name}: ${p.screens.length} screens for the web in ${r?.ms ?? 0} ms, ${tables.length} sources\' live literals, $out');
 		return 0;
+	}
+
+	static function header(p:Project, key:String):Null<String> {
+		var r = new EReg('^// *$key: *(.*)$', "m");
+		for (f in p.sources())
+			if (r.match(File.getContent(f))) return r.matched(1);
+		return null;
 	}
 
 	static function removeTree(d:String) {

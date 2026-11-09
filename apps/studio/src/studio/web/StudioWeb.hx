@@ -26,8 +26,10 @@ import hxmc.unsafe.*;
 	// with the page, the projects in OPFS ([{name, label, screens}])
 	static function examples():Int;
 	static function projects():Int;
-	// opening: a folder picked (the File System Access API), an example, a
-	// project of OPFS; the page loads it and starts again with it
+	// opening: a new project (a design file, apps/studio/web/new), a folder
+	// picked (the File System Access API), an example, a project of OPFS;
+	// the page loads it and starts again with it
+	static function new_project():Void;
 	static function open_folder():Void;
 	static function open_example(name:CString):Void;
 	static function open_project(name:CString):Void;

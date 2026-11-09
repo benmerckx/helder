@@ -9,10 +9,10 @@ import studio.web.StudioWeb;
 import studio.web.StudioWeb.WebText;
 #end
 
-// The studio in the browser without a project: a folder to open (the File
-// System Access API: copied into the origin's private file system, OPFS,
-// where projects live), the examples bundled with the page, and the
-// projects already in OPFS. Choosing one opens it (the page loads it and
+// The studio in the browser without a project: a new project (a design
+// file), a folder to open (the File System Access API: copied into the
+// origin's private file system, OPFS, where projects live), the examples
+// bundled with the page, and the projects already in OPFS. Choosing one opens it (the page loads it and
 // starts the studio again with it).
 class Welcome implements Markup {
 	public static function view(studio:Studio):View {
@@ -25,6 +25,9 @@ class Welcome implements Markup {
 			ref={(n:Node) -> n.theme = Theme.sheet} align-items="center" padding="56 20">
 			<view width="100%" max-width={420} row-gap={6} transition="fade slide-up(12)" motion="snappy">
 				<text font-weight={Theme.MEDIUM} padding="0 8 14">helder studio</text>
+				<view:button tag="new-project" slot="nav-item" role="button" label="New project" focusable onPress={() -> newProject()}>
+					<text>New project</text>
+				</view:button>
 				<view:button tag="open-folder" slot="nav-item" role="button" label="Open a folder…" focusable onPress={() -> openFolder()}>
 					<text>Open a folder…</text>
 				</view:button>
@@ -45,6 +48,12 @@ class Welcome implements Markup {
 				</view:button>;
 			}}</For>
 		</Show>;
+
+	static function newProject() {
+		#if (hxmc.target == "wasm32-wasi")
+		StudioWeb.new_project();
+		#end
+	}
 
 	static function openFolder() {
 		#if (hxmc.target == "wasm32-wasi")

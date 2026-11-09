@@ -21,6 +21,17 @@ class Signup implements Markup {
 		UiWindow.run(<Surface title="Sign up" width={420} height={360} theme={sheet} dark={dark}>{view(dark)}</Surface>);
 	}
 
+	// (the card in its sheet, light or dark, as the window shows it: Signup.story.hx's screens)
+	public static function themed(dark:Bool):View {
+		var d = signal(dark), root:Null<Node> = null;
+		effect(() -> d(), x -> if (root?.ui != null) root.ui.dark = x);
+		return <view grow={1} ref={(n:Node) -> {
+			root = n;
+			n.theme = sheet;
+			if (n.ui != null) n.ui.dark = d.peek();
+		}}>{view(d)}</view>;
+	}
+
 	public static function view(dark:Signal<Bool>):View {
 		var email = signal(""), terms = signal(false);
 		return <view slot="body" grow={1} padding={24} font-size={14}>

@@ -223,12 +223,16 @@ node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then s
 ```
 
 - **Projects live in OPFS** (the origin's private file system), each under
-  `projects/<name>/`. The welcome (no `?project=`) opens a folder (the File
-  System Access API: its sources copied into OPFS, and written back to the
-  folder while the page may), an example bundled with the page, or a
-  project already in OPFS. The page reads the project into memory before
-  the studio's module starts and writes each save back (`studio.mjs`,
-  `Files`).
+  `projects/<name>/`. The welcome (no `?project=`) makes a new project
+  (`web/new/app.helder`, one design file: nothing built, named `project`,
+  `project-2`...), opens a folder (the File System Access API: its sources
+  copied into OPFS, and written back to the folder while the page may), an
+  example bundled with the page, or a project already in OPFS; `?new` and
+  `?example=<name>` do the first and the third from a link (helder.build's
+  pages). The page reads the project into memory before the studio's
+  module starts and writes each save back (`studio.mjs`, `Files`). The
+  page's URLs are relative: it is served under any path (helder.build's
+  `/studio/`).
 - **One preview host per project.** The project's program runs once, in a
   Web Worker, every story mounted in it as a root of its own with a
   context of its own (helder.story.Host, helder.ui.ScreenContext: its
@@ -378,9 +382,13 @@ runs through shared memory).
 - The App beside stories: one program a project, so a project with
   stories shows them and not its App.
 - Designs in the browser's studio are drawn and edited as on the
-  desktop, but no example bundled with the page has one; images by path
+  desktop (examples/design bundled, a new project's); images by path
   and `run.snap` of a design are native only, and its files are not
   watched (the page's own copy).
+- In the browser a project's screens are its stories and design frames:
+  an App screen (a project without stories) does not run in the preview
+  host's worker, so the examples bundled are those with stories
+  (examples/todo, signup, mail) and examples/design.
 
 - A zoomed screen is drawn at the canvas' scale in halves up to 3, not
   tiled: deeper zooms scale its frame.
