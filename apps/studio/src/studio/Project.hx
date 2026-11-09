@@ -198,8 +198,8 @@ class Project {
 
 	// a design file's text now (null: it is gone): its frames read again
 	// (one that does not read keeps the last ones, its frames show why);
-	// the frames renamed (same place in the file, a new name) when they
-	// changed, null when nothing did
+	// the frames renamed (same place in the file, a new name) when their
+	// names changed (one added, removed or renamed), else null
 	public function design(file:String, text:Null<String>):Null<Array<{from:String, to:String}>> {
 		var was = frames.get(file);
 		var now = if (text == null) [] else {
@@ -218,6 +218,8 @@ class Project {
 		} else frames.set(file, now);
 		order();
 		version(v -> v + 1);
+		// (moved or resized alone: nothing for the studio to follow)
+		if (was != null && [for (s in was) s.name].join("\n") == [for (s in now) s.name].join("\n")) return null;
 		var renamed = [];
 		if (was != null)
 			for (k in 0...Std.int(Math.min(was.length, now.length)))

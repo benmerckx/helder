@@ -3,7 +3,10 @@
 Status: a plan, its first steps built (README.md, "Design files"): a
 screen's source (a story, the app, a design's frame), the interpreter
 (helder.ui.view.Interpreter), `.helder` files' frames on the canvas,
-selected and edited in place. The studio otherwise draws every screen by
+selected and edited in place, followed as they change (on disk too), a
+page each in the sidebar; frames and nodes moved and resized on the
+canvas with snapping, layers, multiple selection; images by path; MCP's
+`run.tree` and `run.snap` on them. The studio otherwise draws every screen by
 running the project's program: a dev build of its stories in one preview
 host. That stays, but as one source of a frame among others.
 The canvas's own work, Figma's kind (layout, type, colour, a screen
@@ -36,8 +39,9 @@ process, with no build: a design file.
 - **Each `.helder` file is a page**, as Figma's pages: its frames on the
   canvas together, a page per file.
 - **The canvas' sidebar lists pages**: the design files, then a page per
-  story file (its flows), and the app. The file tree belongs to the code
-  view, not the canvas.
+  story flow, and the app. The file tree belongs to the code view, not
+  the canvas. The canvas keeps every page's screens (a row each); a
+  page's title in the sidebar flies to its screens.
 - **A new project starts with one `app.helder`**: a page to draw on before
   any code; the program comes when something needs to run.
 

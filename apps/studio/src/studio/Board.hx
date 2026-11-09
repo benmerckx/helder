@@ -22,19 +22,27 @@ using StringTools;
 // stage's own points from the camera.
 class Board implements Markup {
 	public static function view(studio:Studio):View {
-		var stage:Null<Node> = null;
+		var stage:Null<Node> = null, panned = false;
 		return <view tag="stage" grow={1} min-width={0} overflow="hidden" cursor="default" background={c("canvas")} ref={n -> {
 			stage = n;
 			studio.stageNode = n;
 		}}
-			onClick={e -> if (studio.mode() != "stories") studio.clickStage(e.localX, e.localY)}
+			onPointerDown={_ -> panned = false}
+			onClick={e -> if (studio.mode() != "stories" && !panned) studio.clickStage(e.localX, e.localY, e.mods & Key.MOD_SHIFT != 0)}
 			onWheel={e -> {
 				if (e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) studio.camera.zoomAt(e.localX, e.localY, Math.exp(-e.deltaY * 0.0025))
 				else studio.camera.panBy(-e.deltaX, -e.deltaY);
 				e.preventDefault();
 				e.stop();
 			}}
-			onPan={g -> studio.camera.panBy(g.dx, g.dy)}
+			onPan={g -> {
+				// (a drag that edits a design: a frame moved, a node moved or resized; else the canvas panned)
+				var d = studio.drag;
+				// (the mouse's release after a drag is a click too: not the stage's)
+				panned = true;
+				if (g.state == Began) d.begin(g.x - g.tx, g.y - g.ty);
+				if (!d.active) studio.camera.panBy(g.dx, g.dy) else if (g.state == Ended || g.state == Cancelled) d.end() else d.move(g.tx, g.ty);
+			}}
 			onPinch={g -> {
 				studio.camera.zoomAt(g.x, g.y, g.dscale);
 				if (g.state == Ended) studio.log("pinched", {k: studio.camera.k});
@@ -50,6 +58,7 @@ class Board implements Markup {
 			</Show>
 			<Show when={studio.mode() == "stories"}>{stories(studio)}</Show>
 			<Show when={studio.focused() != null && studio.mode() == "design" && !studio.drawer()}>{Inspector.view(studio)}</Show>
+			<Show when={studio.layers(studio.focused()) && studio.mode() == "design" && !studio.compact()}>{Layers.view(studio)}</Show>
 			<Show when={studio.mode() != "code" && !(studio.compact() && studio.focused() != null)}>{Prompt.view(studio)}</Show>
 		</view>;
 	}
@@ -96,12 +105,56 @@ class Board implements Markup {
 				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 46} font-size={Theme.SMALL}
 					color={c("fg2")} opacity={titleShown(studio, f().y) ? 1 : 0}>{f().name}</text>
 			}</For>
-			<For each={studio.layout.screens()}>{(r:Read<Rect>) ->
-				<text tag="caption" position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 20} font-size={Theme.SMALL}
+			<For each={studio.layout.screens()} by={(r:Rect) -> r.name}>{(r:Read<Rect>) ->
+				<text tag={"caption-" + Shell.slug(r().name)} position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 20} font-size={Theme.SMALL}
 					color={studio.focused() == r().name ? c("fg2") : c("fg3")}>{label(studio, r().name)}</text>
 			}</For>
 			<Show when={selected(studio) != null}>{selectionBox(studio)}</Show>
+			<For each={otherBoxes(studio)}>{(b:Read<{x:Float, y:Float, w:Float, h:Float}>) ->
+				<view tag="selection-other" position="absolute" left={b().x} top={b().y} width={b().w} height={b().h} border-width={1} border-color={c("sel")}/>
+			}</For>
+			<For each={handles(studio)}>{(h:Read<{x:Float, y:Float}>) ->
+				<view tag="handle" position="absolute" left={h().x - 3} top={h().y - 3} width={7} height={7} background={c("canvas")} border-width={1} border-color={c("sel")}/>
+			}</For>
+			<For each={guides(studio)}>{(g:Read<{x:Float, y:Float, w:Float, h:Float}>) ->
+				<view tag="guide" position="absolute" left={g().x} top={g().y} width={g().w} height={g().h} background={c("sel")}/>
+			}</For>
 		</view>;
+	}
+
+	// (a design's selection: the others' boxes, in the stage's points)
+	static function otherBoxes(studio:Studio):Array<{x:Float, y:Float, w:Float, h:Float}> {
+		var s = selected(studio), r = s == null ? null : studio.layout.rect(s.screen);
+		if (r == null) return [];
+		studio.camera.changed();
+		studio.docs.version();
+		var cam = studio.camera, out = [];
+		for (o in studio.others()) {
+			var n = studio.designs.nodeAt(o.screen, o.start);
+			if (n == null) continue;
+			var b = studio.designs.box(o.screen, n);
+			out.push({x: cam.sx(r.x + b.x), y: cam.sy(r.y + b.y), w: b.width * cam.k, h: b.height * cam.k});
+		}
+		return out;
+	}
+
+	// (a design's selection alone: its handles, dragged to resize it)
+	static function handles(studio:Studio):Array<{x:Float, y:Float}> {
+		var s = selected(studio), r = s == null ? null : studio.layout.rect(s.screen);
+		var info = s == null ? null : studio.project.screen(s.screen);
+		if (r == null || info == null || !info.source.match(Design(_)) || studio.others().length > 0) return [];
+		studio.camera.changed();
+		return Drag.handles(studio.camera, r.x + s.x, r.y + s.y, s.width, s.height);
+	}
+
+	// (the snaps' guides, a point wide in the stage)
+	static function guides(studio:Studio):Array<{x:Float, y:Float, w:Float, h:Float}> {
+		studio.camera.changed();
+		var cam = studio.camera;
+		return [
+			for (g in studio.drag.guides())
+				g.vertical ? {x: cam.sx(g.at), y: cam.sy(g.from), w: 1.0, h: (g.to - g.from) * cam.k} : {x: cam.sx(g.from), y: cam.sy(g.at), w: (g.to - g.from) * cam.k, h: 1.0}
+		];
 	}
 
 	// the selected node's box (the zoomed screen's), outlined

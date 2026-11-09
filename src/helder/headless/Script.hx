@@ -12,7 +12,7 @@ using StringTools;
 //   drag                   pressed, moved by dx, dy over dur seconds (0.3), released
 //   wheel                  dx, dy points (positive: toward the right and the bottom)
 //   key                    name ("Enter", "a", "ArrowLeft", ...) with cmd, ctrl, alt, shift, secondary
-//   key-up                 a key released
+//   key-down, key-up       a key pressed and held (Shift for a click), released
 //   type                   text, one key per character
 //   resize                 width, height (points) or dw, dh; over dur seconds
 //   menu-pick              id or label: the open pop-up menu's item chosen; menu-cancel
@@ -55,7 +55,7 @@ class Script {
 				if (name == null) throw '$where: a mark has a "name"';
 				s.marks.set(name, t);
 			}
-			if (type == "key" || type == "key-up") {
+			if (type == "key" || type == "key-down" || type == "key-up") {
 				var name:Null<String> = Reflect.field(o, "name");
 				if (name == null || Keys.code(name) == null) throw '$where: no key ${name ?? "(no \"name\")"} (Enter, Escape, Tab, Backspace, Delete, Space, ArrowLeft, Home, F1, a single character...)';
 			}
@@ -70,7 +70,7 @@ class Script {
 	}
 
 	public static final TYPES = [
-		"move", "down", "up", "tap", "double-click", "drag", "wheel", "key", "key-up", "type", "resize", "menu-pick", "menu-cancel", "file-dialog",
+		"move", "down", "up", "tap", "double-click", "drag", "wheel", "key", "key-down", "key-up", "type", "resize", "menu-pick", "menu-cancel", "file-dialog",
 		"file-dialog-cancel", "mark", "literal"
 	];
 }

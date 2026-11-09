@@ -20,10 +20,15 @@ using StringTools;
 //   edit's span applying to the text before it in order;
 // - the overview, the zoomed and the selected frames against the goldens here.
 // Then examples/design (design files alone, tests/studio/design.json): its
-// two frames drawn by the studio itself, nothing built; the title clicked
-// and selected (its box, its element); its colour changed in the inspector
-// (the value's span alone, the frame drawn again with it within 3 frames),
-// undone and redone (drawn so each time); the file with that change alone.
+// two frames drawn by the studio itself, nothing built; the first frame
+// moved by its caption (canvas:at, snapped to the other's top); the title
+// clicked and selected (its box, its element); its colour changed in the
+// inspector (the value's span alone, the frame drawn again with it within 3
+// frames), undone and redone (drawn so each time); the title resized by its
+// handle (snapped to the frame's centre: width 171); a second node added to
+// the selection with shift and taken from it; the title's layer dragged
+// below the input row; both undone (the resize one entry); every edit's
+// span applying in order, the file with the move and the colour alone.
 // The measurements (cold start to the first frame, the project's screens
 // all shown, an inspector's change to the program's frame) printed.
 class Check {
@@ -114,22 +119,60 @@ class Check {
 		var shown:Dynamic = all("designs-shown")[0];
 		check('design: both frames drawn, none marked', shown != null && shown.frames == 2 && shown.errors == 0, Json.stringify(shown));
 		check('design: nothing built or run', all("building").length == 0 && all("built").length == 0 && all("all-shown").length == 0);
+		// (the file's text after each edit, its changes applied in order to the one before)
+		var edits = all("edited"), texts = [original];
+		for (e in edits) {
+			var t = texts[texts.length - 1], b = new StringBuf(), at = 0;
+			for (c in (e.changes : Array<Dynamic>)) {
+				b.add(t.substring(at, c.start));
+				b.add(c.text);
+				at = c.end;
+			}
+			b.add(t.substr(at));
+			texts.push(b.toString());
+		}
+		check('design: every edit\'s span applies, in order, to the file at the end', texts[texts.length - 1] == final_);
+		var drags = all("dragged");
+		// (the frame moved by its caption: canvas:at alone, its y snapped to the other frame's top)
+		var moved:Dynamic = drags[0];
+		var frameEdits = [for (k in 0...edits.length) if (edits[k].frame <= (moved?.frame ?? -1)) k];
+		var afterMove = frameEdits.length == 0 ? "" : texts[frameEdits[frameEdits.length - 1] + 1];
+		var at = ~/canvas:at="(-?[0-9]+) 0" background="#f8fafc" padding="56 24 24" row-gap/;
+		check('design: the frame moved by its caption, snapped (canvas:at="x 0")', moved != null && moved.kind == "frame moved" && moved.snapped >= 1
+			&& at.match(afterMove) && Std.parseInt(at.matched(1)) < 0 && afterMove == original.replace('canvas:at="0 0"', 'canvas:at="${at.matched(1)} 0"'),
+			Json.stringify(moved));
+		var x = at.matched(1);
 		var sel:Dynamic = all("selected")[0];
 		check('design: the title selected (its box, its element)', sel != null && sel.tag == "text" && Json.stringify(sel.rect) == "[24,56,342,35]", Json.stringify(sel));
-		var edits = all("edited");
-		var at = original.indexOf('color="#3b82f6">todos') + 'color="'.length;
-		var color:Dynamic = edits[0];
-		check('design: the colour\'s edit: #3b82f6\'s span alone', color != null && color.origin == "inspector" && color.changes.length == 1
-			&& color.changes[0].start == at && color.changes[0].end == at + 7 && color.changes[0].text == "#ef4444", Json.stringify(color));
-		check('design: undone and redone', edits.length == 3 && edits[1].origin == "undo" && edits[2].origin == "redo", Json.stringify(edits.map((e:Dynamic) -> e.origin)));
+		var k = Lambda.findIndex(edits, (e:Dynamic) -> e.origin == "inspector");
+		var color:Dynamic = edits[k];
+		var cat = k < 0 ? -1 : texts[k].indexOf('color="#3b82f6">todos') + 'color="'.length;
+		check('design: the colour\'s edit: #3b82f6\'s span alone', color != null && color.changes.length == 1
+			&& color.changes[0].start == cat && color.changes[0].end == cat + 7 && color.changes[0].text == "#ef4444", Json.stringify(color));
+		check('design: undone and redone', k >= 0 && edits[k + 1]?.origin == "undo" && edits[k + 2]?.origin == "redo", Json.stringify(edits.map((e:Dynamic) -> e.origin)));
 		// (each edit's frame drawn again with it: the title's colour then)
 		var colors = [];
-		for (e in edits) {
+		for (e in edits.slice(k, k + 3)) {
 			var next:Dynamic = Lambda.find(all("selection"), (s:Dynamic) -> s.frame > e.frame);
 			colors.push(next == null || next.frame - e.frame > 3 ? null : next.color);
 		}
 		check('design: the title drawn #ef4444, #3b82f6, #ef4444 within 3 frames of each edit', colors.join(" ") == "#ffef4444 #ff3b82f6 #ffef4444", colors.join(" "));
-		check('design: the file: the original with the colour alone', final_ == original.replace('color="#3b82f6">todos', 'color="#ef4444">todos'));
+		// (the title resized by its right handle, snapped to the frame's centre: width 171, one entry)
+		var resized:Dynamic = drags[1];
+		var colored = texts[k + 3];
+		check('design: the title resized, snapped to the frame\'s centre', resized != null && resized.kind == "resized" && resized.snapped >= 1
+			&& Std.string(resized.elements[0]).indexOf('color="#ef4444" width={171}>') > 0, Json.stringify(resized));
+		var two = all("selected").filter((e:Dynamic) -> e.frame > (resized?.frame ?? 0));
+		check('design: shift-click: two selected, then one', two.length >= 2 && two[0].others == 1 && two[1].others == 0, Json.stringify(two));
+		var re:Dynamic = all("reordered")[0];
+		var r = re == null ? -1 : Lambda.findIndex(edits, (e:Dynamic) -> e.frame == re.frame);
+		var reordered = r < 0 ? "" : texts[r + 1];
+		check('design: the title\'s layer dragged below the input row (the markup\'s order)', re != null && re.from == 0 && re.to == 1
+			&& reordered.indexOf('tag="title"') > reordered.indexOf("What needs to be done?") && reordered.indexOf("What needs to be done?") > 0, Json.stringify(re));
+		var undos = edits.slice(r + 1);
+		check('design: undone twice: the reorder, then the resize as one entry', r >= 0 && undos.length == 2 && undos[0].origin == "undo" && undos[1].origin == "undo"
+			&& texts[r + 2] == texts[r] && texts[r + 3] == colored, Json.stringify(undos.map((e:Dynamic) -> e.origin)));
+		check('design: the file: the original, the frame moved and the colour', final_ == original.replace('canvas:at="0 0"', 'canvas:at="$x 0"').replace('color="#3b82f6">todos', 'color="#ef4444">todos'));
 		Sys.println('studio: design: 2 frames drawn ${shown?.ms} ms after opening, nothing built');
 	}
 

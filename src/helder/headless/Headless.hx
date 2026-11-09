@@ -347,9 +347,9 @@ class Headless {
 				w.dx = s.num("dx", 0);
 				w.dy = s.num("dy", 0);
 				w.mods = mods;
-			case "key" | "key-up":
+			case "key" | "key-down" | "key-up":
 				var name = s.str("name");
-				var a = at(s, s.t, s.type == "key" ? Key : KeyUp);
+				var a = at(s, s.t, s.type == "key" ? Key : s.type == "key-down" ? KeyDown : KeyUp);
 				a.key = Script.Keys.code(name);
 				a.mods = mods;
 				// (a character typed: not with Control, Alt or the Command key)
@@ -413,7 +413,7 @@ class Headless {
 		e.x = Math.round(a.x * k);
 		e.y = Math.round(a.y * k);
 		if (stats != null) switch a.kind {
-			case Key | KeyUp: statKeys++;
+			case Key | KeyDown | KeyUp: statKeys++;
 			case Wheel: statWheels++;
 			case Move | Down | Up: statPointers++;
 			case _:
@@ -457,6 +457,10 @@ class Headless {
 				e.text = "";
 				e.key = a.key;
 				e.mods = a.mods;
+				onEvent(e);
+			case KeyDown:
+				e.kind = KeyDown;
+				e.key = a.key;
 				onEvent(e);
 			case KeyUp:
 				e.kind = KeyUp;
@@ -882,6 +886,7 @@ enum ActKind {
 	Up;
 	Wheel;
 	Key;
+	KeyDown;
 	KeyUp;
 	Resize;
 	MenuPick;

@@ -64,8 +64,9 @@ anywhere under the project's directory but `bin/` and `node_modules/`
   a phone's, 390 by 844.
 - TypeScript's stories are **exported** (`export const items = story({...})`):
   the studio imports them by name.
-- A project without stories has one screen, its own program's window
-  (flow "App").
+- A project with an entry and no stories has one screen of its program,
+  its own window (the page "App"), design files or not. (With stories
+  the program is theirs: the App is not drawn beside them.)
 
 ```tsx
 // examples/ts-todo/app.story.tsx
@@ -81,8 +82,10 @@ opens, not built, so the canvas is laid out before anything compiled.
 A design file (`*.helder`, DESIGN.md) is helder's markup alone: a root
 (`<Design>`, or a fragment) of frames, each a place on the canvas with a
 size. Every one under the project's directory (but `bin/`,
-`node_modules/` and dot directories) is a flow of the canvas, named by its
-path, its frames its screens, after the stories' flows.
+`node_modules/` and dot directories) is a page of the canvas, named by its
+path, its frames its screens, before the stories' flows. A frame's id is
+its file's path and its name (`app.helder#Home`), so that no story's
+`Flow/Screen` is one.
 
 ```
 <Design>
@@ -114,11 +117,58 @@ path, its frames its screens, after the stories' flows.
   undo go through the same helder.syntax transactions (`.helder` is
   helder.syntax's Markup language), the file saved and its frames drawn
   again at once.
+- **Followed as it changes**: the file's frames are read again after
+  every edit of it (the inspector, the code view, an agent, undo), and the
+  design files on disk are watched (a second apart, natively): a file
+  changed there comes in as an edit (its one differing range, in the
+  history), a file added or deleted shows or drops its page. A frame
+  added, removed or renamed shows at once; a renamed frame keeps its focus
+  and selection.
+- **Pages**: the sidebar lists each design file, each story flow and the
+  App, a page's title showing its screens (fitted, none zoomed into); the
+  canvas keeps every page's screens, a row each.
+- **Images by path** (`<image src="logo.png"/>`, an SVG too): read from
+  the design file's folder, decoded by helder.image (again when the file
+  changes); natively (in the browser: marked, not yet).
 - **A project of design files alone** has no program: it opens with no
   build and no App screen (examples/design). A project with stories and
   design files builds its stories' program as before, its frames drawn
-  from the start.
+  from the start; one with an entry and no stories, its App.
 - Opening a `.helder` file opens its folder as the project.
+- **MCP's `run.tree` and `run.snap`** on a design frame: its nodes
+  interpreted offscreen at its size (the tree: tags, boxes, texts,
+  colours, each node's `file:line`, and what could not be interpreted),
+  drawn by a headless device of the studio's own as store screenshots
+  are (a PNG at 2x).
+
+### Editing on the canvas
+
+On a design's frame the canvas edits the markup directly
+(helder.build's PLAN step 6, design frames first; Drag, Snap, Layers):
+
+- **Move a frame** by its caption (or by itself, selected: a click on
+  its background): `canvas:at` written.
+- **Resize** by the selection's handles: a frame's `width` and `height`
+  (and `canvas:at` from its left or top); a node's `width` and `height`,
+  a node placed absolutely (`position="absolute"`) its `left` and `top`
+  too from its left or top.
+- **Move nodes** placed absolutely by dragging them (`left`, `top`); a
+  node in auto layout is resized only (its place is its parent's: reorder
+  it in the layers).
+- **Snapping**: the moving edges (and centre, for a move) to the frame's
+  and the siblings' edges and centres (a frame's to the other frames'),
+  within 6 points of the stage, the guides drawn; values rounded to a
+  point.
+- **Layers**: the zoomed frame's elements as written (`<note>`s left
+  out), a row each beside the frame; a click selects (shift: adds), a row
+  dragged up or down moves its element among its siblings
+  (helder.syntax's Edits.move), the markup's order the drawing's.
+- **Multiple selection**: shift-click adds a node or takes it out; the
+  selected nodes placed absolutely move together; the inspector shows
+  the one clicked last.
+- Each gesture is one entry of the history (its moves one transaction
+  each, merged), the file's formatting kept, the frame interpreted again
+  at once; undo and redo as for any edit.
 
 ## How it runs
 
@@ -253,8 +303,8 @@ a free one. It prints the URL at start and writes it to
 | `project.read {path?}` | a file's text as the studio has it (its unsaved state too); without a path, the files and the screens by flow |
 | `project.patch {path, edits: [{old, new}]}` or `{path, text}` | an edit through the studio's history (undoable like any other): live literals patched in the screens, anything else built; answers what happened and the diagnostics |
 | `build.check {}` | the program typed (tsgo's check too), nothing written: diagnostics at file and line |
-| `run.snap {screen?, path?}` | a screen's last frame as a PNG (the one zoomed into, else the first) |
-| `run.tree {screen?}` | a screen's node tree: tags, boxes, texts, colours and each node's `file:line` |
+| `run.snap {screen?, path?}` | a screen's last frame as a PNG (the one zoomed into, else the first); a design's frame drawn offscreen |
+| `run.tree {screen?}` | a screen's node tree: tags, boxes, texts, colours and each node's `file:line` (a design's frame: its interpreted nodes) |
 
 Claude Code, with the studio open on a project:
 
@@ -291,8 +341,13 @@ inspector, a padding added and undone, an attribute typed in the code
 view, the prompt bar's `/tree`; the files and every edit's span checked,
 the overview, zoomed and selected frames against goldens. Then on
 examples/design (design files alone): both frames drawn with nothing
-built, the title selected, its colour changed (drawn again within 3
-frames: in 1 on a Mac), undone and redone, the file checked.
+built, the first moved by its caption (snapped to the other's top), the
+title selected, its colour changed (drawn again within 3 frames: in 1 on
+a Mac), undone and redone, resized by its handle (snapped to the frame's
+centre), a second node shift-clicked into the selection and out, the
+title's layer dragged below the input row, both undone (the resize one
+entry), every edit's span and the file checked. The test lane runs the
+studio's own tests (Snap.test.hx).
 
 On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
 
@@ -315,20 +370,24 @@ runs through shared memory).
 
 - Design files (DESIGN.md), beyond frames of static markup: components
   in a design's frame (islands drawn by the preview host), parts used
-  from code, tokens and themes, `<For>` over sample data, interactions,
-  images by path (`src="..."`); frames added, removed or renamed are seen
-  when the project is opened again; a frame is not moved on the canvas
-  yet (its `canvas:at` is read only); the sidebar lists flows, not pages;
-  MCP's `run.snap` and `run.tree` see the stories' screens only.
-- Designs in the browser's studio are drawn as on the desktop, but no
-  example bundled with the page has one.
+  from code, tokens and themes, `<For>` over sample data, interactions.
+- Canvas editing, beyond the above: a node is not dragged into another
+  parent (the layers reorder among siblings), a multiple selection is
+  not resized, no arrow keys' nudges, no new frame or node drawn on the
+  canvas; a story's screen (code) is not edited on the canvas yet.
+- The App beside stories: one program a project, so a project with
+  stories shows them and not its App.
+- Designs in the browser's studio are drawn and edited as on the
+  desktop, but no example bundled with the page has one; images by path
+  and `run.snap` of a design are native only, and its files are not
+  watched (the page's own copy).
 
 - A zoomed screen is drawn at the canvas' scale in halves up to 3, not
   tiled: deeper zooms scale its frame.
 - A story's shortcuts bound at a module's start (Keymap.global there) are
   the program's main context's, not the screens'.
-- Selection is click only: no move, resize, snapping, layers or multiple
-  selection; the handles are drawn, not dragged.
+- On a story's screen selection is click only: no move, resize,
+  snapping, layers or multiple selection (a design's frame has them).
 - The inspector writes attributes as text; its fields do not come from
   the generated declarations yet (types, units, enums).
 - The warm compiler sometimes builds a wrong program after an attribute

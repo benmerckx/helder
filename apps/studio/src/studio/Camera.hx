@@ -80,11 +80,11 @@ class Camera {
 		jump(px - wx * nk, py - wy * nk, nk);
 	}
 
-	// the view fitting a world rectangle into the stage (w x h) with a margin, less insets right, below and above (stage points)
-	public static function fit(rx:Float, ry:Float, rw:Float, rh:Float, sw:Float, sh:Float, pad:Float, right:Float, below:Float, above = 0.0):{x:Float, y:Float, k:Float} {
-		var aw = Math.max(40, sw - right - pad * 2), ah = Math.max(40, sh - below - above - pad * 2);
+	// the view fitting a world rectangle into the stage (w x h) with a margin, less insets right, below, above and left (stage points)
+	public static function fit(rx:Float, ry:Float, rw:Float, rh:Float, sw:Float, sh:Float, pad:Float, right:Float, below:Float, above = 0.0, left = 0.0):{x:Float, y:Float, k:Float} {
+		var aw = Math.max(40, sw - right - left - pad * 2), ah = Math.max(40, sh - below - above - pad * 2);
 		var k = Math.min(aw / Math.max(1, rw), ah / Math.max(1, rh));
-		return {x: (sw - right - rw * k) / 2 - rx * k, y: above + (sh - below - above - rh * k) / 2 - ry * k, k: k};
+		return {x: left + (sw - right - left - rw * k) / 2 - rx * k, y: above + (sh - below - above - rh * k) / 2 - ry * k, k: k};
 	}
 
 	// a world point in the stage

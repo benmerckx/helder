@@ -26,6 +26,9 @@ class Theme {
 	public static inline var SIDEBAR = 220;
 	public static inline var HEADER = 44;
 	public static inline var INSPECTOR = 240;
+	// the layers' panel (a design's frame zoomed into), a row of it
+	public static inline var LAYERS = 200;
+	public static inline var LAYER = 22;
 	public static inline var ASK = 520;
 	// the canvas' room kept for the prompt bar (below), the flows' titles and captions (above)
 	public static inline var ASK_SPACE = 72;

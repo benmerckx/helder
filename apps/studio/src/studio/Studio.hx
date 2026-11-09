@@ -38,6 +38,7 @@ class Studio {
 	public final camera = new Camera();
 	public final layout:Layout;
 	public final tools:Tools;
+	public final drag:Drag;
 	public final agent:Agent;
 	public var mcp(default, null):Null<Mcp> = null;
 	// "design" (the canvas), "code" (the code view beside the screen), "stories" (the list)
@@ -45,6 +46,9 @@ class Studio {
 	// the screen zoomed into (its name; null: all screens)
 	public final focused:Signal<Null<String>> = signal(null);
 	public final selection:Signal<Null<Selection>> = signal(null);
+	// the other nodes selected with it (shift-click, a design's frame: the
+	// selection the one clicked last, the inspector's)
+	public final others:Signal<Array<Selection>> = signal([]);
 	// the code view's file
 	public final codeFile:Signal<Null<String>> = signal(null);
 	// the window is compact (narrower than Theme.COMPACT: a phone, a tablet
@@ -79,8 +83,8 @@ class Studio {
 	// selection refreshes in flight
 	var refreshing = false;
 	var refreshAgain = false;
-	// (an edit's field gesture: its history group)
-	var gesture = 0;
+	// (an edit's gesture: its history group)
+	public var gesture(default, null) = 0;
 
 	public function new(dir:Null<String>, options:{?events:String, ?mcpPort:Int, ?holdWhile:String}) {
 		current = this;
@@ -104,6 +108,7 @@ class Studio {
 		designs = new Designs(this);
 		layout = new Layout(this);
 		tools = new Tools(this);
+		drag = new Drag(this);
 		agent = new Agent.LocalAgent(this);
 		editor = new CodeEditor("", null);
 		editor.view.fontFamily = Theme.CODE;
@@ -208,6 +213,7 @@ class Studio {
 	// all screens, or one zoomed into (on the spring)
 	public function focus(name:Null<String>) {
 		focused(name);
+		others([]);
 		if (name == null) selection(null);
 		fitTo(name, true);
 		refreshCode();
@@ -254,13 +260,21 @@ class Studio {
 			var r = layout.rect(name);
 			if (r == null) return;
 			if (small) Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 14, 0, code ? 0 : (sheetOpen.peek() ? Theme.SHEET : Theme.SHEET_PEEK) + 8, 18)
-			else Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, code ? 0 : Theme.INSPECTOR + 24, code ? 0 : Theme.ASK_SPACE, 14);
+			else Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, code ? 0 : Theme.INSPECTOR + 24, code ? 0 : Theme.ASK_SPACE, 14,
+				code || !layers(name) ? 0 : Theme.LAYERS + 24);
 		}
 		if (fly) camera.fly(v.x, v.y, v.k) else camera.jump(v.x, v.y, v.k);
 	}
 
+	// whether a screen shows the layers' panel when zoomed into (a design's frame)
+	public function layers(name:Null<String>):Bool {
+		var s = name == null ? null : project?.screen(name);
+		return s != null && s.source.match(Design(_));
+	}
+
 	// a click on the stage at (px, py): a screen zoomed into, or a node of the zoomed one selected
-	public function clickStage(px:Float, py:Float) {
+	// (add: shift held, a design's node added to the selection or taken from it)
+	public function clickStage(px:Float, py:Float, add = false) {
 		var wx = camera.wx(px), wy = camera.wy(py);
 		var hit = layout.at(wx, wy);
 		if (hit == null) return;
@@ -268,16 +282,19 @@ class Studio {
 			focus(hit.name);
 			return;
 		}
-		pick(hit.name, wx - hit.x, wy - hit.y);
+		pick(hit.name, wx - hit.x, wy - hit.y, add);
 	}
 
 	// the node at (x, y) of a screen (its points) selected: the program's
 	// tree's boxes, the node's source (a design's frame: its own nodes')
-	public function pick(name:String, x:Float, y:Float) {
+	public function pick(name:String, x:Float, y:Float, add = false) {
 		var info = project?.screen(name);
 		if (info != null && info.source.match(Design(_))) {
 			var hit = designs.pick(name, x, y);
-			if (hit == null) selection(null) else selectDesign(info, hit.node, hit.at);
+			if (hit != null) selectDesign(info, hit.node, hit.at, add) else if (!add) {
+				selection(null);
+				others([]);
+			}
 			return;
 		}
 		var s = previews?.screen(name);
@@ -341,27 +358,45 @@ class Studio {
 		refreshCode();
 	}
 
-	// a node of a design's frame selected: its element at its markup's offset
-	function selectDesign(info:ScreenInfo, n:Node, at:Int) {
+	// a node of a design's frame selected: its element at its markup's
+	// offset (add: with what is selected, or taken from it when it is)
+	public function selectDesign(info:ScreenInfo, n:Null<Node>, at:Int, add = false) {
+		var cur = selection.peek(), more = [];
+		if (add && cur != null && cur.screen == info.name) {
+			var rest = [for (o in others.peek()) if (o.start != at) o];
+			if (cur.start == at || rest.length < others.peek().length) {
+				// (a selected one clicked again: no longer; the last of the rest the selection)
+				if (cur.start != at) rest.push(cur);
+				var last = rest.pop();
+				others(rest);
+				selection(last);
+				log("selected", {screen: info.name, others: rest.length, tag: last?.tag, start: last?.start});
+				refreshCode();
+				return;
+			}
+			more = rest.concat([cur]);
+		}
+		others(more);
 		var el = docs.get(info.file).doc.elementAt(at);
-		var b = designs.box(info.name, n);
+		// (a node not drawn yet: its box when its frame is, Designs.follow)
+		var b = n == null ? {x: 0.0, y: 0.0, width: 0.0, height: 0.0} : designs.box(info.name, n);
 		var sel:Selection = {
 			screen: info.name,
 			file: info.file,
 			start: at,
-			tag: el?.name ?? n.tag,
-			nodeTag: n.tag,
+			tag: el?.name ?? n?.tag ?? "node",
+			nodeTag: n?.tag,
 			id: 0,
 			x: b.x,
 			y: b.y,
 			width: b.width,
 			height: b.height,
-			opacity: n.style.opacity,
+			opacity: n == null ? 1 : n.style.opacity,
 		};
 		selection(sel);
 		gesture++;
 		docs.close();
-		log("selected", {screen: sel.screen, file: sel.file, start: at, tag: sel.tag, rect: [sel.x, sel.y, sel.width, sel.height]});
+		log("selected", {screen: sel.screen, file: sel.file, start: at, tag: sel.tag, rect: [sel.x, sel.y, sel.width, sel.height], others: more.length});
 		refreshCode();
 	}
 
@@ -490,32 +525,36 @@ class Studio {
 		return docs.get(sel.file).doc.elementAt(sel.start);
 	}
 
-	// an attribute of the selected element set (raw: as the field has it;
-	// its form kept: a number in braces, a string in quotes); "" removes it
+	// an attribute of the selected element set (Studio.attribute's form)
 	public function setAttribute(name:String, raw:String, ?group:String) {
 		var sel = selection.peek();
 		if (sel == null) return;
 		var f = docs.get(sel.file), doc = f.doc;
 		var el = doc.elementAt(sel.start);
 		if (el == null) return;
-		var a = el.attr(name);
-		var tx = try if (raw.trim() == "") Edits.removeAttribute(doc, el, name) else {
-			var v = raw.trim();
-			var numeric = ~/^-?[0-9]+(\.[0-9]+)?$/.match(v);
-			var braced = a != null && a.value != null && doc.text.charAt(a.value.start) == "{";
-			var lit = a == null ? null : a.literal();
-			if (a != null && a.value != null && a.value.kind == Str && !numeric && !v.contains('"') && !v.contains("\\"))
-				// (a string's value: its text alone, its quotes kept)
-				new Transaction([new Change(a.value.start + 1, a.value.end - 1, v)], null, doc.text)
-			else if (lit != null && numeric && lit.kind == Num)
-				// (a number in braces: the number alone)
-				new Transaction([new Change(lit.start, lit.end, v)], null, doc.text)
-			else Edits.setAttribute(doc, el, name, numeric && (a == null || braced) ? ACode(v) : AString(v));
-		} catch (e:Dynamic) {
+		var tx = try attribute(doc, el, name, raw) catch (e:Dynamic) {
 			message('$name: $e');
 			return;
 		}
 		edit(sel.file, tx, '$name $raw', "inspector", group ?? 'attr:$name:$gesture');
+	}
+
+	// an element's attribute set (raw: as a field has it; its form kept: a
+	// number in braces, a string in quotes; "" removes it), against the doc's text
+	public static function attribute(doc:helder.syntax.Document, el:helder.syntax.Document.Element, name:String, raw:String):Transaction {
+		if (raw.trim() == "") return Edits.removeAttribute(doc, el, name);
+		var a = el.attr(name);
+		var v = raw.trim();
+		var numeric = ~/^-?[0-9]+(\.[0-9]+)?$/.match(v);
+		var braced = a != null && a.value != null && doc.text.charAt(a.value.start) == "{";
+		var lit = a == null ? null : a.literal();
+		return if (a != null && a.value != null && a.value.kind == Str && !numeric && !v.contains('"') && !v.contains("\\"))
+			// (a string's value: its text alone, its quotes kept)
+			new Transaction([new Change(a.value.start + 1, a.value.end - 1, v)], null, doc.text)
+		else if (lit != null && numeric && lit.kind == Num)
+			// (a number in braces: the number alone)
+			new Transaction([new Change(lit.start, lit.end, v)], null, doc.text)
+		else Edits.setAttribute(doc, el, name, numeric && (a == null || braced) ? ACode(v) : AString(v));
 	}
 
 	// the selected element's text (its one run of text) set
@@ -572,6 +611,7 @@ class Studio {
 			next.start = tx.map(sel.start, 1);
 			selection(next);
 		}
+		if (others.peek().length > 0 && others.peek()[0].file == file) others([for (o in others.peek()) {var n:Selection = Reflect.copy(o); n.start = tx.map(o.start, 1); n;}]);
 		if (file.endsWith(".helder") && project != null) framesChanged(file, project.design(file, docs.get(file).text));
 		if (origin != "code" && codeFile.peek() == file) {
 			applyingToEditor = true;
@@ -598,6 +638,7 @@ class Studio {
 				selection(sel = next);
 			}
 		}
+		if (renamed.length > 0) others([]);
 		if (f != null && project.screen(f) == null) focus(null);
 		log("frames", {file: file, frames: [for (s in project.screens) if (s.file == file) s.name], renamed: renamed});
 	}
