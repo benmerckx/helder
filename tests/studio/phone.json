@@ -1,0 +1,14 @@
+{
+  "events": [
+    {"t": 0.6, "type": "mark", "name": "canvas"},
+    {"t": 0.7, "type": "tap", "tag": "tab-files"},
+    {"t": 1.4, "type": "tap", "tag": "nav-screen-app-helder-home"},
+    {"t": 2.3, "type": "mark", "name": "picked"},
+    {"t": 2.4, "type": "tap", "tag": "tab-inspect"},
+    {"t": 3.1, "type": "drag", "tag": "sheet-handle", "dx": 0, "dy": -300, "dur": 0.4},
+    {"t": 4.0, "type": "mark", "name": "full"},
+    {"t": 4.1, "type": "drag", "tag": "sheet-handle", "dx": 0, "dy": 700, "dur": 0.15},
+    {"t": 5.0, "type": "tap", "tag": "tab-code"},
+    {"t": 5.8, "type": "mark", "name": "end"}
+  ]
+}

@@ -59,8 +59,7 @@ class Board implements Markup {
 				{overlay(studio)}
 			</Show>
 			<Show when={studio.mode() == "stories"}>{stories(studio)}</Show>
-			<Show when={studio.compact() && studio.focused() != null && studio.mode() == "design" && !studio.drawer()}>{Inspector.view(studio)}</Show>
-			<Show when={studio.mode() != "code" && !(studio.compact() && studio.focused() != null)}>{Prompt.view(studio)}</Show>
+			<Show when={studio.mode() != "code" && !studio.compact()}>{Prompt.view(studio)}</Show>
 		</view>;
 	}
 

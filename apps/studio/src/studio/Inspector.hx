@@ -17,11 +17,7 @@ using StringTools;
 // the screens' next frame (patched, then saved); another builds. A number's
 // label scrubs it: dragged left or right, a point per two.
 class Inspector implements Markup {
-	// compact: the bottom sheet (Board's, over the canvas)
-	public static function view(studio:Studio):View
-		return sheet(studio);
-
-	// the desktop's card at the right: what is selected, its sections; else
+	// the desktop's card at the right (compact: its sheet): what is selected, its sections; else
 	// the frame in focus, else the project
 	public static function card(studio:Studio):View
 		return <view tag="inspector" grow={1} min-height={0}>
@@ -35,22 +31,11 @@ class Inspector implements Markup {
 			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
 		</view>;
 
-	// compact: a bottom sheet over the canvas, sliding up when a screen is
-	// zoomed into; its handle (a tap) opens and closes it, the screen
-	// fitted above it on the camera's spring, its height on motion's
-	static function sheet(studio:Studio):View
-		return <view tag="inspector" slot="sheet" border-width="1 0 0 0" position="absolute" left={0} right={0} bottom={0} height={studio.sheetOpen() ? Theme.SHEET : Theme.SHEET_PEEK}
-			overflow="hidden" transition="slide-up(80) fade" motion="snappy" onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<view:button tag="sheet-toggle" role="button" label={studio.sheetOpen() ? "Close the inspector" : "Open the inspector"} focusable
-				align-items="center" row-gap={8} padding="8 0 6" cursor="pointer" onPress={() -> studio.toggleSheet()}>
-				<view slot="sheet-handle"/>
-				<text color={c("fg2")} font-size={Theme.SMALL}>{title(studio)}</text>
-			</view:button>
-			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
-		</view>;
-
-	static function headIcon(studio:Studio):helder.ui.Svg
-		return studio.selection() != null ? (hasText(studio) ? Icons.font : Icons.element) : studio.focused() != null ? Icons.frame : Icons.folder;
+	static function headIcon(studio:Studio):helder.ui.Svg {
+		var s = studio.selection(), f = studio.focused(), frame = f == null ? null : studio.project?.screen(f);
+		if (s != null && frame != null && frame.start == s.start) return Icons.frame;
+		return s != null ? (hasText(studio) ? Icons.font : Icons.element) : f != null ? Icons.frame : Icons.folder;
+	}
 
 	static function title(studio:Studio):String {
 		var s = studio.selection(), f = studio.focused();

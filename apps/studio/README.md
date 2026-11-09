@@ -330,18 +330,27 @@ node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then s
   program beside it (`.studio/gen`), built, and the preview host started
   again from the running one's state (Hot's snapshot); the build's live
   literals' tables come back with it, so the next colour is a patch again.
-- **Touch.** Narrower than 900 points (a phone, a tablet upright) the
-  studio is compact: the screens' list a drawer from the header's
-  "Screens", the inspector a bottom sheet sliding up when a frame is
-  selected (its handle opens and closes it; motion's springs), the
-  canvas panned with a finger and zoomed with a pinch. A phone's studio
-  is this page in the system's web view.
+- **Touch: sheets.** Narrower than 900 points (a phone, a tablet
+  upright) the canvas is always underneath (a finger pans, two pinch, a
+  tap selects, a double tap enters) and the desktop's panels are sheets
+  over it, one at a time (`Sheets`): the files and layers (the sidebar's
+  parts), the inspector (its card), the code, the prompt; a bar at the
+  bottom switches them (the current one's tab closes it). A sheet rests
+  at a detent: peek (its handle and first row), half, full; dragged by its
+  handle it follows the finger and settles at the nearest (a fling one
+  further; flung down from peek, or dragged below it, away), a tap on the
+  handle goes up one. The canvas fits what is in focus above the sheet (at
+  most at half), so the code at half leaves the frame in view: an edit is
+  seen landing. A frame picked in the files' sheet lowers it to peek. A top
+  bar has where you are, undo, redo and Play. A phone's studio is this
+  page in the system's web view.
 
 The studio-web lane (`bun run test studio-web`, tests/studio-web) drives
 it in headless Chromium: the welcome's Todo opened, all screens shown,
 one selected, its title selected, its colour changed (patched, the
 next frames showing it, the file in OPFS), at a desktop's width and a
-phone's (taps, a pinch, the drawer), the overview and zoomed states
+phone's (the sheets from the bar, a frame picked, a double tap, a
+pinch), the overview and zoomed states
 against goldens; and 50 screens opened and measured. The story-host lane
 measures the host natively and the desktop studio with it (50 screens of
 examples/todo, Linux, llvmpipe, 4 cores):
@@ -496,6 +505,22 @@ where the GPU exports them (none on CI: llvmpipe, which the studio lane
 runs through shared memory).
 
 ## Not yet
+
+- The canvas: a frame's screen is not tiled (the selected one at the
+  canvas' scale up to 3, at most 4096 pixels a side; deeper zooms scale
+  it); the edges of a pinch or a pan have no momentum on the desktop.
+- The files' viewers: glTF models (a viewport with orbit controls) and
+  sounds (a waveform, play) show their size only; images and fonts are
+  read natively, not in the browser yet.
+- Play: prototypes along flows and interactions (not made yet: the arrow
+  keys go through a page's frames); an App frame's route (routing is not
+  made: from its start); a phone reached by a QR code of the web build's
+  page; Play in the browser sends the player's input to the worker's
+  screens as natively, not checked there yet.
+- The window: the inset title bar is verified on macOS; Windows' and
+  Linux's (Wayland, X11) are built and their hit-testing unit-tested, not
+  yet tried on those systems; on Wayland and X11 the edges show no resize
+  cursors of their own.
 
 - Design files (DESIGN.md), beyond frames of static markup: components
   in a design's frame (islands drawn by the preview host), parts used

@@ -56,11 +56,22 @@ class Studio {
 	// the code view's file
 	public final codeFile:Signal<Null<String>> = signal(null);
 	// the window is compact (narrower than Theme.COMPACT: a phone, a tablet
-	// upright): the screens' list a drawer (open: drawer), the inspector a
-	// bottom sheet (open or peeking: sheetOpen)
+	// upright): the panels sheets over the canvas (Sheets), one at a time
+	// (sheet: "files", "inspect", "code", "ask"; null: none), each at a
+	// detent ("peek", "half", "full")
 	public final compact = signal(false);
-	public final drawer = signal(false);
-	public final sheetOpen = signal(true);
+	public final sheet:Signal<Null<String>> = signal(null);
+	public final detent = signal("half");
+	// (the sheet and its detent as just set: what the fits read, the signals' writes landing at the event's end)
+	var sheetNow:Null<String> = null;
+	var detentNow = "half";
+
+	function setSheet(name:Null<String>, d:String) {
+		sheetNow = name;
+		detentNow = d;
+		sheet(name);
+		detent(d);
+	}
 	// what plays (Play: null, nothing), where (Play.targets), a target's last
 	// line of output, the story's controls (Story.controls)
 	public final playing:Signal<Null<Play.Playing>> = signal(null);
@@ -194,13 +205,15 @@ class Studio {
 			log("first-frame", {ms: ms});
 		}
 		var w = Main.window == null ? 0.0 : Main.window.ui.width;
-		if (w > 0 && (w < Theme.COMPACT) != compact.peek()) {
-			compact(w < Theme.COMPACT);
-			if (!compact.peek()) drawer(false);
+		if (w > 0 && (w < Theme.COMPACT) != compactNow) {
+			compactNow = w < Theme.COMPACT;
+			compact(compactNow);
+			if (!compactNow) setSheet(null, "half");
+			if (stageWidth > 0) fitView(false);
 		}
 		if (stage != null && (stage.width != stageWidth || stage.height != stageHeight) && stage.width > 0) {
 			// (the canvas stays where it is when the window is resized: fitted at the first size, or a phone's turn)
-			var first = stageWidth <= 0 || compact.peek();
+			var first = stageWidth <= 0 || compactNow;
 			stageWidth = stage.width;
 			stageHeight = stage.height;
 			stageSize(v -> v + 1);
@@ -283,11 +296,65 @@ class Studio {
 		log("page", {page: page});
 	}
 
-	// the inspector's sheet opened or closed (compact), the zoomed screen fitted above it
-	public function toggleSheet() {
-		sheetOpen(!sheetOpen.peek());
+	// compact: a sheet opened from the bar (at half; the prompt at peek), or
+	// closed when it is the one open; the frame in focus fitted above it
+	public function openSheet(name:String) {
+		if (sheetNow == name) setSheet(null, detentNow) else {
+			setSheet(name, name == "ask" ? "peek" : "half");
+			if (name == "code") refreshCode();
+		}
+		fitView(true);
+		log("sheet", {sheet: sheetNow, detent: detentNow});
+	}
+
+	// the sheet's height at a detent (stage points)
+	public function sheetHeight(d:String):Float {
+		stageSize();
+		var h = Math.max(200, stageHeight - Theme.BAR);
+		return switch d {
+			case "peek": Theme.SHEET_PEEK;
+			case "full": h - 8;
+			case _: Math.round(h * 0.5);
+		}
+	}
+
+	// the handle tapped: up a detent (full: back to half)
+	public function raiseSheet() {
+		setSheet(sheetNow, switch detentNow {
+			case "peek": "half";
+			case "half": "full";
+			case _: "half";
+		});
 		fitView(true);
 	}
+
+	// the handle let go at height h, moving at vy (points a second, down
+	// positive): flung down from peek or dragged below it, away; else the
+	// nearest detent (a fling one further)
+	public function settleSheet(h:Float, vy:Float) {
+		var peek = sheetHeight("peek");
+		if (h < peek * 0.6 || (vy > 900 && h < sheetHeight("half"))) {
+			if (vy > 900 && h >= peek * 0.6 && detentNow != "peek") setSheet(sheetNow, "peek") else setSheet(null, detentNow);
+		} else {
+			var best = "half", d = 1e9;
+			for (x in ["peek", "half", "full"]) {
+				var target = h - (vy > 900 ? 120 : vy < -900 ? -120 : 0);
+				var e = Math.abs(sheetHeight(x) - target);
+				if (e < d) {
+					d = e;
+					best = x;
+				}
+			}
+			setSheet(sheetNow, best);
+		}
+		fitView(true);
+		log("sheet", {sheet: sheetNow, detent: detentNow});
+	}
+
+	// (compact: a choice made in a sheet lowers it to peek, the canvas in view)
+	public function lower()
+		if (compactNow && sheetNow != null && sheetNow != "code") setSheet(sheetNow, "peek");
+
 
 	// (the mode just set: a signal's write lands at the end of the event, and a fit after it in the same event needs it)
 	var modeNow = "design";
@@ -309,24 +376,31 @@ class Studio {
 	function fitTo(name:Null<String>, fly:Bool, ?m:String) {
 		if (stageWidth <= 0) return;
 		var code = (m ?? modeNow) == "code";
-		var small = compact.peek(), i = insets(m);
+		var small = compactNow, i = insets(m);
 		var v = if (name == null) {
 			var b = layout.bounds();
 			Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, i.right, i.bottom, i.top + Theme.TITLES, i.left);
 		} else {
 			var r = layout.rect(name);
 			if (r == null) return;
-			if (small) Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 14, 0, code ? 0 : (sheetOpen.peek() ? Theme.SHEET : Theme.SHEET_PEEK) + 8, 18)
+			if (small) Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 14, 0, i.bottom, i.top + 20)
 			else Camera.fit(r.x, r.y, r.w, r.h, stageWidth, stageHeight, 22, i.right, i.bottom, i.top + 14, i.left);
 		}
 		if (fly) camera.fly(v.x, v.y, v.k) else camera.jump(v.x, v.y, v.k);
 	}
 
+	// (compact as just measured: its signal's write lands at the frame's end, a fit after it in the same frame needs it)
+	var compactNow = false;
+
 	// the stage's points the cards cover (the canvas is under them): the
 	// sidebar and the code at the left, the inspector at the right, the
 	// toolbar above, the prompt bar below; compact, none
 	public function insets(?m:String):{left:Float, right:Float, top:Float, bottom:Float} {
-		if (compact.peek()) return {left: 0, right: 0, top: 0, bottom: Theme.ASK_SPACE};
+		if (compactNow) {
+			// (the sheet open, at most at half: at full the canvas is under it anyway)
+			var d = detentNow, open = sheetNow == null ? 0 : sheetHeight(d == "full" ? "half" : d);
+			return {left: 0, right: 0, top: Theme.TOPBAR, bottom: Theme.BAR + open};
+		}
 		var code = (m ?? modeNow) == "code", g = Theme.GAP;
 		return {
 			left: Theme.SIDEBAR + g + (code ? Shell.codeWidth(this) + g : 0),
@@ -1010,7 +1084,7 @@ class Studio {
 	// on the canvas, code in the code view, an image or a font in its
 	// viewer (FileView), anything else as text when it reads as text
 	public function openFile(e:FileTree.FileEntry) {
-		drawer(false);
+		lower();
 		switch e.kind {
 			case Dir:
 				tree.toggle(e);

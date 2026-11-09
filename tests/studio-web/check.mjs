@@ -21,9 +21,10 @@
 //   read, patched (undone from the header), its tree, its frame's PNG
 //   (drawn into a render target); a deflated (z.) link; a Haxe app
 //   (examples/signup) from a link, built at its open;
-// - phone (390 x 844, touch): the same project in the compact layout, a
-//   screen tapped, the inspector a bottom sheet, the title tapped, its
-//   colour patched, a pinch zooming the canvas, the screens' drawer;
+// - phone (390 x 844, touch): the same project in the compact layout, the
+//   files' sheet from the bar, a frame picked in it, the title
+//   double-tapped, the inspector's sheet, its colour patched, a pinch
+//   zooming the canvas, another frame from the files' sheet;
 // - 50 screens (tests/story/host/host.mjs project): opened, the time to
 //   every screen shown, the memory (the studio's module, the preview's,
 //   the page's JavaScript), the frames each screen drew.
@@ -320,24 +321,32 @@ async function recolour(pg, x, y, tap) {
 	await ctx.close();
 }
 
-// ---- phone (touch, compact: the inspector a bottom sheet, the screens' list a drawer)
+// ---- phone (touch, compact: the panels sheets over the canvas, switched by the bar)
 {
 	const pg = await page({ width: 390, height: 844 }, true);
 	const shown = await openExample(pg, 'Todo');
 	check(shown && shown.screens === 4, `phone: all 4 screens shown (${shown?.ms} ms)`);
 	await pg.waitForTimeout(400);
 	await golden(pg, 'phone-overview');
-	await pg.touchscreen.tap(195, 320);
+	// (the files' sheet from the bar, a frame picked in it: selected, flown to, the sheet lowered to peek)
+	check(await press(pg, 'Files'), 'phone: the files\' sheet opened from the bar');
+	await pg.waitForTimeout(600);
+	check(await press(pg, 'Todo/Three items'), 'phone: a frame picked in the files\' sheet');
 	await pg.waitForTimeout(1600);
 	await golden(pg, 'phone-zoomed');
-	await pg.touchscreen.tap(60, 120);
-	const sel = await event(pg, 'selected');
-	check(sel && sel.tag === 'text' && sel.screen === 'Todo/Three items', 'phone: the title tapped and selected: ' + JSON.stringify(sel && [sel.screen, sel.tag, sel.rect]));
+	// (a double tap: the frame entered, its title selected)
+	await pg.touchscreen.tap(52, 210);
+	await pg.waitForTimeout(80);
+	await pg.touchscreen.tap(52, 210);
+	const sel = await event(pg, 'selected', (e) => e.tag !== 'Frame');
+	check(sel && sel.tag === 'text' && sel.screen === 'Todo/Three items', 'phone: the title double-tapped and selected: ' + JSON.stringify(sel && [sel.screen, sel.tag, sel.rect]));
 	await pg.waitForTimeout(500);
+	check(await press(pg, 'Inspect'), 'phone: the inspector\'s sheet opened from the bar');
+	await pg.waitForTimeout(800);
 	await pg.screenshot({ path: path.join(out, 'phone-selected.png') });
-	const p = await recolour(pg, 110, 782, true);
+	const p = await recolour(pg, 250, 730, true);
 	numbers.push(['phone patch', p]);
-	check(red(await pixel(pg, 60, 120)), 'phone: the title red in the studio\'s canvas');
+	check(red(await pixel(pg, 52, 212)), 'phone: the title red in the studio\'s canvas');
 	// two fingers apart over the canvas: zoomed in
 	const cdp = await pg.context().newCDPSession(pg);
 	const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
@@ -352,10 +361,10 @@ async function recolour(pg, x, y, tap) {
 	check(pinch && pinch.k > 1, `phone: a pinch zooms the canvas in (k ${pinch?.k})`);
 	await pg.waitForTimeout(300);
 	await pg.screenshot({ path: path.join(out, 'phone-pinched.png') });
-	check(await press(pg, 'Screens'), 'phone: the screens\' drawer opened from the header');
+	check(await press(pg, 'Files'), 'phone: the files\' sheet opened again');
 	await pg.waitForTimeout(600);
-	await pg.screenshot({ path: path.join(out, 'phone-drawer.png') });
-	check(await press(pg, 'Todo/Done'), 'phone: a screen chosen in the drawer');
+	await pg.screenshot({ path: path.join(out, 'phone-files.png') });
+	check(await press(pg, 'Todo/Done'), 'phone: another frame chosen in it');
 	await pg.waitForTimeout(1600);
 	await pg.screenshot({ path: path.join(out, 'phone-done.png') });
 	await pg.context().close();

@@ -45,12 +45,13 @@ class Theme {
 	public static inline var TITLES = 30;
 
 	// compact: a window narrower than this (a phone, a tablet upright) has
-	// the screens' list as a drawer and the inspector as a bottom sheet,
-	// SHEET tall open, SHEET_PEEK closed (its handle and the selection's name)
+	// its panels as sheets over the canvas (Sheets): a sheet peeking this
+	// tall (its handle and its first row), the bar switching them, the top
+	// bar (where you are, undo, Play)
 	public static inline var COMPACT = 900;
-	public static inline var SHEET = 300;
-	public static inline var SHEET_PEEK = 52;
-	public static inline var DRAWER = 280;
+	public static inline var SHEET_PEEK = 84;
+	public static inline var BAR = 60;
+	public static inline var TOPBAR = 48;
 
 	// the canvas: gaps between screens and flows, the zoom's spring
 	public static inline var SCREEN_GAP = 40;
@@ -80,10 +81,9 @@ class Theme {
 		"sel" => Color.parse("#3b82f6"),
 		"sel-soft" => Color.parse("rgba(59, 130, 246, 0.28)"),
 		"sel-halo" => Color.parse("rgba(0, 0, 0, 0.45)"),
-		// under a drawer over the canvas; a card's shadow
+		// under what covers the canvas; a card's shadow
 		"scrim" => Color.parse("rgba(5, 6, 10, 0.55)"),
 		"shade" => Color.parse("rgba(0, 0, 0, 0.35)"),
-		"transparent" => Color.TRANSPARENT,
 		// the code's hues, tuned to the darks
 		"violet" => Color.parse("#b4a0f0"),
 		"blue" => Color.parse("#7aa8f5"),
@@ -167,10 +167,9 @@ class Theme {
 			{slot: "menu-item", style: {direction: Row, alignItems: Center, columnGap: 8, height: 30, padding: [0, 10], radius: RADIUS, color: t("fg2"), cursor: Pointer}},
 			{slot: "menu-item", when: ["hover"], style: {background: t("hover"), color: t("fg")}},
 			{slot: "menu-item", when: ["data-on=true"], style: {background: t("accent-soft"), color: t("fg")}},
-			// compact: the inspector's bottom sheet, its handle; the screens' drawer
+			// compact: a sheet over the canvas, its handle
 			{slot: "sheet", style: {background: t("bg"), borderColor: t("edge"), corners: [RADIUS_L, RADIUS_L, 0, 0]}},
 			{slot: "sheet-handle", style: {width: 36, height: 4, radius: 2, background: t("edge")}},
-			{slot: "drawer", style: {background: t("bg"), borderColor: t("line")}},
 			// a frame on the canvas: a faint outline; hovered, the accent's, faint; current, the accent's
 			{slot: "screen", style: {radius: 2, background: t("bg"), borderWidth: 1, borderColor: t("line"), overflow: Hidden, cursor: Default}},
 			{slot: "screen", when: ["hover"], style: {outlineWidth: 1, outlineOffset: 0, outlineColor: t("sel-soft")}},

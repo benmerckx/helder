@@ -34,6 +34,9 @@ using StringTools;
 // canvas.helder), a double click enters a frame and selects its node,
 // Escape twice; Play: the story run in the studio, a tap in it its
 // program's (an item removed), Escape stops.
+// Then a phone's sheets (tests/studio/phone.json, 390 by 844): opened from
+// the bar, a frame picked in the files' (lowering it to peek), the handle
+// dragged up to full and flung away, the code's at half.
 // Then the sidebar's file browser (tests/studio/files.json, examples/design
 // with an image, a font and code in folders): the folders opened, the image
 // in its viewer, the font in its specimen, code in the code view; the image
@@ -67,6 +70,7 @@ class Check {
 		}
 		design(File.getContent("examples/design/app.helder"), File.getContent('$dir/design/app.helder'), events('$dir/design.jsonl'));
 		free(events('$dir/free.jsonl'), '$dir/free');
+		phone(events('$dir/phone.jsonl'));
 		files(File.getContent("examples/design/app.helder"), File.getContent('$dir/files/app.helder'), events('$dir/files.jsonl'), '$dir/files');
 		Sys.println("studio: | | cold start to first frame | open to all screens shown | inspector change to the program's frame |");
 		for (r in rows) Sys.println('studio: | ${r.app} | ${r.first} ms | ${r.shown} ms | ${r.patch} ms (${r.frames} studio frame(s)) |');
@@ -144,6 +148,14 @@ class Check {
 		check('free: Play runs the selected story in the studio', play != null && play.kind == "story" && play.screen == "Todo/Three items" && play.target == "studio", Json.stringify(play));
 		check('free: a tap in the player is the story\'s (Call Ana removed), Escape stops',
 			stopped != null && (stopped.texts : Array<String>).contains("Buy milk") && !(stopped.texts : Array<String>).contains("Call Ana"), Json.stringify(stopped));
+	}
+
+	static function phone(ev:Array<Dynamic>) {
+		var sheets = [for (e in ev) if (e.event == "sheet") e.sheet == null ? "none" : e.sheet + " " + e.detent];
+		check('phone: the sheets opened from the bar, the handle dragged up to full and flung away, the code at half',
+			sheets.join(", ") == "files half, inspect half, inspect full, none, code half", sheets.join(", "));
+		var focused:Dynamic = Lambda.find(ev, e -> e.event == "focused");
+		check('phone: a frame picked in the files\' sheet', focused != null && focused.screen == "app.helder#Home", Json.stringify(focused));
 	}
 
 	static function files(original:String, final_:String, ev:Array<Dynamic>, dir:String) {

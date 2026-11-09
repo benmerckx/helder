@@ -196,8 +196,8 @@ Later, beside it:
 ## 7. The canvas, the look, phones
 
 In this order: the look first, so that the new panels and sheets are made
-in it. The look and the free canvas are built (README.md); the screens are
-not tiled yet.
+in it. The look, the free canvas, Play and phones' sheets are built
+(README.md); the screens are not tiled yet.
 
 - **The look** (the direction: Spacedrive's interface): cool, blue-tinted
   darks instead of neutral greys (the canvas darkest, panels a step up,
@@ -232,7 +232,7 @@ not tiled yet.
   `helder dev` of the app, hot reload kept), a phone (`helder dev --target
   android` to a connected one; a QR code of the web build's page where a
   server exists, later), a browser's tab (the web build).
-- **Phones: sheets, not tabs.** The canvas always underneath (pinch to
+- **Phones: sheets, not tabs** (built: README.md's "Touch: sheets"). The canvas always underneath (pinch to
   zoom, one finger to pan, a tap to select, a double tap to enter); pages
   and layers, the inspector, the code and the prompt as sheets over it,
   one at a time, with detents (peek, half, full), dragged by a handle,
