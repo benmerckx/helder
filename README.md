@@ -1297,6 +1297,18 @@ motion as property tracks and a timeline definition; a code editor widget;
 video encoding; the editor's building blocks (an infinite canvas, handles,
 snapping, docked panels).
 
+**Design files** (planned, apps/studio/DESIGN.md): the canvas's own work
+as markup the studio renders at once, with no build (helder.markup.Plan's
+steps run directly), compiled into apps by the markup macro like any
+literal. A `<Frame>` holds design markup, a component, a story or the
+app at a route; flows and timelines are markup that builds keep
+(navigation, motion), positions and notes markup they drop. Named parts
+imported from code (`import {Logo} from './brand.helder'`), checked and
+typed, live both ways; "upgrade to code" moves a part into a `.hx` or
+`.tsx` component, its frame keeping the instance. First: tokens and
+themes, variants and slots, sample data, a fixed set of interactions,
+helder.ui's elements as data.
+
 ### 7. Later
 
 - **Routing between screens**, as Flutter's Navigator and go_router or

@@ -259,6 +259,9 @@ runs through shared memory).
 
 ## Not yet
 
+- Design files (DESIGN.md): frames drawn from markup at once, without
+  running the program; parts of them used from code.
+
 - A zoomed screen is drawn at the canvas' scale in halves up to 3, not
   tiled: deeper zooms scale its frame.
 - A story's shortcuts bound at a module's start (Keymap.global there) are
