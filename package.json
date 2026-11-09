@@ -8,7 +8,11 @@
     "apps/studio/src/",
     "apps/studio/fonts/",
     "apps/studio/web/",
-    "apps/studio/package.json"
+    "apps/studio/package.json",
+    "!**/*.test.hx",
+    "!**/*.test.ts",
+    "!**/*.snap",
+    "!src/helder/os/audio/VorbisFixture.hx"
   ],
   "bin": {
     "helder": "src/helder/cli/run.mjs"
@@ -86,12 +90,13 @@
     "site:numbers": "node site/numbers.mjs",
     "site:reel": "node site/reel.mjs"
   },
+  "dependencies": {
+    "@hxmc/cli": "0.1.0-nightly.20261106.a37a53a"
+  },
   "peerDependencies": {
-    "@hxmc/cli": ">=0.1.0-0",
     "typescript": ">=7.1.0-0"
   },
   "devDependencies": {
-    "@hxmc/cli": "0.1.0-nightly.20261106.a37a53a",
     "@hxmc/source": "0.1.0-nightly.20261106.a37a53a",
     "@typescript/typescript-wasip1-wasm": "7.1.0-dev.20261106.1",
     "typescript": "7.1.0-dev.20261106.1"

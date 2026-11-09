@@ -1,0 +1,161 @@
+# helder's nightlies on npm (src/helder/cli/README.md, "From npm"):
+# `helder` and its platform packages @helder.build/<os>-<cpu> at
+# 0.1.0-nightly.<yyyymmdd>.<commit>, npm's tag next (latest untouched).
+# Nightly, when main has changed since the last published one (the commit
+# that ends `npm view helder@next version`), or by hand (workflow_dispatch).
+# - build: the packages by src/helder/cli/npm.mjs (the CLI and helder's
+#   compiler, built by hxmc, which cross-compiles): linux-x64, linux-arm64,
+#   win32-x64 and win32-arm64 on Linux, darwin-arm64 and darwin-x64 on
+#   macOS (arm64; x64 cross-compiled there), packed (npm pack keeps the
+#   executables' modes, an artifact would not);
+# - smoke: the tarballs installed into an empty project on Linux (x64,
+#   arm64), macOS (arm64) and Windows (x64), then `npx helder build` on
+#   examples/counter (Haxe) and examples/ts-counter (TypeScript), natively
+#   and --target web;
+# - publish: the platform packages, then helder (with provenance); one
+#   already on npm at this version is left as it is.
+# Secret:
+#   NPM_TOKEN   a granular npm token with publish rights on helder and the
+#               @helder.build scope; without it the run ends after the smoke
+#               job with a notice, nothing published
+name: npm
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      changed: ${{ steps.v.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: The nightly's version, and whether main changed since the last
+        id: v
+        run: |
+          commit=$(git rev-parse --short=7 HEAD)
+          v="$(node -p "require('./package.json').version")-nightly.$(date -u +%Y%m%d).$commit"
+          last=$(npm view helder@next version 2>/dev/null || true)
+          changed=true
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ] && [ "${last##*.}" = "$commit" ]; then changed=false; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "helder $v (last on next: ${last:-none}; changed: $changed)"
+
+  build:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platforms: linux-x64 linux-arm64 win32-x64 win32-arm64
+            main: true
+          - runner: macos-15
+            platforms: darwin-arm64 darwin-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: The packages
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -e
+          node src/helder/cli/npm.mjs version "$VERSION"
+          node src/helder/cli/npm.mjs ${{ matrix.platforms }}
+          mkdir -p bin/npm/tgz
+          for p in ${{ matrix.platforms }}; do npm pack "./bin/npm/$p" --pack-destination bin/npm/tgz; done
+          if [ "${{ matrix.main }}" = "true" ]; then npm pack --pack-destination bin/npm/tgz; fi
+          ls -la bin/npm/tgz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm-${{ matrix.runner }}
+          path: bin/npm/tgz/*.tgz
+          if-no-files-found: error
+
+  smoke:
+    needs: [version, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v7
+        with:
+          path: tgz
+          merge-multiple: true
+      - name: Installed into an empty project
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -e
+          p=$(node -p "process.platform + '-' + process.arch")
+          ts=$(node -p "require('./package.json').devDependencies.typescript")
+          mkdir -p "$RUNNER_TEMP/app" && cd "$RUNNER_TEMP/app"
+          echo '{"name": "app", "private": true}' > package.json
+          npm install --no-audit --no-fund "$GITHUB_WORKSPACE/tgz/helder-$VERSION.tgz" "$GITHUB_WORKSPACE/tgz/helder.build-$p-$VERSION.tgz" "typescript@$ts"
+          cp "$GITHUB_WORKSPACE/examples/counter/Counter.hx" "$GITHUB_WORKSPACE/examples/ts-counter/main.tsx" .
+      - name: npx helder build, natively and for the web
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          set -e
+          npx helder build Counter.hx
+          npx helder build Counter.hx --target web
+          npx helder build main.tsx
+          npx helder build main.tsx --target web
+          ls bin/web/Counter.wasm bin/web/app.wasm bin/*/Counter* bin/*/app*
+
+  publish:
+    needs: [version, smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v7
+        with:
+          path: tgz
+          merge-multiple: true
+      - name: Publish (platform packages first, then helder)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -e
+          if [ -z "$NODE_AUTH_TOKEN" ]; then echo "::notice::no NPM_TOKEN secret: helder $VERSION built and smoke-tested, not published"; exit 0; fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::notice::not main ($GITHUB_REF): not published"; exit 0; fi
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64 win32-arm64; do
+            if npm view "@helder.build/$p@$VERSION" version >/dev/null 2>&1; then echo "@helder.build/$p@$VERSION is on npm"; continue; fi
+            npm publish "tgz/helder.build-$p-$VERSION.tgz" --provenance --access public --tag next
+          done
+          if npm view "helder@$VERSION" version >/dev/null 2>&1; then echo "helder@$VERSION is on npm"; exit 0; fi
+          npm publish "tgz/helder-$VERSION.tgz" --provenance --access public --tag next

@@ -29,6 +29,8 @@ class Compiler {
 	static function find():String {
 		var env = Sys.getEnv("HAXE");
 		if (env != null && env != "") return env;
+		var prebuilt = Sys.getEnv("HELDER_COMPILER");
+		if (prebuilt != null && FileSystem.exists(prebuilt)) return helders = prebuilt;
 		var hxmc = native();
 		var build = locate("src/helder/compiler/build.mjs") ?? locate("node_modules/helder/src/helder/compiler/build.mjs");
 		if (build == null) return hxmc;

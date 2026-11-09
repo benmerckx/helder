@@ -1,33 +1,50 @@
 #!/usr/bin/env node
-// The helder command from this checkout (`bun run helder <command> ...`), or
-// from an app's node_modules (package.json's bin: `bun run helder`, `npx helder`):
-// bin/cli/helder built by hxmc (helder.cli.Cli, on helder.async) when a
-// source of it is newer, then run in the working directory with the
-// arguments. The binary on npm comes later.
+// The helder command (package.json's bin: `npx helder`, `bun run helder`),
+// run in the working directory with the arguments:
+// - installed from npm: the platform package's (@helder.build/<os>-<cpu>,
+//   an optional dependency: bin/helder, helder.cli.Cli, and
+//   bin/helder-compiler, helder's compiler, which HELDER_COMPILER names),
+//   given what @hxmc/cli's launcher gives its compiler (the std, hxmc's,
+//   the runtime objects);
+// - in this checkout (`bun run helder <command> ...`): bin/cli/helder built
+//   by hxmc when a source of it is newer.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
 // (fileURLToPath: a URL's pathname is /C:/... on Windows)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const exe = path.join(root, 'bin/cli', process.platform === 'win32' ? 'helder.exe' : 'helder');
+const ext = process.platform === 'win32' ? '.exe' : '';
+const platform = `${process.platform}-${process.arch}`;
+const require = createRequire(path.join(root, 'package.json'));
+const resolve = (name) => {
+	try {
+		return path.dirname(require.resolve(`${name}/package.json`));
+	} catch {
+		return null;
+	}
+};
+const prebuilt = resolve(`@helder.build/${platform}`);
+if (prebuilt) {
+	const { toolEnv } = await import(pathToFileURL(path.join(resolve('@hxmc/cli'), 'hxmc/bootstrap/launcher.mjs')));
+	const env = toolEnv({ HELDER_COMPILER: path.join(prebuilt, 'bin', 'helder-compiler' + ext), HELDER_SRC: process.env.HELDER_SRC || path.join(root, 'src') });
+	const r = spawnSync(path.join(prebuilt, 'bin', 'helder' + ext), process.argv.slice(2), { stdio: 'inherit', env });
+	if (r.error) console.error(`helder: ${r.error.message}`);
+	process.exit(r.status ?? 1);
+}
+// (an install without it: npm's --omit=optional, or no build for this machine)
+if (root.split(path.sep).includes('node_modules')) {
+	console.error(`helder: no helder command for ${platform} (@helder.build/${platform} is not installed)`);
+	process.exit(1);
+}
+
+const exe = path.join(root, 'bin/cli', 'helder' + ext);
 // (the compiler through its launcher, run by this node: node will not spawn a
 // .cmd without a shell, node_modules/.bin's haxe.cmd on Windows)
-// (@hxmc/cli: this checkout's, else where the app's install put it: helder
-// as a dependency has its peer beside it, not under it)
-function hxmcCli() {
-	const own = path.join(root, 'node_modules/@hxmc/cli');
-	if (fs.existsSync(own)) return own;
-	for (const from of [path.join(process.cwd(), 'package.json'), path.join(root, 'package.json')])
-		try {
-			return path.dirname(createRequire(from).resolve('@hxmc/cli/package.json'));
-		} catch {}
-	return own;
-}
-const haxe = process.env.HAXE ? [process.env.HAXE] : [process.execPath, path.join(hxmcCli(), 'hxmc/bootstrap/haxe.mjs')];
+const haxe = process.env.HAXE ? [process.env.HAXE] : [process.execPath, path.join(resolve('@hxmc/cli') ?? path.join(root, 'node_modules/@hxmc/cli'), 'hxmc/bootstrap/haxe.mjs')];
 
 // (the newest .hx under the CLI's packages)
 function newest(dir) {

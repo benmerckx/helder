@@ -4,14 +4,15 @@
   "workspaces": {
     "": {
       "name": "helder",
-      "devDependencies": {
+      "dependencies": {
         "@hxmc/cli": "0.1.0-nightly.20261106.a37a53a",
+      },
+      "devDependencies": {
         "@hxmc/source": "0.1.0-nightly.20261106.a37a53a",
         "@typescript/typescript-wasip1-wasm": "7.1.0-dev.20261106.1",
         "typescript": "7.1.0-dev.20261106.1",
       },
       "peerDependencies": {
-        "@hxmc/cli": ">=0.1.0-0",
         "typescript": ">=7.1.0-0",
       },
       "optionalPeers": [

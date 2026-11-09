@@ -9,7 +9,7 @@ The goal (desktop and web work from this checkout: `bun run helder ...`,
 src/helder/cli/README.md; the rest is on the roadmap):
 
 ```sh
-npm install helder@nightly        # main's, published on each push that passes CI
+npm install helder@next           # main's nightly, prebuilt for macOS, Linux and Windows (x64, arm64)
 npx helder dev                    # this machine, with live reload
 npx helder dev --target web       # a page, with live reload
 npx helder build                  # bin/<target>/<name>, its compile time and size
@@ -35,7 +35,7 @@ checked by the app's TypeScript 7.1 (tsgo) and compiled to the same native
 or wasm output, with no JavaScript in it ([helder.typescript](src/helder/typescript/README.md)).
 
 ```sh
-npm install helder@nightly typescript@next   # TypeScript 7.1 (7.1.0-beta or a 7.1 nightly)
+npm install helder@next typescript@next   # TypeScript 7.1 (7.1.0-beta or a 7.1 nightly)
 ```
 
 `src/main.tsx` (examples/ts-counter, shortened):
@@ -333,8 +333,13 @@ Still to come:
   and libraries' own (as Godot's debugger; `Agent.method` is the hook), get,
   query and set on properties (as Bevy's BRP), profiler samples as a binary
   stream, node ids kept across reloads, `Runtime.evaluate`.
-- **Packaging:** the CLI on npm as a binary, one optional dependency per OS
-  and CPU (`@helder/<os>-<cpu>`, as `@hxmc/<os>-<cpu>`); name, version and
+- **Packaging:** the CLI on npm as a binary, *landed*: `helder` with one
+  optional dependency per OS and CPU (`@helder.build/<os>-<cpu>`, as
+  `@hxmc/<os>-<cpu>`: the CLI and helder's compiler prebuilt, so markup
+  anywhere and TypeScript projects build from an install, nothing built on
+  first run), nightlies under npm's tag `next` (`.github/workflows/npm.yml`,
+  smoke-tested on Linux, macOS and Windows before a publish;
+  src/helder/cli/README.md, "From npm"). Still to come: name, version and
   app id from package.json into the builds; the examples laid out as
   projects, each reloaded in CI. `helder new` and `helder doctor` wait;
   Android and iOS are phase 4.

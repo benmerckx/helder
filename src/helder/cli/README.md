@@ -9,7 +9,7 @@ says so and falls back to `node_modules/.bin/haxe`. With helder's sources
 and node at hand it builds with helder's compiler instead (src/helder/compiler:
 hxmc's with markup in any function and the TypeScript frontend, built once
 into the user's cache by `src/helder/compiler/build.mjs`), hxmc's native one
-when that does not build.
+when that does not build. Installed from npm, both come prebuilt (below).
 
 ```sh
 helder dev                                    # the project here, on this machine, live
@@ -34,6 +34,49 @@ helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's;
 helder run --target android -d emulator-5554  # built for the device's ABI, installed, started, its logcat here
 helder dev --target ios                       # on the booted simulator: installed once, each build swapped in
 ```
+
+## From npm
+
+```sh
+npm install -D helder@next        # and typescript@^7.1 for TypeScript projects
+npx helder build
+```
+
+- **`helder`** (MIT): helder's sources and types (no tests), and the
+  `helder` command, `run.mjs`: it runs this machine's platform package's
+  CLI in the working directory, `HELDER_COMPILER` naming its compiler (it
+  comes before every other one but `HAXE`: `Compiler.hx`), `HELDER_SRC`
+  this package's `src/`, and the environment @hxmc/cli's launcher gives
+  its compiler (its `toolEnv`: upstream's std, hxmc's, the runtime
+  objects' directories). Without a platform package it says so and stops;
+  in a checkout it builds bin/cli/helder as before.
+- **`@helder.build/<os>-<cpu>`** (darwin-arm64, darwin-x64, linux-x64,
+  linux-arm64, win32-x64, win32-arm64): `helder`'s optional dependencies,
+  at its version, each `bin/helder` (helder.cli.Cli) and
+  `bin/helder-compiler` (helder's compiler: hxmc's compiler sources from
+  @hxmc/source with helder's hooks and frontends), two executables: the
+  GPL compiler is not linked into the MIT CLI. Their license is `MIT AND
+  GPL-2.0-or-later`: the compiler's is hxmc's (COPYING), its README names
+  its sources (hxmc's repository at the commit @hxmc/cli was built from,
+  helder's at the package's), and both link hxmc's runtime (libuv's and
+  Mbed TLS's licenses beside them).
+- **`@hxmc/cli`**, a dependency pinned to the nightly the binaries were
+  built against: its std (`haxe/upstream/std`, `hxmc/bootstrap/hxmc-std`)
+  and, through its own optional dependencies, the runtime objects
+  (`@hxmc/<os>-<cpu>/<target>/rt.o`) the programs link with. Its compiler
+  goes unused.
+
+`node src/helder/cli/npm.mjs <os>-<cpu> ...` builds the platform packages
+into `bin/npm/<os>-<cpu>` from any host (hxmc cross-compiles; a target's
+runtime objects from npm's @hxmc/<os>-<cpu> into `bin/npm/hxmc`), at
+package.json's version; `npm.mjs version <version>` stamps package.json
+with a version and its platform packages before a publish.
+`.github/workflows/npm.yml` builds them nightly when main changed (Linux
+and macOS runners), installs the tarballs into an empty project on Linux
+(x64, arm64), macOS and Windows, builds examples/counter and
+examples/ts-counter natively and for the web there, then publishes
+(`0.1.0-nightly.<yyyymmdd>.<commit>`, npm's tag `next`) where the
+`NPM_TOKEN` secret is set.
 
 ## The grammar
 
@@ -880,6 +923,6 @@ Android and iOS, tested where:
 
 Not yet: the devtools' agent on the web (the page relaying it), the page
 held back while the module is generated (dev.mjs's `hxmc dev:
-generating`), native watchers, the CLI on npm as a binary, iOS devices
+generating`), native watchers, iOS devices
 (signing), Android's release signing, icons in the APK and the bundle,
 booting an emulator, `helder new`, `helder doctor`.

@@ -2,7 +2,9 @@
 // (helder.compiler.Compiler: markup in any function, helder.typescript), for
 // the installed @hxmc/cli, and prints its path:
 // node src/helder/compiler/build.mjs [--quiet] (--sources: hxmc's sources'
-// path instead, for tests that link them too)
+// path instead, for tests that link them too; --target <hxmc target> -o
+// <file>: built for that target into that file, not the cache, as the npm
+// packages' is: src/helder/cli/npm.mjs)
 //
 // It links hxmc's compiler sources: @hxmc/source, at @hxmc/cli's version,
 // or HXMC_SRC naming a checkout. The executable is kept in the user's cache
@@ -17,6 +19,8 @@ import {fileURLToPath} from 'node:url';
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const quiet = process.argv.includes('--quiet');
+const option = flag => process.argv.includes(flag) ? process.argv[process.argv.indexOf(flag) + 1] : null;
+const target = option('--target'), out = option('-o');
 const log = m => { if (!quiet) console.error(m); };
 
 function find(rel) {
@@ -59,22 +63,25 @@ function hashTree(dir, h) {
 	return h;
 }
 const key = ['helder/compiler', 'helder/typescript', 'helder/definition', 'helder/gfx/shader', 'helder/dev', 'helder/story', 'helder/jobs', 'helder/asset'].reduce((h, pkg) => hashTree(path.join(src, pkg), h.update(pkg)), crypto.createHash('sha256')).update(version).update(hxmc).digest('hex').slice(0, 16);
-const exe = path.join(cache, 'compiler', `${key}`, process.platform === 'win32' ? 'helder-compiler.exe' : 'helder-compiler');
-if (!fs.existsSync(exe)) {
+const exe = out ? path.resolve(out) : path.join(cache, 'compiler', `${key}`, process.platform === 'win32' ? 'helder-compiler.exe' : 'helder-compiler');
+if (out || !fs.existsSync(exe)) {
 	const t0 = Date.now();
 	fs.mkdirSync(path.dirname(exe), {recursive: true});
 	// (Windows: hxmc names an executable .exe, so the temporary one ends so)
 	const tmp = exe.replace(/(\.exe)?$/, `.${process.pid}$1`);
 	const launcher = path.join(path.dirname(cli), 'hxmc/bootstrap/haxe.mjs');
+	const linux = target ? target.startsWith('linux') : process.platform === 'linux';
 	const args = ['-cp', src, '-cp', path.join(hxmc, 'haxe/src'), '-cp', path.join(hxmc, 'hxmc/src'), '-main', 'helder.compiler.Compiler',
-		'-D', 'disable-parallelism', '-D', 'hih_no_generators', ...(process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []), '--custom-target', `hxmc=${tmp}`];
-	log(`building helder's compiler (hxmc ${version})`);
+		'-D', 'disable-parallelism', '-D', 'hih_no_generators', ...(linux ? ['-D', 'hxmc.libc=glibc'] : []), ...(target ? ['-D', `hxmc.target=${target}`] : []), '--custom-target', `hxmc=${tmp}`];
+	log(`building helder's compiler (hxmc ${version}${target ? `, ${target}` : ''})`);
 	const b = spawnSync(process.execPath, [launcher, ...args], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']});
 	if (b.status !== 0) {
 		process.stderr.write(b.stdout + b.stderr);
 		process.exit(1);
 	}
 	fs.renameSync(fs.existsSync(tmp) ? tmp : `${tmp}.exe`, exe);
+	// (a Mir host's symbols, for people: nothing reads them)
+	fs.rmSync(`${tmp}.syms`, {force: true});
 	log(`built ${exe} in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 }
 console.log(exe);

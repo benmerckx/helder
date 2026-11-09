@@ -49,4 +49,7 @@ and helder.typescript's sources, into the user's cache
 (`~/.cache/helder/compiler/`, `HELDER_CACHE` names another). It links hxmc's
 compiler sources from `@hxmc/source` (a dev dependency at `@hxmc/cli`'s
 version), or a checkout `HXMC_SRC` names; `--sources` prints their path
-instead (for tests that link them too).
+instead (for tests that link them too). `--target <hxmc target> -o <file>`
+builds it for another machine into that file instead of the cache: the npm
+packages' (src/helder/cli/npm.mjs), which the CLI runs when installed from
+npm.
