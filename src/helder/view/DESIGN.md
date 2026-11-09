@@ -712,6 +712,14 @@ the same, the lambdas aside: `{props.tags.map(t => <li>{t}</li>)}` is a
 call, bound as Haxe's is, so a static page has a region's markers around
 it (tests/typescript/helder/static.out).
 
+Done for running the steps: helder.ui.view.Interpreter, a `Target` whose
+code is closures run at once against NodeRenderer (createElement,
+setAttribute: the run-time path of every attribute's parser), for markup
+of literals alone: the studio's design files (apps/studio/DESIGN.md). A
+hole that is not a literal, an unknown element or a component is drawn
+marked in its place; the trees equal the compiled literal's
+(Interpreter.test.hx).
+
 ### 7.3 The manifest and the declarations
 
 Built with helder: each renderer's contract (the IR names of its
