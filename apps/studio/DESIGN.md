@@ -184,7 +184,43 @@ Later, beside it:
   screenshot through the agent; frames exported as PNG, SVG or PDF
   (helder.canvas, helder.pdf).
 
-## 7. Open
+## 7. The canvas, the look, phones
+
+Planned next, in this order: the look first, so that the new panels and
+sheets are made in it.
+
+- **The look** (the direction: Spacedrive's interface): cool, blue-tinted
+  darks instead of neutral greys (the canvas darkest, panels a step up,
+  fields and hover above), text in three cool greys; the sidebar and the
+  inspector as cards inset over the canvas (radius 12, an 8-point gap, a
+  faint edge) rather than regions split by hairlines; one accent, a blue,
+  for whatever is active (the selection's outline and handles, guides, the
+  current page and layer, focus); icons throughout (Lucide's, MIT, as
+  SVGs: a page's kind, a layer's element, the toolbar's buttons);
+  sections with an icon and a small-caps header, labels left and values
+  right; a frame's selected name a blue pill; radii 6, 8 and 12, hairlines
+  faint, titles medium; the code's hues on the new darks; hovers and the
+  selection eased with helder.ui's springs. The toolbar: a breadcrumb
+  (project, page, frame), a command field (secondary-K: a frame, a tool,
+  later the prompt), icon buttons; the window's own buttons in the
+  sidebar's card (helder.os's inset title bar, the roadmap's). Dark first;
+  every colour a token, so a light theme is a later addition.
+- **A free canvas**, Figma's: every frame (design, story, app) where it
+  was dragged, no rows; no mode for a screen zoomed into: a click selects
+  at any zoom, a double click enters a frame's contents; pan, zoom and
+  pinch at any time; the screens drawn at the canvas' scale, tiled past a
+  size; layers of the whole page; zoom to fit and to the selection. A
+  story's or the app's place is a `<Frame story=... canvas:at=...>` in a
+  design file: the design file is the project's canvas.
+- **Phones: sheets, not tabs.** The canvas always underneath (pinch to
+  zoom, one finger to pan, a tap to select, a double tap to enter); pages
+  and layers, the inspector, the code and the prompt as sheets over it,
+  one at a time, with detents (peek, half, full), dragged by a handle,
+  swiped away; a small bar to switch between them. The code at half
+  height leaves the canvas in view, so an edit is seen landing. The
+  desktop's docked panels are the same parts.
+
+## 8. Open
 
 - The extension (`.helder`) against a restricted `*.design.tsx` /
   `*.design.hx`: the second has editors' support for free but ties a

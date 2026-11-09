@@ -550,6 +550,21 @@ collection only when it allocates or blocks.
   scale, helder's decorations, xkbcommon, the clipboard and drops; under a
   headless weston in CI). Next: Wayland's text-input-v3 and xdg_popup,
   D-Bus's dbusmenu, a keymap editor.
+  - **next: the title bar inset into the app** (helder studio's look):
+    a window option (`titlebar: "inset"`) whose content runs under the
+    title bar, the window's buttons in the app's own layout. macOS: a
+    full-size content view, the title bar transparent, the system's
+    buttons kept and placed, a drag from the app's own regions
+    (`performWindowDragWithEvent:`). Windows: the caption removed
+    (WM_NCCALCSIZE), the resize borders kept, the buttons drawn by
+    helder, WM_NCHITTEST answering the drag regions and the maximise
+    button (Windows 11's snap layouts). Linux: Wayland's buttons drawn in
+    the app instead of helder's bar above it, the compositor's move and
+    resize; X11 undecorated, `_NET_WM_MOVERESIZE`. In markup: a
+    `drag-region` attribute, the buttons' place as `env(titlebar-area-x)`,
+    `-y`, `-width`, `-height` (the Window Controls Overlay's names, bound
+    as the safe area's are), `<WindowControls/>` drawing helder's buttons
+    where the system has none in the app.
   - **next: text's shaping and glyph rasterizing**, the spiky part of
     text (a cold atlas about 5 ms; a relayout of 10k nodes is 0.008 ms): a
     new paragraph shaped and its glyphs drawn into the atlas as GC-free
