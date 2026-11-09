@@ -222,6 +222,16 @@ not tiled yet.
   size; layers of the whole page; zoom to fit and to the selection. A
   story's or the app's place is a `<Frame story=... canvas:at=...>` in a
   design file: the design file is the project's canvas.
+- **Play** (built: README.md's "Play"): a prominent button in the
+  toolbar runs what is selected, else the app from its start: nothing or
+  the App's frame, the app (a route: from its start until routing is
+  made); a story, full size and live, its controls in a panel; a design's
+  frame, a prototype (along its flows and interactions once they exist;
+  until then the page's frames with the arrow keys). A target picker beside
+  it: in the studio (the default, the browser's only one), a window (a real
+  `helder dev` of the app, hot reload kept), a phone (`helder dev --target
+  android` to a connected one; a QR code of the web build's page where a
+  server exists, later), a browser's tab (the web build).
 - **Phones: sheets, not tabs.** The canvas always underneath (pinch to
   zoom, one finger to pan, a tap to select, a double tap to enter); pages
   and layers, the inspector, the code and the prompt as sheets over it,

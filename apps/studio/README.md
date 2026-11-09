@@ -186,6 +186,31 @@ On a design's frame the canvas edits the markup directly
   each, merged), the file's formatting kept, the frame interpreted again
   at once; undo and redo as for any edit.
 
+## Play
+
+The toolbar's Play (`Play.hx`) runs what is selected, else the app from
+its start; the target beside it says where; Stop or Escape ends it.
+
+- **In the studio** (the default; the browser's only target): a story
+  full size (fitted when it does not fit) and live: the pointer's, the
+  wheel's and the keys' events in the player go to its screen in the
+  preview host (the devtools protocol's `Input.pointer`, `Input.wheel`,
+  `Input.key`, `Input.text`), its controls in a panel beside it
+  (`Story.controls`, `Story.set`: a number, a flag, a choice, a colour, a
+  text). The app the same, when the project's program is its own (a project
+  with stories runs them, one program a project: its app plays in a window).
+  An App frame placed with a route plays from its start: routing is not
+  made yet. A design's frame plays as a prototype: its page's frames one
+  after the other with the arrow keys (flows and interactions are not made
+  yet).
+- **In a window**: `helder dev` on the project (hot reload kept, its own
+  window), with the helder that started the studio (`HELDER_CLI`, set by
+  `helder studio`); its output's last line in the player.
+- **On a phone**: `helder dev --target android`, to a connected one (no QR
+  code of the web build's page yet).
+- **In a browser's tab**: `helder dev --target web`, the page it serves
+  opened in the system's browser.
+
 ## The sidebar: the project's files
 
 The sidebar's tree is the project's folder (`FileTree`: bin/,

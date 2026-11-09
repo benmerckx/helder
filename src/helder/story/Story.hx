@@ -106,6 +106,8 @@ typedef StoryDef = {
 class Controls {
 	public final seed:Int;
 	public final list:Array<{name:String, kind:String, value:Dynamic, ?options:Array<String>}> = [];
+	// each control's signal by its name (an editor's change: the studio's Story.set)
+	public final signals:Map<String, Signal<Dynamic>> = [];
 	public final settled:Signal<Bool> = Graph.signal(true);
 
 	var state:Int;
@@ -120,7 +122,9 @@ class Controls {
 
 	function add<T>(name:String, kind:String, value:T, ?options:Array<String>):Signal<T> {
 		list.push({name: name, kind: kind, value: value, options: options});
-		return Graph.signal(value);
+		var s = Graph.signal(value);
+		signals.set(name, cast s);
+		return s;
 	}
 
 	public function number(name:String, value:Float):Signal<Float>

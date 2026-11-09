@@ -14,6 +14,12 @@ import helder.story.Host;
 //   Studio.screens {}                    {screens: [{name, width, height}]}
 //   Ui.getTree {screen}                  that screen's tree ({uis: [{root}]}, as a program's)
 //   Ui.nodesAt {screen, file, line, col}
+//   Input.pointer {screen, type, x, y, button}  a press ("down"), a move, a release ("up") in its points: the studio's Play
+//   Input.wheel {screen, x, y, dx, dy}
+//   Input.key {screen, type, key, mods}  "down" or "up", an X11 KeySym (helder.os's)
+//   Input.text {screen, text}
+//   Story.controls {screen}               {controls: [{name, kind, value, options}]}, their values now
+//   Story.set {screen, name, value}       a control set
 //
 // and anything else naming a screen is the program's agent's, run with
 // that screen's context current (Hot.literals names none: every screen's
@@ -46,7 +52,8 @@ class HostAgent {
 				answer({});
 			case "Studio.screens":
 				answer({screens: list(host)});
-			case "Host.snap" | "Ui.getTree" | "Ui.nodesAt" if (s == null || s.ui == null):
+			case "Host.snap" | "Ui.getTree" | "Ui.nodesAt" | "Input.pointer" | "Input.wheel" | "Input.key" | "Input.text" | "Story.controls" | "Story.set"
+				if (s == null || s.ui == null):
 				if (m.id != null) Agent.respond(m.id, null, {code: -32602, message: 'no screen ${p.screen} shown'});
 			case "Host.snap":
 				answer(onSnap == null ? null : onSnap(s, p.path));
@@ -54,6 +61,34 @@ class HostAgent {
 				answer(s.run(() -> helder.ui.DevTree.treeOf([s.ui])));
 			case "Ui.nodesAt":
 				answer(s.run(() -> helder.ui.DevTree.nodesAtOf([s.ui], p)));
+			case "Input.pointer":
+				var x:Float = p.x, y:Float = p.y, b = p.button == null ? 1 : Std.int(p.button);
+				s.run(() -> switch (p.type : String) {
+					case "down": s.ui.pointerDown(x, y, b);
+					case "up": s.ui.pointerUp(x, y, b);
+					case _: s.ui.pointerMove(x, y);
+				});
+				answer({});
+			case "Input.wheel":
+				s.run(() -> s.ui.wheel(p.x, p.y, p.dx, p.dy));
+				answer({});
+			case "Input.key":
+				var key = Std.int(p.key), mods = p.mods == null ? 0 : Std.int(p.mods);
+				s.run(() -> if (p.type == "up") s.ui.keyUp(key, mods) else s.ui.keyDown(key, mods));
+				answer({});
+			case "Input.text":
+				s.run(() -> s.ui.textInput(Std.string(p.text)));
+				answer({});
+			case "Story.controls":
+				var c = s.controls;
+				answer({controls: c == null ? [] : [for (x in c.list) {name: x.name, kind: x.kind, value: c.signals.get(x.name).peek(), options: x.options}]});
+			case "Story.set":
+				var sig = s.controls?.signals.get(Std.string(p.name));
+				if (sig != null) s.run(() -> {
+					sig(p.value);
+					helder.view.graph.Graph.flush();
+				});
+				answer({ok: sig != null});
 			case _:
 				if (s == null) return false;
 				s.run(() -> Agent.dispatch(m));

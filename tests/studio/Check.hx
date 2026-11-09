@@ -29,6 +29,11 @@ using StringTools;
 // the selection with shift and taken from it; the title's layer dragged
 // below the input row; both undone (the resize one entry); every edit's
 // span applying in order, the file with the move and the colour alone.
+// Then the free canvas (tests/studio/free.json, examples/todo): a click
+// selects a frame, a story moved by its caption (its place made in
+// canvas.helder), a double click enters a frame and selects its node,
+// Escape twice; Play: the story run in the studio, a tap in it its
+// program's (an item removed), Escape stops.
 // Then the sidebar's file browser (tests/studio/files.json, examples/design
 // with an image, a font and code in folders): the folders opened, the image
 // in its viewer, the font in its specimen, code in the code view; the image
@@ -133,7 +138,12 @@ class Check {
 			&& ~/<Frame story="Todo.story.hx#done" canvas:at="-?[0-9]+ -?[0-9]+"\/>/.match(canvas), canvas);
 		var entered = all("entered")[0], sel:Dynamic = Lambda.find(all("selected"), e -> e.screen == "Todo/Empty");
 		check('free: a double click enters a frame and selects its node there', entered != null && entered.screen == "Todo/Empty" && sel != null && sel.tag == "scroll", Json.stringify(sel));
-		check('free: Escape leaves the frame, then selects nothing', focused.slice(-2).join(",") == "Todo/Empty,", focused.join(", "));
+		var esc = focused.indexOf("");
+		check('free: Escape leaves the frame, then selects nothing', esc > 0 && focused[esc - 1] == "Todo/Empty", focused.join(", "));
+		var play = all("play")[0], stopped = all("stopped")[0];
+		check('free: Play runs the selected story in the studio', play != null && play.kind == "story" && play.screen == "Todo/Three items" && play.target == "studio", Json.stringify(play));
+		check('free: a tap in the player is the story\'s (Call Ana removed), Escape stops',
+			stopped != null && (stopped.texts : Array<String>).contains("Buy milk") && !(stopped.texts : Array<String>).contains("Call Ana"), Json.stringify(stopped));
 	}
 
 	static function files(original:String, final_:String, ev:Array<Dynamic>, dir:String) {

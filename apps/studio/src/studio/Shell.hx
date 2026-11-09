@@ -57,7 +57,11 @@ class Shell implements Markup {
 				<view tag="file-card" slot="card" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={Theme.GAP} top={Theme.HEADER + Theme.GAP}
 					bottom={Theme.GAP} transition="fade" motion="snappy">{FileView.view(studio)}</view>
 			</Show>
-			<Show when={studio.mode() != "code" && studio.mode() != "file"}>
+			<Show when={studio.playing() != null}>
+				<view tag="player-card" slot="card" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={Theme.GAP} top={Theme.HEADER + Theme.GAP}
+					bottom={Theme.GAP} transition="fade scale" motion="snappy">{Play.view(studio)}</view>
+			</Show>
+			<Show when={studio.mode() != "code" && studio.mode() != "file" && studio.playing() == null}>
 				<view tag="inspector-card" slot="card" position="absolute" right={Theme.GAP} top={Theme.GAP} bottom={Theme.GAP} width={Theme.INSPECTOR}
 					onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>{Inspector.card(studio)}</view>
 			</Show>
@@ -84,7 +88,7 @@ class Shell implements Markup {
 
 	// the toolbar over the canvas: where you are, the command field, the buttons
 	static function toolbar(studio:Studio):View
-		return <view tag="header" drag-region position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={studio.mode() == "code" || studio.mode() == "file" ? Theme.GAP : Theme.INSPECTOR + 2 * Theme.GAP}
+		return <view tag="header" drag-region position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={studio.mode() == "code" || studio.mode() == "file" || studio.playing() != null ? Theme.GAP : Theme.INSPECTOR + 2 * Theme.GAP}
 			top={0} height={Theme.HEADER + Theme.GAP} padding={'${Theme.GAP} 4 0'} direction="row" align-items="center" column-gap={10}>
 			{crumbs(studio)}
 			<view grow={1} min-width={8}/>
@@ -131,6 +135,8 @@ class Shell implements Markup {
 				<view:button tag="seg-code" slot="seg-item" role="button" label="Code" focusable data-on={studio.mode() == "code" ? "true" : "false"}
 					onPress={() -> studio.setMode("code")}><image src={Icons.code} width={Theme.ICON_S} height={Theme.ICON_S}/><text>Code</text></view:button>
 			</view>
+			<view width={4}/>
+			{Play.button(studio)}
 		</view>;
 
 	// compact: a header above the canvas (the pages' drawer, where you are, the buttons)
@@ -151,6 +157,7 @@ class Shell implements Markup {
 				</Show>
 				<Show when={studio.mode() == "file"}><view grow={1} min-height={0} background={c("bg")}>{FileView.view(studio)}</view></Show>
 				<Show when={studio.mode() != "code" && studio.mode() != "file"}>{Board.view(studio)}</Show>
+				<Show when={studio.playing() != null}><view position="absolute" inset={0} background={c("canvas")}>{Play.view(studio)}</view></Show>
 			</view>
 			<Show when={studio.drawer()}>{drawer(studio)}</Show>
 		</view>;

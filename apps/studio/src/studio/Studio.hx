@@ -61,6 +61,16 @@ class Studio {
 	public final compact = signal(false);
 	public final drawer = signal(false);
 	public final sheetOpen = signal(true);
+	// what plays (Play: null, nothing), where (Play.targets), a target's last
+	// line of output, the story's controls (Story.controls)
+	public final playing:Signal<Null<Play.Playing>> = signal(null);
+	public final target = signal("studio");
+	public final playLog = signal("");
+	public final playControls:Signal<Array<Dynamic>> = signal([]);
+	#if !(hxmc.target == "wasm32-wasi")
+	var targetProcess:Null<Process> = null;
+	#end
+
 	// the sidebar's layers shown (its section's header closes it)
 	public final layersOpen = signal(true);
 	// the command field's list open (secondary-K: Command)
@@ -220,6 +230,14 @@ class Studio {
 			var most = r == null ? 3.0 : 4096 / Math.max(1, Math.max(r.w, r.h));
 			focusScale = Math.max(1, Math.min(Math.min(3, most), Math.ceil(px * 2 - 0.05) / 2));
 		}
+		// (what plays: drawn every frame at the display's scale)
+		var play = playing.peek();
+		var live = play == null || play.kind == "design" || play.kind == "target" ? null : play.screen;
+		if (live != null) {
+			if (!names.contains(live)) names.push(live);
+			pr.show(names, live, Main.window == null ? 1.0 : Math.min(3, Main.window.renderer.scale));
+			return;
+		}
 		pr.show(names, mode.peek() == "stories" ? null : focused.peek(), focused.peek() == null ? 1 : focusScale);
 	}
 
@@ -249,9 +267,9 @@ class Studio {
 	// (the last click on the stage: a second one soon and near is a double click)
 	var lastClick = {t: -1.0, x: 0.0, y: 0.0};
 
-	// Escape: out of a frame's contents (the frame selected), else nothing selected
+	// Escape: out of Play, out of a frame's contents (the frame selected), else nothing selected
 	public function escape() {
-		if (commandOpen.peek()) commandOpen(false) else if (entered.peek() && focused.peek() != null) focus(focused.peek(), false) else if (focused.peek() != null) focus(null, false);
+		if (playing.peek() != null) stopPlay() else if (commandOpen.peek()) commandOpen(false) else if (entered.peek() && focused.peek() != null) focus(focused.peek(), false) else if (focused.peek() != null) focus(null, false);
 	}
 
 	// a page's screens (a design file's, a story flow's) fitted, none zoomed into
@@ -356,6 +374,120 @@ class Studio {
 			return;
 		}
 		pick(hit.name, wx - hit.x, wy - hit.y, add);
+	}
+
+	// Play: what is selected, else the app from its start (Play's notes)
+	public function play() {
+		if (project == null) return;
+		var t = target.peek();
+		if (t != "studio") {
+			launch(t);
+			return;
+		}
+		var f = focused.peek(), info = f == null ? null : project.screen(f);
+		var app = Lambda.find(project.screens, s -> s.source.match(App));
+		var p:Play.Playing = switch info?.source {
+			case Story(_): {kind: "story", screen: info.name, note: "a story, live: its input the program's"};
+			case Design(_): {kind: "design", screen: info.name, note: "a prototype: the arrow keys go through the page's frames (flows are not made yet)"};
+			case _ if (app != null):
+				{kind: "app", screen: app.name, note: info != null && info.place != null ? "routes are not made yet: the app from its start" : "the app from its start"};
+			case _:
+				var first = Lambda.find(project.screens, s -> s.source.match(Design(_)));
+				if (first != null) {kind: "design", screen: first.name, note: "no app to run: the first frame as a prototype"}
+				else {kind: "story", screen: project.screens[0]?.name, note: "this project's program is its stories': the app runs in a window (the target beside Play)"};
+		}
+		playing(p);
+		playControls([]);
+		if (p.kind == "story" && p.screen != null) {
+			var s = previews?.screen(p.screen);
+			if (s != null) previews.request(s, "Story.controls", {}, r -> playControls(r?.controls ?? []));
+		}
+		log("play", {kind: p.kind, screen: p.screen, target: t});
+	}
+
+	public function stopPlay() {
+		#if !(hxmc.target == "wasm32-wasi")
+		var tp = targetProcess;
+		targetProcess = null;
+		if (tp != null) tp.kill();
+		#end
+		// (for checks: the played screen's texts as it was left)
+		var p = playing.peek(), s = p?.screen == null || p.kind == "design" ? null : previews?.screen(p.screen);
+		if (s != null) previews.request(s, "Ui.getTree", {}, r -> {
+			var texts = [];
+			function walk(n:Dynamic) {
+				if (n == null) return;
+				if (n.text != null) texts.push(Std.string(n.text));
+				for (c in (n.children ?? [] : Array<Dynamic>))
+					walk(c);
+			}
+			walk(Studio.rootOf(r));
+			log("stopped", {screen: p.screen, texts: texts});
+		}) else if (p != null) log("stopped", {screen: p.screen});
+		playing(null);
+	}
+
+	// the prototype's next or previous frame (the page's, in order)
+	public function playStep(by:Int) {
+		var p = playing.peek();
+		var info = p?.screen == null ? null : project.screen(p.screen);
+		if (info == null) return;
+		var page = [for (s in project.screens) if (s.flow == info.flow && s.source.match(Design(_))) s];
+		var k = Lambda.findIndex(page, s -> s.name == info.name) + by;
+		if (k < 0 || k >= page.length) return;
+		playing({kind: p.kind, screen: page[k].name, note: p.note});
+		log("play-step", {screen: page[k].name});
+	}
+
+	// a story's control set in the program, its list read again
+	public function setControl(name:String, value:Dynamic) {
+		var p = playing.peek(), s = p?.screen == null ? null : previews?.screen(p.screen);
+		if (s == null) return;
+		previews.request(s, "Story.set", {name: name, value: value}, _ -> previews.request(s, "Story.controls", {}, r -> playControls(r?.controls ?? [])));
+		log("control", {name: name, value: value});
+	}
+
+	// another target: `helder dev` on the project (a window; Android's
+	// phone; the web, its page opened in the system's browser), its output
+	// the player's line
+	function launch(t:String) {
+		#if !(hxmc.target == "wasm32-wasi")
+		stopPlay();
+		var cli = Sys.getEnv("HELDER_CLI") ?? "helder";
+		var args = ["dev", project.dir].concat(t == "phone" ? ["--target", "android"] : t == "browser" ? ["--target", "web"] : []);
+		var p = try new Process(cli, args, {cwd: project.dir}) catch (e:Dynamic) {
+			playLog('helder dev did not start: $e');
+			null;
+		}
+		playing({kind: "target", screen: null, note: ""});
+		playLog("helder " + args.join(" "));
+		log("play", {kind: "target", target: t, args: args});
+		if (p == null) return;
+		p.closeStdin();
+		targetProcess = p;
+		var opened = false;
+		function lines(src:Stream.Source)
+			Async.launch(_ -> {
+				var r = new Reader(src), line;
+				try while ((line = r.readLine()) != null) {
+					var text = new EReg(String.fromCharCode(27) + "\\[[0-9;]*m", "g").replace(line, "").trim();
+					if (text == "") continue;
+					playLog(text);
+					var url = ~/https?:\/\/[^\s]+/;
+					if (t == "browser" && !opened && url.match(text)) {
+						opened = true;
+						var open = Sys.systemName() == "Mac" ? "open" : Sys.systemName() == "Windows" ? "explorer" : "xdg-open";
+						try new Process(open, [url.matched(0)]) catch (_:Dynamic) {}
+					}
+				} catch (_:haxe.Exception) {}
+			});
+		lines(p.stdout);
+		lines(p.stderr);
+		Async.launch(_ -> {
+			var code = p.wait();
+			if (targetProcess == p) playLog('helder dev ended (exit code $code)');
+		});
+		#end
 	}
 
 	// a story's or the app's place on the canvas: its <Frame story> or
@@ -1056,6 +1188,7 @@ class Studio {
 	}
 
 	@:coroutine public function stop() {
+		stopPlay();
 		if (previews != null) previews.stop();
 		#if !(hxmc.target == "wasm32-wasi")
 		if (events != null) events.close();

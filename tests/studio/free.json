@@ -8,6 +8,11 @@
     {"t": 2.7, "type": "key", "name": "Escape"},
     {"t": 3.0, "type": "key", "name": "Escape"},
     {"t": 3.3, "type": "key", "name": "1", "shift": true},
-    {"t": 4.0, "type": "mark", "name": "end"}
+    {"t": 4.0, "type": "tap", "tag": "screen-todo-three-items"},
+    {"t": 4.2, "type": "tap", "tag": "play"},
+    {"t": 4.8, "type": "mark", "name": "playing"},
+    {"t": 4.9, "type": "tap", "tag": "player-screen", "ox": 415, "oy": 190},
+    {"t": 5.5, "type": "key", "name": "Escape"},
+    {"t": 6.2, "type": "mark", "name": "end"}
   ]
 }

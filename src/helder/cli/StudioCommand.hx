@@ -36,7 +36,10 @@ class StudioCommand {
 		var args = [FileSystem.fullPath(dir)];
 		var port = o.value("mcp-port");
 		if (port != null) args = args.concat(["--mcp-port", port]);
-		var p = new Process(FileSystem.fullPath(exe), args.concat(o.programArgs ?? []));
+		// (the studio's Play runs `helder dev` with this helder)
+		var env = Sys.environment();
+		env.set("HELDER_CLI", Sys.programPath());
+		var p = new Process(FileSystem.fullPath(exe), args.concat(o.programArgs ?? []), {env: env});
 		p.closeStdin();
 		Async.scope(task -> {
 			task.async(_ -> Lines.forward(p.stdout, false));
