@@ -61,6 +61,7 @@ class Check {
 				image('$app-$shot.png', '$dir/$app-$shot.png', bless);
 		}
 		design(File.getContent("examples/design/app.helder"), File.getContent('$dir/design/app.helder'), events('$dir/design.jsonl'));
+		free(events('$dir/free.jsonl'), '$dir/free');
 		files(File.getContent("examples/design/app.helder"), File.getContent('$dir/files/app.helder'), events('$dir/files.jsonl'), '$dir/files');
 		Sys.println("studio: | | cold start to first frame | open to all screens shown | inspector change to the program's frame |");
 		for (r in rows) Sys.println('studio: | ${r.app} | ${r.first} ms | ${r.shown} ms | ${r.patch} ms (${r.frames} studio frame(s)) |');
@@ -120,6 +121,21 @@ class Check {
 		return {app: app, first: ff?.ms, shown: shown?.ms, patch: p?.ms, frames: p?.frames};
 	}
 
+	static function free(ev:Array<Dynamic>, dir:String) {
+		function all(name:String):Array<Dynamic>
+			return [for (e in ev) if (e.event == name) e];
+		var focused:Array<String> = [for (e in all("focused")) e.screen ?? ""];
+		check('free: a click selects a frame, the camera where it was', focused[0] == "Todo/Three items", focused.join(", "));
+		var placed = all("placed")[0], dragged = all("dragged")[0];
+		var canvas = try File.getContent('$dir/canvas.helder') catch (_:Dynamic) "";
+		check('free: a story moved by its caption: its place made in canvas.helder',
+			placed != null && placed.screen == "Todo/Done" && placed.file == "canvas.helder" && dragged != null && dragged.kind == "frame moved"
+			&& ~/<Frame story="Todo.story.hx#done" canvas:at="-?[0-9]+ -?[0-9]+"\/>/.match(canvas), canvas);
+		var entered = all("entered")[0], sel:Dynamic = Lambda.find(all("selected"), e -> e.screen == "Todo/Empty");
+		check('free: a double click enters a frame and selects its node there', entered != null && entered.screen == "Todo/Empty" && sel != null && sel.tag == "scroll", Json.stringify(sel));
+		check('free: Escape leaves the frame, then selects nothing', focused.slice(-2).join(",") == "Todo/Empty,", focused.join(", "));
+	}
+
 	static function files(original:String, final_:String, ev:Array<Dynamic>, dir:String) {
 		var opened = [for (e in ev) if (e.event == "opened") e.file + " " + e.kind];
 		check('files: the folders opened, the image, the font and the code each in its view',
@@ -162,7 +178,8 @@ class Check {
 			&& at.match(afterMove) && Std.parseInt(at.matched(1)) < 0 && afterMove == original.replace('canvas:at="0 0"', 'canvas:at="${at.matched(1)} 0"'),
 			Json.stringify(moved));
 		var x = at.matched(1);
-		var sel:Dynamic = all("selected")[0];
+		// (the frame selected first by the double click's first click, then its title)
+		var sel:Dynamic = Lambda.find(all("selected"), e -> e.tag != "Frame");
 		check('design: the title selected (its box, its element)', sel != null && sel.tag == "text" && Json.stringify(sel.rect) == "[24,56,342,35]", Json.stringify(sel));
 		var k = Lambda.findIndex(edits, (e:Dynamic) -> e.origin == "inspector");
 		var color:Dynamic = edits[k];

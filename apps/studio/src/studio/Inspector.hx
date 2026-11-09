@@ -54,6 +54,8 @@ class Inspector implements Markup {
 
 	static function title(studio:Studio):String {
 		var s = studio.selection(), f = studio.focused();
+		var frame = f == null ? null : studio.project?.screen(f);
+		if (s != null && frame != null && frame.start == s.start) return frame.label;
 		if (s != null) return s.tag;
 		if (f != null) {
 			var info = studio.project?.screen(f);

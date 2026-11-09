@@ -1,0 +1,13 @@
+{
+  "events": [
+    {"t": 0.3, "type": "mark", "name": "overview"},
+    {"t": 0.4, "type": "tap", "tag": "screen-todo-three-items"},
+    {"t": 0.9, "type": "drag", "tag": "caption-todo-done", "dx": 40, "dy": 330, "dur": 0.4},
+    {"t": 1.8, "type": "double-click", "tag": "screen-todo-empty"},
+    {"t": 2.6, "type": "mark", "name": "entered"},
+    {"t": 2.7, "type": "key", "name": "Escape"},
+    {"t": 3.0, "type": "key", "name": "Escape"},
+    {"t": 3.3, "type": "key", "name": "1", "shift": true},
+    {"t": 4.0, "type": "mark", "name": "end"}
+  ]
+}

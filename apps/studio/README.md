@@ -13,10 +13,25 @@ bun run helder studio                      # the project in this directory
 
 - **The project's files** in the sidebar (below, "The sidebar"), each
   opening in its view.
-- **All screens.** The canvas shows every screen of the project at once,
-  a row per flow. Pan with a drag or the wheel, zoom with secondary
-  (Ctrl, Cmd) and the wheel, a trackpad's pinch or two fingers. Click a
-  screen to spring into it; Escape or "All screens" goes back.
+- **A free canvas.** Every frame (a design's, a story's, the app's) is
+  where it was put, in the world's points: a design's frame at its
+  `canvas:at`, a story or the app at its `<Frame story="file#name"
+  canvas:at="x y"/>` or `<Frame app canvas:at="x y"/>` in a design file.
+  A frame without one sits right of the one before it in its page, else in
+  a row a page below the design frames; moving a story or the app the
+  first time writes its `<Frame story>` into the design file that already
+  places frames, else into `canvas.helder` at the project's root, made then
+  (a file of the canvas' own rather than an edit of the user's pages: the
+  places are the canvas', and a project without design files gets one
+  only when something is moved). Pan with a drag on the empty canvas or
+  the wheel, zoom with secondary (Ctrl, Cmd) and the wheel, a trackpad's
+  pinch or two fingers, at any time; shift-1 fits every frame, shift-2 the
+  selected one (the command field has both).
+- **Select, enter.** A click selects a frame at any zoom (the camera stays
+  where it is), its caption or itself dragged moves it; a double click
+  enters it and selects the node there, a click in it then selects
+  another; Escape leaves the frame (it stays selected), again selects
+  nothing. The sidebar's frame rows select a frame and fly to it.
 - **A screen, live.** Each story's screen is a story of the project's
   program, a dev build, running in one process for the whole project
   (each story a root of its own), offscreen at the screen's size; the
@@ -24,7 +39,7 @@ bun run helder studio                      # the project in this directory
 - **A design's frame, at once.** A design file's frames (`*.helder`,
   below) are drawn by the studio itself, interpreted from their markup:
   nothing built or run, an edit drawn again in the next frame.
-- **Select.** Click inside the screen you zoomed into: the node there is
+- **A node.** Double-click a frame's part (then click others): the node is
   selected (the program's tree: its box, and where its markup is), drawn
   as an outlined box. The inspector shows its layout (width, height,
   padding, gap), style (fill, colour, radius), text and source line.
@@ -126,9 +141,8 @@ its file's path and its name (`app.helder#Home`), so that no story's
   history), a file added or deleted shows or drops its page. A frame
   added, removed or renamed shows at once; a renamed frame keeps its focus
   and selection.
-- **Pages**: the sidebar lists each design file, each story flow and the
-  App, a page's title showing its screens (fitted, none zoomed into); the
-  canvas keeps every page's screens, a row each.
+- **Pages**: each design file is a page; its row in the sidebar's tree
+  shows its frames, a click on it fits them (none selected).
 - **Images by path** (`<image src="logo.png"/>`, an SVG too): read from
   the design file's folder, decoded by helder.image (again when the file
   changes); natively (in the browser: marked, not yet).
@@ -224,13 +238,13 @@ opens and closes it.
   GPU shares none (Mesa's llvmpipe: CI, this lane) the frames come through
   shared memory instead (a file in /dev/shm both map: helder.story.FrameFile),
   copied into the studio's texture. Only the screens in the canvas' view
-  draw: the one zoomed into every frame it changes, at the canvas' scale
+  draw: the selected one every frame it changes, at the canvas' scale
   (its pixels a point in halves, up to 3), the others at 1x when something
   in them changes; a screen out of view is suspended and its last frame
   kept.
 - **The devtools protocol on the dev connection** (src/helder/devtools,
   helder.story.HostAgent): `Host.show` (the screens in view, the one
-  zoomed into, its scale), `Host.frame` and `Host.release` (the frames'
+  selected, its scale), `Host.frame` and `Host.release` (the frames'
   textures), `Ui.getTree` and `Ui.nodesAt` naming a screen, live literals
   (`Hot.literals`: one program, every screen's next frame shows a patch),
   reloads (`Runtime.reload`: the host's state in Hot's snapshot, each
@@ -268,8 +282,8 @@ node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then s
   Web Worker, every story mounted in it as a root of its own with a
   context of its own (helder.story.Host, helder.ui.ScreenContext: its
   clock and timers, keymap, settings, safe area, dark or light; its Ui's
-  focus and theme). Only the screens in the canvas' view draw: the one
-  zoomed into every frame, the others when something in them changes; a
+  focus and theme). Only the screens in the canvas' view draw: the selected
+  one every frame, the others when something in them changes; a
   screen out of view is suspended and its last frame kept. Each frame is
   drawn on the worker's OffscreenCanvas and posted as an ImageBitmap; the
   studio's renderer uploads it (copyExternalImageToTexture) and composites
@@ -293,14 +307,14 @@ node apps/studio/web/build.mjs bin/studio-web/site examples/todo=Todo   # then s
   literals' tables come back with it, so the next colour is a patch again.
 - **Touch.** Narrower than 900 points (a phone, a tablet upright) the
   studio is compact: the screens' list a drawer from the header's
-  "Screens", the inspector a bottom sheet sliding up when a screen is
-  zoomed into (its handle opens and closes it; motion's springs), the
+  "Screens", the inspector a bottom sheet sliding up when a frame is
+  selected (its handle opens and closes it; motion's springs), the
   canvas panned with a finger and zoomed with a pinch. A phone's studio
   is this page in the system's web view.
 
 The studio-web lane (`bun run test studio-web`, tests/studio-web) drives
 it in headless Chromium: the welcome's Todo opened, all screens shown,
-one zoomed into, its title selected, its colour changed (patched, the
+one selected, its title selected, its colour changed (patched, the
 next frames showing it, the file in OPFS), at a desktop's width and a
 phone's (taps, a pinch, the drawer), the overview and zoomed states
 against goldens; and 50 screens opened and measured. The story-host lane
@@ -338,7 +352,7 @@ a free one. It prints the URL at start and writes it to
 | `project.read {path?}` | a file's text as the studio has it (its unsaved state too); without a path, the files and the screens by flow |
 | `project.patch {path, edits: [{old, new}]}` or `{path, text}` | an edit through the studio's history (undoable like any other): live literals patched in the screens, anything else built; answers what happened and the diagnostics |
 | `build.check {}` | the program typed (tsgo's check too), nothing written: diagnostics at file and line |
-| `run.snap {screen?, path?}` | a screen's last frame as a PNG (the one zoomed into, else the first); a design's frame drawn offscreen |
+| `run.snap {screen?, path?}` | a screen's last frame as a PNG (the selected one, else the first); a design's frame drawn offscreen |
 | `run.tree {screen?}` | a screen's node tree: tags, boxes, texts, colours and each node's `file:line` (a design's frame: its interpreted nodes) |
 
 Claude Code, with the studio open on a project:
@@ -422,7 +436,7 @@ for values (`fonts/`, SIL Open Font License).
 
 The studio lane (`bun run test studio`, tests/studio) runs the studio
 headless on copies of examples/todo and examples/ts-todo: all screens,
-a screen zoomed into, its title selected, its colour changed in the
+a frame selected, its title selected, its colour changed in the
 inspector, a padding added and undone, an attribute typed in the code
 view, the prompt bar's `/tree`; the files and every edit's span checked,
 the overview, zoomed and selected frames against goldens. Then on
@@ -476,8 +490,9 @@ runs through shared memory).
   host's worker, so the examples bundled are those with stories
   (examples/todo, signup, mail) and examples/design.
 
-- A zoomed screen is drawn at the canvas' scale in halves up to 3, not
-  tiled: deeper zooms scale its frame.
+- The selected frame's screen is drawn at the canvas' scale in halves up
+  to 3, at most 4096 pixels a side, not tiled: deeper zooms scale its
+  frame; the others at 1x.
 - A story's shortcuts bound at a module's start (Keymap.global there) are
   the program's main context's, not the screens'.
 - On a story's screen selection is click only: no move, resize,

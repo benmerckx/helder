@@ -54,27 +54,41 @@ class Drag {
 					return moved.length > 0 && start(info, moved, null);
 				}
 		}
-		// (a design frame's caption: the frame moved)
+		// (a frame's caption, or the frame itself unless its contents are entered: the frame moved, selected)
 		for (r in studio.layout.screens()) {
 			var i = p.screen(r.name);
-			if (i == null || !i.source.match(Design(_))) continue;
+			if (i == null) continue;
 			var x0 = cam.sx(r.x), y0 = cam.sy(r.y);
-			if (px >= x0 && px < x0 + Math.max(60, r.w * cam.k) && py >= y0 - 24 && py < y0 - 2) return frame(i);
+			var caption = px >= x0 && px < x0 + Math.max(60, r.w * cam.k) && py >= y0 - 24 && py < y0 - 2;
+			var body = wx >= r.x && wy >= r.y && wx < r.x + r.w && wy < r.y + r.h && !(studio.entered.peek() && f == i.name);
+			if (!caption && !body) continue;
+			if (f != i.name) studio.focus(i.name, false);
+			return frame(i);
 		}
 		return false;
 	}
 
-	// (a frame moved: its box in the world)
+	// (a frame moved: its box in the world; a design's its own element's
+	// canvas:at, a story's or the app's its place's, made when it has none)
 	function frame(info:ScreenInfo):Bool {
 		var r = studio.layout.rect(info.name);
-		if (r == null || info.start == null) return false;
+		if (r == null) return false;
+		var file = info.file, start = info.start;
+		if (!info.source.match(Design(_))) {
+			var place = studio.place(info, r.x, r.y);
+			if (place == null) return false;
+			file = place.file;
+			start = place.start;
+		}
+		if (start == null) return false;
 		var targets = [for (o in studio.layout.screens()) if (o.name != info.name) ({x: o.x, y: o.y, width: o.w, height: o.h} : Box)];
 		on = {
 			info: info,
+			file: file,
 			kind: Frame,
-			items: [{start: info.start, box: {x: r.x, y: r.y, width: r.w, height: r.h}, left: 0, top: 0, absolute: false}],
+			items: [{start: start, box: {x: r.x, y: r.y, width: r.w, height: r.h}, left: 0, top: 0, absolute: false}],
 			targets: targets,
-			origin: {x: 0, y: r.y - (info.at?.y ?? 0)},
+			origin: {x: 0, y: 0},
 			written: ""
 		};
 		return true;
@@ -110,6 +124,7 @@ class Drag {
 		if (items.length == 0) return false;
 		on = {
 			info: info,
+			file: info.file,
 			kind: handle == null ? Move : Resize(handle),
 			items: items,
 			targets: targets,
@@ -156,7 +171,7 @@ class Drag {
 				if (e.left || e.right) out.push({name: "width", value: Std.string(w)});
 				if (e.top || e.bottom) out.push({name: "height", value: Std.string(h)});
 				if (frame && (e.left || e.top)) {
-					var at = g.info.at ?? {x: g.origin.x, y: 0.0};
+					var at = g.info.at ?? {x: g.origin.x, y: g.origin.y};
 					out.push({name: "canvas:at", value: '${Math.round(at.x) + ox} ${Math.round(at.y) + oy}'});
 				} else if (i.absolute) {
 					if (e.left) out.push({name: "left", value: Std.string(Math.round(i.left) + ox)});
@@ -171,7 +186,7 @@ class Drag {
 		var key = haxe.Json.stringify(sets);
 		if (key == g.written) return;
 		g.written = key;
-		var file = g.info.file, doc = studio.docs.get(file).doc;
+		var file = g.file, doc = studio.docs.get(file).doc;
 		var changes = [];
 		var targets = g.kind == Move ? [for (i in g.items) if (i.absolute) i] : g.items;
 		for (k in 0...targets.length) {
@@ -203,7 +218,7 @@ class Drag {
 		var snapped = guides.peek().length;
 		guides([]);
 		studio.endGesture();
-		var doc = studio.docs.get(g.info.file).doc;
+		var doc = studio.docs.get(g.file).doc;
 		studio.log("dragged", {
 			screen: g.info.name,
 			kind: label(g),
@@ -260,10 +275,12 @@ private enum Kind {
 // (a drag under way: the frame's screen, what it moves (each element's
 // offset now, its box when pressed: the frame's in the world, a node's in
 // its frame; a node's left and top in its parent), what it snaps to, the
-// origin of a node's points in the world (a frame's: of its row, canvas:at's),
+// origin of a node's points in the world (a frame's: the world's),
 // what it last wrote)
 private typedef Gesture = {
 	info:ScreenInfo,
+	// (the file it writes: the frame's, or its place's)
+	file:String,
 	kind:Kind,
 	items:Array<{start:Int, box:Box, left:Float, top:Float, absolute:Bool}>,
 	targets:Array<Box>,

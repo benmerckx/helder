@@ -25,19 +25,20 @@ class Shell implements Markup {
 		// (the browser without a project: the folder, the examples, OPFS's projects)
 		if (p == null) return Welcome.view(studio);
 		#end
+		// (the app's: Escape and the rest work with nothing focused, the keymap starting at the root)
+		onCleanup(helder.ui.actions.Actions.on(StudioAction, a -> {
+			switch a {
+				case Undo: studio.undo();
+				case Redo: studio.redo();
+				case Overview: studio.escape();
+				case Jump: studio.commandOpen(!studio.commandOpen.peek());
+				case FitAll: studio.fitAll();
+				case FitSelection: studio.fitSelection();
+			}
+			true;
+		}));
 		return <view tag="studio" grow={1} ref={(n:Node) -> n.theme = Theme.sheet} background={c("canvas")} color={c("fg")} font-family={Theme.UI}
-			font-size={Theme.BODY} motion-color="snappy"
-			actions={[helder.ui.actions.Actions.handle(StudioAction, a -> {
-				switch a {
-					case Undo: studio.undo();
-					case Redo: studio.redo();
-					case Overview: if (studio.commandOpen.peek()) studio.commandOpen(false) else studio.focus(null);
-					case Jump: studio.commandOpen(!studio.commandOpen.peek());
-					case FitAll: studio.fitAll();
-					case FitSelection: studio.fitSelection();
-				}
-				true;
-			})]}>
+			font-size={Theme.BODY} motion-color="snappy">
 			<Show when={studio.compact()} fallback={desktop(studio)}>{compact(studio)}</Show>
 			<Show when={studio.commandOpen()}>{Command.view(studio)}</Show>
 		</view>;

@@ -195,8 +195,9 @@ Later, beside it:
 
 ## 7. The canvas, the look, phones
 
-Planned next, in this order: the look first, so that the new panels and
-sheets are made in it.
+In this order: the look first, so that the new panels and sheets are made
+in it. The look and the free canvas are built (README.md); the screens are
+not tiled yet.
 
 - **The look** (the direction: Spacedrive's interface): cool, blue-tinted
   darks instead of neutral greys (the canvas darkest, panels a step up,
@@ -214,7 +215,7 @@ sheets are made in it.
   later the prompt), icon buttons; the window's own buttons in the
   sidebar's card (helder.os's inset title bar, the roadmap's). Dark first;
   every colour a token, so a light theme is a later addition.
-- **A free canvas**, Figma's: every frame (design, story, app) where it
+- **A free canvas** (built: README.md's "A free canvas"), Figma's: every frame (design, story, app) where it
   was dragged, no rows; no mode for a screen zoomed into: a click selects
   at any zoom, a double click enters a frame's contents; pan, zoom and
   pinch at any time; the screens drawn at the canvas' scale, tiled past a

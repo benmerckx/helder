@@ -15,6 +15,10 @@ using StringTools;
 class DesignFile {
 	// the file's text read; a thrown message: not one root of markup
 	public final frames:Array<Frame> = [];
+	// the places of the frames drawn by the program: <Frame story="file#name"
+	// canvas:at="x y"/> (a story's: its file from this one's folder, its
+	// export's or its own name), <Frame app canvas:at="x y"/> (the app's)
+	public final places:Array<Place> = [];
 
 	public function new(text:String) {
 		// (the root at the first "<": the offsets the parser gives are of its text from there)
@@ -27,19 +31,26 @@ class DesignFile {
 		}
 		for (k in kids)
 			switch k.kind {
+				case PElement("Frame", attrs, children, at) if (value(attrs, "story") != null || Lambda.exists(attrs, a -> a.name == "app")):
+					places.push({ref: value(attrs, "story") ?? "app", at: point(attrs), start: lead + at - 1});
 				case PElement("Frame", attrs, children, at):
-					var xy = (value(attrs, "canvas:at") ?? "").trim().split(" ").map(Std.parseFloat);
 					frames.push({
 						name: value(attrs, "name") ?? 'Frame ${frames.length + 1}',
 						width: Std.int(number(attrs, "width") ?? 390),
 						height: Std.int(number(attrs, "height") ?? 844),
-						at: xy.length == 2 && !Math.isNaN(xy[0]) && !Math.isNaN(xy[1]) ? {x: xy[0], y: xy[1]} : null,
+						at: point(attrs),
 						start: lead + at - 1,
 						root: {kind: PElement("view", [for (a in attrs) if (shown(a.name)) a].concat(sized(attrs, at)), strip(children), at)},
 						base: lead
 					});
 				case _:
 			}
+	}
+
+	// (canvas:at's point; null: none)
+	static function point(attrs:Array<PAttr>):Null<{x:Float, y:Float}> {
+		var xy = (value(attrs, "canvas:at") ?? "").trim().split(" ").map(Std.parseFloat);
+		return xy.length == 2 && !Math.isNaN(xy[0]) && !Math.isNaN(xy[1]) ? {x: xy[0], y: xy[1]} : null;
 	}
 
 	// (the frame's own attributes, not a view's)
@@ -80,6 +91,13 @@ class DesignFile {
 		var f = t == null ? Math.NaN : Std.parseFloat(t);
 		return Math.isNaN(f) ? null : f;
 	}
+}
+
+// (a live frame's place: its reference, story's or "app", where, its element's offset)
+typedef Place = {
+	ref:String,
+	at:Null<{x:Float, y:Float}>,
+	start:Int,
 }
 
 typedef Frame = {

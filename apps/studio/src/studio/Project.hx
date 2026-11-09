@@ -58,6 +58,8 @@ class Project {
 	final designs:Array<String> = [];
 	final frames = new Map<String, Array<ScreenInfo>>();
 	final rest:Array<ScreenInfo> = [];
+	// the live frames' places by their design files (DesignFile.places)
+	final places = new Map<String, Array<DesignFile.Place>>();
 	// where the studio's files for it go: <root>/bin/studio/<name>
 	public final out:String;
 	// the story files' links (Haxe): linked path to real path
@@ -128,6 +130,7 @@ class Project {
 					null;
 				}
 				frames.set(f, d == null ? [] : framesOf(f, d));
+				if (d != null) places.set(f, d.places);
 				continue;
 			}
 			var text = Files.read(f);
@@ -193,9 +196,44 @@ class Project {
 		for (d in designs)
 			for (s in frames.get(d))
 				screens.push(s);
-		for (s in rest)
+		for (s in rest) {
+			var p = placeOf(s);
+			s.at = p?.at;
+			s.place = p == null ? null : {file: p.file, start: p.start};
 			screens.push(s);
+		}
 	}
+
+	// a story's or the app's place: the first <Frame story> naming its file and
+	// its export's or its own name (from that design file's folder), or <Frame app>
+	function placeOf(s:ScreenInfo):Null<{file:String, at:Null<{x:Float, y:Float}>, start:Int}> {
+		for (d in designs) {
+			var l = places.get(d);
+			if (l != null)
+				for (p in l)
+					if (matches(d, p.ref, s)) return {file: d, at: p.at, start: p.start};
+		}
+		return null;
+	}
+
+	// (whether a place's reference names a screen)
+	function matches(design:String, ref:String, s:ScreenInfo):Bool {
+		if (ref == "app") return s.source.match(App);
+		var hash = ref.lastIndexOf("#");
+		if (hash < 0) return false;
+		var file = Path.normalize(Path.directory(design) + "/" + ref.substr(0, hash)), name = ref.substr(hash + 1);
+		return s.file == file && switch s.source {
+			case Story(binding): binding == name || s.name == name;
+			case _: false;
+		}
+	}
+
+	// a story's or the app's reference from a design file (<Frame story=...>'s; "app")
+	public function refOf(design:String, s:ScreenInfo):String
+		return switch s.source {
+			case Story(binding): studio.FileTree.relativeTo(Path.directory(design), s.file) + "#" + (binding ?? s.name);
+			case _: "app";
+		}
 
 	// a design file's text now (null: it is gone): its frames read again
 	// (one that does not read keeps the last ones, its frames show why);
@@ -203,12 +241,16 @@ class Project {
 	// names changed (one added, removed or renamed), else null
 	public function design(file:String, text:Null<String>):Null<Array<{from:String, to:String}>> {
 		var was = frames.get(file);
+		var placed = places.get(file);
 		var now = if (text == null) [] else {
 			var d = try new DesignFile(text) catch (_:Dynamic) null;
 			if (d == null) return null;
+			places.set(file, d.places);
 			framesOf(file, d);
 		}
-		if (was != null && same(was, now)) return null;
+		if (text == null) places.remove(file);
+		var moved = haxe.Json.stringify(placed) != haxe.Json.stringify(places.get(file));
+		if (was != null && same(was, now) && !moved) return null;
 		if (was == null) {
 			designs.push(file);
 			designs.sort(Reflect.compare);
@@ -401,9 +443,13 @@ typedef ScreenInfo = {
 	// its file (a story's, a design's), what draws it
 	file:String,
 	source:Source,
-	// (a design's frame: where it is in its flow, canvas:at; null: after the one before; its element's offset)
+	// where it is on the canvas (canvas:at: a design's frame's own, a story's
+	// or the app's from its <Frame story> or <Frame app>; null: laid out after
+	// the placed ones); a design frame's element's offset
 	?at:Null<{x:Float, y:Float}>,
 	?start:Int,
+	// (a story's or the app's: the design file and offset of its <Frame> placing it; null: none yet)
+	?place:Null<{file:String, start:Int}>,
 }
 
 // What a screen's content is: a story of the program (the name it is bound

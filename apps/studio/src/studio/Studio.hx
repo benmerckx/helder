@@ -189,10 +189,12 @@ class Studio {
 			if (!compact.peek()) drawer(false);
 		}
 		if (stage != null && (stage.width != stageWidth || stage.height != stageHeight) && stage.width > 0) {
+			// (the canvas stays where it is when the window is resized: fitted at the first size, or a phone's turn)
+			var first = stageWidth <= 0 || compact.peek();
 			stageWidth = stage.width;
 			stageHeight = stage.height;
 			stageSize(v -> v + 1);
-			fitView(false);
+			if (first) fitView(false);
 		}
 		showVisible();
 		designs.follow(openedAt > 0 ? openedAt : startedAt);
@@ -210,10 +212,13 @@ class Studio {
 				var x0 = camera.sx(r.x), y0 = camera.sy(r.y), x1 = camera.sx(r.x + r.w), y1 = camera.sy(r.y + r.h);
 				if (x1 > 0 && y1 > 0 && x0 < stageWidth && y0 < stageHeight) names.push(r.name);
 			}
-		// (the zoomed screen's pixels a point: the canvas' scale on the display, in halves, from 1 to 3; kept while the camera flies)
+		// (the selected frame's pixels a point at the canvas' scale on the display, in halves, from 1 to 3,
+		// at most 4096 pixels a side (no tiles yet: deeper, its frame is scaled); kept while the camera flies)
 		if (!camera.flying) {
 			var px = camera.k * (Main.window == null ? 1.0 : Main.window.renderer.scale);
-			focusScale = Math.max(1, Math.min(3, Math.ceil(px * 2 - 0.05) / 2));
+			var r = focused.peek() == null ? null : layout.rect(focused.peek());
+			var most = r == null ? 3.0 : 4096 / Math.max(1, Math.max(r.w, r.h));
+			focusScale = Math.max(1, Math.min(Math.min(3, most), Math.ceil(px * 2 - 0.05) / 2));
 		}
 		pr.show(names, mode.peek() == "stories" ? null : focused.peek(), focused.peek() == null ? 1 : focusScale);
 	}
@@ -222,13 +227,31 @@ class Studio {
 
 	// ---- the canvas: focus and views
 
-	// all screens, or one zoomed into (on the spring)
-	public function focus(name:Null<String>) {
+	// a frame selected (null: none), its contents not entered: a design's
+	// frame its element (its handles resize it, a drag moves it); fly: the
+	// camera to it (the sidebar's, the command's; a click on the canvas
+	// leaves the camera where it is)
+	public function focus(name:Null<String>, fly = true) {
 		focused(name);
+		entered(false);
 		others([]);
-		if (name == null) selection(null);
-		fitTo(name, true);
+		selection(null);
+		var info = name == null ? null : project?.screen(name);
+		if (info != null && info.source.match(Design(_)) && info.start != null) selectDesign(info, designs.nodeAt(info.name, info.start), info.start);
+		if (fly) fitTo(name, true);
 		refreshCode();
+		log("focused", {screen: name});
+	}
+
+	// whether the focused frame's contents are entered (a double click): a click selects a node in it
+	public final entered = signal(false);
+
+	// (the last click on the stage: a second one soon and near is a double click)
+	var lastClick = {t: -1.0, x: 0.0, y: 0.0};
+
+	// Escape: out of a frame's contents (the frame selected), else nothing selected
+	public function escape() {
+		if (commandOpen.peek()) commandOpen(false) else if (entered.peek() && focused.peek() != null) focus(focused.peek(), false) else if (focused.peek() != null) focus(null, false);
 	}
 
 	// a page's screens (a design file's, a story flow's) fitted, none zoomed into
@@ -310,17 +333,55 @@ class Studio {
 		return s != null && s.source.match(Design(_));
 	}
 
-	// a click on the stage at (px, py): a screen zoomed into, or a node of the zoomed one selected
-	// (add: shift held, a design's node added to the selection or taken from it)
+	// a click on the stage at (px, py), at any zoom: a frame selected; in
+	// the frame entered, a node; a double click enters the frame there and
+	// selects its node; on nothing, nothing selected (add: shift held, a
+	// design's node added to the selection or taken from it)
 	public function clickStage(px:Float, py:Float, add = false) {
+		var now = helder.headless.Time.stamp();
+		var double = now - lastClick.t < 0.4 && Math.abs(px - lastClick.x) < 6 && Math.abs(py - lastClick.y) < 6;
+		lastClick = {t: double ? -1.0 : now, x: px, y: py};
 		var wx = camera.wx(px), wy = camera.wy(py);
 		var hit = layout.at(wx, wy);
-		if (hit == null) return;
-		if (focused.peek() != hit.name) {
-			focus(hit.name);
+		if (hit == null) {
+			if (!add) focus(null, false);
+			return;
+		}
+		if (double) {
+			if (focused.peek() != hit.name) focus(hit.name, false);
+			entered(true);
+			log("entered", {screen: hit.name});
+		} else if (!entered.peek() || focused.peek() != hit.name) {
+			if (focused.peek() != hit.name || entered.peek()) focus(hit.name, false);
 			return;
 		}
 		pick(hit.name, wx - hit.x, wy - hit.y, add);
+	}
+
+	// a story's or the app's place on the canvas: its <Frame story> or
+	// <Frame app> (made at x, y when it has none: in the design file that
+	// places frames already, else canvas.helder at the project's root, made
+	// then), as one gesture's edit
+	public function place(info:ScreenInfo, x:Float, y:Float):Null<{file:String, start:Int}> {
+		if (info.place != null) return info.place;
+		var file = null;
+		for (s in project.screens)
+			if (s.place != null) file = s.place.file;
+		if (file == null) {
+			file = project.dir + "/canvas.helder";
+			if (!Files.exists(file)) Files.save(file, "<Design>\n</Design>\n");
+			framesChanged(file, project.design(file, Files.read(file)));
+		}
+		var doc = docs.get(file).doc, root = doc.elementAt(doc.text.indexOf("<"));
+		if (root == null) return null;
+		var what = info.source.match(App) ? "app" : 'story="${project.refOf(file, info)}"';
+		var tx = try Edits.insertChild(doc, root, root.children().length, '<Frame $what canvas:at="${Math.round(x)} ${Math.round(y)}"/>') catch (e:Dynamic) {
+			message('the canvas: $e');
+			return null;
+		}
+		edit(file, tx, "frame placed", "canvas", 'drag:$gesture');
+		log("placed", {screen: info.name, file: tree?.relative(file) ?? file});
+		return project.screen(info.name)?.place;
 	}
 
 	// the node at (x, y) of a screen (its points) selected: the program's
@@ -1026,24 +1087,41 @@ class Layout {
 	public function new(studio)
 		this.studio = studio;
 
-	// (a design's frame at its canvas:at in its flow's row, else after the one before)
+	// every frame where it was put (canvas:at: a design's frame's own, a
+	// story's or the app's <Frame story> or <Frame app>), the world's points;
+	// a frame without one right of the one before it in its page, else laid
+	// out below the design frames, a row a page
 	public function screens():Array<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}> {
 		var out:Array<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}> = [];
 		var p = studio.project, pr = studio.previews;
 		if (p == null) return out;
+		function size(i:Project.ScreenInfo):{w:Float, h:Float} {
+			var s = pr?.screen(i.name);
+			return s == null ? {w: i.width + 0.0, h: i.height + 0.0} : {w: s.width() + 0.0, h: s.height() + 0.0};
+		}
+		function shown(i:Project.ScreenInfo):Bool
+			return i.source.match(Design(_)) || pr?.screen(i.name) != null;
+		// (below the design frames: a story or the app placed by hand leaves the others where they were)
 		var y = 0.0;
+		for (f in p.flows())
+			for (i in f.screens)
+				if (i.at != null && i.source.match(Design(_))) y = Math.max(y, i.at.y + size(i).h + Theme.FLOW_GAP);
 		for (f in p.flows()) {
-			var x = 0.0, tall = 0.0;
+			var x = 0.0, tall = 0.0, row = false, last:Null<{x:Float, y:Float, w:Float}> = null;
 			for (i in f.screens) {
-				var s = pr?.screen(i.name);
-				if (s == null && !i.source.match(Design(_))) continue;
-				var w = s == null ? i.width : s.width(), h = s == null ? i.height : s.height();
-				var at = i.at ?? {x: x, y: 0.0};
-				out.push({name: i.name, flow: f.name, x: at.x, y: y + at.y, w: w + 0.0, h: h + 0.0});
-				x = Math.max(x, at.x + w + Theme.SCREEN_GAP);
-				tall = Math.max(tall, at.y + h);
+				if (!shown(i)) continue;
+				var z = size(i), at = i.at;
+				if (at == null && last != null) at = {x: last.x + last.w + Theme.SCREEN_GAP, y: last.y};
+				if (at == null) {
+					at = {x: x, y: y};
+					x += z.w + Theme.SCREEN_GAP;
+					tall = Math.max(tall, z.h);
+					row = true;
+				}
+				out.push({name: i.name, flow: f.name, x: at.x, y: at.y, w: z.w, h: z.h});
+				last = {x: at.x, y: at.y, w: z.w};
 			}
-			y += tall + Theme.FLOW_GAP;
+			if (row) y += tall + Theme.FLOW_GAP;
 		}
 		return out;
 	}
