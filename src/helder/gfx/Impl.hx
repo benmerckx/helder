@@ -71,6 +71,9 @@ abstract Impl(Any) {
 	public inline function supports(f:TextureFormat):Bool
 		return Mem.os() == 1 ? mtl().supports(f) : Mem.os() == 2 ? d3d().supports(f) : Mem.os() != 3 ? gl().supports(f) : webgl() ? gl().supports(f) : wgpu().supports(f);
 
+	public inline function maxTextureSize():Int
+		return Mem.os() == 1 || Mem.os() == 2 ? 16384 : Mem.os() != 3 || webgl() ? gl().maxTextureSize() : wgpu().maxTextureSize();
+
 	public inline function generateMips(id:Int)
 		Mem.os() == 1 ? mtl().generateMips(id) : Mem.os() == 2 ? d3d().generateMips(id) : Mem.os() != 3 ? gl().generateMips(id) : webgl() ? gl().generateMips(id) : wgpu().generateMips(id);
 

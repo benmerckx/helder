@@ -72,6 +72,9 @@ class WebGPUBackend {
 		WebGPU.write_texture(id, x, y, info.w, info.h, level, BytesPtr.of(data, dataOffset, data.length - dataOffset));
 	}
 
+	public function maxTextureSize():Int
+		return WebGPU.max_texture();
+
 	public function supports(f:TextureFormat):Bool
 		return WebGPU.supports(cast f) != 0;
 

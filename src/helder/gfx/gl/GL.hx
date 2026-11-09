@@ -41,6 +41,7 @@ class GL {
 	public static inline var UNSIGNED_SHORT = 0x1403;
 	public static inline var UNSIGNED_INT = 0x1405;
 	public static inline var UNIFORM_BUFFER_OFFSET_ALIGNMENT = 0x8A34;
+	public static inline var MAX_TEXTURE_SIZE = 0x0D33;
 	public static inline var INVALID_INDEX = -1;
 	public static inline var DEPTH_TEST = 0x0B71;
 	public static inline var BLEND = 0x0BE2;

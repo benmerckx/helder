@@ -8,7 +8,9 @@ package helder.gfx;
 // upload's (uploadMs: the glyph atlas's and the quads') and its draws'
 // (encodeMs: the encoder's calls, the driver's work in them: a software
 // rasterizer's vertex stage too), in ms, and the GC bytes allocated
-// from its begin to its end (uiBytes: hxmc's; the painting's too).
+// from its begin to its end (uiBytes: hxmc's; the painting's too), the
+// glyphs' texels it wrote (glyphTexels: the atlas's changed region, the
+// large glyphs drawn alone).
 // Counted from the last reset: a headless run's --stats resets them at
 // each frame's start.
 class FrameCounts {
@@ -24,9 +26,10 @@ class FrameCounts {
 	public static var uploadMs = 0.0;
 	public static var encodeMs = 0.0;
 	public static var uiBytes = 0.0;
+	public static var glyphTexels = 0;
 
 	public static function reset() {
-		passes = draws = quads = instances = pipelines = textures = buffers = uploaded = 0;
+		passes = draws = quads = instances = pipelines = textures = buffers = uploaded = glyphTexels = 0;
 		uiMs = uploadMs = encodeMs = uiBytes = 0;
 	}
 }

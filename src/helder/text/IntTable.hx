@@ -12,7 +12,7 @@ import haxe.ds.Vector;
 class IntTable<T> {
 	var keys:Vector<Int>;
 	var values:Vector<T>;
-	var count = 0;
+	public var count(default, null) = 0;
 	var mask:Int;
 
 	public function new() {

@@ -122,6 +122,7 @@ class UiWindow {
 		if (Mem.target() >= 9) helder.os.android.TextInput.enable();
 		device = Device.create(window.surface, {antialias: antialias});
 		renderer = new Renderer(device);
+		renderer.steps = true;
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
 		ui.window = new OsWindow(this);
@@ -242,6 +243,8 @@ class UiWindow {
 		enc.beginPass(pass);
 		renderer.end(enc);
 		enc.endPass();
+		// (glyphs drawn at a step's size while a scale moved: drawn at theirs next)
+		if (renderer.again) redraw = true;
 		if (capture != null) {
 			device.readPixels(capture);
 			capture = null;

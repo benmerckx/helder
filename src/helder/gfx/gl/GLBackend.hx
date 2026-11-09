@@ -393,6 +393,12 @@ class GLBackend {
 
 	var extensions:Null<String>;
 
+	public function maxTextureSize():Int {
+		use();
+		GL.glGetIntegerv(GL.MAX_TEXTURE_SIZE, scratch);
+		return scratch.value;
+	}
+
 	public function writeTextureImage(id:Int, image:Int, release:Bool) {
 		#if (hxmc.target == "wasm32-wasi")
 		use();

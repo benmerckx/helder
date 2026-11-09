@@ -44,7 +44,12 @@ import helder.ui.draw.UiShader;
 // scale: the square root of its determinant) and its corners turned into the
 // target's by what remains (a rotation, or a skew), so that edges stay
 // anti-aliased over a pixel; glyphs are rasterized at the scaled size, and
-// read filtered where the transform turns them. A clip pushed under a turning
+// read filtered where the transform turns them; culled before they are
+// rasterized; while its scale moves (a pinch) at the nearest quarter
+// octave, stretched, at their own once it rests (again). Glyphs past LARGE
+// are images of their own; the atlas begins with each frame, so that it is
+// never changed under one (GlyphAtlas), and grows to the GPU's largest
+// texture (at most 4096 a side). A clip pushed under a turning
 // transform clips to its bounds. Snapped (snap, the default), what is laid
 // out without a transform lies on the target's pixel grid, as a browser's
 // layout snaps its boxes: a box's edges, a clip's, an image's origin (its
@@ -63,7 +68,9 @@ class Renderer implements Canvas {
 	public final atlas:GlyphAtlas;
 
 	final pipeline:Pipeline;
-	final atlasTexture:Texture;
+	var atlasTexture:Texture;
+	var atlasW = 0;
+	var atlasH = 0;
 	final blank:Texture;
 	final linear:Sampler;
 	// the shader's texture slots: the atlas's, the image's
@@ -144,7 +151,23 @@ class Renderer implements Canvas {
 	var aligned = true;
 	// (on the pixel grid: snapped, and no transform)
 	var grid = true;
-	final transforms:Array<Float> = []; // (9 each)
+	final transforms:Array<Float> = []; // (10 each)
+	// (the transforms' scales this frame and the last, in the order pushed,
+	// each with the frames it has kept it; steady: each pushed over has kept
+	// its for STILL frames, a pinch's events coming slower than frames)
+	static inline var STILL = 6;
+	final scales:Array<Float> = [];
+	final last:Array<Float> = [];
+	var steady = true;
+	// (a glyph read stretched: drawn at a step's size, scaled)
+	var stretched = false;
+	// whether glyphs under a scale that moves are drawn at steps (a
+	// window's, which draws again once it rests: UiWindow; not a renderer
+	// drawing several surfaces in turn, whose transforms are not one's)
+	public var steps = false;
+	// whether the frame drew glyphs at a step's size under a scale that
+	// moved: the next frame draws them at theirs
+	public var again(default, null) = false;
 
 	static inline var STRIDE = 192; // UiVertex's instance: 48 floats
 
@@ -165,11 +188,13 @@ class Renderer implements Canvas {
 	public function new(device:Device, ?atlas:GlyphAtlas, ?format:TextureFormat) {
 		this.device = device;
 		this.atlas = atlas == null ? new GlyphAtlas(1024, 1024) : atlas;
+		// (grown to what the GPU takes, at most 4096 a side: 64 MB as RGBA)
+		this.atlas.max = Std.int(Math.min(device.maxTextureSize, 4096));
 		var d = UiShader.pipeline({blend: Premultiplied});
 		d.layout = layout();
 		if (format != null) d.colorFormat = format;
 		pipeline = device.createPipeline(d);
-		atlasTexture = device.createTexture({width: this.atlas.width, height: this.atlas.height, format: RGBA8});
+		atlasTexture = device.createTexture({width: atlasW = this.atlas.width, height: atlasH = this.atlas.height, format: RGBA8});
 		blank = device.createTexture({width: 1, height: 1, format: RGBA8, data: Bytes.ofHex("ffffffff")});
 		linear = device.createSampler({filter: Linear, wrap: Clamp});
 		atlasSlot = UiShader.textures[0].binding;
@@ -206,6 +231,20 @@ class Renderer implements Canvas {
 			for (p in stalePaths)
 				paths.remove(p);
 		}
+		atlas.begin();
+		// (the large glyphs the last frame did not draw: their textures freed)
+		if (large.iterator().hasNext()) {
+			for (k in [for (k => e in large) if (e.frame < frames - 1) k]) {
+				forget(large.get(k).image);
+				large.remove(k);
+			}
+		}
+		again = false;
+		last.resize(0);
+		for (k in scales)
+			last.push(k);
+		scales.resize(0);
+		steady = true;
 		targetW = width;
 		targetH = height;
 		gpu.clear();
@@ -235,6 +274,11 @@ class Renderer implements Canvas {
 	// is in: one draw, or one more for each change of the image texture bound
 	public function end(enc:Encoder) {
 		var ending = haxe.Timer.stamp();
+		// (the atlas grown between frames: a texture of its size)
+		if (atlasW != atlas.width || atlasH != atlas.height) {
+			device.destroyTexture(atlasTexture);
+			atlasTexture = device.createTexture({width: atlasW = atlas.width, height: atlasH = atlas.height, format: RGBA8});
+		}
 		if (atlas.dirtyX1 > atlas.dirtyX0) {
 			var x = atlas.dirtyX0, y = atlas.dirtyY0, w = atlas.dirtyX1 - x, h = atlas.dirtyY1 - y;
 			// (coverage in the red channel)
@@ -245,6 +289,7 @@ class Renderer implements Canvas {
 					region.set(dst + c * 4, atlas.pixels.get(src + c));
 			}
 			device.writeTexture(atlasTexture, region, x, y, w, h);
+			FrameCounts.glyphTexels += w * h;
 			atlas.clean();
 		}
 		FrameCounts.quads += quads.count;
@@ -499,6 +544,7 @@ class Renderer implements Canvas {
 		transforms.push(mk);
 		transforms.push(flat ? 1 : 0);
 		transforms.push(aligned ? 1 : 0);
+		transforms.push(steady ? 1 : 0);
 		// (in the scaled pixels after the translation: moved to it, transformed, moved back)
 		var s = scale;
 		var ne = s * (e - a * tx - c * ty + tx), nf = s * (f - b * tx - d * ty + ty);
@@ -513,12 +559,17 @@ class Renderer implements Canvas {
 		mk = Math.sqrt(Math.abs(ma * md - mb * mc));
 		flat = ma == 1 && mb == 0 && mc == 0 && md == 1 && me == 0 && mf == 0;
 		aligned = mb == 0 && mc == 0 && ma == md && ma > 0;
+		// (its scale as the last frame's transform at its place had it for STILL frames: a new one too)
+		var i = scales.length, still = i >= last.length ? STILL : last[i] == mk ? last[i + 1] + 1 : 0;
+		scales.push(mk);
+		scales.push(still);
+		steady = steady && still >= STILL;
 		// (under a transform: where it puts it, not snapped)
 		grid = snap && flat;
 	}
 
 	public function popTransform() {
-		var n = transforms.length - 9, t = transforms;
+		var n = transforms.length - 10, t = transforms;
 		ma = t[n];
 		mb = t[n + 1];
 		mc = t[n + 2];
@@ -528,6 +579,7 @@ class Renderer implements Canvas {
 		mk = t[n + 6];
 		flat = t[n + 7] == 1;
 		aligned = t[n + 8] == 1;
+		steady = t[n + 9] == 1;
 		transforms.resize(n);
 		grid = snap && flat;
 	}
@@ -760,6 +812,7 @@ class Renderer implements Canvas {
 			var lineX = (ox + lx) * s;
 			if (grid) lineX = Math.fround(lineX);
 			if (flat && (by - size * 1.5 - reach > clipY1 || by + size + reach < clipY0)) continue;
+			if (!flat && away(lineX - size, by - size * 1.5 - reach, lineX + l.width * s + size, by + size + reach)) continue;
 			for (i in l.glyphStart...l.glyphEnd) {
 				var c = t.glyphChar(i);
 				if (c == 32 || c == 10 || c == 9 || t.glyphHidden(i)) continue;
@@ -795,24 +848,80 @@ class Renderer implements Canvas {
 		}
 	}
 
+	// glyphs past this ppem (device pixels) are drawn alone, each an image of
+	// its own, not packed into the atlas (Skia's limit for its atlas too): a
+	// 1024 atlas holds a dozen of them, a design zoomed into (28 points at 3x
+	// zoomed 8 times: 670) would hold none
+	public static inline var LARGE = 256;
+
 	// a glyph from the atlas at (gx, gy): device pixels, the baseline
 	// (under a transform: scaled pixels, gy whole on the target's grid less
-	// the translation's fraction, which the glyph is moved back by)
+	// the translation's fraction, which the glyph is moved back by); one too
+	// large for it, or that did not fit this frame, an image of its own
 	inline function glyph(f:helder.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool, sigma = 0.0) {
 		// (aligned: the subpixel offset on the target's grid, as the transform moves it;
 		// the pen floored to CoreGraphics' step for its ppem, as CoreText places it;
 		// the colour's luminance sets font smoothing's dilation)
 		var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
-		var ix = GlyphAtlas.pixel(gx + ex, size), sub = GlyphAtlas.phase(gx + ex, size);
-		var a = atlas.get(f, id, size, sub, oblique, sigma, color & 0xFFFFFF);
+		// (under a transform: culled before it is drawn, by a box any glyph's ink is in)
+		if (!flat && away(gx - size, gy - size * 1.5 - 3 * sigma, gx + size * 2, gy + size + 3 * sigma)) return;
+		// (under a scale that moved since the last frame, a pinch's or a zoom's
+		// flight: drawn at the nearest quarter octave and stretched, so that
+		// a zoom draws a few sizes, not one a frame; at its own once it rests)
+		var at = size;
+		if (steps && !steady && mk != 1) {
+			at = Math.pow(2, Math.round(Math.log(size) / Math.log(2) * 4) / 4);
+			sigma = sigma * at / size;
+			again = true;
+		}
+		var k = size / at, ix = GlyphAtlas.pixel(gx + ex, size), sub = k == 1 ? GlyphAtlas.phase(gx + ex, size) : 0;
+		var a = at > LARGE ? null : atlas.get(f, id, at, sub, oblique, sigma, color & 0xFFFFFF);
+		if (a == null) {
+			alone(f, id, at, k, gx, gy, ix, ex, ey, sub, color, oblique, sigma);
+			return;
+		}
 		if (a.w > 0) {
-			var qx = ix - ex + a.left, qy = gy + a.top - ey;
+			var qx = k == 1 ? ix - ex + a.left : gx + a.left * k, qy = gy + a.top * k - ey;
 			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h)) {
 				qr0 = qr1 = qr2 = qr3 = qw0 = qw1 = qw2 = qw3 = 0;
-				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 1, 0, 0,
-					0);
+				stretched = k != 1;
+				quad(qx, qy, qx + a.w * k, qy + a.h * k, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color,
+					0, 1, 0, 0, 0);
+				stretched = false;
 			}
 		}
+	}
+
+	// (the large glyphs drawn this frame or the last, images of their own,
+	// in their colour: by font, glyph, size, phase, oblique, blur and colour)
+	final large = new Map<String, LargeGlyph>();
+
+	function alone(f:helder.text.FontFile, id:Int, size:Float, k:Float, gx:Float, gy:Int, ix:Int, ex:Float, ey:Float, sub:Int, color:Color,
+			oblique:Bool, sigma:Float) {
+		var key = f.id + ":" + id + ":" + size + ":" + sub + (oblique ? ":o" : "") + ":" + sigma + ":" + (color & 0xFFFFFF);
+		var e = large.get(key);
+		if (e == null) {
+			var b = atlas.bitmap(f, id, size, sub, oblique, sigma, color & 0xFFFFFF);
+			if (b == null) return;
+			var w = b.width, h = b.height, rgba = Bytes.alloc(w * h * 4);
+			FrameCounts.glyphTexels += w * h;
+			var r = color.r, g = color.g, bl = color.b;
+			for (i in 0...w * h) {
+				rgba.set(i * 4, r);
+				rgba.set(i * 4 + 1, g);
+				rgba.set(i * 4 + 2, bl);
+				rgba.set(i * 4 + 3, b.pixels.get(i));
+			}
+			large.set(key, e = new LargeGlyph(new Image(w, h, rgba), b.left, b.top));
+		}
+		e.frame = frames;
+		var img = e.image;
+		var qx = k == 1 ? ix - ex + e.left : gx + e.left * k, qy = gy + e.top * k - ey;
+		var x1 = qx + img.width * k, y1 = qy + img.height * k;
+		if (flat && culled(qx, qy, x1, y1)) return;
+		texture(img);
+		qr0 = qr1 = qr2 = qr3 = qw0 = qw1 = qw2 = qw3 = 0;
+		quad(qx, qy, x1, y1, 0, 0, 1, 1, ((color : Int) | 0xFFFFFF : Color), 0, 2, 0, 0, img.id);
 	}
 
 	// a colour bitmap glyph at a size (device pixels): its PNG decoded and
@@ -842,6 +951,15 @@ class Renderer implements Canvas {
 	inline function culled(x0:Float, y0:Float, x1:Float, y1:Float)
 		return x1 <= clipX0 || y1 <= clipY0 || x0 >= clipX1 || y0 >= clipY1 || clipX1 <= clipX0 || clipY1 <= clipY0;
 
+	// (a box in the scaled pixels under the transform outside the clip: its turned corners' bounds)
+	function away(x0:Float, y0:Float, x1:Float, y1:Float):Bool {
+		var k = mk, ra = ma / k, rb = mb / k, rc = mc / k, rd = md / k;
+		var ax = ra * x0 + rc * y0, bx = ra * x1 + rc * y0, cx = ra * x0 + rc * y1, dx = ra * x1 + rc * y1;
+		var ay = rb * x0 + rd * y0, by = rb * x1 + rd * y0, cy = rb * x0 + rd * y1, dy = rb * x1 + rd * y1;
+		return culled(Math.min(Math.min(ax, bx), Math.min(cx, dx)) + me, Math.min(Math.min(ay, by), Math.min(cy, dy)) + mf,
+			Math.max(Math.max(ax, bx), Math.max(cx, dx)) + me, Math.max(Math.max(ay, by), Math.max(cy, dy)) + mf);
+	}
+
 	// a rectangle, shadow or image under a transform: from device pixels to
 	// the scaled ones (lengths too), culled by its turned corners' bounds;
 	// blur: the margin it grows by before its anti-aliased pixel
@@ -854,13 +972,7 @@ class Renderer implements Canvas {
 		x1 *= k;
 		y1 *= k;
 		var m = grow * k + 1;
-		var ra = ma / k, rb = mb / k, rc = mc / k, rd = md / k;
-		var lx = x0 - m, ly = y0 - m, hx = x1 + m, hy = y1 + m;
-		var ax = ra * lx + rc * ly, bx = ra * hx + rc * ly, cx = ra * lx + rc * hy, dx = ra * hx + rc * hy;
-		var ay = rb * lx + rd * ly, by = rb * hx + rd * ly, cy = rb * lx + rd * hy, dy = rb * hx + rd * hy;
-		if (culled(Math.min(Math.min(ax, bx), Math.min(cx, dx)) + me, Math.min(Math.min(ay, by), Math.min(cy, dy)) + mf,
-			Math.max(Math.max(ax, bx), Math.max(cx, dx)) + me, Math.max(Math.max(ay, by), Math.max(cy, dy)) + mf))
-			return;
+		if (away(x0 - m, y0 - m, x1 + m, y1 + m)) return;
 		qr0 *= k;
 		qr1 *= k;
 		qr2 *= k;
@@ -902,7 +1014,7 @@ class Renderer implements Canvas {
 			w0 = atlas.width;
 			w1 = atlas.height;
 			w2 = w3 = 0;
-			filtered = aligned ? 0 : 1;
+			filtered = aligned && !stretched ? 0 : 1;
 		}
 		var o = quads.add(run), b = quads.bytes;
 		var fa = fill.a / 255 * alpha, ba = border.a / 255 * alpha;
@@ -1088,5 +1200,19 @@ private class PathImage {
 			case [Gradient(x), Gradient(y)]: x == y || Std.string(x) == Std.string(y);
 			case _: false;
 		}
+	}
+}
+
+// (a glyph too large for the atlas: its image, in its colour, its top left from its origin, the last frame that drew it)
+private class LargeGlyph {
+	public final image:Image;
+	public final left:Int;
+	public final top:Int;
+	public var frame = 0;
+
+	public function new(image, left, top) {
+		this.image = image;
+		this.left = left;
+		this.top = top;
 	}
 }

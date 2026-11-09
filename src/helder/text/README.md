@@ -87,7 +87,14 @@ text with, usable on its own.
 - `GlyphAtlas`: glyphs rasterized once per size, pen phase (sixtieths of
   a pixel: `GlyphAtlas.pixel` and `phase` floor a pen to CoreGraphics'
   step) and font smoothing's radius, packed into an R8 bitmap for a GPU
-  texture, its changed region tracked. A glyph is drawn by a
+  texture, its changed region tracked. Drawn in frames (`begin` before
+  each): full in the middle of one, `get` gives no glyph (null; `full`)
+  rather than drawing over glyphs the frame already placed, and the next
+  `begin` makes room between frames: the last frame's glyphs packed
+  again (the others evicted, least recently drawn first), the bitmap
+  grown first, up to `max` a side, where they take more than half of it
+  (`generation` counts the repacks). A glyph too large for an atlas is
+  drawn alone (`bitmap`: its coverage, for an image of its own). A glyph is drawn by a
   GlyphPipeline and Rasterizer the atlas keeps, from points `FontFile`
   reads into buffers it keeps: a miss allocates its cache entry and
   nothing else, a hit nothing (tests/bench/results/text.md).
@@ -100,6 +107,7 @@ for (line in layout.lines)
 	for (i in line.glyphStart...line.glyphEnd) {
 		var x = layout.glyphX(i) + layout.glyphOffsetX(i), y = Math.round(line.top + line.baseline + layout.glyphOffsetY(i));
 		// (where its pixels are: the pen floored to CoreGraphics' step, the bitmap drawn for that phase and ink)
+		// (null: full this frame; atlas.begin() before the next makes room)
 		var bitmap = atlas.get(layout.glyphFont(i), layout.glyphId(i), 16, GlyphAtlas.phase(x, 16), false, 0, 0x1d1e22);
 		var left = GlyphAtlas.pixel(x, 16) + bitmap.left, top = y + bitmap.top;
 	}

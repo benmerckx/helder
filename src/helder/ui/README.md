@@ -252,7 +252,16 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   make several windows; on the web it fills the page, or takes the canvas
   the page gives (a helder.web `<Surface>`'s) at its styles' size. The GPU
   renderer also draws a render target (`gpuTexture`) and records passes
-  before the frame's (`beforePass`): a `<Scene>`'s box. On macOS the app has the usual menu bar (Hide, Quit, the Window
+  before the frame's (`beforePass`): a `<Scene>`'s box. Text under a
+  transform (a canvas zoomed) is culled per glyph before it is
+  rasterized; while the transform's scale moves (a pinch, a zoom's
+  flight) its glyphs are drawn at the nearest quarter octave, stretched,
+  and at their own size once the scale has rested for 6 frames (the
+  window draws that frame: `Renderer.steps`, `again`); glyphs past 256 device
+  pixels (`Renderer.LARGE`) are images of their own, not in the atlas,
+  freed once a frame does not draw them. The atlas grows to the GPU's
+  largest texture (`Device.maxTextureSize`, at most 4096) and is never
+  changed under a frame that drew from it (helder.text's GlyphAtlas). On macOS the app has the usual menu bar (Hide, Quit, the Window
   menu); Quit asks each window to close, as its close button does.
 - **`helder.ui.view`**: `helder.view`'s renderer for these nodes
   (`NodeRenderer`, named by `Node`'s `@:rendered`; `UiView`, its markup:

@@ -85,6 +85,14 @@ final class Device {
 	public function supports(format:TextureFormat):Bool
 		return impl.supports(format);
 
+	// the largest side of a 2D texture it creates: GL's and WebGL2's asked
+	// (phones' often 4096), WebGPU's device limit (8192 by default), Metal's
+	// and D3D11's 16384 (Apple's GPUs since A9, feature level 11)
+	public var maxTextureSize(get, never):Int;
+
+	inline function get_maxTextureSize()
+		return impl.maxTextureSize();
+
 	// whether textures are filled from images the browser decoded
 	// (writeTextureImage; helder.gfx.ImageTexture): in a browser
 	public var decodesImages(get, never):Bool;

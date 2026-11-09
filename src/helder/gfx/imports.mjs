@@ -337,6 +337,7 @@ export default async function (host) {
 		},
 		write_texture: (h, x, y, w, height, level, data) => write(handles.get(h), x, y, w, height, level, data),
 		// 1: the device samples the TextureFormat (the compressed ones: their features)
+		max_texture: () => (device ? device.limits.maxTextureDimension2D : 8192),
 		supports: (format) => (format < BC1 || (device && device.features.has(FEATURES[format - BC1])) ? 1 : 0),
 		generate_mips(h) {
 			const t = handles.get(h), { texture } = t;
