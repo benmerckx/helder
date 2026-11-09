@@ -76,6 +76,15 @@ App), so that what is instant and what runs is always visible:
 - A live frame shows its last image (or a skeleton at its size) until
   its build is there, so the canvas never jumps; as the host keeps the
   last frames through a crash.
+- **The cover**: a project's picture where it is listed (helder.build's
+  examples, a store's screenshot) is one of its screens, never an image
+  committed beside it: the frame flagged `cover` (`<Frame name="Home"
+  cover>`, `<Frame story="cards.story.tsx#plain" cover/>`, `<Frame app
+  cover/>`), else the first design frame, else the first story, else the
+  app's first frame. It is rendered when it is needed, the same pixels each
+  time (a design's frame interpreted, a story by its seed): `studio
+  <project> --cover <png>`, the studio run headless, at 2x
+  (apps/studio/web/build.mjs's `--covers`).
 - `app route=...` needs routing (the roadmap's phase 7); until then the
   app's frame is the app as it starts. Flows on the canvas and the router
   are the same feature.

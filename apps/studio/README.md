@@ -84,6 +84,12 @@ anywhere under the project's directory but `bin/` and `node_modules/`
 - A project with an entry and no stories has one screen of its program,
   its own window (the page "App"), design files or not. (With stories
   the program is theirs: the App is not drawn beside them.)
+- Its **cover** (DESIGN.md §2) is the screen whose `<Frame>` is flagged
+  `cover` in a design file (a story's: `<Frame story="Todo.story.hx#items"
+  cover/>`), else the first. `studio <project> --cover <png>` writes it at
+  2x and closes; headless, `bun run helder run --headless apps/studio
+  --stats <json> -- <project> --cover <png>` (apps/studio/web/build.mjs
+  --covers: each example's examples/<name>/cover.png).
 
 ```tsx
 // examples/ts-todo/app.story.tsx

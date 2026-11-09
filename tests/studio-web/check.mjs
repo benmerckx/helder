@@ -212,8 +212,8 @@ async function recolour(pg, x, y, tap) {
 	numbers.push(['todo (4 screens)', 'desktop', started, shown]);
 	await pg.waitForTimeout(400);
 	await golden(pg, 'desktop-overview');
-	// (the sidebar's frame row: selected, the camera flown to it)
-	await pg.mouse.click(94, 277);
+	// (the sidebar's "Three items" row, below canvas.helder's and Todo.hx's: selected, the camera flown to it)
+	await pg.mouse.click(94, 303);
 	await pg.waitForTimeout(1600);
 	await golden(pg, 'desktop-zoomed');
 	// (a double click: the frame entered, its title selected)

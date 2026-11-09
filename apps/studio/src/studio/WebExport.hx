@@ -18,7 +18,8 @@ using StringTools;
 //
 //   preview.wasm    the program (none for a project of design files alone)
 //   project.json    {name, label, summary (its sources' `// title:` and
-//                   `// summary:`, as the examples' headers), files: {path: text}, imports: [package],
+//                   `// summary:`, as the examples' headers), kind (`// kind:`,
+//                   else "design" without a program, "app"), files: {path: text}, imports: [package],
 //                   root: the project's directory where it was built,
 //                   links: {built path: path}, tables: [{file, content, entries}],
 //                   screens}
@@ -69,6 +70,7 @@ class WebExport {
 			name: p.name,
 			label: header(p, "title") ?? p.name,
 			summary: header(p, "summary"),
+			kind: header(p, "kind") ?? (p.entry == null ? "design" : "app"),
 			root: p.dir,
 			files: files,
 			imports: r == null ? [] : helder.cli.Page.packages(BuildInfo.helderSrc(), wasm),

@@ -1,5 +1,5 @@
 <Design>
-	<Frame name="Home" width={390} height={844} canvas:at="0 0" background="#f8fafc" padding="56 24 24" row-gap={16}>
+	<Frame name="Home" cover width={390} height={844} canvas:at="0 0" background="#f8fafc" padding="56 24 24" row-gap={16}>
 		<note>The list as it opens: three items, one done.</note>
 		<text tag="title" font-size={28} font-weight={700} color="#3b82f6">todos</text>
 		<view direction="row" column-gap={8} align-items="center" padding="10 12" background="#ffffff" radius={10} border-width={1} border-color="#e2e8f0">

@@ -1,7 +1,7 @@
 // helder studio for the browser: the page, built into a directory to serve
 // as it is (any static host; tests/studio-web serves it):
 //
-//   node apps/studio/web/build.mjs <out> [--compiler <dir>] [project[=label]...]
+//   node apps/studio/web/build.mjs <out> [--compiler <dir>] [--covers] [project[=label]...]
 //
 //   <out>/index.html, studio.mjs          the page (apps/studio/web)
 //   <out>/new/app.helder                  a new project (?new, the welcome's)
@@ -10,6 +10,9 @@
 //   <out>/fonts/                          DejaVu Sans, the previews' text
 //   <out>/examples/index.json             the examples bundled, each examples/<name>/ (project.json,
 //                                         preview.wasm: `helder studio <project> -- --export-web`)
+//   <out>/examples/<name>/cover.png       with --covers: its cover (DESIGN.md §2), the studio run
+//                                         headless on it (`helder run --headless apps/studio --
+//                                         <project> --cover <png>`): the same pixels each build
 //
 // The projects bundled: examples/todo by default, else the directories given.
 // --compiler: helder.compiler.web's toolchain (its build.mjs's output, e.g.
@@ -25,6 +28,8 @@ const repo = path.resolve(here, '../../..');
 const argv = process.argv.slice(2);
 const ci = argv.indexOf('--compiler');
 const compilerDir = ci >= 0 ? path.resolve(argv.splice(ci, 2)[1]) : null;
+const vi = argv.indexOf('--covers');
+const covers = vi >= 0 && argv.splice(vi, 1).length > 0;
 const [out, ...given] = argv;
 if (!out) {
 	console.error('node apps/studio/web/build.mjs <out> [project...]');
@@ -70,7 +75,17 @@ for (const given of projects) {
 	const dest = path.resolve(out, 'examples', name);
 	step(['studio', path.resolve(dir), '--', '--export-web', dest], `${name}'s preview built for the web`);
 	const meta = JSON.parse(readFileSync(path.join(dest, 'project.json'), 'utf8'));
-	index.push({ name, label: label ?? meta.label, summary: meta.summary ?? undefined, screens: meta.screens });
+	const entry = { name, label: label ?? meta.label, summary: meta.summary ?? undefined, kind: meta.kind, screens: meta.screens };
+	if (covers) {
+		const png = path.join(dest, 'cover.png');
+		// (a headless run writes something of its own: its stats, into bin/covers)
+		const stats = path.join(repo, 'bin/covers', name + '.json');
+		mkdirSync(path.dirname(stats), { recursive: true });
+		step(['run', '--headless', 'apps/studio', '--stats', stats, '--', path.resolve(dir), '--cover', png], `${name}'s cover`);
+		const b = readFileSync(png);
+		Object.assign(entry, { cover: 'cover.png', width: b.readUInt32BE(16), height: b.readUInt32BE(20) });
+	}
+	index.push(entry);
 }
 writeFileSync(path.join(out, 'examples/index.json'), JSON.stringify(index, null, '\t') + '\n');
 

@@ -5,14 +5,16 @@ import helder.view.*;
 import studio.Studio;
 
 // helder studio (apps/studio/README.md): `helder studio [project]`, or
-// `studio [project] [--events <file>] [--mcp-port <n>] [--hold-while <file>]`
+// `studio [project] [--events <file>] [--mcp-port <n>] [--hold-while <file>]
+// [--cover <png>]` (--cover: the project's cover written, then closed;
+// apps/studio/web/build.mjs runs it headless for each example)
 class Main implements Markup {
 	public static var window(default, null):Null<UiWindow> = null;
 
 	static function main() {
 		studio.Studio.processStart = haxe.Timer.stamp();
 		var args = Sys.args(), dir:Null<String> = null, events:Null<String> = null, port:Null<Int> = null, holdWhile:Null<String> = null;
-		var width = 1180, height = 740, exportWeb:Null<String> = null;
+		var width = 1180, height = 740, exportWeb:Null<String> = null, cover:Null<String> = null;
 		var i = 0;
 		while (i < args.length) {
 			var a = args[i++];
@@ -23,6 +25,7 @@ class Main implements Markup {
 				case "--width": width = Std.parseInt(args[i++]) ?? width;
 				case "--height": height = Std.parseInt(args[i++]) ?? height;
 				case "--export-web": exportWeb = args[i++];
+				case "--cover": cover = args[i++];
 				case _ if (!StringTools.startsWith(a, "--")): dir = a;
 				case _: Sys.println('studio: $a: not an option (studio [project] [--events <file>] [--mcp-port <n>] [--hold-while <file>])');
 			}
@@ -46,7 +49,7 @@ class Main implements Markup {
 			.bind("secondary-k", studio.Shell.StudioAction.Jump)
 			.bind("shift-1", studio.Shell.StudioAction.FitAll)
 			.bind("shift-2", studio.Shell.StudioAction.FitSelection);
-		var s = new Studio(dir, {events: events, mcpPort: port, holdWhile: holdWhile});
+		var s = new Studio(dir, {events: events, mcpPort: port, holdWhile: holdWhile, cover: cover});
 		UiWindow.run(<Surface title={s.project == null ? "helder studio" : s.project.name + " · helder studio"} width={width} height={height} titlebar="inset"
 			theme={studio.Theme.sheet} background={studio.Theme.c("bg")} dark={true} ref={w -> {
 				window = w;

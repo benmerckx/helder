@@ -114,8 +114,12 @@ class Studio {
 	var refreshAgain = false;
 	// (an edit's gesture: its history group)
 	public var gesture(default, null) = 0;
+	// --cover <png>: the project's cover written there, then the studio closed
+	final coverPath:Null<String>;
+	var covering = false;
+	var covered = false;
 
-	public function new(dir:Null<String>, options:{?events:String, ?mcpPort:Int, ?holdWhile:String}) {
+	public function new(dir:Null<String>, options:{?events:String, ?mcpPort:Int, ?holdWhile:String, ?cover:String}) {
 		current = this;
 		startedAt = processStart;
 		var p:Null<Project> = null;
@@ -154,8 +158,11 @@ class Studio {
 			var f = options.holdWhile;
 			hold(() -> !sys.FileSystem.exists(f), 'while $f exists', 600);
 		}
-		if (p != null) mcp = new Mcp(this, options.mcpPort ?? 0);
+		// (a cover's run is no session: no MCP server)
+		if (p != null && options.cover == null) mcp = new Mcp(this, options.mcpPort ?? 0);
 		#end
+		coverPath = options.cover;
+		if (coverPath != null) hold(() -> covered, "the cover", 600);
 	}
 
 	// the project opened: the compiler, the screens' program built and started, the MCP server
@@ -221,6 +228,24 @@ class Studio {
 		}
 		showVisible();
 		designs.follow(openedAt > 0 ? openedAt : startedAt);
+		if (coverPath != null && !covering) cover(coverPath);
+	}
+
+	// (--cover: the cover's screen, a story's or the app's drawn alone at 2x
+	// (showVisible), its frame once there; a design's frame drawn offscreen)
+	function cover(path:String) {
+		var c = project?.cover();
+		var s = c == null ? null : previews?.screen(c.name);
+		var img = s?.image.peek();
+		if (s != null && (img == null || (c.width > 0 && img.width < c.width * 2))) return;
+		covering = true;
+		Async.launch(_ -> {
+			var r = c == null ? {content: [{type: "text", text: "no screen"}], isError: true} : tools.call("run.snap", {screen: c.name, path: path});
+			Sys.println('studio: the cover${c == null ? "" : ", " + c.name}: ${r.content[r.content.length - 1].text}');
+			covered = true;
+			Main.window?.close();
+			if (r.isError) Sys.exit(1);
+		});
 	}
 
 	// the previews told which screens are in view (the camera's; the others
@@ -229,6 +254,11 @@ class Studio {
 	function showVisible() {
 		var pr = previews;
 		if (pr == null || stageWidth <= 0) return;
+		var c = coverPath == null ? null : project.cover();
+		if (c != null && pr.screen(c.name) != null) {
+			pr.show([c.name], c.name, 2);
+			return;
+		}
 		var names = [];
 		if (mode.peek() != "stories")
 			for (r in layout.screens()) {

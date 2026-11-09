@@ -15,5 +15,15 @@ function tests() {
 			equals([for (p in d.places) p.at], [{x: 1130.0, y: 744.0}, {x: -500.0, y: 20.0}, null]);
 			equals(text.substr(d.places[1].start, 10), "<Frame app");
 		});
+		test("the cover flag, not a style", () -> {
+			var d = new DesignFile('<Design>\n\t<Frame name="A"/>\n\t<Frame name="B" cover/>\n\t<Frame story="a.story.hx#x" cover={false}/>\n\t<Frame app cover/>\n</Design>\n');
+			equals([for (f in d.frames) f.cover], [false, true]);
+			equals([for (p in d.places) p.cover], [false, true]);
+			var b = d.frames[1].root;
+			equals(switch b.kind {
+				case PElement(_, attrs, _, _): Lambda.exists(attrs, a -> a.name == "cover");
+				case _: true;
+			}, false);
+		});
 	});
 }

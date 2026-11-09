@@ -185,7 +185,8 @@ class Project {
 				file: file,
 				source: Design(k),
 				at: fr.at,
-				start: fr.start
+				start: fr.start,
+				cover: fr.cover
 			});
 		}
 		return out;
@@ -200,18 +201,19 @@ class Project {
 			var p = placeOf(s);
 			s.at = p?.at;
 			s.place = p == null ? null : {file: p.file, start: p.start};
+			s.cover = p?.cover == true;
 			screens.push(s);
 		}
 	}
 
 	// a story's or the app's place: the first <Frame story> naming its file and
 	// its export's or its own name (from that design file's folder), or <Frame app>
-	function placeOf(s:ScreenInfo):Null<{file:String, at:Null<{x:Float, y:Float}>, start:Int}> {
+	function placeOf(s:ScreenInfo):Null<{file:String, at:Null<{x:Float, y:Float}>, start:Int, cover:Bool}> {
 		for (d in designs) {
 			var l = places.get(d);
 			if (l != null)
 				for (p in l)
-					if (matches(d, p.ref, s)) return {file: d, at: p.at, start: p.start};
+					if (matches(d, p.ref, s)) return {file: d, at: p.at, start: p.start, cover: p.cover};
 		}
 		return null;
 	}
@@ -303,6 +305,12 @@ class Project {
 
 	static function unquote(s:String):String
 		return s.length >= 2 && (s.charAt(0) == '"' || s.charAt(0) == "'") ? s.substring(1, s.length - 1) : s;
+
+	// the project's cover (DESIGN.md §2): the screen whose <Frame> is flagged
+	// cover (a design's, a story's or the app's), else the first: a design's
+	// frame, else a story, else the app's
+	public function cover():Null<ScreenInfo>
+		return Lambda.find(screens, s -> s.cover == true) ?? screens[0];
 
 	public function screen(name:String):Null<ScreenInfo>
 		return Lambda.find(screens, s -> s.name == name);
@@ -450,6 +458,8 @@ typedef ScreenInfo = {
 	?start:Int,
 	// (a story's or the app's: the design file and offset of its <Frame> placing it; null: none yet)
 	?place:Null<{file:String, start:Int}>,
+	// (its <Frame> flagged cover)
+	?cover:Bool,
 }
 
 // What a screen's content is: a story of the program (the name it is bound

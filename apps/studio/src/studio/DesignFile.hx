@@ -32,7 +32,7 @@ class DesignFile {
 		for (k in kids)
 			switch k.kind {
 				case PElement("Frame", attrs, children, at) if (value(attrs, "story") != null || Lambda.exists(attrs, a -> a.name == "app")):
-					places.push({ref: value(attrs, "story") ?? "app", at: point(attrs), start: lead + at - 1});
+					places.push({ref: value(attrs, "story") ?? "app", at: point(attrs), start: lead + at - 1, cover: flag(attrs, "cover")});
 				case PElement("Frame", attrs, children, at):
 					frames.push({
 						name: value(attrs, "name") ?? 'Frame ${frames.length + 1}',
@@ -40,6 +40,7 @@ class DesignFile {
 						height: Std.int(number(attrs, "height") ?? 844),
 						at: point(attrs),
 						start: lead + at - 1,
+						cover: flag(attrs, "cover"),
 						root: {kind: PElement("view", [for (a in attrs) if (shown(a.name)) a].concat(sized(attrs, at)), strip(children), at)},
 						base: lead
 					});
@@ -55,7 +56,7 @@ class DesignFile {
 
 	// (the frame's own attributes, not a view's)
 	static function shown(name:String):Bool
-		return !name.startsWith("canvas:") && name != "name" && name != "story" && name != "app" && name != "route";
+		return !name.startsWith("canvas:") && name != "name" && name != "story" && name != "app" && name != "route" && name != "cover";
 
 	// (a size not written: a phone's)
 	static function sized(attrs:Array<PAttr>, at:Int):Array<PAttr>
@@ -75,6 +76,13 @@ class DesignFile {
 					case _: n;
 				}
 		];
+
+	// (a flag: <Frame cover/>, or cover={true})
+	static function flag(attrs:Array<PAttr>, name:String):Bool {
+		for (a in attrs)
+			if (a.name == name) return value(attrs, name) != "false";
+		return false;
+	}
 
 	static function value(attrs:Array<PAttr>, name:String):Null<String> {
 		for (a in attrs)
@@ -98,6 +106,7 @@ typedef Place = {
 	ref:String,
 	at:Null<{x:Float, y:Float}>,
 	start:Int,
+	cover:Bool,
 }
 
 typedef Frame = {
@@ -108,6 +117,8 @@ typedef Frame = {
 	at:Null<{x:Float, y:Float}>,
 	// its element's offset in the file
 	start:Int,
+	// the project's cover (Project.cover)
+	cover:Bool,
 	// what is drawn: a view of its size, its content; the offset of its text in the file
 	root:PNode,
 	base:Int,
