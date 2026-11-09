@@ -455,12 +455,15 @@ slot. Its direction is Spacedrive's interface, made the studio's own:
   `Command`, a frame, a file or a tool by name; arrows and Enter), undo,
   redo, Design and Code. Its empty parts and the sidebar's top drag the
   window: the title bar is inset into the app (helder.os's `TitleBar`), the
-  window's buttons in the sidebar's card (`<WindowControls/>`).
-- **One accent**, a blue (`accent`), used sparingly: the selection's
-  outline and handles (white squares edged in it), the snaps' guides, the
-  frame in focus (its outline, its name a blue pill), focus, Play. The
-  current page, file, frame and layer are a lighter fill (`on`), their
-  icons white.
+  window's buttons in the sidebar's card (`<WindowControls/>`; no row for
+  them without an inset title bar: in the browser, full screen).
+- **One accent**, a blue (`accent`), for what is current or acts: the
+  selection's outline and handles (white squares edged in it), the snaps'
+  guides, the frame in focus (its outline, its name a blue pill), focus
+  (a ring, `focus`), Play, the switch's current side. The current page,
+  file, frame, layer and sheet's tab are a tint of it (`on`), their icons
+  in it (`accent-ink`). Files' icons a quiet hue by kind (`kind-*`: a
+  design's violet, a story's orange, code blue, an image green).
 - **Icons throughout**: Lucide's (ISC, `icons/`, only those used,
   embedded by `Icons.hx`, strokes 1.75): a page's kind, a frame, a layer's
   element, each section, the toolbar's buttons.

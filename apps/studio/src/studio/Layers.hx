@@ -38,7 +38,7 @@ class Layers implements Markup {
 								if (g.state == Ended) reorder(studio, row, Math.round(g.ty / Theme.LAYER));
 							} else moving({key: row.key, dy: g.ty});
 						}}>
-						<image src={r().icon} width={Theme.ICON_S} height={Theme.ICON_S} color={r().on ? c("fg") : c("fg3")}/>
+						<image src={r().icon} width={Theme.ICON_S} height={Theme.ICON_S} color={r().on ? c("accent-ink") : c("fg3")}/>
 						<text max-lines={1} text-overflow="ellipsis">{r().label}</text>
 					</view>
 				}</For>

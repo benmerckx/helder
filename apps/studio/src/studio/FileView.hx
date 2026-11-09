@@ -24,7 +24,7 @@ class FileView implements Markup {
 		var actual = signal(false);
 		return <view tag="file-view" grow={1} min-height={0}>
 			<view tag="file-head" direction="row" align-items="center" column-gap={10} height={44} padding="0 14" border-width="0 0 1 0" border-color={c("line")} shrink={0}>
-				<image src={icon(kind)} width={Theme.ICON} height={Theme.ICON} color={c("fg2")}/>
+				<image src={icon(kind)} width={Theme.ICON} height={Theme.ICON} color={c(hue(kind))}/>
 				<text font-weight={Theme.MEDIUM} max-lines={1}>{haxe.io.Path.withoutDirectory(path)}</text>
 				<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1} shrink={1}>{info(studio, path, kind)}</text>
 				<view grow={1}/>
@@ -58,6 +58,10 @@ class FileView implements Markup {
 			case Audio: Icons.audioLines;
 			case Other: Icons.file;
 		}
+
+	// its icon's colour (Theme's kind-*)
+	public static function hue(kind:FileKind):String
+		return "kind-" + kind;
 
 	// (its size on disk, an image's pixels and format)
 	static function info(studio:Studio, path:String, kind:FileKind):String {

@@ -213,8 +213,9 @@ in it. The look, the free canvas, Play and phones' sheets are built
   above), text in three greys, crisp; the sidebar and the
   inspector as cards inset over the canvas (radius 12, an 8-point gap, a
   faint edge) rather than regions split by hairlines; one accent, a blue,
-  used sparingly (the selection's outline and handles, guides, focus,
-  Play; the current page and layer a lighter fill); icons throughout (Lucide's, MIT, as
+  for what is current or acts (the selection's outline and handles,
+  guides, focus, Play; the current page, layer and tab a tint of it, their
+  icons in it; files' icons a quiet hue by kind); icons throughout (Lucide's, MIT, as
   SVGs: a page's kind, a layer's element, the toolbar's buttons);
   sections with an icon and a small-caps header, labels left and values
   right; a frame's selected name a blue pill; radii 6, 8 and 12, hairlines

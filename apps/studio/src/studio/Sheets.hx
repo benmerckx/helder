@@ -42,7 +42,7 @@ class Sheets implements Markup {
 		return <view tag="sheet-bar" motion-color="snappy" position="absolute" left={0} right={0} bottom={0} height={Theme.BAR} direction="row" align-items="center"
 			justify="center" column-gap={4} padding="0 8" background={c("bg")} border-width="1 0 0 0" border-color={c("line")}>
 			{[for (n in names) <view:button tag={"tab-" + n} role="button" label={label(n)} focusable grow={1} max-width={96} height={44} radius={Theme.RADIUS_M}
-				align-items="center" justify="center" row-gap={2} cursor="pointer" color={studio.sheet() == n ? c("fg") : c("fg3")}
+				align-items="center" justify="center" row-gap={2} cursor="pointer" color={studio.sheet() == n ? c("accent-ink") : c("fg3")}
 				background={studio.sheet() == n ? c("on") : null} onPress={() -> studio.openSheet(n)}>
 				<image src={icon(n)} width={18} height={18}/>
 				<text font-size={Theme.CAPS}>{label(n)}</text>
