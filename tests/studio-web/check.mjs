@@ -24,7 +24,9 @@
 // - phone (390 x 844, touch): the same project in the compact layout, the
 //   files' sheet from the bar, a frame picked in it, the title
 //   double-tapped, the inspector's sheet, its colour patched, a pinch
-//   zooming the canvas, another frame from the files' sheet;
+//   zooming the canvas, another frame from the files' sheet, played: the
+//   story alone below the top bar, fitted to the page, its controls a
+//   sheet from the top bar, stopped there;
 // - 50 screens (tests/story/host/host.mjs project): opened, the time to
 //   every screen shown, the memory (the studio's module, the preview's,
 //   the page's JavaScript), the frames each screen drew.
@@ -258,6 +260,15 @@ async function recolour(pg, x, y, tap) {
 		check(built && !built.ok, 'a padding added: saved, not built (no compiler worker on this page yet)');
 		console.log('studio-web: structural edits: skipped, the page has no compiler worker (helder.compiler.web)');
 	}
+	// Play on a desktop: the story at its size (fitted when it does not fit) beside its controls' panel
+	const at0 = await lastFrame(pg);
+	check(await press(pg, 'Play'), 'desktop: Play pressed');
+	const played = await event(pg, 'player', (e) => e.frame >= at0, 10000);
+	check(played && !played.compact && played.rect[0] > 256 && played.rect[0] + played.rect[2] < 1180 - 264,
+		'desktop: the story played between the sidebar and its controls: ' + JSON.stringify(played?.rect));
+	await pg.waitForTimeout(600);
+	await pg.screenshot({ path: path.join(out, 'desktop-play.png') });
+	check(await press(pg, 'Stop'), 'desktop: Stop');
 	await pg.context().close();
 }
 
@@ -367,6 +378,27 @@ async function recolour(pg, x, y, tap) {
 	check(await press(pg, 'Todo/Done'), 'phone: another frame chosen in it');
 	await pg.waitForTimeout(1600);
 	await pg.screenshot({ path: path.join(out, 'phone-done.png') });
+	// Play: the story alone below the top bar, fitted to the page (no panel), its controls a sheet from the top bar
+	const at0 = await lastFrame(pg);
+	check(await press(pg, 'Play'), 'phone: Play pressed');
+	const played = await event(pg, 'player', (e) => e.frame >= at0, 10000);
+	await pg.waitForTimeout(800);
+	const fills = (e) => {
+		if (!e) return false;
+		const [x, y, w, h] = e.rect, [sw, sh] = e.stage, top = 48, pad = 12, aw = sw - 2 * pad, ah = sh - top - 2 * pad;
+		const fit = Math.abs(w - aw) <= 1 || Math.abs(h - ah) <= 1;
+		const centred = Math.abs(x + w / 2 - sw / 2) <= 1 && Math.abs(y + h / 2 - (top + (sh - top) / 2)) <= 1;
+		return e.compact && fit && centred && w <= aw + 1 && h <= ah + 1;
+	};
+	check(fills(played), 'phone: the played story fills the page below the top bar: ' + JSON.stringify(played && [played.rect, played.stage]));
+	await pg.screenshot({ path: path.join(out, 'phone-play.png') });
+	check(await press(pg, 'Controls'), 'phone: the story\'s controls opened from the top bar');
+	const sheet = await event(pg, 'sheet', (e) => e.sheet === 'controls', 5000);
+	check(sheet, 'phone: the controls\' sheet open');
+	await pg.waitForTimeout(800);
+	await pg.screenshot({ path: path.join(out, 'phone-play-controls.png') });
+	check(await press(pg, 'Stop'), 'phone: Stop in the top bar');
+	check(await event(pg, 'stopped', () => true, 5000), 'phone: stopped');
 	await pg.context().close();
 }
 

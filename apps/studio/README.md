@@ -209,6 +209,11 @@ its start; the target beside it says where; Stop or Escape ends it.
   made yet. A design's frame plays as a prototype: its page's frames one
   after the other with the arrow keys (flows and interactions are not made
   yet).
+  On a phone (compact), Play takes the page below the top bar: the screen
+  alone, fitted to it (larger too, drawn at the display's scale for the
+  size shown), centred; the story's controls a sheet from the top bar's
+  button (the screen fitted above it), a prototype's frames the top bar's
+  arrows; Stop stays where Play was.
 - **In a window**: `helder dev` on the project (hot reload kept, its own
   window), with the helder that started the studio (`HELDER_CLI`, set by
   `helder studio`); its output's last line in the player.
@@ -437,10 +442,11 @@ tokens (the code view's too), the type, the radii, the layout's sizes and
 the canvas' spring, and a helder.ui StyleSheet of the studio's parts by
 slot. Its direction is Spacedrive's interface, made the studio's own:
 
-- **Cool, blue-tinted darks** instead of neutral greys: the canvas
-  darkest (`canvas`), the cards a step up (`bg`), fields and hovers above
-  (`well`, `hover`, `active`); text in three cool greys (`fg`, `fg2`,
-  `fg3`); hairlines faint (`line`, `edge`: a blue-grey at 7% and 14%).
+- **Near neutral darks**, a hint of cool at most (toward the earlier
+  black and white wireframe): the canvas darkest (`canvas`), the cards a
+  step up (`bg`), fields and hovers above (`well`, `hover`, `active`); text
+  in three greys, near white at the top (`fg`, `fg2`, `fg3`); hairlines
+  faint (`line`, `edge`: white at 7% and 14%).
 - **Cards over the canvas**: the sidebar and the inspector (or the code)
   are cards inset 8 points from the window, radius 12, a faint edge; the
   canvas runs under them (the camera fits what is in focus between them:
@@ -450,10 +456,11 @@ slot. Its direction is Spacedrive's interface, made the studio's own:
   redo, Design and Code. Its empty parts and the sidebar's top drag the
   window: the title bar is inset into the app (helder.os's `TitleBar`), the
   window's buttons in the sidebar's card (`<WindowControls/>`).
-- **One accent**, a blue (`accent`), for whatever is active: the
-  selection's outline and handles (white squares edged in it), the snaps'
-  guides, the frame in focus (its outline, its name a blue pill), the
-  current page, frame and layer (a soft fill, `accent-soft`), focus.
+- **One accent**, a blue (`accent`), used sparingly: the selection's
+  outline and handles (white squares edged in it), the snaps' guides, the
+  frame in focus (its outline, its name a blue pill), focus, Play. The
+  current page, file, frame and layer are a lighter fill (`on`), their
+  icons white.
 - **Icons throughout**: Lucide's (ISC, `icons/`, only those used,
   embedded by `Icons.hx`, strokes 1.75): a page's kind, a frame, a layer's
   element, each section, the toolbar's buttons.

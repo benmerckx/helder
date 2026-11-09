@@ -78,6 +78,9 @@ class Studio {
 	public final target = signal("studio");
 	public final playLog = signal("");
 	public final playControls:Signal<Array<Dynamic>> = signal([]);
+	// (the played screen's node: its place told to checks, "player")
+	public var playScreen:Null<Node> = null;
+	var playRect = "";
 	#if !(hxmc.target == "wasm32-wasi")
 	var targetProcess:Null<Process> = null;
 	#end
@@ -226,6 +229,10 @@ class Studio {
 			stageSize(v -> v + 1);
 			if (first) fitView(false);
 		}
+		var ps = playScreen, r = ps == null || playing.peek() == null ? null : ps.rect();
+		var key = r == null ? "" : '${r.x} ${r.y} ${r.width} ${r.height}';
+		if (key != playRect && (playRect = key) != "")
+			log("player", {rect: [r.x, r.y, r.width, r.height], stage: [stageWidth, stageHeight], compact: compactNow});
 		showVisible();
 		designs.follow(openedAt > 0 ? openedAt : startedAt);
 		if (coverPath != null && !covering) cover(coverPath);
@@ -278,7 +285,10 @@ class Studio {
 		var live = play == null || play.kind == "design" || play.kind == "target" ? null : play.screen;
 		if (live != null) {
 			if (!names.contains(live)) names.push(live);
-			pr.show(names, live, Main.window == null ? 1.0 : Math.min(3, Main.window.renderer.scale));
+			// (fitted larger on a phone: its pixels at the size shown)
+			var s = pr.screen(live), k = s == null ? 1.0 : Math.max(1, Play.fit(this, s.width(), s.height(), play.kind == "story"));
+			var most = s == null ? 3.0 : 4096 / Math.max(1, Math.max(s.width(), s.height()));
+			pr.show(names, live, Math.min(Math.min(3 * k, most), (Main.window == null ? 1.0 : Main.window.renderer.scale) * k));
 			return;
 		}
 		pr.show(names, mode.peek() == "stories" ? null : focused.peek(), focused.peek() == null ? 1 : focusScale);
@@ -500,6 +510,7 @@ class Studio {
 				if (first != null) {kind: "design", screen: first.name, note: "no app to run: the first frame as a prototype"}
 				else {kind: "story", screen: project.screens[0]?.name, note: "this project's program is its stories': the app runs in a window (the target beside Play)"};
 		}
+		if (compactNow) setSheet(null, detentNow);
 		playing(p);
 		playControls([]);
 		if (p.kind == "story" && p.screen != null) {
@@ -528,6 +539,8 @@ class Studio {
 			walk(Studio.rootOf(r));
 			log("stopped", {screen: p.screen, texts: texts});
 		}) else if (p != null) log("stopped", {screen: p.screen});
+		if (sheetNow == "controls") setSheet(null, detentNow);
+		playScreen = null;
 		playing(null);
 	}
 

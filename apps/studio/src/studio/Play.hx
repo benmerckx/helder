@@ -78,16 +78,21 @@ class Play implements Markup {
 	static function targetsHere():Array<String>
 		return #if (hxmc.target == "wasm32-wasi") ["studio"] #else targets #end;
 
-	// the player over the canvas
+	// the player over the canvas; compact, the page below the top bar: the
+	// screen fitted alone, the controls a sheet (Sheets' "controls")
 	public static function view(studio:Studio):View {
 		var p = studio.playing();
 		if (p == null) return null;
 		var info = p.screen == null ? null : studio.project.screen(p.screen);
+		if (studio.compact()) return <view tag="player" grow={1} min-height={0} background={c("canvas")} onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
+			<view grow={1} min-height={0}>{stage(studio, p, info)}</view>
+			<view height={studio.sheet() == null ? 0.0 : studio.sheetHeight(studio.detent())} shrink={0}/>
+		</view>;
 		return <view tag="player" grow={1} min-height={0} background={c("canvas")} onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
 			<view tag="player-head" direction="row" align-items="center" column-gap={10} height={44} padding="0 10 0 14" background={c("bg")}
 				border-width="0 0 1 0" border-color={c("line")} shrink={0}>
 				<image src={p.kind == "design" ? Icons.penTool : p.kind == "app" ? Icons.appWindow : p.kind == "target" ? icon(studio.target()) : Icons.bookOpen}
-					width={Theme.ICON} height={Theme.ICON} color={c("accent")}/>
+					width={Theme.ICON} height={Theme.ICON} color={c("fg2")}/>
 				<text font-weight={Theme.MEDIUM} max-lines={1}>{info == null ? label(studio.target()) : info.label}</text>
 				<text tag="player-note" font-size={Theme.SMALL} color={c("fg3")} max-lines={1} shrink={1}>{p.kind == "target" ? studio.playLog() : p.note}</text>
 				<view grow={1}/>
@@ -101,20 +106,54 @@ class Play implements Markup {
 				</Show>
 			</view>
 			<view direction="row" grow={1} min-height={0}>
-				<view tag="player-stage" grow={1} min-width={0} align-items="center" justify="center" focusable ref={(n:Node) -> haxe.Timer.delay(() -> n.focus(false), 0)}
-					onKeyDown={e -> key(studio, p, e, "down")} onKeyUp={e -> key(studio, p, e, "up")} onTextInput={e -> if (p.kind != "design") send(studio, p, "Input.text", {text: e.text})}>
-					{p.kind == "target" ? <text color={c("fg3")} padding={24}>{"Running in " + label(studio.target()).toLowerCase() + ": its output above."}</text>
-						: info == null ? <text color={c("fg3")} padding={24}>{p.note}</text>
-						: p.kind == "design" ? design(studio, info) : live(studio, p, info)}
-				</view>
-				<Show when={p.kind == "story"}>{controls(studio, p)}</Show>
+				{stage(studio, p, info)}
+				<Show when={p.kind == "story"}>
+					<view tag="player-controls" width={Theme.INSPECTOR} shrink={0} background={c("bg")} border-width="0 0 0 1" border-color={c("line")}>
+						{controls(studio)}
+					</view>
+				</Show>
 			</view>
 		</view>;
 	}
 
-	// (the frame's scale: 1:1, else fitted into the player)
-	static function fit(studio:Studio, w:Float, h:Float, panel:Bool):Float {
+	static function stage(studio:Studio, p:Playing, info:Null<Project.ScreenInfo>):View
+		return <view tag="player-stage" grow={1} min-width={0} align-items="center" justify="center" focusable ref={(n:Node) -> haxe.Timer.delay(() -> n.focus(false), 0)}
+			onKeyDown={e -> key(studio, p, e, "down")} onKeyUp={e -> key(studio, p, e, "up")} onTextInput={e -> if (p.kind != "design") send(studio, p, "Input.text", {text: e.text})}>
+			{p.kind == "target" ? <text color={c("fg3")} padding={24}>{"Running in " + label(studio.target()).toLowerCase() + ": its output above."}</text>
+				: info == null ? <text color={c("fg3")} padding={24}>{p.note}</text>
+				: p.kind == "design" ? design(studio, info) : live(studio, p, info)}
+		</view>;
+
+	// compact: the top bar's buttons while playing (a story's controls, a prototype's frames)
+	public static function tools(studio:Studio):View
+		return <view direction="row" align-items="center">
+			<Show when={studio.playing()?.kind == "story"}>
+				<view:button tag="player-controls-open" slot="button" role="button" label="Controls" focusable
+					data-on={studio.sheet() == "controls" ? "true" : "false"} onPress={() -> studio.openSheet("controls")}>
+					<image src={Icons.ruler} width={Theme.ICON} height={Theme.ICON}/>
+				</view:button>
+			</Show>
+			<Show when={studio.playing()?.kind == "design"}>
+				<view:button tag="player-prev" slot="button" role="button" label="The frame before" onPress={() -> studio.playStep(-1)}>
+					<image src={Icons.chevronRight} width={Theme.ICON} height={Theme.ICON} transform="rotate(180deg)"/>
+				</view:button>
+				<view:button tag="player-next" slot="button" role="button" label="The next frame" onPress={() -> studio.playStep(1)}>
+					<image src={Icons.chevronRight} width={Theme.ICON} height={Theme.ICON}/>
+				</view:button>
+			</Show>
+		</view>;
+
+	// (compact: the room around the screen)
+	public static inline var PAD = 12;
+
+	// the frame's scale: 1:1, else fitted into the player; compact, fitted
+	// to the page below the top bar (above the controls' sheet), larger too
+	public static function fit(studio:Studio, w:Float, h:Float, panel:Bool):Float {
 		studio.stageSize();
+		if (studio.compact()) {
+			var below = studio.sheet() == null ? 0.0 : studio.sheetHeight(studio.detent());
+			return Math.min((studio.stageWidth - 2 * PAD) / Math.max(1, w), (studio.stageHeight - Theme.TOPBAR - below - 2 * PAD) / Math.max(1, h));
+		}
 		var aw = studio.stageWidth - (studio.compact() ? 0 : Theme.SIDEBAR + 3 * Theme.GAP) - (panel ? Theme.INSPECTOR : 0) - 48;
 		var ah = studio.stageHeight - (studio.compact() ? 0 : Theme.HEADER + 2 * Theme.GAP) - 44 - 48;
 		return Math.min(1, Math.min(aw / Math.max(1, w), ah / Math.max(1, h)));
@@ -124,12 +163,13 @@ class Play implements Markup {
 	static function live(studio:Studio, p:Playing, info:Project.ScreenInfo):View {
 		var s = studio.previews?.screen(info.name);
 		if (s == null) return <text color={c("fg3")}>{"Not built yet."}</text>;
+		studio.playScreen = null;
 		var down = false;
 		function at(e:Event):{x:Float, y:Float} {
 			var k = fit(studio, s.width(), s.height(), p.kind == "story");
 			return {x: e.localX / k, y: e.localY / k};
 		}
-		return <view tag="player-screen" width={s.width() * fit(studio, s.width(), s.height(), p.kind == "story")}
+		return <view tag="player-screen" ref={(n:Node) -> studio.playScreen = n} width={s.width() * fit(studio, s.width(), s.height(), p.kind == "story")}
 			height={s.height() * fit(studio, s.width(), s.height(), p.kind == "story")} radius={2} overflow="hidden" shadow="0 16 48 rgba(0,0,0,0.45)"
 			onPointerDown={e -> {
 				down = true;
@@ -162,8 +202,8 @@ class Play implements Markup {
 	}
 
 	// a story's controls: each kind its field, set in the program at once
-	static function controls(studio:Studio, p:Playing):View {
-		return <view tag="player-controls" width={Theme.INSPECTOR} shrink={0} background={c("bg")} border-width="0 0 0 1" border-color={c("line")}>
+	public static function controls(studio:Studio):View {
+		return <view>
 			<view slot="section" border-width={0}>
 				<view slot="section-head"><image src={Icons.ruler} width={12} height={12}/><text>Controls</text></view>
 				<Show when={studio.playControls().length > 0} fallback={<text font-size={Theme.SMALL} color={c("fg3")}>{"This story has no controls."}</text>}>

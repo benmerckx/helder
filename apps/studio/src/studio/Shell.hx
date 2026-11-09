@@ -149,20 +149,23 @@ class Shell implements Markup {
 				<view tag="crumb" direction="row" align-items="center" shrink={1} min-width={0} grow={1}>
 					<text tag="crumb-screen" max-lines={1} text-overflow="ellipsis" font-weight={Theme.MEDIUM}>{crumbFrame(studio) ?? crumbPage(studio) ?? (studio.project?.name ?? "helder studio")}</text>
 				</view>
-				<view:button tag="undo" slot="button" role="button" label="Undo" focusable data-disabled={studio.docs.canUndo() ? "false" : "true"}
-					onPress={() -> studio.undo()}><image src={Icons.undo} width={Theme.ICON} height={Theme.ICON}/></view:button>
-				<view:button tag="redo" slot="button" role="button" label="Redo" focusable data-disabled={studio.docs.canRedo() ? "false" : "true"}
-					onPress={() -> studio.redo()}><image src={Icons.redo} width={Theme.ICON} height={Theme.ICON}/></view:button>
+				<Show when={studio.playing() == null}>
+					<view:button tag="undo" slot="button" role="button" label="Undo" focusable data-disabled={studio.docs.canUndo() ? "false" : "true"}
+						onPress={() -> studio.undo()}><image src={Icons.undo} width={Theme.ICON} height={Theme.ICON}/></view:button>
+					<view:button tag="redo" slot="button" role="button" label="Redo" focusable data-disabled={studio.docs.canRedo() ? "false" : "true"}
+						onPress={() -> studio.redo()}><image src={Icons.redo} width={Theme.ICON} height={Theme.ICON}/></view:button>
+				</Show>
+				{Play.tools(studio)}
 				{Play.button(studio)}
 			</view>
 			<Show when={studio.mode() == "file"}>
 				<view position="absolute" left={0} right={0} top={Theme.TOPBAR} bottom={Theme.BAR} background={c("bg")}>{FileView.view(studio)}</view>
 			</Show>
-			<Show when={studio.sheet() != null}>{Sheets.view(studio)}</Show>
 			<Show when={studio.playing() != null}>
-				<view position="absolute" left={0} right={0} top={Theme.TOPBAR} bottom={Theme.BAR} background={c("canvas")}>{Play.view(studio)}</view>
+				<view tag="player-page" position="absolute" left={0} right={0} top={Theme.TOPBAR} bottom={0} background={c("canvas")}>{Play.view(studio)}</view>
 			</Show>
-			{Sheets.bar(studio)}
+			<Show when={studio.sheet() != null}>{Sheets.view(studio)}</Show>
+			<Show when={studio.playing() == null}>{Sheets.bar(studio)}</Show>
 		</view>;
 
 	// (top: the window's buttons' row; not in a sheet)
@@ -175,8 +178,8 @@ class Shell implements Markup {
 				</view>
 			</Show>
 			<view tag="project" direction="row" align-items="center" column-gap={9} padding="0 12 10" shrink={0}>
-				<view width={24} height={24} radius={Theme.RADIUS} background={c("accent-soft")} align-items="center" justify="center">
-					<image src={Icons.folder} width={Theme.ICON_S} height={Theme.ICON_S} color={c("accent")}/>
+				<view width={24} height={24} radius={Theme.RADIUS} background={c("well")} align-items="center" justify="center">
+					<image src={Icons.folder} width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg2")}/>
 				</view>
 				<view shrink={1} min-width={0}>
 					<text font-weight={Theme.MEDIUM} max-lines={1} text-overflow="ellipsis">{p == null ? "helder studio" : p.name}</text>
@@ -223,7 +226,7 @@ class Shell implements Markup {
 					studio.focus(info.name);
 				}}>
 				<view width={12}/>
-				<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("accent") : c("fg3")}/>
+				<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("fg") : c("fg3")}/>
 				<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
 			</view:button>;
 		var on = studio.focused() == null && studio.shown() == e.path;
@@ -237,7 +240,7 @@ class Shell implements Markup {
 				{r.hasChildren ? <image src={tree.open(e) ? Icons.chevronDown : Icons.chevronRight} width={12} height={12} color={c("fg3")}/> : null}
 			</view>
 			<image src={e.kind == Dir && tree.open(e) ? Icons.folderOpen : FileView.icon(e.kind)} width={Theme.ICON_S} height={Theme.ICON_S}
-				color={e.kind == Dir ? c("fg3") : on ? c("accent") : c("fg3")}/>
+				color={e.kind == Dir ? c("fg3") : on ? c("fg") : c("fg3")}/>
 			<text max-lines={1} text-overflow="ellipsis">{e.name}</text>
 		</view:button>;
 	}
