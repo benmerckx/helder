@@ -1,6 +1,7 @@
 package helder.os.wayland;
 
 import helder.os.Event;
+import helder.os.TitleBar;
 import helder.os.wayland.WaylandClient;
 import helder.os.wayland.protocol.WaylandProtocol;
 import helder.os.wayland.protocol.XdgShellProtocol;
@@ -32,6 +33,11 @@ import hxmc.unsafe.*;
 // selection's offer through a pipe) and files dropped (text/uri-list).
 // Text input: text-input-unstable-v3 where the compositor has it
 // (WaylandTextInput: an input method's compositions and commits).
+// An inset title bar (Window.titlebar Inset): neither the compositor's
+// decorations nor helder's bar, the app's buttons drawn in it (helder.ui's
+// WindowControls); a press on its drag regions moves the window
+// (xdg_toplevel.move, a double press maximises), on its edges (6 points)
+// resizes it (xdg_toplevel.resize).
 // Events come from libwayland's dispatch into a queue, then App's callback.
 @:allow(helder.os)
 class WaylandWindow {
@@ -280,6 +286,7 @@ class WaylandWindow {
 					w.barPress(button, state == 1, serial);
 					return;
 				}
+				if (state == 1 && w.titlePress(button, serial)) return;
 				// (BTN_LEFT 0x110, BTN_RIGHT 0x111, BTN_MIDDLE 0x112)
 				var b = button == 0x110 ? 1 : button == 0x111 ? 3 : button == 0x112 ? 2 : 0;
 				if (b == 0) return;
@@ -646,7 +653,8 @@ class WaylandWindow {
 		listeners.push(toplevel.listen(te));
 		toplevel.setTitle(title);
 		toplevel.setAppId(appId());
-		if (!decorations.isNull()) {
+		if (owner.titlebar == Inset) drawsBar = false;
+		if (!decorations.isNull() && owner.titlebar != Inset) {
 			decoration = decorations.getToplevelDecoration(toplevel);
 			var de = new ZxdgToplevelDecorationV1Events();
 			de.configure = mode -> {
@@ -744,6 +752,42 @@ class WaylandWindow {
 		barDrawn = "";
 		drawBar();
 	}
+
+	// an inset title bar's press (the pointer at px, py): an edge resizes,
+	// a drag region moves (a double press maximises; the right button the
+	// compositor's window menu). True: the compositor's, not the app's
+	function titlePress(button:Int, serial:Int):Bool {
+		if (owner.titlebar != Inset || (button != 0x110 && button != 0x111)) return false;
+		var k = scale(), x = Math.round(px * k), y = Math.round(py * k);
+		var app = owner.titlebarAt == null ? Content : owner.titlebarAt(x, y);
+		var h = TitleBars.hit(px, py, pointsW, pointsH, 6, !maximized && !fullscreen, app);
+		if (button == 0x111) {
+			if (h != Drag) return false;
+			toplevel.showWindowMenu(seat, serial, Std.int(px), Std.int(py));
+			return true;
+		}
+		var edge = TitleBars.wayland(h);
+		if (edge >= 0) {
+			toplevel.resize(seat, serial, edge);
+			return true;
+		}
+		if (h != Drag) return false;
+		var now = haxe.Timer.stamp();
+		if (now - lastBarPress < 0.4) {
+			lastBarPress = 0;
+			maximize(!maximized);
+			return true;
+		}
+		lastBarPress = now;
+		toplevel.move(seat, serial);
+		return true;
+	}
+
+	function minimize()
+		toplevel.setMinimized();
+
+	function maximize(on:Bool)
+		if (on) toplevel.setMaximized() else toplevel.unsetMaximized();
 
 	// --- helder's decorations: the bar (30 points, its buttons 46 wide: minimise, maximise, close)
 

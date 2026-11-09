@@ -587,6 +587,29 @@ change (a rotation, the bars hidden): `padding-top="env(safe-area-inset-top)"`,
 part over it (`SceneBox.safeArea()`), for a game's HUD over a scene on the
 whole screen.
 
+A desktop window's title bar can be inset into the app
+(`<Surface titlebar="inset">`, helder.os's `TitleBar`): the content runs
+under it and the app lays out the window's buttons with
+`<WindowControls/>` (`helder.ui.widgets.WindowButtons`: on macOS a box of
+the system's own buttons' size, the buttons placed at it after each
+layout; on Windows minimise, maximise and close drawn, 46 by 32, the close
+button red when hovered; on Linux round ones; nothing in the browser, on a
+phone or with the system's title bar). A node with `drag-region` moves the
+window when pressed (what takes presses inside it, a button or a field,
+stays the content's: `Ui.titleHit`, which each system's code asks at a
+press, Windows at each WM_NCHITTEST); `env(titlebar-area-x)`, `-y`,
+`-width` and `-height` are the bar's area free of the buttons (the Window
+Controls Overlay's names, bound as the safe area's; without an inset
+title bar the fallback). Tests: `TitlebarArea.test.hx`.
+
+```haxe
+<Surface title="Studio" titlebar="inset">
+	<view direction="row" drag-region height="env(titlebar-area-height, 40px)" padding-left="env(titlebar-area-x)">
+		<text>Studio</text><view grow={1}/><WindowControls/>
+	</view>
+</Surface>
+```
+
 A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to
 each other become one `TextNode`.

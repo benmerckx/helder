@@ -91,6 +91,51 @@ Windows an HDROP posted as `WM_DROPFILES`, under Wine too
 own class given to the window's dragging destination; then moveTo and
 position, fullscreen asked); `src/helder/os/UriList.test.hx`.
 
+### An inset title bar
+
+```haxe
+var window = new Window("Studio", 1180, 740, Inset);  // helder.os.TitleBar: the content under the title bar
+window.titlebarAt = (x, y) -> y < 40 * window.scale ? Drag : Content;  // the app's answer at a press (pixels)
+window.titlebarArea();                      // the bar's area free of the buttons (pixels; null: not inset, full screen)
+window.systemControls();                    // macOS's own buttons over the content (null where the app draws its own)
+window.placeControls(x, y);                 // ... moved there (macOS)
+window.minimize(); window.maximized = !window.maximized;
+```
+
+`Inset` runs the content under the title bar, the window's buttons in the
+app's own layout (helder.ui's `<WindowControls/>`, `drag-region` and
+`env(titlebar-area-*)`), what a press is the app's answer
+(`titlebarAt`: `TitleHit`'s Drag, Minimize, Maximize, Close or Content;
+`TitleBars.hit` adds the window's edges, 6 points, unless maximised or full
+screen). macOS: a full-size content view (`NSWindowStyleMaskFullSizeContentView`),
+the bar transparent, no title; the system's buttons kept and placed where
+the app asks (Electron's way: the title bar's container made as tall as
+the buttons and twice the top margin, each button's origin set in it,
+again after each resize); a press on the bar but the buttons is the app's,
+a drag region's `performWindowDragWithEvent:` (a double click what the
+user set: `AppleActionOnDoubleClick`, zoom by default). Windows:
+WM_NCCALCSIZE takes the caption off (the sides and bottom kept: their
+resize borders and shadow; maximised, the frame the monitor hides too),
+WM_NCHITTEST answers the top edge (HTTOP), the drag regions (HTCAPTION:
+Windows' own moves, snaps and double clicks) and the maximise button
+(HTMAXBUTTON: Windows 11's snap layouts; its presses taken by the window,
+its hover passed on as a move); `TitleBars.button` and `HEIGHT` are the
+drawn buttons' sizes. Wayland: neither the compositor's decorations nor
+helder's bar; a drag region's press `xdg_toplevel.move` (a double press
+maximises, the right button the window menu), an edge's `resize`. X11:
+undecorated (`_MOTIF_WM_HINTS`), `_NET_WM_MOVERESIZE` for a drag region
+or an edge (the pointer's grab let go first), maximised through
+`_NET_WM_STATE`. A headless run of a macOS build has the buttons where
+macOS puts them (7, 6 points, 54 by 16): `<WindowControls/>` draws
+stand-ins. Tests: `TitleBar.test.hx` (the edges, each system's codes;
+natively, as wasm32-wasi and on Eval) and the window lane's
+`tests/os/TitleBarTest.hx` (macOS: the window's style, the buttons
+measured, placed and kept through a resize, the bar's presses the app's
+and the buttons' AppKit's; Windows: no caption, WM_NCHITTEST's answers;
+X11: Motif's hints). Not yet: the edges' cursors on Wayland and X11 (the
+compositor's or the window manager's), the maximised state followed on X11
+(the window's own requests only).
+
 ### Dialogs, file types, the files the system opens
 
 ```haxe

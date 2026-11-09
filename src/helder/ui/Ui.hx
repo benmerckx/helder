@@ -120,6 +120,11 @@ class Ui {
 	public var platform:Null<PlatformViews> = null;
 	public var policy:Map<String, Host> = defaultPolicy();
 	public var clipboard:ClipboardHost = new ClipboardHost.MemoryClipboard();
+	// the window it is drawn in (UiWindow's: WindowControls' buttons; null: none)
+	public var window:Null<WindowHost> = null;
+	// where the system's window buttons go (WindowControls' box: UiWindow
+	// places them at its top left after each layout; null: where they are)
+	public var controlsAt:Null<Node> = null;
 	public var focusRingColor:Color = 0xFF3B82F6;
 	public var focusRingWidth = 2.0;
 	// the ring's gap outside the node
@@ -1617,6 +1622,21 @@ class Ui {
 	// removes a popup; the focus, if it was inside, goes back to where it was when it opened
 	public function close(p:Popup)
 		Popups.close(this, p);
+
+	// what a press at x, y is to an inset title bar (helder.os's
+	// Window.titlebarAt): the nearest of the node there and its ancestors
+	// with an answer of its own (drag-region, WindowControls' buttons),
+	// unless something that takes presses comes first (a button in a drag
+	// region stays a button)
+	public function titleHit(x:Float, y:Float):helder.os.TitleBar.TitleHit {
+		var n = hit(x, y);
+		while (n != null) {
+			if (n.titleHit != helder.os.TitleBar.TitleHit.Content) return n.titleHit;
+			if (n.focusable || n.onClick != null || n.onActivate != null || n.onPointerDown != null || n.onDragStart != null) return helder.os.TitleBar.TitleHit.Content;
+			n = n.parent;
+		}
+		return helder.os.TitleBar.TitleHit.Content;
+	}
 
 	// the topmost node under a point: in the popups (a modal one stops the
 	// search: what is under it is covered), then the tree

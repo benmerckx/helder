@@ -1,6 +1,7 @@
 package helder.os.x11;
 
 import helder.os.Event;
+import helder.os.TitleBar;
 import helder.os.x11.Xlib;
 import hxmc.unsafe.*;
 
@@ -70,6 +71,9 @@ class X11Window {
 	var dndY = 0;
 	// asked of the window manager (_NET_WM_STATE)
 	var fullscreen = false;
+	var maximized = false;
+	// an inset title bar's last press on a drag region (a double press maximises)
+	var lastDrag = 0.0;
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		this.owner = owner;
@@ -104,6 +108,16 @@ class X11Window {
 			var atoms:Ptr<Int64> = a.alloc(8);
 			atoms.value = wmDelete;
 			Xlib.XSetWMProtocols(display, id, atoms, 1);
+		});
+		// (inset: no decorations, Motif's hints asked of the window manager:
+		// flags MWM_HINTS_DECORATIONS, decorations 0)
+		if (owner.titlebar == Inset) Arena.scoped(a -> {
+			var hints:Ptr<Int64> = a.alloc(40);
+			for (i in 0...5)
+				hints[i] = 0;
+			hints[0] = 2;
+			var atom = Xlib.XInternAtom(display, a.cstring("_MOTIF_WM_HINTS"), 0);
+			Xlib.XChangeProperty(display, id, atom, atom, 32, X.PropModeReplace, hints, 5);
 		});
 		Xlib.XSelectInput(display, id, (X.KeyPressMask | X.KeyReleaseMask | X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask
 			| X.StructureNotifyMask | X.ExposureMask | X.PropertyChangeMask : Int64));
@@ -255,6 +269,46 @@ class X11Window {
 		sendMessage(Xlib.XDefaultRootWindow(display), id, NET_WM_STATE, on ? 1 : 0, NET_WM_STATE_FULLSCREEN, 0, 1, 0,
 			X.SubstructureRedirectMask | X.SubstructureNotifyMask);
 		Xlib.XFlush(display);
+	}
+
+	function minimize() {
+		Xlib.XIconifyWindow(display, id, Xlib.XDefaultScreen(display));
+		Xlib.XFlush(display);
+	}
+
+	// (EWMH: _NET_WM_STATE's two maximised states, added or removed)
+	function maximize(on:Bool) {
+		maximized = on;
+		Arena.scoped(a -> sendMessage(Xlib.XDefaultRootWindow(display), id, NET_WM_STATE, on ? 1 : 0, Xlib.XInternAtom(display, a.cstring("_NET_WM_STATE_MAXIMIZED_VERT"), 0),
+			Xlib.XInternAtom(display, a.cstring("_NET_WM_STATE_MAXIMIZED_HORZ"), 0), 1, 0, X.SubstructureRedirectMask | X.SubstructureNotifyMask));
+		Xlib.XFlush(display);
+	}
+
+	// an inset title bar's press at x, y (the root's: rx, ry): an edge or a
+	// drag region given to the window manager (_NET_WM_MOVERESIZE: the
+	// pointer's implicit grab let go first, as EWMH asks; button 1, from an
+	// application), a double press on a drag region maximising. True: the
+	// window manager's, not the app's
+	function titlePress(x:Int, y:Int, rx:Int, ry:Int):Bool {
+		if (owner.titlebar != Inset) return false;
+		var app = owner.titlebarAt == null ? Content : owner.titlebarAt(x, y);
+		var h = TitleBars.hit(x, y, surface.width, surface.height, 6, !maximized && !fullscreen, app);
+		var d = TitleBars.x11(h);
+		if (d < 0) return false;
+		if (h == Drag) {
+			var now = haxe.Timer.stamp();
+			if (now - lastDrag < 0.4) {
+				lastDrag = 0;
+				maximize(!maximized);
+				return true;
+			}
+			lastDrag = now;
+		}
+		Xlib.XUngrabPointer(display, 0);
+		Arena.scoped(a -> sendMessage(Xlib.XDefaultRootWindow(display), id, Xlib.XInternAtom(display, a.cstring("_NET_WM_MOVERESIZE"), 0), rx, ry, d, 1, 1,
+			X.SubstructureRedirectMask | X.SubstructureNotifyMask));
+		Xlib.XFlush(display);
+		return true;
 	}
 
 	// (EWMH: _NET_ACTIVE_WINDOW asked of the window manager, from an application; raised meanwhile)
@@ -669,6 +723,7 @@ class X11Window {
 						e.deltaX = button == 6 ? -40 : button == 7 ? 40 : 0;
 						e.deltaY = button == 4 ? -40 : button == 5 ? 40 : 0;
 					} else {
+						if (t == X.ButtonPress && button == 1 && w.titlePress(b.value.x, b.value.y, b.value.x_root, b.value.y_root)) continue;
 						e.kind = t == X.ButtonPress ? MouseDown : t == X.ButtonRelease ? MouseUp : MouseMove;
 						e.button = button;
 					}

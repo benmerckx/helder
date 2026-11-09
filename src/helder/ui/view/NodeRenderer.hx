@@ -222,6 +222,11 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	@:attribute static function trackFocus(n:Node, name:String, v:Dynamic)
 		if (v != null) (v : FocusHandle).track(n);
 
+	// a press on it moves the window, in an inset title bar (Ui.titleHit: what
+	// takes presses inside it stays the content's)
+	@:attribute static function dragRegion(n:Node, name:String, v:Dynamic)
+		n.titleHit = v == null || v == false || v == "false" ? helder.os.TitleBar.TitleHit.Content : helder.os.TitleBar.TitleHit.Drag;
+
 	// Tab's order (Node.tabIndex: as the DOM's tabindex)
 	@:attribute static function tabIndex(n:Node, name:String, v:Dynamic) {
 		n.tabIndex = v == null ? 0 : Std.isOfType(v, String) ? Std.parseInt(v) ?? 0 : v;

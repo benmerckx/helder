@@ -1,6 +1,7 @@
 package helder.os.cocoa;
 
 import helder.os.Event;
+import helder.os.TitleBar;
 import helder.os.objc.*;
 import hxmc.unsafe.*;
 
@@ -84,9 +85,16 @@ class CocoaWindow {
 			return;
 		}
 		#end
-		// titled, closable, miniaturizable, resizable; buffered backing
-		window = Msg.idRectIntIntBool(Msg.id(ObjC.cls("NSWindow"), ObjC.sel("alloc")), ObjC.sel("initWithContentRect:styleMask:backing:defer:"), rect.value, 15,
-			2, false);
+		// titled, closable, miniaturizable, resizable (inset: the content under
+		// the title bar, NSWindowStyleMaskFullSizeContentView); buffered backing
+		var inset = owner.titlebar == Inset;
+		window = Msg.idRectIntIntBool(Msg.id(ObjC.cls("NSWindow"), ObjC.sel("alloc")), ObjC.sel("initWithContentRect:styleMask:backing:defer:"), rect.value,
+			(inset ? 15 | 1 << 15 : 15 : Int64), 2, false);
+		if (inset) {
+			// (the bar drawn by nothing but its buttons; no title: NSWindowTitleHidden)
+			Msg.vBool(window, ObjC.sel("setTitlebarAppearsTransparent:"), true);
+			Msg.vInt(window, ObjC.sel("setTitleVisibility:"), 1);
+		}
 		Msg.vBool(window, ObjC.sel("setReleasedWhenClosed:"), false);
 		var t = ObjC.str(title);
 		Msg.vPtr(window, ObjC.sel("setTitle:"), t);
@@ -400,6 +408,7 @@ class CocoaWindow {
 			return;
 		}
 		pending = false;
+		layoutControls();
 		var e = event;
 		e.kind = Resize;
 		e.window = owner;
@@ -664,7 +673,96 @@ class CocoaWindow {
 	function inside(ev:Ptr):Bool {
 		var content = Msg.id(window, ObjC.sel("contentView"));
 		var hit = Msg.idPoint(Msg.id(content, ObjC.sel("superview")), ObjC.sel("hitTest:"), Msg.point(ev, ObjC.sel("locationInWindow")));
-		return !hit.isNull() && Msg.bPtr(hit, ObjC.sel("isDescendantOf:"), content);
+		if (!hit.isNull() && Msg.bPtr(hit, ObjC.sel("isDescendantOf:"), content)) return true;
+		// (an inset title bar: the content's but the system's buttons, which AppKit tracks)
+		return owner.titlebar == Inset && !hit.isNull() && !Msg.bPtr(hit, ObjC.sel("isKindOfClass:"), ObjC.cls("NSButton"));
+	}
+
+	// --- an inset title bar (Window.titlebar Inset): the system's buttons over the content
+
+	// where the app placed them (points from the top left; -1: where AppKit does)
+	var controlsX = -1.0;
+	var controlsY = -1.0;
+
+	inline function systemButton(i:Int):Ptr
+		return Msg.idInt(window, ObjC.sel("standardWindowButton:"), i);
+
+	// the three buttons' box in the content's pixels (null: none, full screen)
+	function controls():Null<{x:Int, y:Int, width:Int, height:Int}> {
+		if (isFullscreen()) return null;
+		var close = systemButton(0), zoom = systemButton(2);
+		if (close.isNull() || zoom.isNull()) return null;
+		var a = Msg.rectRectPtr(close, ObjC.sel("convertRect:toView:"), Msg.rect(close, ObjC.sel("bounds")), Ptr.nil());
+		var b = Msg.rectRectPtr(zoom, ObjC.sel("convertRect:toView:"), Msg.rect(zoom, ObjC.sel("bounds")), Ptr.nil());
+		var h = Msg.rect(view, ObjC.sel("bounds")).size.height;
+		var top = h - (a.origin.y + a.size.height);
+		return {
+			x: Math.round(a.origin.x * scale),
+			y: Math.round(top * scale),
+			width: Math.round((b.origin.x + b.size.width - a.origin.x) * scale),
+			height: Math.round(a.size.height * scale)
+		};
+	}
+
+	// (as Electron's trafficLightPosition: the title bar's container made as
+	// tall as the buttons and twice the top margin, each button's origin set
+	// in it; AppKit lays them out again at a resize, so again after each)
+	function placeControls(x:Int, y:Int) {
+		var px = x / scale, py = y / scale;
+		if (px == controlsX && py == controlsY) return;
+		controlsX = px;
+		controlsY = py;
+		layoutControls();
+	}
+
+	function layoutControls() {
+		if (controlsX < 0 || isFullscreen()) return;
+		var close = systemButton(0), mini = systemButton(1), zoom = systemButton(2);
+		if (close.isNull() || mini.isNull() || zoom.isNull()) return;
+		var container = Msg.id(Msg.id(close, ObjC.sel("superview")), ObjC.sel("superview"));
+		if (container.isNull()) return;
+		var f = Msg.rect(close, ObjC.sel("frame")), gap = Msg.rect(mini, ObjC.sel("frame")).origin.x - (f.origin.x + f.size.width);
+		var c = Msg.rect(container, ObjC.sel("frame"));
+		rect.value.origin.x = c.origin.x;
+		rect.value.size.width = c.size.width;
+		rect.value.size.height = f.size.height + 2 * controlsY;
+		rect.value.origin.y = Msg.rect(window, ObjC.sel("frame")).size.height - rect.value.size.height;
+		Msg.vRect(container, ObjC.sel("setFrame:"), rect.value);
+		var x = controlsX;
+		for (b in [close, mini, zoom]) {
+			rect.value.origin.x = x;
+			rect.value.origin.y = controlsY;
+			Msg.vPoint(b, ObjC.sel("setFrameOrigin:"), rect.value.origin);
+			x += f.size.width + gap;
+		}
+	}
+
+	function minimize()
+		Msg.vPtr(window, ObjC.sel("performMiniaturize:"), Ptr.nil());
+
+	function zoomed():Bool
+		return Msg.b(window, ObjC.sel("isZoomed"));
+
+	function zoom()
+		Msg.vPtr(window, ObjC.sel("performZoom:"), Ptr.nil());
+
+	// a press on an inset title bar's drag region (the app's answer): the
+	// window dragged by AppKit; a double click what the user set for title
+	// bars (AppleActionOnDoubleClick: Minimize, None, else zoom). True: the
+	// press was the window's, not the app's
+	function dragged(ev:Ptr, x:Int, y:Int):Bool {
+		if (owner.titlebar != Inset || owner.titlebarAt == null || owner.titlebarAt(x, y) != Drag) return false;
+		if (Msg.i(ev, ObjC.sel("clickCount")).toInt() == 2) {
+			var defaults = Msg.id(ObjC.cls("NSUserDefaults"), ObjC.sel("standardUserDefaults"));
+			var key = ObjC.str("AppleActionOnDoubleClick");
+			var v = Msg.idPtr(defaults, ObjC.sel("stringForKey:"), key);
+			ObjC.release(key);
+			var action = v.isNull() ? "" : ObjC.string(v);
+			if (action == "Minimize") minimize() else if (action != "None") zoom();
+			return true;
+		}
+		Msg.vPtr(window, ObjC.sel("performWindowDragWithEvent:"), ev);
+		return true;
 	}
 
 	function translate(ev:Ptr, type:Int) {
@@ -739,6 +837,7 @@ class CocoaWindow {
 			e.x = Math.floor(p.x * scale);
 			e.y = Math.floor((b.size.height - p.y) * scale);
 			if (e.kind == MouseMove) hover(type != NS.MouseMoved || p.x >= 0 && p.y >= 0 && p.x < b.size.width && p.y < b.size.height);
+			if (type == NS.LeftMouseDown && dragged(ev, e.x, e.y)) return;
 		}
 		dispatch(e);
 	}

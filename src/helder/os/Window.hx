@@ -7,6 +7,7 @@ import helder.os.web.CanvasWindow;
 import helder.os.win32.Win32Window;
 import helder.os.x11.X11Window;
 import helder.os.wayland.WaylandWindow;
+import helder.os.TitleBar;
 import hxmc.unsafe.Mem;
 
 // A top-level window, its size in points (pixels on X11). Its Surface
@@ -36,8 +37,13 @@ class Window {
 	inline function headless():helder.os.headless.HeadlessWindow
 		return cast native;
 
-	@:typescript public function new(title:String, width:Int, height:Int) {
+	// the system's title bar, or the content under it (TitleBar: "inset",
+	// the window's buttons in the app's layout); given when it is made
+	public final titlebar:TitleBar;
+
+	@:typescript public function new(title:String, width:Int, height:Int, titlebar:TitleBar = Standard) {
 		this.title = title;
+		this.titlebar = titlebar;
 		if (HEADLESS) {
 			native = new helder.os.headless.HeadlessWindow(this, width, height);
 			surface = headless().surface;
@@ -118,6 +124,81 @@ class Window {
 	// held still); false, or null (not asked), the page pans (the pointer
 	// cancelled: PointerCancel). Elsewhere every drag is the program's
 	public var scrollsAt:Null<(x:Int, y:Int, dx:Float, dy:Float) -> Bool> = null;
+
+	// an inset title bar's answer for a press at x, y (pixels): a drag
+	// region, one of the app's window buttons, or the content's (null: the
+	// content's everywhere). Asked by the system's code at the press
+	// (macOS: a drag then performWindowDragWithEvent:, a double click the
+	// zoom; Wayland's and X11's moves), and on Windows for each
+	// WM_NCHITTEST (HTCAPTION, HTMAXBUTTON for its snap layouts)
+	public var titlebarAt:Null<(x:Int, y:Int) -> TitleHit> = null;
+
+	// an inset title bar's area free of the window's buttons, in pixels (the
+	// Window Controls Overlay's titlebar-area-*): macOS's right of its
+	// buttons, elsewhere the top bar but the drawn buttons' width at the
+	// right (TitleBars); null when not inset, or full screen
+	public function titlebarArea():Null<{x:Int, y:Int, width:Int, height:Int}> {
+		if (titlebar != Inset || closed || fullscreen) return null;
+		var c = systemControls();
+		if (c != null) {
+			var h = Std.int(Math.max(c.y * 2 + c.height, Math.round(28 * scale)));
+			return {x: c.x + c.width, y: 0, width: width - c.x - c.width, height: h};
+		}
+		if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) return null;
+		var k = scale, linux = Mem.os() == 0;
+		var b = Math.round(3 * TitleBars.button(linux) * k);
+		return {x: 0, y: 0, width: width - b, height: Math.round(TitleBars.HEIGHT * k)};
+	}
+
+	// the system's own window buttons over an inset window's content, in
+	// pixels (macOS's three, where they are now); null where the app draws
+	// its own (TitleBars' sizes), or not inset. A headless run of a macOS
+	// build has them where macOS puts them
+	public function systemControls():Null<{x:Int, y:Int, width:Int, height:Int}> {
+		if (titlebar != Inset || closed) return null;
+		// (nested: only a constant condition drops the other targets' code)
+		if (Mem.os() == 1) {
+			if (Mem.platform() >= 1) return null;
+			if (HEADLESS) {
+				var k = headless().scale;
+				return {x: Math.round(headless().controlsX * k), y: Math.round(headless().controlsY * k), width: Math.round(54 * k), height: Math.round(16 * k)};
+			}
+			return (cast native : CocoaWindow).controls();
+		}
+		return null;
+	}
+
+	// the system's buttons' top left moved to x, y (pixels: macOS's, again
+	// after each resize; nothing elsewhere)
+	public function placeControls(x:Int, y:Int) {
+		if (titlebar != Inset || closed) return;
+		if (Mem.os() == 1) {
+			if (Mem.platform() >= 1) {} else if (HEADLESS) {
+				headless().controlsX = x / headless().scale;
+				headless().controlsY = y / headless().scale;
+			} else (cast native : CocoaWindow).placeControls(x, y);
+		}
+	}
+
+	// minimised to the Dock or the task bar (Wayland: asked of the compositor)
+	public function minimize() {
+		if (closed || HEADLESS) return;
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).minimize() else if (Mem.os() == 2) (cast native : Win32Window).minimize() else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).minimize() : (cast native : X11Window).minimize());
+	}
+
+	// maximised (macOS: zoomed), or back
+	public var maximized(get, set):Bool;
+
+	function get_maximized():Bool
+		return closed || HEADLESS ? false : Mem.platform() >= 1 ? false : Mem.os() == 1 ? (cast native : CocoaWindow).zoomed() : Mem.os() == 2 ? (cast native : Win32Window).maximized() : Mem.os() == 3 ? false : Mem.target() >= 9 ? false : (Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).maximized : (cast native : X11Window).maximized);
+
+	function set_maximized(on:Bool):Bool {
+		if (closed || HEADLESS || on == maximized) return on;
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).zoom() else if (Mem.os() == 2) (cast native : Win32Window).maximize(on) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+			(Std.isOfType(native, WaylandWindow) ? (cast native : WaylandWindow).maximize(on) : (cast native : X11Window).maximize(on));
+		return on;
+	}
 
 	// the pointer's shape over the window (Auto: Default)
 	public var cursor(default, set):Cursor = Default;

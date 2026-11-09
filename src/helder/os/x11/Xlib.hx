@@ -34,6 +34,8 @@ import hxmc.unsafe.*;
 	static function XLookupString(event:Ptr<XKeyEvent>, buffer:Ptr, bytes:Int, keysym:Ptr<Int64>, status:Ptr):Int;
 	static function XKeysymToKeycode(d:Ptr, keysym:Int64):Int;
 	static function XFlush(d:Ptr):Int;
+	static function XUngrabPointer(d:Ptr, time:Int64):Int;
+	static function XIconifyWindow(d:Ptr, w:Int64, screen:Int):Int;
 	// the connection's socket (to wait on with select)
 	static function XConnectionNumber(d:Ptr):Int;
 	static function XSendEvent(d:Ptr, w:Int64, propagate:Int, mask:Int64, event:Ptr<XAnyEvent>):Int;

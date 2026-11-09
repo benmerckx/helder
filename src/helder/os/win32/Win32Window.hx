@@ -1,6 +1,7 @@
 package helder.os.win32;
 
 import helder.os.Event;
+import helder.os.TitleBar;
 import helder.os.win32.User32;
 import hxmc.unsafe.*;
 
@@ -18,6 +19,13 @@ import hxmc.unsafe.*;
 // While the user drags the window's edge or title bar, DispatchMessage runs
 // Windows' own loop until the drag ends: a timer then draws the frames
 // (onFrame from WM_TIMER), so that the content follows the size.
+// An inset title bar (Window.titlebar Inset): WM_NCCALCSIZE takes the
+// caption off (the frame's sides and bottom kept: their resize borders and
+// shadow; maximised, the frame the monitor hides taken off too),
+// WM_NCHITTEST answers the top edge, the app's drag regions (HTCAPTION:
+// Windows moves, snaps and maximises on a double click) and its maximise
+// button (HTMAXBUTTON: Windows 11's snap layouts over it, its presses
+// taken here); the app draws the buttons (helder.ui's WindowControls).
 @:allow(helder.os)
 class Win32Window {
 	static var instance = Ptr.nil(); // the HINSTANCE
@@ -82,6 +90,8 @@ class Win32Window {
 				r.value.bottom - r.value.top, Ptr.nil(), Ptr.nil(), instance, Ptr.nil());
 		});
 		if (hwnd.isNull()) throw "helder.os: CreateWindowExW failed (error " + Kernel32.GetLastError() + ")";
+		// (the frame computed again, without the caption: SWP_FRAMECHANGED, NOMOVE, NOSIZE, NOZORDER, NOACTIVATE)
+		if (owner.titlebar == Inset) User32.SetWindowPos(hwnd, Ptr.nil(), 0, 0, 0, 0, 0x20 | 0x1 | 0x2 | 0x4 | 0x10);
 		Shell32.DragAcceptFiles(hwnd, 1);
 		surface = new Surface(Win32, instance, hwnd, w, h);
 		open.push(this);
@@ -178,6 +188,8 @@ class Win32Window {
 			r.value.right = Math.round(w * scale);
 			r.value.bottom = Math.round(h * scale);
 			User32.AdjustWindowRectEx(r, STYLE, 0, 0);
+			// (inset: no caption above the client area)
+			if (owner.titlebar == Inset) r.value.top = 0;
 			{w: r.value.right - r.value.left, h: r.value.bottom - r.value.top};
 		});
 
@@ -219,6 +231,33 @@ class Win32Window {
 		});
 	}
 
+	// (SW_MINIMIZE 6, SW_MAXIMIZE 3, SW_RESTORE 9)
+	function minimize()
+		User32.ShowWindow(hwnd, 6);
+
+	function maximized():Bool
+		return User32.IsZoomed(hwnd) != 0;
+
+	function maximize(on:Bool)
+		User32.ShowWindow(hwnd, on ? 3 : 9);
+
+	// the frame's thickness at the window's DPI (SM_CXFRAME 32, SM_CYFRAME 33, SM_CXPADDEDBORDER 92)
+	function frame(y:Bool):Int {
+		var dpi = User32.GetDpiForWindow(hwnd);
+		return User32.GetSystemMetricsForDpi(y ? 33 : 32, dpi) + User32.GetSystemMetricsForDpi(92, dpi);
+	}
+
+	// an inset title bar's answer at a point of the screen: the window's edges, the app's regions and buttons
+	function titleHit(lParam:Int64):TitleHit
+		return Arena.scopedValue(a -> {
+			var p = a.make(POINT);
+			p.value.x = lParam.toInt() << 16 >> 16;
+			p.value.y = lParam.toInt() >> 16;
+			User32.ScreenToClient(hwnd, p);
+			var app = owner.titlebarAt == null ? Content : owner.titlebarAt(p.value.x, p.value.y);
+			TitleBars.hit(p.value.x, p.value.y, surface.width, surface.height, frame(true), !maximized() && !fullscreen, app);
+		});
+
 	function raise() {
 		User32.ShowWindow(hwnd, 9); // (SW_RESTORE)
 		User32.SetForegroundWindow(hwnd);
@@ -237,6 +276,7 @@ class Win32Window {
 		Arena.scoped(a -> {
 			var r = a.make(RECT);
 			User32.AdjustWindowRectEx(r, STYLE, 0, 0);
+			if (owner.titlebar == Inset) r.value.top = 0;
 			User32.SetWindowPos(hwnd, Ptr.nil(), Math.round(x * scale) + r.value.left, Math.round(y * scale) + r.value.top, 0, 0, 0x1 | 0x4 | 0x10);
 		});
 
@@ -417,6 +457,35 @@ class Win32Window {
 				var r = editColors(Ptr.ofI64(wParam), Ptr.ofI64(lParam));
 				var none:Int64 = 0;
 				if (r != none) return r;
+			case 0x0083 if (w.owner.titlebar == Inset && wParam.toInt() != 0 && !w.fullscreen): // WM_NCCALCSIZE
+				// (NCCALCSIZE_PARAMS' first RECT: the window's, made the client area's)
+				var r:Ptr<RECT> = Ptr.ofI64(lParam), fx = w.frame(false), fy = w.frame(true);
+				r.value.left += fx;
+				r.value.right -= fx;
+				r.value.bottom -= fy;
+				if (User32.IsZoomed(hwnd) != 0) r.value.top += fy;
+				return 0;
+			case 0x0084 if (w.owner.titlebar == Inset && !w.fullscreen): // WM_NCHITTEST
+				var d = User32.DefWindowProcW(hwnd, message, wParam, lParam);
+				if (d.toInt() != WM.HTCLIENT) return d;
+				return TitleBars.win32(w.titleHit(lParam));
+			case 0x00A0 if (w.owner.titlebar == Inset && wParam.toInt() == 9): // WM_NCMOUSEMOVE over HTMAXBUTTON: the app's button hovered
+				Arena.scoped(a -> {
+					var p = a.make(POINT);
+					p.value.x = lParam.toInt() << 16 >> 16;
+					p.value.y = lParam.toInt() >> 16;
+					User32.ScreenToClient(hwnd, p);
+					e.kind = MouseMove;
+					e.x = p.value.x;
+					e.y = p.value.y;
+				});
+				dispatch(e);
+				return 0;
+			case 0x00A1 if (w.owner.titlebar == Inset && wParam.toInt() == 9): // WM_NCLBUTTONDOWN: not Windows' own button
+				return 0;
+			case 0x00A2 if (w.owner.titlebar == Inset && wParam.toInt() == 9): // WM_NCLBUTTONUP: maximised or back
+				w.maximize(!w.maximized());
+				return 0;
 			case WM.GETMINMAXINFO if (w.minW > 0 || w.minH > 0):
 				// (MINMAXINFO's ptMinTrackSize, at 24: the outer size)
 				var o = w.outer(w.minW, w.minH), p:Ptr = Ptr.ofI64(lParam);

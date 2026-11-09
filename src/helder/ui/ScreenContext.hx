@@ -37,6 +37,8 @@ class ScreenContext {
 	public final keymap:helder.ui.actions.Keymap;
 	// the safe area its markup reads (SafeArea.insets), in UI pixels
 	public final safeArea:Signal<Edges>;
+	// an inset title bar's area free of the window's buttons (env(titlebar-area-*); null: not inset)
+	public final titlebarArea:Signal<Null<TitlebarArea>>;
 	// dark or light: a host gives it to the screen's Ui (Ui.dark)
 	public final dark:Signal<Bool>;
 	// reduced motion (Clock.reducedMotion while current)
@@ -62,6 +64,7 @@ class ScreenContext {
 		this.name = name;
 		this.keymap = keymap ?? new helder.ui.actions.Keymap();
 		safeArea = Graph.signalOf(Edges.ZERO, {ownedWrite: true});
+		titlebarArea = Graph.signalOf((null : Null<TitlebarArea>), {ownedWrite: true});
 		dark = Graph.signalOf(true, {ownedWrite: true});
 		#if (target.name == "hxmc")
 		stores = isolated ? new Map() : null;

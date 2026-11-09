@@ -127,6 +127,9 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	public var motion(default, set):Null<helder.ui.motion.MotionSpec> = null;
 	public var matched(default, set):Null<String> = null;
 	public var instant = false;
+	// what a press on it is to an inset title bar (markup's drag-region: Drag;
+	// WindowControls' buttons theirs), its ancestors' when Content (Ui.titleHit)
+	public var titleHit:helder.os.TitleBar.TitleHit = helder.os.TitleBar.TitleHit.Content;
 	public var ride(default, set) = 0;
 	// its presented state: the tracks of what moves of it (made when first needed)
 	public var present(default, null):Null<helder.ui.motion.Present> = null;

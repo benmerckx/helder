@@ -17,6 +17,9 @@ class HeadlessWindow {
 	public var fullscreen = false;
 	public var x = 0;
 	public var y = 0;
+	// an inset title bar's system buttons (a macOS build's), in points: where macOS puts them
+	public var controlsX = 7.0;
+	public var controlsY = 6.0;
 
 	public function new(window:Window, width:Int, height:Int) {
 		this.window = window;

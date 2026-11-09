@@ -14,7 +14,10 @@ import helder.view.graph.Signal;
 // UiWindow's first window's (a phone has one: Window.safeTop..., over the
 // UI's scale), each frame they changed; Ui.safeArea has each window's own.
 // Code reads insets() (a signal: what reads it in an effect or a reactive
-// attribute follows it).
+// attribute follows it). env(titlebar-area-x), -y, -width and -height are an
+// inset title bar's area free of the window's buttons (the Window Controls
+// Overlay's: helder.os's Window.titlebarArea, TitlebarArea), bound the same
+// way; without one (not inset, the browser, a phone) the fallback, else 0.
 class SafeArea {
 	// top, right, bottom, left in UI pixels (the current screen's:
 	// helder.ui.ScreenContext, a story host's screens each their own)
@@ -30,14 +33,26 @@ class SafeArea {
 		s(new Edges(top, right, bottom, left));
 	}
 
+	// an inset title bar's area (the current screen's; null: none)
+	public static var titlebar(get, never):Signal<Null<TitlebarArea>>;
+
+	static inline function get_titlebar():Signal<Null<TitlebarArea>>
+		return ScreenContext.current.titlebarArea;
+
+	// (UiWindow) the title bar's area now: the signal set when it changed
+	public static function setTitlebar(a:Null<TitlebarArea>) {
+		var s = ScreenContext.current.titlebarArea;
+		if (!TitlebarArea.same(s.peek(), a)) s(a);
+	}
+
 	// (markup: NodeRenderer.setProperty, a literal value naming env()) the
 	// attribute set from the value resolved, again when the insets change
 	public static function bind(n:Node, set:(n:Node, name:String, v:Dynamic) -> Void, name:String, value:String)
-		Graph.renderEffect(() -> resolve(value, insets()), (v:String) -> set(n, name, v));
+		Graph.renderEffect(() -> resolve(value, insets(), value.indexOf("titlebar-area-") >= 0 ? titlebar() : null), (v:String) -> set(n, name, v));
 
-	// value with each env() replaced by its pixels (of e), then calc(), max()
+	// value with each env() replaced by its pixels (of e, t), then calc(), max()
 	// and min() of pixels folded
-	public static function resolve(value:String, e:Edges):String {
+	public static function resolve(value:String, e:Edges, ?t:TitlebarArea):String {
 		var s = replace(value, "env", inner -> {
 			var comma = inner.indexOf(",");
 			var name = StringTools.trim(comma < 0 ? inner : inner.substr(0, comma));
@@ -46,6 +61,10 @@ class SafeArea {
 				case "safe-area-inset-right": px(e.right);
 				case "safe-area-inset-bottom": px(e.bottom);
 				case "safe-area-inset-left": px(e.left);
+				case "titlebar-area-x" if (t != null): px(t.x);
+				case "titlebar-area-y" if (t != null): px(t.y);
+				case "titlebar-area-width" if (t != null): px(t.width);
+				case "titlebar-area-height" if (t != null): px(t.height);
 				case _: comma < 0 ? "0px" : StringTools.trim(inner.substr(comma + 1));
 			}
 		});

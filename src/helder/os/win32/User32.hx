@@ -55,6 +55,8 @@ import hxmc.unsafe.*;
 	static function SetProcessDpiAwarenessContext(context:Ptr):Int;
 	static function GetDpiForWindow(hwnd:Ptr):Int;
 	static function GetDpiForSystem():Int;
+	static function GetSystemMetricsForDpi(index:Int, dpi:Int):Int;
+	static function IsZoomed(hwnd:Ptr):Int;
 	static function GetDC(hwnd:Ptr):Ptr;
 	static function ReleaseDC(hwnd:Ptr, dc:Ptr):Int;
 	static function PrintWindow(hwnd:Ptr, dc:Ptr, flags:Int):Int;

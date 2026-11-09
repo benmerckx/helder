@@ -7,6 +7,7 @@ import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 import helder.view.graph.Read;
 import helder.ui.view.UiFlow.VirtualList;
+import helder.ui.widgets.WindowButtons.WindowControls;
 import studio.Theme.c;
 
 using StringTools;
@@ -69,6 +70,7 @@ class Shell implements Markup {
 	static function sidebar(studio:Studio):View {
 		var p = studio.project;
 		return <view tag="sidebar" width={studio.compact() ? Theme.DRAWER : Theme.SIDEBAR} shrink={0} padding="10 10" row-gap={1} min-height={0} grow={studio.compact() ? 1 : 0}>
+			<view tag="sidebar-top" direction="row" align-items="center" drag-region height={Theme.HEADER - 10} padding="0 4"><WindowControls/></view>
 			{nav(studio, "nav-all", "All screens", () -> studio.mode() == "design" && studio.focused() == null, () -> {
 				studio.drawer(false);
 				studio.setMode("design");
@@ -118,7 +120,7 @@ class Shell implements Markup {
 
 	static function header(studio:Studio):View {
 		var p = studio.project;
-		return <view tag="header" direction="row" align-items="center" column-gap={studio.compact() ? 6 : 16} height={Theme.HEADER}
+		return <view tag="header" drag-region direction="row" align-items="center" column-gap={studio.compact() ? 6 : 16} height={Theme.HEADER}
 			padding={studio.compact() ? "0 8" : "0 12 0 16"} border-width="0 0 1 0" border-color={c("line")}>
 			<Show when={studio.compact()}>
 				<view:button tag="menu" slot="button" role="button" label="Screens" focusable data-on={studio.drawer() ? "true" : "false"}

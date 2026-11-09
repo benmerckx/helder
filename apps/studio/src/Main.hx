@@ -44,7 +44,7 @@ class Main implements Markup {
 			.bind("secondary-y", studio.Shell.StudioAction.Redo)
 			.bind("escape", studio.Shell.StudioAction.Overview);
 		var s = new Studio(dir, {events: events, mcpPort: port, holdWhile: holdWhile});
-		UiWindow.run(<Surface title={s.project == null ? "helder studio" : s.project.name + " · helder studio"} width={width} height={height}
+		UiWindow.run(<Surface title={s.project == null ? "helder studio" : s.project.name + " · helder studio"} width={width} height={height} titlebar="inset"
 			theme={studio.Theme.sheet} background={studio.Theme.c("bg")} dark={true} ref={w -> {
 				window = w;
 				w.onFrame = () -> s.drawn();

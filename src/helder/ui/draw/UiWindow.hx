@@ -4,6 +4,7 @@ import helder.ui.platform.*;
 import helder.gfx.*;
 import helder.os.App;
 import helder.os.Event as OsEvent;
+import helder.os.TitleBar;
 import helder.ui.*;
 import hxmc.unsafe.*;
 import helder.ui.view.UiView;
@@ -32,6 +33,10 @@ typedef SurfaceProps = {
 	?ref:UiWindow->Void,
 	// its frames multisampled, 4 samples a pixel (default true; false: one)
 	?antialias:Bool,
+	// "inset": the content under the title bar (helder.os's TitleBar), the
+	// window's buttons in its layout (WindowControls), dragged by its
+	// drag-region nodes, env(titlebar-area-*) its free area; default the system's
+	?titlebar:String,
 	// helder.text's own engine's font smoothing in this window: "on" (as
 	// macOS draws by default) or "off" ("antialiased", as CSS's
 	// -webkit-font-smoothing); default the app's (helder.text.Shaping.smoothing)
@@ -109,8 +114,8 @@ class UiWindow {
 	var buttons = 0;
 
 	// (antialias: the device's frames multisampled, 4 samples a pixel, where the GPU has them)
-	public function new(title:String, width:Int, height:Int, ?text:TextEngine, antialias = true) {
-		window = new helder.os.Window(title, width, height);
+	public function new(title:String, width:Int, height:Int, ?text:TextEngine, antialias = true, titlebar:helder.os.TitleBar = Standard) {
+		window = new helder.os.Window(title, width, height, titlebar);
 		// (secondary is Command, shortcuts labelled as macOS's menus do)
 		helder.ui.actions.Keymap.mac = Mem.os() == 1;
 		// (Android: text fields get the soft keyboard and the input method)
@@ -119,6 +124,9 @@ class UiWindow {
 		renderer = new Renderer(device);
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
+		ui.window = new OsWindow(this);
+		// (an inset title bar: a press's answer the ui's, its drag regions and window buttons)
+		if (titlebar == Inset) window.titlebarAt = (x, y) -> ui.titleHit(x / renderer.scale, y / renderer.scale);
 		ui.dark = dark.peek();
 		// (a touch drag the program's where it scrolls something: the page's otherwise)
 		window.scrollsAt = (x, y, dx, dy) -> ui.scrollsAt(x / renderer.scale, y / renderer.scale, dx / renderer.scale, dy / renderer.scale);
@@ -203,7 +211,10 @@ class UiWindow {
 		ui.resize(device.width / renderer.scale, device.height / renderer.scale);
 		ui.scale = renderer.scale;
 		safeArea();
+		titlebarArea();
 		ui.update();
+		var at = ui.controlsAt;
+		if (at != null && at.ui == ui) ui.window.placeControls(at.absX, at.absY);
 		// (the clock ticked, nothing changed: the last frame stands, as drawn;
 		// an animation off screen, a timer's wait)
 		if (!redraw && !ui.needsFrame && capture == null && device.width == drawnW && device.height == drawnH && s == drawnScale) {
@@ -251,6 +262,19 @@ class UiWindow {
 			ui.requestFrame();
 		}
 		if (open[0] == this) helder.ui.SafeArea.set(t, r, b, l);
+	}
+
+	// an inset title bar's free area in UI pixels (env(titlebar-area-*), the first window's), when it changed
+	var titlebarShown:Null<helder.ui.TitlebarArea> = null;
+
+	function titlebarArea() {
+		if (open[0] != this || window.titlebar != Inset) return;
+		var a = window.titlebarArea(), k = renderer.scale;
+		var t = a == null ? null : new helder.ui.TitlebarArea(a.x / k, a.y / k, a.width / k, a.height / k);
+		if (helder.ui.TitlebarArea.same(t, titlebarShown)) return;
+		titlebarShown = t;
+		helder.ui.SafeArea.setTitlebar(t);
+		ui.requestFrame();
 	}
 
 	// the window's text input: on at the focus's caret while it takes text
@@ -492,7 +516,8 @@ class UiWindow {
 		var web = Mem.os() == 3;
 		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
 		var title:Null<String> = Render.read(props.title);
-		var w = new UiWindow(title ?? "helder", width ?? (web ? 0 : 800), height ?? (web ? 0 : 600), null, props.antialias != false);
+		var w = new UiWindow(title ?? "helder", width ?? (web ? 0 : 800), height ?? (web ? 0 : 600), null, props.antialias != false,
+			props.titlebar == "inset" ? Inset : Standard);
 		// (each reactive prop followed after its first value)
 		follow(props.title, (v:String) -> w.window.title = v);
 		follow(props.width, (_:Int) -> resize(w, props));
@@ -529,6 +554,47 @@ class UiWindow {
 		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
 		if (width != null && height != null) w.window.resize(width, height);
 	}
+}
+
+// the window for its Ui's WindowControls (WindowHost)
+class OsWindow implements WindowHost {
+	final w:UiWindow;
+
+	public function new(w:UiWindow)
+		this.w = w;
+
+	public function controls():String {
+		var win = w.window;
+		if (win.titlebar != Inset || win.fullscreen || Mem.os() == 3 || Mem.platform() >= 1 || Mem.target() >= 9) return "none";
+		if (Mem.os() == 1) return "system";
+		return Mem.os() == 2 ? "windows" : "linux";
+	}
+
+	public function systemControls():Null<Bounds> {
+		var c = w.window.systemControls(), k = w.renderer.scale;
+		if (c == null) return null;
+		var b = new Bounds();
+		b.x = c.x / k;
+		b.y = c.y / k;
+		b.width = c.width / k;
+		b.height = c.height / k;
+		return b;
+	}
+
+	public function placeControls(x:Float, y:Float)
+		w.window.placeControls(Math.round(x * w.renderer.scale), Math.round(y * w.renderer.scale));
+
+	public function minimize()
+		w.window.minimize();
+
+	public function maximized():Bool
+		return w.window.maximized;
+
+	public function maximize(on:Bool)
+		w.window.maximized = on;
+
+	public function close()
+		w.handle(@:privateAccess UiWindow.closeEvent());
 }
 
 // the system's clipboard (helder.os.Clipboard) for a window's Ui
