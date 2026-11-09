@@ -11,7 +11,7 @@ import helder.ui.code.CodeModel;
 // (JetBrains Mono, bundled; ligatures off unless asked), on a grid of
 // columns (tabs to tabSize, wide characters two). A gutter of line
 // numbers and diagnostics' markers, the current line, selections,
-// cursors that blink and spring to where they go, indentation guides,
+// cursors that blink (moved at once, as editors do), indentation guides,
 // whitespace shown in selections, decorations, find's matches,
 // diagnostics' squiggles with their message on hover. Typing, an input
 // method's composition (at the primary caret, its text context the
@@ -70,16 +70,7 @@ class CodeView extends Node {
 	final colorScratch:Array<Color> = [];
 	final numbers:Array<String> = [];
 
-	// (the cursors as drawn: springing to their targets; columns and lines in pixels from the text's origin)
-	final curX:Array<Float> = [];
-	final curY:Array<Float> = [];
-	final velX:Array<Float> = [];
-	final velY:Array<Float> = [];
-	final tgtX:Array<Float> = [];
-	final tgtY:Array<Float> = [];
-	var animating = false;
 	var ticking = false;
-	var lastTick = -1.0;
 	// (the last activity: the caret shown solid, then blinking)
 	var activeAt = 0.0;
 	final tick:Float->Bool;
@@ -618,49 +609,24 @@ class CodeView extends Node {
 		canvas.rect(cx, cy + lineHeight - 2, laid.width, 1, 0, codeTheme.colors[CodeTheme.FOREGROUND], 0, 0);
 	}
 
-	// (the cursors: where they spring to; drawn while focused, blinking after a moment)
+	// (the cursors where their selections' heads are: drawn while focused, blinking after a moment)
 	function paintCursors(canvas:Canvas, tx:Float, ty:Float, first:Int, last:Int) {
 		var sels = model.sels, lh = lineHeight;
-		var count = sels.length;
-		var snap = curX.length != count;
-		if (snap) {
-			curX.resize(count);
-			curY.resize(count);
-			velX.resize(count);
-			velY.resize(count);
-			tgtX.resize(count);
-			tgtY.resize(count);
-		}
-		for (k in 0...count) {
-			var s = sels[k], l = model.lineOf(s.head);
-			var gx = xOf(l, s.head), gy = l * lh;
-			if (snap || Clock.reducedMotion || Math.abs(gy - curY[k]) > lh * 4 || Math.abs(gx - curX[k]) > cw * 40) {
-				curX[k] = gx;
-				curY[k] = gy;
-				velX[k] = velY[k] = 0;
-			} else if (gx != tgtX[k] || gy != tgtY[k]) {
-				animating = true;
-				startTicking();
-			}
-			tgtX[k] = gx;
-			tgtY[k] = gy;
-			if (s == model.primary) {
-				// (the input method's place: the primary caret, window pixels)
-				var b = windowBoundsInto(bounds);
-				area.x = tx + gx + (b.x - absX);
-				area.y = ty + gy + (b.y - absY);
-				area.height = lh;
-			}
-		}
+		var p = model.primary, pl = model.lineOf(p.head);
+		// (the input method's place: the primary caret, window pixels)
+		var b = windowBoundsInto(bounds);
+		area.x = tx + xOf(pl, p.head) + (b.x - absX);
+		area.y = ty + pl * lh + (b.y - absY);
+		area.height = lh;
 		caretShown = focused;
 		if (!focused) return;
 		drawnPhase = blinkPhase();
 		if (drawnPhase % 2 == 1) return;
 		var color = codeTheme.colors[CodeTheme.CURSOR], w = Math.max(2, Math.round(fontSize / 8));
-		for (k in 0...count) {
-			var cy = curY[k];
+		for (s in sels) {
+			var l = model.lineOf(s.head), cy = l * lh;
 			if (cy + lh < scrollTop || cy > scrollTop + viewH) continue;
-			canvas.rect(tx + curX[k], ty + cy + 1, w, lh - 2, 0, color, 0, 0);
+			canvas.rect(tx + xOf(l, s.head), ty + cy + 1, w, lh - 2, 0, color, 0, 0);
 		}
 	}
 
@@ -718,41 +684,21 @@ class CodeView extends Node {
 	static inline function rankOf(s:String):Int
 		return s == "error" ? 0 : s == "warning" ? 1 : 2;
 
-	// ---- the clock: cursors springing, the caret blinking, highlighting the rest of the file
+	// ---- the clock: the caret blinking, highlighting the rest of the file
 
 	function startTicking() {
 		if (ticking) return;
 		ticking = true;
-		lastTick = -1;
 		Clock.add(tick);
 	}
 
 	function step(t:Float):Bool {
-		var dt = lastTick < 0 ? 1 / 60 : t - lastTick;
-		lastTick = t;
-		if (dt > 0.05) dt = 0.05;
-		if (animating) {
-			var moving = false, k = 900.0, damp = 60.0;
-			for (i in 0...curX.length) {
-				var ax = k * (tgtX[i] - curX[i]) - damp * velX[i], ay = k * (tgtY[i] - curY[i]) - damp * velY[i];
-				velX[i] += ax * dt;
-				velY[i] += ay * dt;
-				curX[i] += velX[i] * dt;
-				curY[i] += velY[i] * dt;
-				if (Math.abs(tgtX[i] - curX[i]) < 0.25 && Math.abs(velX[i]) < 4 && Math.abs(tgtY[i] - curY[i]) < 0.25 && Math.abs(velY[i]) < 4) {
-					curX[i] = tgtX[i];
-					curY[i] = tgtY[i];
-					velX[i] = velY[i] = 0;
-				} else moving = true;
-			}
-			animating = moving;
-		}
 		// (the rest of the file highlighted, a thousand lines a tick: nothing drawn for it)
 		if (!model.highlighted()) model.highlight(model.lineCount, 1000);
 		var blinking = focused && !Clock.reducedMotion && Ui.now() - activeAt <= BLINK_FOR;
-		// (a frame while the cursors move, and when the caret blinks on or off: not every tick)
-		if (ui != null && (animating || focused && blinkPhase() != drawnPhase)) ui.requestFrame();
-		ticking = animating || blinking || !model.highlighted();
+		// (a frame when the caret blinks on or off: not every tick)
+		if (ui != null && focused && blinkPhase() != drawnPhase) ui.requestFrame();
+		ticking = blinking || !model.highlighted();
 		return ticking;
 	}
 
