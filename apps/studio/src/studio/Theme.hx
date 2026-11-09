@@ -67,17 +67,26 @@ class Theme {
 		"sel-halo" => Color.parse("rgba(0, 0, 0, 0.55)"),
 		// under a drawer over the canvas
 		"scrim" => Color.parse("rgba(0, 0, 0, 0.5)"),
+		// the code's hues, soft on the greys: the only colour in the studio
+		"violet" => Color.parse("#c4a7e7"),
+		"blue" => Color.parse("#8cb4d8"),
+		"teal" => Color.parse("#9ccfd8"),
+		"green" => Color.parse("#a8c98f"),
+		"orange" => Color.parse("#e3a982"),
+		"sand" => Color.parse("#e0c88f"),
+		"rose" => Color.parse("#e2a9b8"),
+		"red" => Color.parse("#e57f7f"),
 	]);
 
-	// the code view's colours (helder.ui.code's CodeTheme tokens) from the same greys: its
-	// words in the three text greys, its selection and marks the selection's, no hues
+	// the code view's colours (helder.ui.code's CodeTheme tokens): its chrome the studio's
+	// greys, its words in the code's hues, its selection and marks the selection's
 	static function withCode(m:Map<String, Color>):Map<String, Color> {
 		var by = [
 			"background" => "bg", "gutter" => "bg", "panel" => "bg", "tooltip" => "well", "current-line" => "well", "panel-border" => "line",
-			"indent-guide" => "line", "whitespace" => "fg3", "foreground" => "fg", "keyword" => "fg", "tag" => "fg", "type" => "fg", "function" => "fg",
-			"string" => "fg2", "number" => "fg2", "attribute" => "fg2", "comment" => "fg3", "punctuation" => "fg3", "line-number" => "fg3",
+			"indent-guide" => "line", "whitespace" => "fg3", "foreground" => "fg", "keyword" => "violet", "tag" => "blue", "type" => "sand", "function" => "teal",
+			"string" => "green", "number" => "orange", "attribute" => "rose", "comment" => "fg3", "punctuation" => "fg2", "line-number" => "fg3",
 			"line-number-active" => "fg2", "cursor" => "fg", "selection" => "sel-soft", "find-match" => "sel-soft", "find-current" => "edge",
-			"error" => "fg", "warning" => "fg2", "info" => "fg3",
+			"error" => "red", "warning" => "sand", "info" => "fg3",
 		];
 		for (k => v in by) m.set("code-" + k, m.get(v));
 		return m;

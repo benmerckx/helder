@@ -330,7 +330,7 @@ Every value of the look is in `src/studio/Theme.hx`: the colours as
 tokens (the code view's too), the type, the radius, the layout's sizes
 and the canvas' spring, and a helder.ui StyleSheet of the studio's parts
 by slot. For now it is a wireframe until the visual design is settled:
-one grey ramp and no hues, text in three greys, hairlines only between
+one grey ramp, hues only in the code's syntax, text in three greys, hairlines only between
 regions, no gradients or shadows, selection and focus outlined in
 near-white; one body and one small size, regular and medium. Refine it
 there. The fonts are Hanken Grotesk for the interface and Geist Mono for
