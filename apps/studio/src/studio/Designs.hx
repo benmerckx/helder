@@ -18,6 +18,8 @@ class Designs {
 	final read = new Map<String, {text:String, design:Null<DesignFile>, error:Null<String>}>();
 	// each screen's frame as last drawn
 	final drawn = new Map<String, Interpreted>();
+	// (the images by path read: when, what)
+	final images = new Map<String, {t:Float, image:Dynamic}>();
 	var shown = false;
 	// (the selection's node as last told: its box and colours)
 	var followed = "";
@@ -27,8 +29,11 @@ class Designs {
 
 	// a design screen's content: its frame interpreted (it reads the file's
 	// text: drawn again when it changes), or why it is not
-	public function content(info:ScreenInfo):Any {
+	public function content(name:String):Any {
 		studio.docs.version();
+		studio.project.version();
+		var info = studio.project.screen(name);
+		if (info == null) return "no such frame";
 		var r = file(info.file);
 		var k = switch info.source {
 			case Design(k): k;
@@ -38,10 +43,49 @@ class Designs {
 			drawn.remove(info.name);
 			return r.error ?? "no such frame";
 		}
-		var fr = r.design.frames[k];
-		var made = new Interpreted(fr.root, fr.base);
+		var made = interpret(info.file, r.design.frames[k]);
 		drawn.set(info.name, made);
 		return made;
+	}
+
+	function interpret(file:String, fr:DesignFile.Frame):Interpreted
+		return new Interpreted(fr.root, fr.base, src -> image(haxe.io.Path.normalize(haxe.io.Path.directory(file) + "/" + src)));
+
+	// an image by its path (a design's src="logo.png", from its file's
+	// folder): read and decoded once (again when the file changes), an SVG
+	// parsed; helder.image's, natively
+	function image(path:String):Dynamic {
+		#if (hxmc.target == "wasm32-wasi")
+		throw "an image by path: not in the browser yet";
+		#else
+		if (!sys.FileSystem.exists(path)) throw 'no such file';
+		var t = sys.FileSystem.stat(path).mtime.getTime();
+		var c = images.get(path);
+		if (c != null && c.t == t) return c.image;
+		var b = sys.io.File.getBytes(path);
+		var img:Dynamic = path.toLowerCase().endsWith(".svg") ? helder.ui.Svg.parse(b.toString()) : helder.image.Image.decode(b);
+		images.set(path, {t: t, image: img});
+		return img;
+		#end
+	}
+
+	// a design screen's frame mounted on its own, offscreen at its size (MCP's
+	// run.tree and run.snap: whatever the canvas shows now); null: no such frame
+	public function offscreen(name:String):Null<{ui:Ui, made:Interpreted, width:Int, height:Int}> {
+		var info = studio.project.screen(name);
+		var k = info == null ? -1 : switch info.source {
+			case Design(k): k;
+			case _: -1;
+		}
+		if (k < 0) return null;
+		var r = file(info.file);
+		if (r.design == null) throw '${info.file}: ${r.error}';
+		var fr = r.design.frames[k];
+		var ui = new Ui(Main.window == null ? new helder.story.StoryText() : Main.window.ui.text, fr.width, fr.height);
+		var made = interpret(info.file, fr);
+		helder.view.Render.render(made, ui.root);
+		ui.update();
+		return {ui: ui, made: made, width: fr.width, height: fr.height};
 	}
 
 	function file(path:String):{text:String, design:Null<DesignFile>, error:Null<String>} {
@@ -51,6 +95,39 @@ class Designs {
 		r = try {text: text, design: new DesignFile(text), error: null} catch (e:Dynamic) {text: text, design: null, error: Std.string(e)};
 		read.set(path, r);
 		return r;
+	}
+
+	// a design screen's frame drawn offscreen (scale: pixels a point), as
+	// the store's screenshots are (its own device, headless): RGBA8 rows
+	public function pixels(name:String, scale = 2.0):{pixels:haxe.io.Bytes, width:Int, height:Int} {
+		#if (hxmc.target == "wasm32-wasi")
+		throw "a design's frame as pixels: not in the browser yet";
+		#else
+		var o = offscreen(name);
+		if (o == null) throw 'no design frame $name';
+		var w = Math.round(o.width * scale), h = Math.round(o.height * scale);
+		var device = helder.gfx.Device.create(helder.os.Surface.headless(w, h));
+		try {
+			o.ui.scale = scale;
+			o.ui.update();
+			var r = new helder.ui.draw.Renderer(device);
+			r.scale = scale;
+			var px = haxe.io.Bytes.alloc(w * h * 4);
+			var enc = device.beginFrame();
+			enc.beginPass({colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]});
+			r.begin(w, h);
+			o.ui.paint(r);
+			r.end(enc);
+			enc.endPass();
+			device.readPixels(px);
+			device.endFrame();
+			device.dispose();
+			return {pixels: px, width: w, height: h};
+		} catch (e:Dynamic) {
+			device.dispose();
+			throw e;
+		}
+		#end
 	}
 
 	// the node at (x, y) of a design screen (its points), the offset of its markup (null: none there)

@@ -17,22 +17,26 @@ import helder.view.Flow.Mountable;
 // and marked where it is, the rest still drawn: a hole that is not a
 // literal ({items.length}), an unknown element, a component (code: not
 // drawn yet), a value its attribute rejects; each in errors, at its offset.
+// An image by its path (src="logo.png") is image's to load (an Image or an
+// Svg; thrown: marked), where the markup's file is known (the studio's).
 class Interpreted implements Mountable<Node> {
 	final root:PNode;
 	final base:Int;
+	final image:Null<String->Dynamic>;
 	// the last mount's nodes, its elements' offsets (where each node's markup starts) and its errors
 	public var nodes(default, null):Array<Node> = [];
 	public var sources(default, null) = new haxe.ds.ObjectMap<Node, Int>();
 	public var errors(default, null):Array<{at:Int, message:String}> = [];
 
 	// (base: the offset of root's text in its file, added to each offset)
-	public function new(root:PNode, base = 0) {
+	public function new(root:PNode, base = 0, ?image:String->Dynamic) {
 		this.root = root;
 		this.base = base;
+		this.image = image;
 	}
 
 	public function mount(parent:Node, before:Null<Node>):Array<Node> {
-		var t = new Interpreter(base);
+		var t = new Interpreter(base, image);
 		sources = t.sources;
 		errors = t.errors;
 		var out:Array<Node> = [];
@@ -82,11 +86,14 @@ class Interpreter implements Target<Step> {
 	public final errors:Array<{at:Int, message:String}> = [];
 
 	final base:Int;
+	final image:Null<String->Dynamic>;
 	// (the elements made for a name none is, told where they are when located)
 	final unknown = new haxe.ds.ObjectMap<Node, String>();
 
-	public function new(base:Int)
+	public function new(base:Int, ?image:String->Dynamic) {
 		this.base = base;
+		this.image = image;
+	}
 
 	// ---- the facts: a design has no types, its values are literals
 
@@ -288,8 +295,11 @@ class Interpreter implements Target<Step> {
 
 	function set(n:Node, name:String, v:Dynamic):Dynamic {
 		if (Std.isOfType(v, Code)) return mark(n, '$name={${(v : Code).code}}: code, not run in a design');
-		// (an image by its path: helder.asset's, not read here yet)
-		if (name == "src" && Std.isOfType(v, String)) return mark(n, 'src="$v": an image by path, not yet');
+		if (name == "src" && Std.isOfType(v, String) && !Std.isOfType(n, helder.ui.platform.WebView)) {
+			if (image == null) return mark(n, 'src="$v": an image by path, where the file is not known');
+			var img = try image(v) catch (e:Dynamic) return mark(n, 'src="$v": ' + Std.string(e));
+			v = img;
+		}
 		try NodeRenderer.setAttribute(n, name, v) catch (e:Dynamic) mark(n, Std.string(e));
 		return null;
 	}

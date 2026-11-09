@@ -27,7 +27,7 @@
 	<Frame name="Empty" width={390} height={844} canvas:at="430 0" background="#f8fafc" padding="56 24 24" row-gap={16} align-items="center">
 		<text font-size={28} font-weight={700} color="#3b82f6" align-self="start">todos</text>
 		<view grow={1} justify="center" align-items="center" row-gap={8}>
-			<view width={64} height={64} radius={32} background="#dbeafe"/>
+			<image src="empty.svg" width={64} height={64}/>
 			<text font-size={17} font-weight={600}>Nothing to do</text>
 			<text color="#64748b">Add an item to get started.</text>
 		</view>

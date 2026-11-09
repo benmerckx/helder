@@ -81,7 +81,10 @@ class Shell implements Markup {
 			<VirtualList tag="screens" each={sidebarRows(p)} by={(r:SidebarRow) -> r.key} estimate={26} label="Screens">{(r:Read<SidebarRow>, i:Int) -> {
 				// (a row each: a flow's name, a screen; 1 pixel between them)
 				var row = r(), info = row.screen;
-				<view padding="0 0 1">{info == null ? <text padding="14 8 4" color={c("fg3")} font-size={Theme.SMALL}>{row.flow}</text> :
+				<view padding="0 0 1">{info == null ? <text tag={"page-" + slug(row.flow)} padding="14 8 4" color={c("fg3")} font-size={Theme.SMALL} onClick={_ -> {
+					studio.drawer(false);
+					studio.showPage(row.flow);
+				}}>{row.flow}</text> :
 					<view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" role="button" label={info.name} focusable
 						data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
 							studio.drawer(false);
@@ -94,7 +97,8 @@ class Shell implements Markup {
 		</view>;
 	}
 
-	// the sidebar's rows: each flow's name, then its screens (a project of
+	// the sidebar's rows: each page's name (a design file, a story flow,
+	// the App; a click shows its screens), then its screens (a project of
 	// thousands of screens makes the rows in view only: a VirtualList)
 	static function sidebarRows(p:Null<Project>):Array<SidebarRow> {
 		var out:Array<SidebarRow> = [];

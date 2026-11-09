@@ -126,13 +126,14 @@ class Studio {
 	// the project opened: the compiler, the screens' program built and started, the MCP server
 	public function open() {
 		openedAt = haxe.Timer.stamp();
-		var pr = previews;
-		if (pr == null) return;
-		Async.launch(task -> pr.start(task));
+		if (project != null) Async.launch(_ -> watch());
+		// (a project of design files alone: its MCP server too, no program)
 		if (mcp != null) {
 			var m = mcp;
 			Async.launch(task -> m.serve(task));
 		}
+		var pr = previews;
+		if (pr != null) Async.launch(task -> pr.start(task));
 	}
 
 	// (a headless run's script waits while the studio waits on its processes: Headless.hold)
@@ -210,6 +211,17 @@ class Studio {
 		if (name == null) selection(null);
 		fitTo(name, true);
 		refreshCode();
+	}
+
+	// a page's screens (a design file's, a story flow's) fitted, none zoomed into
+	public function showPage(page:String) {
+		if (mode.peek() == "stories") mode("design");
+		focused(null);
+		selection(null);
+		var b = layout.bounds(page);
+		var v = Camera.fit(b.x, b.y, b.w, b.h, stageWidth, stageHeight, 28, 0, Theme.ASK_SPACE, Theme.TITLES);
+		camera.fly(v.x, v.y, v.k);
+		log("page", {page: page});
 	}
 
 	// the inspector's sheet opened or closed (compact), the zoomed screen fitted above it
@@ -560,6 +572,7 @@ class Studio {
 			next.start = tx.map(sel.start, 1);
 			selection(next);
 		}
+		if (file.endsWith(".helder") && project != null) framesChanged(file, project.design(file, docs.get(file).text));
 		if (origin != "code" && codeFile.peek() == file) {
 			applyingToEditor = true;
 			var changes = [for (c in tx.changes) new helder.syntax.Transaction.Change(c.start, c.end, c.text)];
@@ -570,6 +583,71 @@ class Studio {
 		}
 		log("edited", {file: file, origin: origin, changes: [for (c in tx.changes) {start: c.start, end: c.end, text: c.text}]});
 		if (origin == "code") saveLater(file) else commit(file);
+	}
+
+	// a design file's frames read again (null: as they were): what was
+	// focused or selected in a renamed one follows it, a frame gone is left
+	function framesChanged(file:String, renamed:Null<Array<{from:String, to:String}>>) {
+		if (renamed == null) return;
+		var f = focused.peek(), sel = selection.peek();
+		for (r in renamed) {
+			if (f == r.from) focused(f = r.to);
+			if (sel != null && sel.screen == r.from) {
+				var next:Selection = Reflect.copy(sel);
+				next.screen = r.to;
+				selection(sel = next);
+			}
+		}
+		if (f != null && project.screen(f) == null) focus(null);
+		log("frames", {file: file, frames: [for (s in project.screens) if (s.file == file) s.name], renamed: renamed});
+	}
+
+	// (natively) the design files on disk watched, a second apart: one changed
+	// there (another editor's save, git) read into the studio as an edit of
+	// the file's (in the history, undone like any other), one added or
+	// deleted its frames shown or gone
+	@:coroutine function watch() {
+		#if !(hxmc.target == "wasm32-wasi")
+		var stamps = new Map<String, Float>();
+		function stamp(f:String):Float
+			return try sys.FileSystem.stat(f).mtime.getTime() catch (_:Dynamic) -1;
+		for (f in project.designFiles())
+			stamps.set(f, stamp(f));
+		while (true) {
+			Async.delay(1);
+			var now = [for (f in Project.found(project.dir)) if (f.endsWith(".helder")) f];
+			for (f in now) {
+				var t = stamp(f);
+				if (stamps.get(f) == t) continue;
+				var known = stamps.exists(f);
+				stamps.set(f, t);
+				var text = try Files.read(f) catch (_:Dynamic) continue;
+				if (!known) {
+					framesChanged(f, project.design(f, text));
+					continue;
+				}
+				var d = docs.get(f);
+				if (d.text != text) docs.apply(f, new Transaction([difference(d.text, text)], null, d.text), "the file changed on disk", "disk");
+			}
+			for (f in [for (k in stamps.keys()) k])
+				if (!now.contains(f)) {
+					stamps.remove(f);
+					framesChanged(f, project.design(f, null));
+				}
+		}
+		#end
+	}
+
+	// (the one range where a and b differ, as a change of a: what is the same before and after it kept)
+	static function difference(a:String, b:String):Change {
+		var s = 0, ea = a.length, eb = b.length;
+		while (s < ea && s < eb && StringTools.fastCodeAt(a, s) == StringTools.fastCodeAt(b, s))
+			s++;
+		while (ea > s && eb > s && StringTools.fastCodeAt(a, ea - 1) == StringTools.fastCodeAt(b, eb - 1)) {
+			ea--;
+			eb--;
+		}
+		return new Change(s, ea, b.substring(s, eb));
 	}
 
 	// the program told of a file's text: its live literals patched now (the
@@ -802,8 +880,9 @@ class Layout {
 	public function at(wx:Float, wy:Float):Null<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}>
 		return Lambda.find(screens(), s -> wx >= s.x && wy >= s.y && wx < s.x + s.w && wy < s.y + s.h);
 
-	public function bounds():{x:Float, y:Float, w:Float, h:Float} {
-		var l = screens();
+	// (page: its screens' alone)
+	public function bounds(?page:String):{x:Float, y:Float, w:Float, h:Float} {
+		var l = [for (s in screens()) if (page == null || s.flow == page) s];
 		if (l.length == 0) return {x: 0, y: 0, w: 480, h: 560};
 		var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
 		for (s in l) {

@@ -41,7 +41,7 @@ class Board implements Markup {
 			}}>
 			<Show when={studio.mode() != "stories"}>
 				<view tag="world" position="absolute" left={0} top={0} width={1} height={1} transform-origin="left top" transform={transform(studio)}>
-					<For each={studio.layout.screens()}>{(r:Read<Rect>) -> {
+					<For each={studio.layout.screens()} by={(r:Rect) -> r.name}>{(r:Read<Rect>) -> {
 						var info = studio.project.screen(r().name);
 						info.source.match(Design(_)) ? design(studio, r, info) : live(studio, r);
 					}}</For>
@@ -80,7 +80,7 @@ class Board implements Markup {
 			<view tag="design" width={r().w} height={r().h} overflow="hidden" pointer-events="none" background="#ffffff" color="#000000"
 				font-family={helder.ui.Style.DEFAULT_FAMILY} font-size={helder.ui.Style.DEFAULT_SIZE} font-weight={helder.ui.Style.DEFAULT_WEIGHT}
 				ref={(n:Node) -> n.theme = {rules: []}}>
-				{studio.designs.content(info)}
+				{studio.designs.content(info.name)}
 			</view>
 		</view>;
 
@@ -136,7 +136,7 @@ class Board implements Markup {
 	static function stories(studio:Studio):View {
 		var p = studio.project;
 		return <scroll tag="stories" position="absolute" inset={0} padding="20 24" row-gap={6}>
-			<For each={p == null ? [] : p.screens}>{(s:Read<Project.ScreenInfo>) -> {
+			<For each={p == null ? [] : [for (f in p.flows()) for (s in f.screens) s]}>{(s:Read<Project.ScreenInfo>) -> {
 				var i = s();
 				<view:button tag={"story-" + Shell.slug(i.name)} slot="nav-item" column-gap={12} role="button" label={i.name} focusable onPress={() -> {
 					studio.setMode("design");

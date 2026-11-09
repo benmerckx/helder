@@ -7,6 +7,7 @@ import sys.FileSystem;
 #end
 import helder.syntax.Document;
 import helder.syntax.Scanner.Lang;
+import helder.view.graph.Graph.signal;
 
 using StringTools;
 
@@ -50,6 +51,13 @@ class Project {
 	#end
 	public final typescript:Bool;
 	public final screens:Array<ScreenInfo> = [];
+	// bumped when the screens change (a design file's frames added, removed,
+	// renamed, moved or resized: read again from its text, Studio.changed)
+	public final version = signal(0);
+	// (the design files, their frames' screens; the stories', or the App)
+	final designs:Array<String> = [];
+	final frames = new Map<String, Array<ScreenInfo>>();
+	final rest:Array<ScreenInfo> = [];
 	// where the studio's files for it go: <root>/bin/studio/<name>
 	public final out:String;
 	// the story files' links (Haxe): linked path to real path
@@ -99,19 +107,28 @@ class Project {
 	#end
 
 	// the story and design files under the project's directory, in path order
-	static function found(dir:String):Array<String> {
+	public static function found(dir:String):Array<String> {
 		var files = [];
 		walk(dir, files);
 		files.sort(Reflect.compare);
 		return files;
 	}
 
-	// the stories of the story files, in path order, each in the order
-	// written; then the design files' frames (program: the project has one,
-	// its own main the App screen without stories or frames)
+	// the design files' frames (each file a page, in path order), then the
+	// stories of the story files, in path order, each in the order written;
+	// the project's own main the App screen when it has one and no stories
+	// (program: it has one)
 	function findScreens(files:Array<String>, program:Bool) {
 		for (f in files) {
-			if (f.endsWith(".helder")) continue;
+			if (f.endsWith(".helder")) {
+				designs.push(f);
+				var d = try new DesignFile(Files.read(f)) catch (e:Dynamic) {
+					Sys.println('studio: $f: $e');
+					null;
+				}
+				frames.set(f, d == null ? [] : framesOf(f, d));
+				continue;
+			}
 			var text = Files.read(f);
 			var doc = Document.parse(text, Lang.of(f));
 			for (c in doc.calls("story")) {
@@ -122,7 +139,7 @@ class Project {
 				if (lit == null) continue;
 				var name = unquote(lit.text(doc.text));
 				var cut = name.lastIndexOf("/");
-				screens.push({
+				rest.push({
 					name: name,
 					flow: cut < 0 ? "Screens" : name.substr(0, cut),
 					label: cut < 0 ? name : name.substr(cut + 1),
@@ -133,28 +150,7 @@ class Project {
 				});
 			}
 		}
-		for (f in files) {
-			if (!f.endsWith(".helder")) continue;
-			var d = try new DesignFile(Files.read(f)) catch (e:Dynamic) {
-				Sys.println('studio: $f: $e');
-				continue;
-			}
-			var flow = f.substring(dir.length + 1, f.length - ".helder".length);
-			for (k in 0...d.frames.length) {
-				var fr = d.frames[k];
-				screens.push({
-					name: flow + "/" + fr.name,
-					flow: flow,
-					label: fr.name,
-					width: fr.width,
-					height: fr.height,
-					file: f,
-					source: Design(k),
-					at: fr.at
-				});
-			}
-		}
-		if (screens.length == 0 && program) screens.push({
+		if (rest.length == 0 && program) rest.push({
 			name: name,
 			flow: "App",
 			label: name,
@@ -163,7 +159,84 @@ class Project {
 			file: #if (hxmc.target == "wasm32-wasi") "" #else entry.typescript ?? "" #end,
 			source: App
 		});
+		order();
 	}
+
+	// a design file's frames as screens: each named by the file's path and
+	// its own name (app.helder#Home: no story's name, Flow/Screen, is one),
+	// its page the file's path
+	function framesOf(file:String, d:DesignFile):Array<ScreenInfo> {
+		var page = file.substr(dir.length + 1), out:Array<ScreenInfo> = [];
+		for (k in 0...d.frames.length) {
+			var fr = d.frames[k], label = fr.name, n = 1;
+			// (two frames of one name: the second's id its own)
+			while (Lambda.exists(out, s -> s.label == label))
+				label = '${fr.name} ${++n}';
+			out.push({
+				name: page + "#" + label,
+				flow: page,
+				label: label,
+				width: fr.width,
+				height: fr.height,
+				file: file,
+				source: Design(k),
+				at: fr.at,
+				start: fr.start
+			});
+		}
+		return out;
+	}
+
+	function order() {
+		screens.resize(0);
+		for (d in designs)
+			for (s in frames.get(d))
+				screens.push(s);
+		for (s in rest)
+			screens.push(s);
+	}
+
+	// a design file's text now (null: it is gone): its frames read again
+	// (one that does not read keeps the last ones, its frames show why);
+	// the frames renamed (same place in the file, a new name) when they
+	// changed, null when nothing did
+	public function design(file:String, text:Null<String>):Null<Array<{from:String, to:String}>> {
+		var was = frames.get(file);
+		var now = if (text == null) [] else {
+			var d = try new DesignFile(text) catch (_:Dynamic) null;
+			if (d == null) return null;
+			framesOf(file, d);
+		}
+		if (was != null && same(was, now)) return null;
+		if (was == null) {
+			designs.push(file);
+			designs.sort(Reflect.compare);
+		}
+		if (text == null) {
+			designs.remove(file);
+			frames.remove(file);
+		} else frames.set(file, now);
+		order();
+		version(v -> v + 1);
+		var renamed = [];
+		if (was != null)
+			for (k in 0...Std.int(Math.min(was.length, now.length)))
+				if (was[k].name != now[k].name) renamed.push({from: was[k].name, to: now[k].name});
+		return renamed;
+	}
+
+	static function same(a:Array<ScreenInfo>, b:Array<ScreenInfo>):Bool {
+		if (a.length != b.length) return false;
+		for (k in 0...a.length) {
+			var x = a[k], y = b[k];
+			if (x.name != y.name || x.width != y.width || x.height != y.height || x.start != y.start || x.at?.x != y.at?.x || x.at?.y != y.at?.y) return false;
+		}
+		return true;
+	}
+
+	// the design files (the pages drawn by the studio)
+	public function designFiles():Array<String>
+		return designs.copy();
 
 	// the screens the project's program draws (its stories, or its App; not a design's frames)
 	public function live():Array<ScreenInfo>
@@ -189,13 +262,19 @@ class Project {
 	public function screen(name:String):Null<ScreenInfo>
 		return Lambda.find(screens, s -> s.name == name);
 
-	// the flows in order, each its screens
+	// the pages in order (a design file each, a story flow each, the App), each its screens
 	public function flows():Array<{name:String, screens:Array<ScreenInfo>}> {
-		var out:Array<{name:String, screens:Array<ScreenInfo>}> = [];
+		version();
+		var out:Array<{name:String, screens:Array<ScreenInfo>}> = [], keys = [];
 		for (s in screens) {
-			var f = Lambda.find(out, x -> x.name == s.flow);
-			if (f == null) out.push(f = {name: s.flow, screens: []});
-			f.screens.push(s);
+			// (a design's page and a story's flow of one name are two)
+			var key = (s.source.match(Design(_)) ? "design:" : "flow:") + s.flow, k = keys.indexOf(key);
+			if (k < 0) {
+				keys.push(key);
+				out.push({name: s.flow, screens: []});
+				k = out.length - 1;
+			}
+			out[k].screens.push(s);
 		}
 		return out;
 	}
@@ -319,8 +398,9 @@ typedef ScreenInfo = {
 	// its file (a story's, a design's), what draws it
 	file:String,
 	source:Source,
-	// (a design's frame: where it is in its flow, canvas:at; null: after the one before)
+	// (a design's frame: where it is in its flow, canvas:at; null: after the one before; its element's offset)
 	?at:Null<{x:Float, y:Float}>,
+	?start:Int,
 }
 
 // What a screen's content is: a story of the program (the name it is bound

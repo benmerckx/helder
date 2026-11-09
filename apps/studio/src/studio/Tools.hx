@@ -16,8 +16,8 @@ using StringTools;
 //   project.read   {path?}                    a file's text (its current edits too), else the files and screens
 //   project.patch  {path, edits: [{old, new}]} or {path, text}   then {result: patched | built | failed | unchanged, diagnostics}
 //   build.check    {}                         the program typed (tsgo's check too), nothing written: diagnostics
-//   run.snap       {screen?, path?}           a screen's last frame as a PNG (an image, and the file written)
-//   run.tree       {screen?}                  a screen's node tree: tags, boxes, texts, styles, sources
+//   run.snap       {screen?, path?}           a screen's last frame as a PNG (an image, and the file written; a design's frame drawn offscreen)
+//   run.tree       {screen?}                  a screen's node tree: tags, boxes, texts, styles, sources (a design's: its interpreted nodes)
 class Tools {
 	final studio:Studio;
 
@@ -53,12 +53,12 @@ class Tools {
 		},
 		{
 			name: "run.snap",
-			description: "A screen's last frame as the running program drew it (a PNG). Without a screen, the one in focus, else the first.",
+			description: "A screen's last frame as the running program drew it (a PNG); a design file's frame drawn by the studio from its markup as it is now. Without a screen, the one in focus, else the first.",
 			inputSchema: {type: "object", properties: {screen: {type: "string", description: "a screen's (story's) name, Flow/Screen"}, path: {type: "string"}}}
 		},
 		{
 			name: "run.tree",
-			description: "A screen's node tree from the running program: each node's tag, box, text, a few styles and where its markup is (file:line).",
+			description: "A screen's node tree from the running program (a design file's frame: its nodes as interpreted from its markup, and what could not be): each node's tag, box, text, a few styles and where its markup is (file:line).",
 			inputSchema: {type: "object", properties: {screen: {type: "string"}}}
 		},
 	];
@@ -145,7 +145,31 @@ class Tools {
 		return s;
 	}
 
+	// the design frame named (else in focus; else the first screen, without
+	// a program): drawn by the studio itself; null: the program's screen
+	function designOf(name:Null<String>):Null<Project.ScreenInfo> {
+		var p = studio.project;
+		if (p == null) throw "no project open";
+		var n = name ?? studio.focused.peek();
+		var s = n == null ? (studio.previews == null ? p.screens[0] : null) : p.screen(n);
+		if (n != null && s == null) throw 'no screen $n (${[for (x in p.screens) x.name].join(", ")})';
+		return s != null && s.source.match(Design(_)) ? s : null;
+	}
+
 	@:coroutine function snap(args:Dynamic):{content:Array<Dynamic>, isError:Bool} {
+		var d = designOf(args.screen);
+		if (d != null) {
+			var img = studio.designs.pixels(d.name);
+			var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
+			var out = written(png, args.path, Shell.slug(d.name));
+			return {
+				content: [
+					{type: "image", data: haxe.crypto.Base64.encode(png), mimeType: "image/png"},
+					{type: "text", text: '${d.name}: ${img.width}x${img.height}, interpreted from ${rel(d.file)}, written to $out'}
+				],
+				isError: false
+			};
+		}
 		var s = screenOf(args.screen);
 		var img = s.image.peek();
 		if (img == null) throw '${s.info.name} has no frame yet';
@@ -159,9 +183,7 @@ class Tools {
 		img = studio.previews.pixels(s);
 		if (img == null) throw '${s.info.name}: its frame could not be read';
 		var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
-		var out:String = args.path ?? '${studio.project.out}/snaps/${s.slug}.png';
-		helder.cli.TestCommand.mkdirs(haxe.io.Path.directory(out));
-		sys.io.File.saveBytes(out, png);
+		var out = written(png, args.path, s.slug);
 		#end
 		return {
 			content: [
@@ -172,7 +194,47 @@ class Tools {
 		};
 	}
 
+	// (a snap's PNG written: path, else the project's snaps/<slug>.png)
+	function written(png:haxe.io.Bytes, path:Null<String>, slug:String):String {
+		#if (hxmc.target == "wasm32-wasi")
+		return "(not written)";
+		#else
+		var out = path ?? '${studio.project.out}/snaps/$slug.png';
+		helder.cli.TestCommand.mkdirs(haxe.io.Path.directory(out));
+		sys.io.File.saveBytes(out, png);
+		return out;
+		#end
+	}
+
+	function rel(f:String):String
+		return f.startsWith(studio.project.dir + "/") ? f.substr(studio.project.dir.length + 1) : f;
+
+	// a design frame's tree: its nodes as interpreted now, offscreen at its size
+	function designTree(d:Project.ScreenInfo):Dynamic {
+		var o = studio.designs.offscreen(d.name);
+		var doc = studio.docs.get(d.file).doc;
+		function node(n:helder.ui.Node, root:helder.ui.Node):Dynamic {
+			var o2:Dynamic = {tag: n.tag, rect: [r(n.absX - root.absX), r(n.absY - root.absY), r(n.width), r(n.height)]};
+			if (Std.isOfType(n, helder.ui.TextNode)) o2.text = (cast n : helder.ui.TextNode).text;
+			if ((n.style.background : Int) != 0) o2.background = hex(n.style.background);
+			if (n.style.color != null) o2.color = hex(n.style.color);
+			if (n.style.opacity != 1) o2.opacity = n.style.opacity;
+			var at = o.made.sources.get(n);
+			if (at != null) o2.source = rel(d.file) + ":" + doc.lineCol(at).line;
+			if (n.children.length > 0) o2.children = [for (c in n.children) node(c, root)];
+			return o2;
+		}
+		var root = o.made.nodes[0];
+		var errors = [for (e in o.made.errors) {message: e.message, source: e.at < 0 ? null : rel(d.file) + ":" + doc.lineCol(e.at).line}];
+		return {screen: d.name, interpreted: true, root: root == null ? null : node(root, root), errors: errors};
+	}
+
+	static function hex(c:Int):String
+		return "#" + StringTools.hex(c, 8).toLowerCase();
+
 	@:coroutine function tree(name:Null<String>):Dynamic {
+		var d = designOf(name);
+		if (d != null) return designTree(d);
 		var s = screenOf(name);
 		var answer:Dynamic = null;
 		if (!studio.previews.request(s, "Ui.getTree", {}, r -> answer = r)) throw '${s.info.name} is not running';

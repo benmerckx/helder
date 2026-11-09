@@ -34,6 +34,7 @@ class DesignFile {
 						width: Std.int(number(attrs, "width") ?? 390),
 						height: Std.int(number(attrs, "height") ?? 844),
 						at: xy.length == 2 && !Math.isNaN(xy[0]) && !Math.isNaN(xy[1]) ? {x: xy[0], y: xy[1]} : null,
+						start: lead + at,
 						root: {kind: PElement("view", [for (a in attrs) if (shown(a.name)) a].concat(sized(attrs, at)), strip(children), at)},
 						base: lead
 					});
@@ -87,6 +88,8 @@ typedef Frame = {
 	height:Int,
 	// where it is on the canvas (canvas:at; null: after the one before)
 	at:Null<{x:Float, y:Float}>,
+	// its element's offset in the file
+	start:Int,
 	// what is drawn: a view of its size, its content; the offset of its text in the file
 	root:PNode,
 	base:Int,

@@ -20,6 +20,18 @@ function tests() {
 			equals(d.indexOf("text({items.length} left)") > 0, true);
 			equals([for (e in i.interpreted.errors) e.at], [18, 50, 65]);
 		});
+		test("an image by its path: the file's, loaded where it is known", () -> {
+			var img = new helder.image.Image(2, 2), asked = [];
+			var i = interpret('<view><image src="logo.png" width={20} height={20}/></view>', p -> {
+				asked.push(p);
+				img;
+			});
+			equals(asked, ["logo.png"]);
+			equals((cast i.ui.root.children[0].children[0] : ImageNode).image == img, true);
+			equals(i.interpreted.errors.length, 0);
+			equals(interpret('<view><image src="logo.png"/></view>').interpreted.errors.length, 1);
+			equals(interpret('<view><image src="gone.png"/></view>', _ -> throw "no such file").interpreted.errors[0].message, 'src="gone.png": no such file');
+		});
 		test("each element's offset", () -> {
 			var i = interpret('<view><text>a</text></view>');
 			var root = i.ui.root.children[0];
@@ -29,9 +41,9 @@ function tests() {
 	});
 }
 
-function interpret(text:String):{ui:Ui, interpreted:Interpreted} {
+function interpret(text:String, ?image:String->Dynamic):{ui:Ui, interpreted:Interpreted} {
 	var ui = new Ui(new helder.story.StoryText(), 400, 400);
-	var i = new Interpreted(new Parser(text, (m, _, _) -> throw m).document());
+	var i = new Interpreted(new Parser(text, (m, _, _) -> throw m).document(), 0, image);
 	Render.render(i, ui.root);
 	ui.update();
 	return {ui: ui, interpreted: i};

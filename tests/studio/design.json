@@ -1,7 +1,7 @@
 {
   "events": [
     {"t": 0.3, "type": "mark", "name": "overview"},
-    {"t": 0.4, "type": "tap", "tag": "screen-app-home"},
+    {"t": 0.4, "type": "tap", "tag": "screen-app-helder-home"},
     {"t": 1.6, "type": "mark", "name": "zoomed"},
     {"t": 1.7, "type": "tap", "tag": "stage", "ox": 253, "oy": 86},
     {"t": 2.0, "type": "mark", "name": "selected"},
