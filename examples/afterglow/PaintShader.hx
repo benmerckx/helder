@@ -182,9 +182,12 @@ final PaintShader = shader({
 				emit += violet() * (line * 0.02);
 			}
 		} else if (kind == ROOT) {
-			var grain = noise2(vec2(i.uv.x * 2, i.uv.y * 30)) * 0.6 + noise2(vec2(i.uv.x * 9, i.uv.y * 90)) * 0.4;
-			albedo = mix(vec3(0.02, 0.015, 0.04), vec3(0.08, 0.055, 0.13), grain);
-			emit = vec3(0.16, 0.08, 0.4) * (pow(1 - abs(dot(n, dir)), 3) * 0.18);
+			// (bark: long fibres, knots, and a violet sheen only where the fibres catch it)
+			var fibre = noise2(vec2(i.uv.x * 3, i.uv.y * 40)) * 0.55 + noise2(vec2(i.uv.x * 11, i.uv.y * 120)) * 0.45;
+			var knot = smoothstep(0.75, 0.9, noise2(vec2(i.uv.x * 4, i.uv.y * 14) + vec2(seed)));
+			albedo = mix(vec3(0.015, 0.012, 0.03), vec3(0.08, 0.055, 0.13), fibre) * (1 - knot * 0.6);
+			var sheen = pow(1 - abs(dot(n, dir)), 3) * smoothstep(0.35, 0.8, fibre);
+			emit = vec3(0.16, 0.08, 0.4) * (sheen * 0.22);
 		} else if (kind == STRAND) {
 			albedo = vec3(0.05, 0.1, 0.02);
 			var tip = smoothstep(0.55, 1.0, i.uv.y);
@@ -235,7 +238,7 @@ final PaintShader = shader({
 			var shafts = pow(noise2(vec2(x * 0.11 + y * 0.015, 0.5)), 3) * smoothstep(-5, 50, y) * smoothstep(110, 40, y);
 			var clouds = fbm2(vec2(x * 0.03, y * 0.06));
 			var deep = exp(-(x * x) / 2000) * exp(-max(y - 2, 0) / 22);
-			var c = fog(dir, 1) * (1.1 + clouds * 0.5 + shafts * 4 + deep * 2.5);
+			var c = fog(dir, 1) * (0.92 + clouds * 0.3 + shafts * 3 + deep * 2.5);
 			return vec4(c, 1);
 		}
 		// (light: a cool glow from the mist behind and above, the sky's ambient, the glows, the moth's aura)

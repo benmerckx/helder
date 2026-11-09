@@ -315,6 +315,10 @@ class Ruins {
 		sprouts(new Vec3(6.6, 4.65, -8.6), 0.6, 9);
 		sprouts(new Vec3(-5.6, 8.8, -6.4), 0.6, 7);
 		sprouts(new Vec3(3.2, 0.35, -6.2), 0.3, 5);
+		// (on the rubble by the arcade's foot, over the water)
+		for (k in 0...5)
+			mushroom(new Vec3(range(1.8, 2.8), 0.32, range(-7.4, -6.6)), range(0.08, 0.3), range(0.06, 0.14), false);
+		lights.push({pos: new Vec3(2.3, 0.6, -7.0), radius: 2.2, color: PaintShader.cyan(), power: 1.2});
 		// (moss's glow along the ledge's edge)
 		lights.push({pos: new Vec3(-1.5, 0.8, -1.3), radius: 1.8, color: PaintShader.acid(), power: 0.6});
 		lights.push({pos: new Vec3(4.5, 4.0, -7.6), radius: 2.2, color: PaintShader.acid(), power: 0.5});
@@ -323,8 +327,8 @@ class Ruins {
 	function water() {
 		var b = mesh;
 		b.kind = PaintShader.PAD;
-		for (k in 0...40) {
-			var x = range(-1.5, 7), z = range(-16, -1.0);
+		for (k in 0...55) {
+			var x = k < 15 ? range(-0.6, 2.4) : range(-1.5, 7), z = k < 15 ? range(-4.5, -0.8) : range(-16, -1.0);
 			b.extra = rand() < 0.35 ? 1 : 0;
 			b.seed = rand();
 			b.pad(new Vec3(x, 0.012, z), range(0.12, 0.38), range(0, 6.28));

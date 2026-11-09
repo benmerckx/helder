@@ -62,6 +62,8 @@ class Afterglow {
 	final waterBytes = Bytes.alloc(WaterShader.uniforms[0].size);
 	final auraBytes = Bytes.alloc(MothShader.uniforms[0].size);
 	final mothBytes = Bytes.alloc(MothShader.uniforms[0].size);
+	final auraMirror = Bytes.alloc(MothShader.uniforms[0].size);
+	final mothMirror = Bytes.alloc(MothShader.uniforms[0].size);
 	final finishBytes = Bytes.alloc(FinishShader.uniforms[0].size);
 
 	// (the shaders' blocks, written each frame from these: nothing allocated)
@@ -224,16 +226,17 @@ class Afterglow {
 		mothAt = ruins.moth + bob;
 		lightCount = ruins.lightBytes(t, lightData);
 		device.writeTexture(lights, lightData);
-		var aura = new Vec4(0.62, 0.3, 1.0, 0);
+		var violet = new Vec4(0.62, 0.3, 1.0, 0);
 		var v = paintView;
 		v.viewProj = viewProj;
 		v.eye = new Vec4(from.x, from.y, from.z, t);
 		v.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 2.8);
-		v.aura = aura * 2.4;
+		v.aura = violet * 2.4;
 		v.glyph = ruins.glyph;
 		v.flags = new Vec4(0, lightCount, DENSITY, 0);
 		PaintShader.params.view.write(v, paintBytes);
-		v.viewProj = viewProj * Mat4.scaling(1, -1, 1);
+		var mirrorProj = viewProj * Mat4.scaling(1, -1, 1);
+		v.viewProj = mirrorProj;
 		v.eye = new Vec4(from.x, -from.y, from.z, t);
 		v.flags = new Vec4(1, lightCount, DENSITY, 0);
 		PaintShader.params.view.write(v, mirrorBytes);
@@ -247,11 +250,15 @@ class Afterglow {
 		w.right = new Vec4(m.c0.x, m.c1.x, m.c2.x, 1.1);
 		w.up = new Vec4(m.c0.y, m.c1.y, m.c2.y, t);
 		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 0);
-		w.color = aura * 0.6;
+		w.color = violet * 0.6;
 		MothShader.params.view.write(w, auraBytes);
+		w.viewProj = mirrorProj;
+		MothShader.params.view.write(w, auraMirror);
 		w.right = new Vec4(m.c0.x, m.c1.x, m.c2.x, 0.4);
 		w.moth = new Vec4(mothAt.x, mothAt.y + 0.06, mothAt.z, 1);
-		w.color = aura;
+		w.color = violet;
+		MothShader.params.view.write(w, mothMirror);
+		w.viewProj = viewProj;
 		MothShader.params.view.write(w, mothBytes);
 
 		// (the mirror: the ruins drawn upside down about the water)
@@ -260,6 +267,13 @@ class Afterglow {
 		enc.beginPass(mirrorPass);
 		enc.setPipeline(mirrored);
 		ruinsDraw(enc, mirrorBytes);
+		enc.setVertexBuffer(0, quad);
+		enc.setPipeline(aura);
+		enc.setUniforms(MothShader.uniforms[0].binding, auraMirror);
+		enc.draw(6);
+		enc.setPipeline(moth);
+		enc.setUniforms(MothShader.uniforms[0].binding, mothMirror);
+		enc.draw(6);
 		enc.endPass();
 
 		renderer.drawInto(enc, world, camera, color, depth, sw, sh);
