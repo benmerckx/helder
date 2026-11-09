@@ -3,7 +3,8 @@
 //
 //   node apps/studio/web/build.mjs <out> [--compiler <dir>] [--covers] [project[=label]...]
 //
-//   <out>/index.html, studio.mjs          the page (apps/studio/web)
+//   <out>/index.html, studio.mjs          the page (apps/studio/web; its loading screen told the
+//                                         examples' covers and the module's size)
 //   <out>/new/app.helder                  a new project (?new, the welcome's)
 //   <out>/studio.wasm, helder/...         the studio built for the web, its packages' browser modules
 //   <out>/helder/story/web/worker.mjs     the preview host's worker (helder.story.web.Preview)
@@ -19,7 +20,7 @@
 // bin/compiler-web) served as <out>/compiler-web (a link), its worker beside
 // the page's modules: structural edits built in the browser.
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -92,5 +93,8 @@ writeFileSync(path.join(out, 'examples/index.json'), JSON.stringify(index, null,
 // the page, and a new project's template
 cpSync(path.join(here, 'studio.mjs'), path.join(out, 'studio.mjs'));
 cpSync(path.join(here, 'new'), path.join(out, 'new'), { recursive: true });
-writeFileSync(path.join(out, 'index.html'), readFileSync(path.join(here, 'index.html'), 'utf8').replace('/*IMPORTS*/[]', JSON.stringify(imports)));
+// (the loading screen's: the examples' names, labels and covers, the module's size for its progress)
+const shown = index.map(({ name, label, cover, width, height }) => ({ name, label, cover, width, height }));
+writeFileSync(path.join(out, 'index.html'), readFileSync(path.join(here, 'index.html'), 'utf8').replace('/*IMPORTS*/[]', JSON.stringify(imports))
+	.replace('/*EXAMPLES*/[]', JSON.stringify(shown)).replace('/*SIZE*/0', String(statSync(path.join(out, 'studio.wasm')).size)));
 console.log(`studio-web: ${out}: the studio, ${index.length} example(s)`);

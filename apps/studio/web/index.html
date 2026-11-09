@@ -5,14 +5,129 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>helder studio</title>
 <style>
-html, body { margin: 0; height: 100%; overflow: hidden; background: #141414; overscroll-behavior: none; }
-#studio { position: fixed; inset: 0; width: 100vw; height: 100dvh; display: block; outline: none; touch-action: none; }
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+@font-face { font-family: 'Hanken Grotesk'; src: url(fonts/HankenGrotesk-Regular.ttf); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url(fonts/HankenGrotesk-Medium.ttf); font-weight: 500; font-display: swap; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0b0d; overscroll-behavior: none; }
+#studio { position: fixed; inset: 0; z-index: 1; width: 100vw; height: 100dvh; display: block; outline: none; touch-action: none; }
+/* (the canvas hidden until the studio has drawn: the loading screen under it, then it fades in over it) */
+.loading #studio { opacity: 0; }
+.shown #studio { opacity: 1; transition: opacity 0.35s ease-out; }
+#loading {
+	position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+	padding: 24px; box-sizing: border-box; color: #f0f0f2; font: 13px/1.4 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+#loading .cover {
+	view-transition-name: cover; display: block; max-width: min(72vw, 420px); max-height: 52dvh; width: auto; height: auto;
+	border-radius: 6px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 16px 48px -12px rgba(0, 0, 0, 0.6);
+}
+#loading .blank {
+	view-transition-name: cover; width: min(56vw, 240px); aspect-ratio: 4 / 3; border-radius: 12px; background: #1c1c1f; position: relative;
+}
+#loading .blank::before, #loading .blank::after { content: ''; position: absolute; inset: 0; margin: auto; width: 16px; height: 1.5px; background: #66666d; }
+#loading .blank::after { transform: rotate(90deg); }
+#loading .name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+#loading .status { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 30px; color: #66666d; font-size: 12px; font-variant-numeric: tabular-nums; }
+#loading .bar { width: 160px; height: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+#loading .bar > div { height: 100%; width: 0; background: #a3a3aa; transition: width 0.15s linear; }
+#loading .bar[hidden] { display: block; visibility: hidden; }
+#loading.error .status { color: #ec8383; max-width: 36rem; text-align: center; }
+/* (no cross-document view transitions here: the loading screen fades in itself) */
+@supports not (view-transition-name: none) { #loading { animation: in 0.3s ease-out; } }
+@keyframes in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+	.shown #studio, #loading .bar > div { transition: none; }
+	#loading { animation: none; }
+}
 </style>
 <link rel="modulepreload" href="./helder/os/browser.mjs">
 <script>window.STUDIO_IMPORTS = /*IMPORTS*/[];</script>
 </head>
-<body>
+<body class="loading">
+<div id="loading" role="status" aria-live="polite">
+	<div class="blank"></div>
+	<div class="name">helder studio</div>
+	<div class="status"><div class="bar" hidden><div></div></div><span>Loading the studio</span></div>
+</div>
 <canvas id="studio" tabindex="0"></canvas>
+<script>
+// The loading screen, drawn at once (nothing waits for the module): the
+// project's name and cover (an example's, the homepage's card's picture,
+// view-transition-name: cover), the studio's module's download as it comes
+// (its size known at build time: the bytes read here, decompressed). The
+// module (studio.mjs) takes the download (STUDIO_WASM) and says when the
+// studio has drawn (studioLoad.shown), or why it did not (studioLoad.fail).
+{
+	const examples = /*EXAMPLES*/[], size = /*SIZE*/0;
+	const params = new URLSearchParams(location.search), hash = new URLSearchParams(location.hash.slice(1));
+	const el = document.getElementById('loading'), name = el.querySelector('.name'), bar = el.querySelector('.bar'), note = el.querySelector('.status span');
+	const project = params.get('example') ?? params.get('project');
+	const example = examples.find((e) => e.name === project);
+	if (example) name.textContent = example.label;
+	else if (params.has('new')) name.textContent = 'New project';
+	else if (project) name.textContent = project;
+	if (example?.cover) {
+		const img = new Image(example.width / 2, example.height / 2);
+		img.className = 'cover';
+		img.alt = '';
+		img.src = `examples/${example.name}/${example.cover}`;
+		el.querySelector('.blank').replaceWith(img);
+	}
+	const mb = (n) => (n / 1048576).toFixed(1);
+	// (a page that only makes a project and goes on to it downloads nothing: the next one does)
+	const passing = params.has('new') || (params.has('example') && !params.has('project')) || hash.has('draft') || hash.has('import');
+	if (passing) note.textContent = params.has('new') ? 'Making the project' : 'Opening';
+	else window.STUDIO_WASM = fetch('studio.wasm').then((r) => {
+		if (!r.ok || !r.body) return r;
+		let got = 0;
+		const reader = r.body.getReader();
+		const show = () => {
+			if (size) {
+				bar.hidden = false;
+				bar.firstChild.style.width = Math.min(100, (100 * got) / size) + '%';
+				note.textContent = `Downloading the studio · ${mb(got)} of ${mb(size)} MB`;
+			} else note.textContent = `Downloading the studio · ${mb(got)} MB`;
+		};
+		show();
+		const body = new ReadableStream({
+			async pull(c) {
+				const { done, value } = await reader.read();
+				if (done) {
+					bar.hidden = true;
+					note.textContent = 'Starting';
+					return c.close();
+				}
+				got += value.byteLength;
+				show();
+				c.enqueue(value);
+			},
+			cancel: (why) => reader.cancel(why),
+		});
+		return new Response(body, { status: r.status, headers: { 'content-type': 'application/wasm' } });
+	});
+	// (a page that goes on to another (the welcome's example) ends its download: no error of its own)
+	window.STUDIO_WASM?.catch(() => {});
+	window.studioLoad = {
+		shown() {
+			if (!document.body.classList.contains('loading')) return;
+			// (two frames: the studio's first one presented under the hidden canvas)
+			requestAnimationFrame(() => requestAnimationFrame(() => {
+				document.body.classList.replace('loading', 'shown');
+				const done = () => el.remove();
+				if (matchMedia('(prefers-reduced-motion: reduce)').matches) done();
+				else setTimeout(done, 400);
+			}));
+		},
+		fail(why) {
+			el.classList.add('error');
+			bar.hidden = true;
+			note.textContent = 'The studio did not start: ' + why;
+		},
+	};
+}
+</script>
 <script type="module" src="./studio.mjs"></script>
 </body>
 </html>

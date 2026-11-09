@@ -43,6 +43,10 @@
 //   through the studio's history, the files written here go back, and
 //   after each change the tab reports its check, trees and small PNGs.
 //
+// - Loading: index.html's loading screen until the studio's first frame
+//   (its event: studioLoad.shown), the module's download begun there
+//   (STUDIO_WASM, its progress shown).
+//
 // ?gfx=webgl2 takes WebGL2 even where WebGPU is. window.studioWeb exposes
 // the page's state to checks (tests/studio-web): the studio's events (its
 // log: first frame, all shown, selected, patched, shown...), the preview's
@@ -180,7 +184,9 @@ async function openFolder() {
 	go(name);
 }
 
+let leaving = false;
 function go(name) {
+	leaving = true;
 	const u = new URL(location.href);
 	u.searchParams.delete('example');
 	u.searchParams.delete('new');
@@ -241,6 +247,8 @@ if (!projectName && params.has('example')) {
 	if ((await projectNames()).includes(name)) go(name);
 	else await openExample(name);
 } else if (!projectName && params.has('new')) await newProject();
+// (on its way to the project: nothing more started here, its fetches cut off by the navigation)
+if (leaving) await new Promise(() => {});
 const files = new Map(), dirs = new Set();
 let meta = null, previewBytes = null, folder = null, draft = null;
 if (projectName) {
@@ -764,6 +772,7 @@ function studioWeb(host) {
 				const e = JSON.parse(str(p));
 				e.ms_page = Math.round(performance.now() - t0);
 				state.events.push(e);
+				if (e.event === 'first-frame') window.studioLoad?.shown();
 			},
 			text_length: (h) => enc.encode(host.handles.get(h)).length,
 			text_take(h, p) {
@@ -795,7 +804,10 @@ try {
 	const r = await run(window.STUDIO_WASM ?? 'studio.wasm', {
 		imports: [...IMPORTS, withProjects], canvas: 'studio', fonts, gfx, args: [],
 		stdout: (s) => log(s), stderr: (s) => log('stderr: ' + s),
-		onExit: (code, stack) => log('studio: exit ' + code + ' ' + (stack ?? '')),
+		onExit: (code, stack) => {
+			log('studio: exit ' + code + ' ' + (stack ?? ''));
+			if (code) window.studioLoad?.fail('it exited (' + code + ')');
+		},
 		onError: (e) => log('studio: ' + e.message),
 	});
 	state.host = r.host;
@@ -815,4 +827,5 @@ try {
 } catch (e) {
 	state.error = String(e?.stack ?? e);
 	log('studio: ' + state.error);
+	window.studioLoad?.fail(e?.message ?? String(e));
 }
