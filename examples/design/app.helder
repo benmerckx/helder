@@ -1,0 +1,35 @@
+<Design>
+	<Frame name="Home" width={390} height={844} canvas:at="0 0" background="#f8fafc" padding="56 24 24" row-gap={16}>
+		<note>The list as it opens: three items, one done.</note>
+		<text tag="title" font-size={28} font-weight={700} color="#3b82f6">todos</text>
+		<view direction="row" column-gap={8} align-items="center" padding="10 12" background="#ffffff" radius={10} border-width={1} border-color="#e2e8f0">
+			<text grow={1} color="#94a3b8">What needs to be done?</text>
+			<view padding="6 12" background="#3b82f6" radius={8}>
+				<text color="#ffffff" font-weight={600}>Add</text>
+			</view>
+		</view>
+		<view row-gap={1} background="#e2e8f0" radius={10} overflow="hidden">
+			<view direction="row" column-gap={12} align-items="center" padding="12 14" background="#ffffff">
+				<view width={18} height={18} radius={9} background="#22c55e"/>
+				<text grow={1} color="#94a3b8">Sketch the home screen</text>
+			</view>
+			<view direction="row" column-gap={12} align-items="center" padding="12 14" background="#ffffff">
+				<view width={18} height={18} radius={9} border-width={2} border-color="#cbd5e1"/>
+				<text grow={1}>Pick the colours</text>
+			</view>
+			<view direction="row" column-gap={12} align-items="center" padding="12 14" background="#ffffff">
+				<view width={18} height={18} radius={9} border-width={2} border-color="#cbd5e1"/>
+				<text grow={1}>Write the list in code</text>
+			</view>
+		</view>
+		<text font-size={13} color="#64748b">2 items left</text>
+	</Frame>
+	<Frame name="Empty" width={390} height={844} canvas:at="430 0" background="#f8fafc" padding="56 24 24" row-gap={16} align-items="center">
+		<text font-size={28} font-weight={700} color="#3b82f6" align-self="start">todos</text>
+		<view grow={1} justify="center" align-items="center" row-gap={8}>
+			<view width={64} height={64} radius={32} background="#dbeafe"/>
+			<text font-size={17} font-weight={600}>Nothing to do</text>
+			<text color="#64748b">Add an item to get started.</text>
+		</view>
+	</Frame>
+</Design>

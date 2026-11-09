@@ -1,0 +1,17 @@
+{
+  "events": [
+    {"t": 0.3, "type": "mark", "name": "overview"},
+    {"t": 0.4, "type": "tap", "tag": "screen-app-home"},
+    {"t": 1.6, "type": "mark", "name": "zoomed"},
+    {"t": 1.7, "type": "tap", "tag": "stage", "ox": 253, "oy": 86},
+    {"t": 2.0, "type": "mark", "name": "selected"},
+    {"t": 2.1, "type": "tap", "tag": "input-color"},
+    {"t": 2.2, "type": "key", "name": "a", "secondary": true},
+    {"t": 2.3, "type": "type", "text": "#ef4444"},
+    {"t": 2.4, "type": "key", "name": "Enter"},
+    {"t": 2.8, "type": "mark", "name": "colored"},
+    {"t": 2.9, "type": "tap", "tag": "undo"},
+    {"t": 3.2, "type": "tap", "tag": "redo"},
+    {"t": 3.5, "type": "mark", "name": "end"}
+  ]
+}

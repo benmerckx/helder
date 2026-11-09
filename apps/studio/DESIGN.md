@@ -1,8 +1,11 @@
 # helder studio: design files
 
-Status: a plan, nothing built. The studio today (README.md) draws every
-screen by running the project's program: a dev build of its stories in
-one preview host. That stays, but as one source of a frame among others.
+Status: a plan, its first steps built (README.md, "Design files"): a
+screen's source (a story, the app, a design's frame), the interpreter
+(helder.ui.view.Interpreter), `.helder` files' frames on the canvas,
+selected and edited in place. The studio otherwise draws every screen by
+running the project's program: a dev build of its stories in one preview
+host. That stays, but as one source of a frame among others.
 The canvas's own work, Figma's kind (layout, type, colour, a screen
 drawn before any code), is markup the studio renders at once, in its own
 process, with no build: a design file.
@@ -24,6 +27,19 @@ process, with no build: a design file.
 - **Design owns the look, code the behaviour.** A logo, an illustration,
   an empty state, a card's layout can stay design forever; only what
   needs logic moves to code.
+
+### What you open
+
+- **A project folder**, as VS Code opens one: the studio opens a
+  directory, never a file alone. Opening a single `.helder` file opens
+  its folder as the project, that file's page shown.
+- **Each `.helder` file is a page**, as Figma's pages: its frames on the
+  canvas together, a page per file.
+- **The canvas' sidebar lists pages**: the design files, then a page per
+  story file (its flows), and the app. The file tree belongs to the code
+  view, not the canvas.
+- **A new project starts with one `app.helder`**: a page to draw on before
+  any code; the program comes when something needs to run.
 
 ## 2. Frames
 

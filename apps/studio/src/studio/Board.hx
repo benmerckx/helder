@@ -5,12 +5,14 @@ import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 import helder.view.graph.Read;
+import studio.Project.Source;
 import studio.Theme.c;
 
 using StringTools;
 
 // The canvas: every screen of the project at once, grouped by flow (a row
-// each), their frames the programs' (Previews: refreshed as they draw).
+// each), a story's frames the program's (Previews: refreshed as they draw),
+// a design's frame its own nodes, interpreted here (Designs).
 // Pan with a drag or the wheel, zoom with secondary and the wheel (a
 // trackpad's pinch) or two fingers; a screen clicked zooms into it on a
 // spring, a click inside the zoomed screen selects the node there (the
@@ -39,20 +41,9 @@ class Board implements Markup {
 			}}>
 			<Show when={studio.mode() != "stories"}>
 				<view tag="world" position="absolute" left={0} top={0} width={1} height={1} transform-origin="left top" transform={transform(studio)}>
-					<For each={studio.layout.screens()}>{(r:Read<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}>) -> {
-						var s = studio.previews.screen(r().name);
-						<view tag={"screen-" + Shell.slug(s.info.name)} slot="screen" position="absolute" left={r().x} top={r().y} width={r().w}
-							height={r().h} data-on={studio.focused() == s.info.name ? "true" : "false"} data-frame={s.frames()}>
-							<image src={s.image()} width={r().w} height={r().h}/>
-							<Show when={s.crashedSignal()}>
-								<text tag="crashed" position="absolute" left={8} top={8} color={c("fg2")} font-size={Theme.SMALL}>stopped</text>
-							</Show>
-							<Show when={s.frames() == 0 && !s.crashedSignal()}>
-								<view position="absolute" inset={0} align-items="center" justify="center">
-									<text color={c("fg3")} font-size={Theme.SMALL}>{studio.previews.failed ? "the build failed" : "building…"}</text>
-								</view>
-							</Show>
-						</view>;
+					<For each={studio.layout.screens()}>{(r:Read<Rect>) -> {
+						var info = studio.project.screen(r().name);
+						info.source.match(Design(_)) ? design(studio, r, info) : live(studio, r);
 					}}</For>
 				</view>
 				{overlay(studio)}
@@ -62,6 +53,36 @@ class Board implements Markup {
 			<Show when={studio.mode() != "code" && !(studio.compact() && studio.focused() != null)}>{Prompt.view(studio)}</Show>
 		</view>;
 	}
+
+	// a story's or the app's screen: the program's last frame
+	static function live(studio:Studio, r:Read<Rect>):View {
+		var s = studio.previews.screen(r().name);
+		return <view tag={"screen-" + Shell.slug(s.info.name)} slot="screen" position="absolute" left={r().x} top={r().y} width={r().w}
+			height={r().h} data-on={studio.focused() == s.info.name ? "true" : "false"} data-frame={s.frames()}>
+			<image src={s.image()} width={r().w} height={r().h}/>
+			<Show when={s.crashedSignal()}>
+				<text tag="crashed" position="absolute" left={8} top={8} color={c("fg2")} font-size={Theme.SMALL}>stopped</text>
+			</Show>
+			<Show when={s.frames() == 0 && !s.crashedSignal()}>
+				<view position="absolute" inset={0} align-items="center" justify="center">
+					<text color={c("fg3")} font-size={Theme.SMALL}>{studio.previews.failed ? "the build failed" : "building…"}</text>
+				</view>
+			</Show>
+		</view>;
+	}
+
+	// a design's frame: its nodes, interpreted, under a theme of none and
+	// ui's own defaults (not the studio's), as the app would draw them; a
+	// click goes through them to the stage
+	static function design(studio:Studio, r:Read<Rect>, info:Project.ScreenInfo):View
+		return <view tag={"screen-" + Shell.slug(info.name)} slot="screen" position="absolute" left={r().x} top={r().y} width={r().w}
+			height={r().h} data-on={studio.focused() == info.name ? "true" : "false"}>
+			<view tag="design" width={r().w} height={r().h} overflow="hidden" pointer-events="none" background="#ffffff" color="#000000"
+				font-family={helder.ui.Style.DEFAULT_FAMILY} font-size={helder.ui.Style.DEFAULT_SIZE} font-weight={helder.ui.Style.DEFAULT_WEIGHT}
+				ref={(n:Node) -> n.theme = {rules: []}}>
+				{studio.designs.content(info)}
+			</view>
+		</view>;
 
 	static function transform(studio:Studio):String {
 		studio.camera.changed();
@@ -75,7 +96,7 @@ class Board implements Markup {
 				<text tag="flow-title" position="absolute" left={sx(studio, f().x)} top={sy(studio, f().y) - 46} font-size={Theme.SMALL}
 					color={c("fg2")} opacity={titleShown(studio, f().y) ? 1 : 0}>{f().name}</text>
 			}</For>
-			<For each={studio.layout.screens()}>{(r:Read<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}>) ->
+			<For each={studio.layout.screens()}>{(r:Read<Rect>) ->
 				<text tag="caption" position="absolute" left={sx(studio, r().x)} top={sy(studio, r().y) - 20} font-size={Theme.SMALL}
 					color={studio.focused() == r().name ? c("fg2") : c("fg3")}>{label(studio, r().name)}</text>
 			}</For>
@@ -157,3 +178,5 @@ class Board implements Markup {
 		return studio.camera.sy(wy);
 	}
 }
+
+private typedef Rect = {name:String, flow:String, x:Float, y:Float, w:Float, h:Float};

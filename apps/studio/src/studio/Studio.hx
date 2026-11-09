@@ -17,7 +17,9 @@ import studio.Project;
 using StringTools;
 
 // The studio's state and what it does (Shell draws it): a project opened,
-// its screens' previews (Previews: the program in processes of its own),
+// its screens' previews (Previews: the program in a process of its own;
+// none for a project of design files alone), its design files' frames
+// (Designs: interpreted here, an edit drawn again at once),
 // the canvas' camera and layout, what is in focus (all screens, or the
 // screen zoomed into), the node selected in it, and every edit (Docs: the
 // files, one history). An edit's way to the program (commit): a live
@@ -31,6 +33,7 @@ class Studio {
 
 	public final project:Null<Project>;
 	public final previews:Null<Previews>;
+	public final designs:Designs;
 	public final docs = new Docs();
 	public final camera = new Camera();
 	public final layout:Layout;
@@ -97,7 +100,8 @@ class Studio {
 		}
 		#end
 		project = p;
-		previews = p == null ? null : new Previews(p);
+		previews = p == null || p.live().length == 0 ? null : new Previews(p);
+		designs = new Designs(this);
 		layout = new Layout(this);
 		tools = new Tools(this);
 		agent = new Agent.LocalAgent(this);
@@ -173,6 +177,7 @@ class Studio {
 			fitView(false);
 		}
 		showVisible();
+		designs.follow(openedAt > 0 ? openedAt : startedAt);
 	}
 
 	// the previews told which screens are in view (the camera's; the others
@@ -254,8 +259,15 @@ class Studio {
 		pick(hit.name, wx - hit.x, wy - hit.y);
 	}
 
-	// the node at (x, y) of a screen (its points) selected: the program's tree's boxes, the node's source
+	// the node at (x, y) of a screen (its points) selected: the program's
+	// tree's boxes, the node's source (a design's frame: its own nodes')
 	public function pick(name:String, x:Float, y:Float) {
+		var info = project?.screen(name);
+		if (info != null && info.source.match(Design(_))) {
+			var hit = designs.pick(name, x, y);
+			if (hit == null) selection(null) else selectDesign(info, hit.node, hit.at);
+			return;
+		}
 		var s = previews?.screen(name);
 		if (s == null) return;
 		var answered = false;
@@ -314,6 +326,30 @@ class Studio {
 		gesture++;
 		docs.close();
 		log("selected", {screen: sel.screen, file: file, start: start, tag: sel.tag, rect: [sel.x, sel.y, sel.width, sel.height]});
+		refreshCode();
+	}
+
+	// a node of a design's frame selected: its element at its markup's offset
+	function selectDesign(info:ScreenInfo, n:Node, at:Int) {
+		var el = docs.get(info.file).doc.elementAt(at);
+		var b = designs.box(info.name, n);
+		var sel:Selection = {
+			screen: info.name,
+			file: info.file,
+			start: at,
+			tag: el?.name ?? n.tag,
+			nodeTag: n.tag,
+			id: 0,
+			x: b.x,
+			y: b.y,
+			width: b.width,
+			height: b.height,
+			opacity: n.style.opacity,
+		};
+		selection(sel);
+		gesture++;
+		docs.close();
+		log("selected", {screen: sel.screen, file: sel.file, start: at, tag: sel.tag, rect: [sel.x, sel.y, sel.width, sel.height]});
 		refreshCode();
 	}
 
@@ -541,6 +577,13 @@ class Studio {
 	public function commit(file:String) {
 		var pr = previews;
 		var f = docs.get(file);
+		// (a design file: its frames drawn again from the text, nothing built)
+		if (file.endsWith(".helder")) {
+			f.save();
+			message("drawn again, nothing built");
+			log("redrawn", {file: file});
+			return;
+		}
 		if (pr == null) {
 			f.save();
 			return;
@@ -654,7 +697,7 @@ class Studio {
 	function commitCode(file:String) {
 		var pr = previews;
 		var f = docs.get(file);
-		if (pr == null) {
+		if (pr == null || file.endsWith(".helder")) {
 			f.save();
 			return;
 		}
@@ -731,19 +774,22 @@ class Layout {
 	public function new(studio)
 		this.studio = studio;
 
+	// (a design's frame at its canvas:at in its flow's row, else after the one before)
 	public function screens():Array<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}> {
 		var out:Array<{name:String, flow:String, x:Float, y:Float, w:Float, h:Float}> = [];
-		var p = studio.previews;
+		var p = studio.project, pr = studio.previews;
 		if (p == null) return out;
 		var y = 0.0;
-		for (f in p.project.flows()) {
+		for (f in p.flows()) {
 			var x = 0.0, tall = 0.0;
 			for (i in f.screens) {
-				var s = p.screen(i.name);
-				var w = s.width(), h = s.height();
-				out.push({name: i.name, flow: f.name, x: x, y: y, w: w + 0.0, h: h + 0.0});
-				x += w + Theme.SCREEN_GAP;
-				tall = Math.max(tall, h);
+				var s = pr?.screen(i.name);
+				if (s == null && !i.source.match(Design(_))) continue;
+				var w = s == null ? i.width : s.width(), h = s == null ? i.height : s.height();
+				var at = i.at ?? {x: x, y: 0.0};
+				out.push({name: i.name, flow: f.name, x: at.x, y: y + at.y, w: w + 0.0, h: h + 0.0});
+				x = Math.max(x, at.x + w + Theme.SCREEN_GAP);
+				tall = Math.max(tall, at.y + h);
 			}
 			y += tall + Theme.FLOW_GAP;
 		}

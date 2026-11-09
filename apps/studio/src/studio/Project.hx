@@ -21,7 +21,10 @@ using StringTools;
 // "/" (none: "Screens"), its size the story's (a phone's, 390x844, without).
 // A project without stories has one screen: its own main's window, the flow
 // "App". The stories are read from their text (helder.syntax), not built:
-// the canvas lays them out before anything compiled.
+// the canvas lays them out before anything compiled. A design file's frames
+// (*.helder: DesignFile) are screens too, a flow a file, drawn by the
+// studio itself (Designs: interpreted, nothing built); a project of design
+// files alone has no program, nor an App screen.
 //
 // The program: a dev build (-D hxmc.dev: live literals, the devtools'
 // agent, node <-> source mapping) for a headless run (-D helder.headless:
@@ -42,7 +45,8 @@ class Project {
 	public final dir:String;
 	public final name:String;
 	#if !(hxmc.target == "wasm32-wasi")
-	public final entry:Entry;
+	// (null: a project of design files alone)
+	public final entry:Null<Entry>;
 	#end
 	public final typescript:Bool;
 	public final screens:Array<ScreenInfo> = [];
@@ -64,7 +68,7 @@ class Project {
 		var l:haxe.DynamicAccess<String> = info.links ?? {};
 		for (k => v in l)
 			links.set(k, v);
-		findScreens();
+		findScreens(found(dir), true);
 		typescript = Lambda.exists(screens, s -> StringTools.endsWith(s.file, ".tsx") || StringTools.endsWith(s.file, ".ts"));
 	}
 
@@ -75,12 +79,18 @@ class Project {
 	}
 	#else
 	function new(dir:String) {
-		this.dir = FileSystem.fullPath(dir).split("\\").join("/");
-		entry = Entry.resolve(this.dir);
-		typescript = entry.typescript != null;
-		name = entry.name;
-		out = FileSystem.fullPath(entry.root).split("\\").join("/") + '/bin/studio/$name';
-		findScreens();
+		var full = FileSystem.fullPath(dir).split("\\").join("/");
+		// (a design file opened: its folder the project)
+		this.dir = full.endsWith(".helder") && !FileSystem.isDirectory(full) ? Path.directory(full) : full;
+		var files = found(this.dir);
+		entry = try Entry.resolve(this.dir) catch (e:Dynamic) {
+			if (!Lambda.exists(files, f -> f.endsWith(".helder"))) throw e;
+			null;
+		}
+		typescript = entry != null && entry.typescript != null;
+		name = entry?.name ?? Path.withoutDirectory(this.dir);
+		out = (entry == null ? this.dir : FileSystem.fullPath(entry.root).split("\\").join("/")) + '/bin/studio/$name';
+		findScreens(files, entry != null);
 	}
 
 	// the project in dir (a thrown message: not one)
@@ -88,12 +98,20 @@ class Project {
 		return new Project(dir);
 	#end
 
-	// the stories of the story files under the project's directory, in path order, each in the order written
-	function findScreens() {
+	// the story and design files under the project's directory, in path order
+	static function found(dir:String):Array<String> {
 		var files = [];
 		walk(dir, files);
 		files.sort(Reflect.compare);
+		return files;
+	}
+
+	// the stories of the story files, in path order, each in the order
+	// written; then the design files' frames (program: the project has one,
+	// its own main the App screen without stories or frames)
+	function findScreens(files:Array<String>, program:Bool) {
 		for (f in files) {
+			if (f.endsWith(".helder")) continue;
 			var text = Files.read(f);
 			var doc = Document.parse(text, Lang.of(f));
 			for (c in doc.calls("story")) {
@@ -111,28 +129,51 @@ class Project {
 					width: num(o, "width", doc) ?? 390,
 					height: num(o, "height", doc) ?? 844,
 					file: f,
-					binding: c.name,
-					story: true
+					source: Story(c.name)
 				});
 			}
 		}
-		if (screens.length == 0) screens.push({
+		for (f in files) {
+			if (!f.endsWith(".helder")) continue;
+			var d = try new DesignFile(Files.read(f)) catch (e:Dynamic) {
+				Sys.println('studio: $f: $e');
+				continue;
+			}
+			var flow = f.substring(dir.length + 1, f.length - ".helder".length);
+			for (k in 0...d.frames.length) {
+				var fr = d.frames[k];
+				screens.push({
+					name: flow + "/" + fr.name,
+					flow: flow,
+					label: fr.name,
+					width: fr.width,
+					height: fr.height,
+					file: f,
+					source: Design(k),
+					at: fr.at
+				});
+			}
+		}
+		if (screens.length == 0 && program) screens.push({
 			name: name,
 			flow: "App",
 			label: name,
 			width: 0,
 			height: 0,
 			file: #if (hxmc.target == "wasm32-wasi") "" #else entry.typescript ?? "" #end,
-			binding: null,
-			story: false
+			source: App
 		});
 	}
+
+	// the screens the project's program draws (its stories, or its App; not a design's frames)
+	public function live():Array<ScreenInfo>
+		return [for (s in screens) if (!s.source.match(Design(_))) s];
 
 	static function walk(d:String, into:Array<String>) {
 		for (n in Files.list(d)) {
 			if (n == "bin" || n == "node_modules" || n.startsWith(".")) continue;
 			var p = '$d/$n';
-			if (Files.isDirectory(p)) walk(p, into) else if (n.endsWith(".story.hx") || n.endsWith(".story.tsx") || n.endsWith(".story.ts")) into.push(p);
+			if (Files.isDirectory(p)) walk(p, into) else if (n.endsWith(".story.hx") || n.endsWith(".story.tsx") || n.endsWith(".story.ts") || n.endsWith(".helder")) into.push(p);
 		}
 	}
 
@@ -144,6 +185,9 @@ class Project {
 
 	static function unquote(s:String):String
 		return s.length >= 2 && (s.charAt(0) == '"' || s.charAt(0) == "'") ? s.substring(1, s.length - 1) : s;
+
+	public function screen(name:String):Null<ScreenInfo>
+		return Lambda.find(screens, s -> s.name == name);
 
 	// the flows in order, each its screens
 	public function flows():Array<{name:String, screens:Array<ScreenInfo>}> {
@@ -165,7 +209,7 @@ class Project {
 		if (web) entry.target = "web";
 		var w = entry.args();
 		entry.target = was;
-		var host = screens[0].story;
+		var host = Lambda.exists(screens, s -> s.source.match(Story(_)));
 		if (host && typescript) {
 			var main = writeTypescriptHost();
 			w = [for (x in w) x.startsWith("helder.typescript=") ? 'helder.typescript=$main' : x];
@@ -209,12 +253,16 @@ class Project {
 		var byFile = new Map<String, Array<String>>();
 		var order = [];
 		for (s in screens) {
-			if (s.binding == null) throw '${s.file}: the story "${s.name}" is not bound to an exported name (export const x = story({...}))';
+			var binding = switch s.source {
+				case Story(b): b;
+				case _: continue;
+			}
+			if (binding == null) throw '${s.file}: the story "${s.name}" is not bound to an exported name (export const x = story({...}))';
 			if (!byFile.exists(s.file)) {
 				byFile.set(s.file, []);
 				order.push(s.file);
 			}
-			byFile.get(s.file).push(s.binding);
+			byFile.get(s.file).push(binding);
 		}
 		var k = 0;
 		for (f in order) {
@@ -234,7 +282,7 @@ class Project {
 
 	function storyFiles():Array<String> {
 		var out = [];
-		for (s in screens) if (!out.contains(s.file)) out.push(s.file);
+		for (s in screens) if (s.source.match(Story(_)) && !out.contains(s.file)) out.push(s.file);
 		return out;
 	}
 
@@ -242,14 +290,14 @@ class Project {
 	public function real(file:String):String
 		return links.get(file) ?? file;
 
-	// the project's source files (the code view's list): .hx, .ts, .tsx under its directory
+	// the project's source files (the code view's list): .hx, .ts, .tsx, .helder under its directory
 	public function sources():Array<String> {
 		var out = [];
 		function go(d:String)
 			for (n in Files.list(d)) {
 				if (n == "bin" || n == "node_modules" || n.startsWith(".")) continue;
 				var p = '$d/$n';
-				if (Files.isDirectory(p)) go(p) else if ((n.endsWith(".hx") || n.endsWith(".tsx") || n.endsWith(".ts")) && !n.endsWith(".d.ts")) out.push(p);
+				if (Files.isDirectory(p)) go(p) else if ((n.endsWith(".hx") || n.endsWith(".tsx") || n.endsWith(".ts") || n.endsWith(".helder")) && !n.endsWith(".d.ts")) out.push(p);
 			}
 		go(dir);
 		out.sort(Reflect.compare);
@@ -268,9 +316,18 @@ typedef ScreenInfo = {
 	// points (0: the program's own window's)
 	width:Int,
 	height:Int,
-	// the story's file, the name it is bound to (TypeScript's import)
+	// its file (a story's, a design's), what draws it
 	file:String,
-	binding:Null<String>,
-	// a story (false: the program's own main)
-	story:Bool,
+	source:Source,
+	// (a design's frame: where it is in its flow, canvas:at; null: after the one before)
+	?at:Null<{x:Float, y:Float}>,
+}
+
+// What a screen's content is: a story of the program (the name it is bound
+// to: TypeScript's import), the program's own main, a design file's frame
+// (its index in the file: DesignFile.frames), interpreted by the studio
+enum Source {
+	Story(binding:Null<String>);
+	App;
+	Design(frame:Int);
 }

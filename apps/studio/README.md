@@ -7,6 +7,7 @@ helder.ui, and it opens itself.
 
 ```sh
 bun run helder studio examples/ts-todo     # this checkout; npx helder studio in a project
+bun run helder studio examples/design      # design files alone: nothing built
 bun run helder studio                      # the project in this directory
 ```
 
@@ -14,10 +15,13 @@ bun run helder studio                      # the project in this directory
   a row per flow. Pan with a drag or the wheel, zoom with secondary
   (Ctrl, Cmd) and the wheel, a trackpad's pinch or two fingers. Click a
   screen to spring into it; Escape or "All screens" goes back.
-- **A screen, live.** Each screen is a story of the project's program, a
-  dev build, running in one process for the whole project (each story a
-  root of its own), offscreen at the screen's size; the canvas shows its
-  frames as it draws them.
+- **A screen, live.** Each story's screen is a story of the project's
+  program, a dev build, running in one process for the whole project
+  (each story a root of its own), offscreen at the screen's size; the
+  canvas shows its frames as it draws them.
+- **A design's frame, at once.** A design file's frames (`*.helder`,
+  below) are drawn by the studio itself, interpreted from their markup:
+  nothing built or run, an edit drawn again in the next frame.
 - **Select.** Click inside the screen you zoomed into: the node there is
   selected (the program's tree: its box, and where its markup is), drawn
   as an outlined box. The inspector shows its layout (width, height,
@@ -44,6 +48,9 @@ bun run helder studio                      # the project in this directory
 
 ## Screens
 
+A screen's content has a source (Project.Source): a story of the
+program, the program's own window (the App), or a design file's frame.
+
 A project's screens are its **stories**: `story({...})` in its
 `*.story.hx` (Haxe) and `*.story.tsx` / `*.story.ts` (TypeScript) files,
 anywhere under the project's directory but `bin/` and `node_modules/`
@@ -68,6 +75,50 @@ export const phone = story({ name: "Phone/Three items", render: () => { todos(th
 
 The stories are read from their text (helder.syntax) when the project
 opens, not built, so the canvas is laid out before anything compiled.
+
+## Design files
+
+A design file (`*.helder`, DESIGN.md) is helder's markup alone: a root
+(`<Design>`, or a fragment) of frames, each a place on the canvas with a
+size. Every one under the project's directory (but `bin/`,
+`node_modules/` and dot directories) is a flow of the canvas, named by its
+path, its frames its screens, after the stories' flows.
+
+```
+<Design>
+	<Frame name="Home" width={390} height={844} canvas:at="0 0" background="#f8fafc" padding={24}>
+		<note>For the editor only.</note>
+		<text font-size={28} font-weight={700} color="#3b82f6">todos</text>
+	</Frame>
+</Design>
+```
+
+- **A frame** is drawn as a view of its size (a phone's, 390 by 844,
+  without), its attributes its style but its name and the editor's; at
+  `canvas:at` in its flow's row (else after the one before). `canvas:*`
+  attributes and `<note>` are the editor's: dropped before it is drawn.
+- **Interpreted, in the studio's process** (helder.ui.view.Interpreter: a
+  Target of helder.markup.Plan, the compiler's planner, its steps run at
+  once against NodeRenderer's run-time functions), into nodes in the
+  canvas' world beside the stories' images, under ui's defaults rather
+  than the studio's theme. The same literal compiled makes the same tree
+  (the test lane's Interpreter.test.hx).
+- **What it cannot run is marked in place**, the rest drawn: a hole that
+  is not a literal number or string (`{items.length}`), an unknown
+  element, a component (code: not drawn in a design yet), a value its
+  attribute rejects, each outlined in red; a file that does not read
+  shows why in its frames.
+- **Select and edit as a story's screens**: a click selects the node
+  there directly (the interpreted nodes' boxes and their markup's
+  offsets, no program to ask); the inspector's fields, the code view and
+  undo go through the same helder.syntax transactions (`.helder` is
+  helder.syntax's Markup language), the file saved and its frames drawn
+  again at once.
+- **A project of design files alone** has no program: it opens with no
+  build and no App screen (examples/design). A project with stories and
+  design files builds its stories' program as before, its frames drawn
+  from the start.
+- Opening a `.helder` file opens its folder as the project.
 
 ## How it runs
 
@@ -238,7 +289,10 @@ headless on copies of examples/todo and examples/ts-todo: all screens,
 a screen zoomed into, its title selected, its colour changed in the
 inspector, a padding added and undone, an attribute typed in the code
 view, the prompt bar's `/tree`; the files and every edit's span checked,
-the overview, zoomed and selected frames against goldens.
+the overview, zoomed and selected frames against goldens. Then on
+examples/design (design files alone): both frames drawn with nothing
+built, the title selected, its colour changed (drawn again within 3
+frames: in 1 on a Mac), undone and redone, the file checked.
 
 On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
 
@@ -259,8 +313,15 @@ runs through shared memory).
 
 ## Not yet
 
-- Design files (DESIGN.md): frames drawn from markup at once, without
-  running the program; parts of them used from code.
+- Design files (DESIGN.md), beyond frames of static markup: components
+  in a design's frame (islands drawn by the preview host), parts used
+  from code, tokens and themes, `<For>` over sample data, interactions,
+  images by path (`src="..."`); frames added, removed or renamed are seen
+  when the project is opened again; a frame is not moved on the canvas
+  yet (its `canvas:at` is read only); the sidebar lists flows, not pages;
+  MCP's `run.snap` and `run.tree` see the stories' screens only.
+- Designs in the browser's studio are drawn as on the desktop, but no
+  example bundled with the page has one.
 
 - A zoomed screen is drawn at the canvas' scale in halves up to 3, not
   tiled: deeper zooms scale its frame.

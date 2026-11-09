@@ -102,7 +102,7 @@ class Previews {
 
 	public function new(project:Project) {
 		this.project = project;
-		screens = [for (s in project.screens) new Screen(s)];
+		screens = [for (s in project.live()) new Screen(s)];
 		// (shared memory where there is: each file unlinked once both have it mapped, nothing left behind)
 		framesDir = FileSystem.exists("/dev/shm") ? "/dev/shm" : '${project.out}/frames';
 	}
@@ -234,7 +234,7 @@ class Previews {
 
 	// whether the program is the stories' host (else the project's own main: one window)
 	inline function hosting():Bool
-		return screens[0].info.story;
+		return screens[0].info.source.match(Story(_));
 
 	// the host started (withSnapshot: from the state its last one saved)
 	@:coroutine function launch(task:Node, withSnapshot:Bool) {

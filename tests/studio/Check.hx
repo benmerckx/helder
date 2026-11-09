@@ -19,6 +19,11 @@ using StringTools;
 // - the file at the end: the original with those two changes alone, every
 //   edit's span applying to the text before it in order;
 // - the overview, the zoomed and the selected frames against the goldens here.
+// Then examples/design (design files alone, tests/studio/design.json): its
+// two frames drawn by the studio itself, nothing built; the title clicked
+// and selected (its box, its element); its colour changed in the inspector
+// (the value's span alone, the frame drawn again with it within 3 frames),
+// undone and redone (drawn so each time); the file with that change alone.
 // The measurements (cold start to the first frame, the project's screens
 // all shown, an inspector's change to the program's frame) printed.
 class Check {
@@ -44,6 +49,7 @@ class Check {
 			for (shot in ["overview", "zoomed", "selected"])
 				image('$app-$shot.png', '$dir/$app-$shot.png', bless);
 		}
+		design(File.getContent("examples/design/app.helder"), File.getContent('$dir/design/app.helder'), events('$dir/design.jsonl'));
 		Sys.println("studio: | | cold start to first frame | open to all screens shown | inspector change to the program's frame |");
 		for (r in rows) Sys.println('studio: | ${r.app} | ${r.first} ms | ${r.shown} ms | ${r.patch} ms (${r.frames} studio frame(s)) |');
 		Sys.println('studio: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
@@ -100,6 +106,31 @@ class Check {
 			'<text tag="title" font-size={28} font-weight={700} color="#ef4444">todos');
 		check('$app: the file: the original with the colour and the tag alone', final_ == expected);
 		return {app: app, first: ff?.ms, shown: shown?.ms, patch: p?.ms, frames: p?.frames};
+	}
+
+	static function design(original:String, final_:String, ev:Array<Dynamic>) {
+		function all(name:String):Array<Dynamic>
+			return ev.filter(e -> e.event == name);
+		var shown:Dynamic = all("designs-shown")[0];
+		check('design: both frames drawn, none marked', shown != null && shown.frames == 2 && shown.errors == 0, Json.stringify(shown));
+		check('design: nothing built or run', all("building").length == 0 && all("built").length == 0 && all("all-shown").length == 0);
+		var sel:Dynamic = all("selected")[0];
+		check('design: the title selected (its box, its element)', sel != null && sel.tag == "text" && Json.stringify(sel.rect) == "[24,56,342,35]", Json.stringify(sel));
+		var edits = all("edited");
+		var at = original.indexOf('color="#3b82f6">todos') + 'color="'.length;
+		var color:Dynamic = edits[0];
+		check('design: the colour\'s edit: #3b82f6\'s span alone', color != null && color.origin == "inspector" && color.changes.length == 1
+			&& color.changes[0].start == at && color.changes[0].end == at + 7 && color.changes[0].text == "#ef4444", Json.stringify(color));
+		check('design: undone and redone', edits.length == 3 && edits[1].origin == "undo" && edits[2].origin == "redo", Json.stringify(edits.map((e:Dynamic) -> e.origin)));
+		// (each edit's frame drawn again with it: the title's colour then)
+		var colors = [];
+		for (e in edits) {
+			var next:Dynamic = Lambda.find(all("selection"), (s:Dynamic) -> s.frame > e.frame);
+			colors.push(next == null || next.frame - e.frame > 3 ? null : next.color);
+		}
+		check('design: the title drawn #ef4444, #3b82f6, #ef4444 within 3 frames of each edit', colors.join(" ") == "#ffef4444 #ff3b82f6 #ffef4444", colors.join(" "));
+		check('design: the file: the original with the colour alone', final_ == original.replace('color="#3b82f6">todos', 'color="#ef4444">todos'));
+		Sys.println('studio: design: 2 frames drawn ${shown?.ms} ms after opening, nothing built');
 	}
 
 	// against tests/studio/<golden> (BLESS: rewritten): at most 1% of the pixels more than 3 levels off

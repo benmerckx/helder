@@ -56,7 +56,7 @@ class WebPreviews {
 
 	public function new(project:Project) {
 		this.project = project;
-		screens = [for (s in project.screens) new Screen(s)];
+		screens = [for (s in project.live()) new Screen(s)];
 		for (t in project.tables)
 			built.set(project.real(t.file), {content: t.content, entries: t.entries});
 	}
