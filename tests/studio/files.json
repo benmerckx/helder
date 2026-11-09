@@ -1,0 +1,17 @@
+{
+  "events": [
+    {"t": 0.6, "type": "tap", "tag": "file-assets"},
+    {"t": 0.9, "type": "tap", "tag": "file-fonts"},
+    {"t": 1.2, "type": "tap", "tag": "file-src"},
+    {"t": 1.5, "type": "mark", "name": "tree"},
+    {"t": 1.6, "type": "tap", "tag": "file-assets-shapes-png"},
+    {"t": 2.3, "type": "mark", "name": "image"},
+    {"t": 2.4, "type": "tap", "tag": "file-fonts-hankengrotesk-medium-ttf"},
+    {"t": 3.1, "type": "mark", "name": "font"},
+    {"t": 3.2, "type": "tap", "tag": "file-src-main-hx"},
+    {"t": 3.6, "type": "tap", "tag": "nav-all"},
+    {"t": 4.4, "type": "drag", "tag": "file-assets-shapes-png", "dx": 420, "dy": 200, "dur": 0.5},
+    {"t": 5.4, "type": "drop", "tag": "file-assets", "files": ["tests/ui/boxes.png"]},
+    {"t": 6.6, "type": "mark", "name": "end"}
+  ]
+}

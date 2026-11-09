@@ -52,7 +52,7 @@ class Main implements Markup {
 				window = w;
 				w.onFrame = () -> s.drawn();
 				s.open();
-			}} onClose={() -> {
+			}} onDrop={(files, x, y) -> s.dropFiles(files, x, y)} onClose={() -> {
 				helder.async.Async.launch(_ -> s.stop());
 				window.close();
 			}}>

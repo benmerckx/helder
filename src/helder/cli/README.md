@@ -669,7 +669,8 @@ helder run --headless examples/glow --snap glow.png --at 0.5 --size 320x240
   Alt or Command is held), `key-up`, `type` (`text`, a key a character,
   `every` seconds apart), `resize` (`width`, `height` or `dw`, `dh` points,
   over `dur`, eased), `menu-pick` (`id` or `label`: the open pop-up menu's
-  item; `menu-cancel`), `file-dialog` (`path`: the next file dialog's
+  item; `menu-cancel`), `drop` (`files`: paths dropped from the system on
+  the target, a Drop event), `file-dialog` (`path`: the next file dialog's
   answer, whenever it opens; `file-dialog-cancel`), `mark` (`name`).
   Pointer steps aim at `x`, `y` (points), or at a node: `tag`, a `path`
   of tags (`list/checkbox`: a descendant chain, as CSS's), `role` (ARIA's:

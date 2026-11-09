@@ -11,6 +11,8 @@ bun run helder studio examples/design      # design files alone: nothing built
 bun run helder studio                      # the project in this directory
 ```
 
+- **The project's files** in the sidebar (below, "The sidebar"), each
+  opening in its view.
 - **All screens.** The canvas shows every screen of the project at once,
   a row per flow. Pan with a drag or the wheel, zoom with secondary
   (Ctrl, Cmd) and the wheel, a trackpad's pinch or two fingers. Click a
@@ -169,6 +171,35 @@ On a design's frame the canvas edits the markup directly
 - Each gesture is one entry of the history (its moves one transaction
   each, merged), the file's formatting kept, the frame interpreted again
   at once; undo and redo as for any edit.
+
+## The sidebar: the project's files
+
+The sidebar's tree is the project's folder (`FileTree`: bin/,
+node_modules/ and dot directories left out; read again every second
+natively, after the studio's own writes in the browser). Folders holding
+design or story files start open, the others closed; a row's chevron
+opens and closes it.
+
+- **A design file** (`.helder`) goes on to its frames, **a story file** to
+  its stories: a click on the file shows its page on the canvas, on a frame
+  focuses it.
+- **Code** (`.hx`, `.ts`, `.tsx`, `.json`, `.md`...) opens in the code view.
+- **An image** (PNG, JPEG, GIF, WebP, SVG) opens in its viewer
+  (`FileView`): fitted (never past 1:1) or at 1:1, its size, format and
+  bytes, and where it is used: each line of the project's code and design
+  files naming it, a click opening that file. Natively (images by path are
+  not read in the browser yet).
+- **A font** (TTF, OTF) opens in a specimen: its family, the alphabet, a
+  line at 12, 16, 24 and 36 points.
+- **glTF models and sounds** show their kind and size: their viewport and
+  waveform are not made yet.
+- **Layers** of the frame in focus are a section below the tree, its
+  header closing it.
+- **Drag an image from the tree onto a design's frame**: an `<image src>`
+  of its path from the design file, its size the image's (fitted into the
+  frame's width), the frame's last child, one history entry.
+- **Drop files from the system** on a folder's row (a file's: its folder;
+  elsewhere, the project's): copied there, natively.
 
 ## How it runs
 
@@ -401,8 +432,12 @@ title selected, its colour changed (drawn again within 3 frames: in 1 on
 a Mac), undone and redone, resized by its handle (snapped to the frame's
 centre), a second node shift-clicked into the selection and out, the
 title's layer dragged below the input row, both undone (the resize one
-entry), every edit's span and the file checked. The test lane runs the
-studio's own tests (Snap.test.hx).
+entry), every edit's span and the file checked. Then the file browser
+(tests/studio/files.json: examples/design with an image, a font and code
+in folders): the folders opened, the image, the font and the code each in
+its view, the image dragged onto the Home frame (the file's `<image>`), a
+file dropped from the system on a folder (headless scripts' `drop`). The
+test lane runs the studio's own tests (Snap.test.hx, FileTree.test.hx).
 
 On a 4-core Linux container (Mesa's llvmpipe, headless, otherwise idle):
 

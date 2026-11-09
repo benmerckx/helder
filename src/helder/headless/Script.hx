@@ -70,7 +70,7 @@ class Script {
 	}
 
 	public static final TYPES = [
-		"move", "down", "up", "tap", "double-click", "drag", "wheel", "key", "key-down", "key-up", "type", "resize", "menu-pick", "menu-cancel", "file-dialog",
+		"move", "down", "up", "tap", "double-click", "drag", "wheel", "key", "key-down", "key-up", "type", "resize", "drop", "menu-pick", "menu-cancel", "file-dialog",
 		"file-dialog-cancel", "mark", "literal"
 	];
 }
@@ -106,6 +106,7 @@ class Step {
 			case "double-click": num("gap", 0.15) + num("hold", Headless.HOLD);
 			case "drag": num("dur", 0.3) + Headless.HOLD;
 			case "resize": num("dur", 0);
+			case "drop": 0;
 			case "type": (str("text") ?? "").length * num("every", 0);
 			case _: 0;
 		}

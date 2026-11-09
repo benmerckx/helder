@@ -43,6 +43,8 @@ class Board implements Markup {
 				if (g.state == Began) d.begin(g.x - g.tx, g.y - g.ty);
 				if (!d.active) studio.camera.panBy(g.dx, g.dy) else if (g.state == Ended || g.state == Cancelled) d.end() else d.move(g.tx, g.ty);
 			}}
+			onDragOver={e -> if (Std.isOfType(e.data, String) && FileTree.kindOf(e.data) == Image) e.preventDefault()}
+			onDrop={e -> if (Std.isOfType(e.data, String)) studio.dropImage(e.data, e.localX, e.localY)}
 			onPinch={g -> {
 				studio.camera.zoomAt(g.x, g.y, g.dscale);
 				if (g.state == Ended) studio.log("pinched", {k: studio.camera.k});

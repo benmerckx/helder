@@ -39,6 +39,10 @@ class Studio {
 	public final layout:Layout;
 	public final tools:Tools;
 	public final drag:Drag;
+	// the project's folder (the sidebar's tree; null: no project)
+	public final tree:Null<FileTree>;
+	// the file shown: in its viewer (mode "file": an image, a font...), the code view's, a design's page
+	public final shown:Signal<Null<String>> = signal(null);
 	public final agent:Agent;
 	public var mcp(default, null):Null<Mcp> = null;
 	// "design" (the canvas), "code" (the code view beside the screen), "stories" (the list)
@@ -57,6 +61,8 @@ class Studio {
 	public final compact = signal(false);
 	public final drawer = signal(false);
 	public final sheetOpen = signal(true);
+	// the sidebar's layers shown (its section's header closes it)
+	public final layersOpen = signal(true);
 	// the command field's list open (secondary-K: Command)
 	public final commandOpen = signal(false);
 	// the status line's message, the agent's last reply
@@ -111,6 +117,7 @@ class Studio {
 		layout = new Layout(this);
 		tools = new Tools(this);
 		drag = new Drag(this);
+		tree = p == null ? null : new FileTree(p);
 		agent = new Agent.LocalAgent(this);
 		editor = new CodeEditor("", null);
 		editor.view.fontFamily = Theme.CODE;
@@ -226,7 +233,7 @@ class Studio {
 
 	// a page's screens (a design file's, a story flow's) fitted, none zoomed into
 	public function showPage(page:String) {
-		if (mode.peek() == "stories") mode("design");
+		if (mode.peek() == "stories") setMode("design");
 		focused(null);
 		selection(null);
 		var b = layout.bounds(page), i = insets();
@@ -241,7 +248,11 @@ class Studio {
 		fitView(true);
 	}
 
+	// (the mode just set: a signal's write lands at the end of the event, and a fit after it in the same event needs it)
+	var modeNow = "design";
+
 	public function setMode(m:String) {
+		modeNow = m;
 		mode(m);
 		fitView(true, m);
 		if (m == "code") {
@@ -256,7 +267,7 @@ class Studio {
 
 	function fitTo(name:Null<String>, fly:Bool, ?m:String) {
 		if (stageWidth <= 0) return;
-		var code = (m ?? mode.peek()) == "code";
+		var code = (m ?? modeNow) == "code";
 		var small = compact.peek(), i = insets(m);
 		var v = if (name == null) {
 			var b = layout.bounds();
@@ -275,7 +286,7 @@ class Studio {
 	// toolbar above, the prompt bar below; compact, none
 	public function insets(?m:String):{left:Float, right:Float, top:Float, bottom:Float} {
 		if (compact.peek()) return {left: 0, right: 0, top: 0, bottom: Theme.ASK_SPACE};
-		var code = (m ?? mode.peek()) == "code", g = Theme.GAP;
+		var code = (m ?? modeNow) == "code", g = Theme.GAP;
 		return {
 			left: Theme.SIDEBAR + g + (code ? Shell.codeWidth(this) + g : 0),
 			right: code ? 0 : Theme.INSPECTOR + g,
@@ -683,6 +694,7 @@ class Studio {
 			stamps.set(f, stamp(f));
 		while (true) {
 			Async.delay(1);
+			tree?.scan();
 			var now = [for (f in Project.found(project.dir)) if (f.endsWith(".helder")) f];
 			for (f in now) {
 				var t = stamp(f);
@@ -796,9 +808,90 @@ class Studio {
 		selection(null);
 		others([]);
 		focused(null);
+		shown(file);
 		load(file);
 		setMode("code");
 	}
+
+	// a file of the tree opened in its view: a design or story file's page
+	// on the canvas, code in the code view, an image or a font in its
+	// viewer (FileView), anything else as text when it reads as text
+	public function openFile(e:FileTree.FileEntry) {
+		drawer(false);
+		switch e.kind {
+			case Dir:
+				tree.toggle(e);
+			case Design | Story:
+				var frames = tree.frames(e.path);
+				shown(e.path);
+				if (mode.peek() != "design") setMode("design");
+				if (frames.length > 0) showPage(frames[0].flow) else openCode(e.path);
+			case Image | Font | Model | Audio | Other:
+				selection(null);
+				focused(null);
+				shown(e.path);
+				setMode("file");
+			case Code:
+				openCode(e.path);
+		}
+		log("opened", {file: tree.relative(e.path), kind: (e.kind : String)});
+	}
+
+	// an image dragged from the tree onto a design's frame at the stage's
+	// (px, py): an <image src> of its path from the design file, its size
+	// the image's (fitted into the frame's width), the frame's last child
+	public function dropImage(path:String, px:Float, py:Float) {
+		var hit = layout.at(camera.wx(px), camera.wy(py));
+		var info = hit == null ? null : project.screen(hit.name);
+		if (info == null || !info.source.match(Design(_)) || info.start == null) {
+			message("an image goes on a design's frame");
+			return;
+		}
+		var doc = docs.get(info.file).doc, frame = doc.elementAt(info.start);
+		if (frame == null) return;
+		var src = FileTree.relativeTo(haxe.io.Path.directory(info.file), path);
+		var size = try designs.imageSize(path) catch (_:Dynamic) {w: 120.0, h: 120.0};
+		var w = Math.min(size.w, Math.max(40, (info.width > 0 ? info.width : 390) - 48));
+		var h = Math.round(size.h * w / Math.max(1, size.w));
+		var markup = '<image src="$src" width={${Math.round(w)}} height={$h}/>';
+		var tx = try helder.syntax.Edits.insertChild(doc, frame, frame.children().length, markup) catch (e:Dynamic) {
+			message('the image: $e');
+			return;
+		}
+		edit(info.file, tx, "image inserted", "canvas");
+		endGesture();
+		log("image-inserted", {screen: info.name, src: src});
+	}
+
+	// files dropped from the system on the window at (x, y): copied into the
+	// folder of the tree's row there (a file's row: its folder), else the project's
+	public function dropFiles(files:Array<String>, x:Float, y:Float) {
+		if (project == null || tree == null) return;
+		var dir = project.dir, ui = Main.window?.ui;
+		var n = ui == null ? null : ui.root.hitTest(x, y);
+		while (n != null) {
+			var p = tree.rowPath(n.tag);
+			if (p != null) {
+				dir = Files.isDirectory(p) ? p : haxe.io.Path.directory(p);
+				break;
+			}
+			n = n.parent;
+		}
+		var copied = [];
+		#if !(hxmc.target == "wasm32-wasi")
+		for (f in files) {
+			if (sys.FileSystem.isDirectory(f)) continue;
+			var to = dir + "/" + haxe.io.Path.withoutDirectory(f);
+			try {
+				sys.io.File.copy(f, to);
+				copied.push(tree.relative(to));
+			} catch (e:Dynamic) message('$f: $e');
+		}
+		#end
+		tree.scan();
+		log("dropped", {files: copied});
+	}
+
 
 	function load(file:String) {
 		if (codeFile.peek() != file) {

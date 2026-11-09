@@ -29,6 +29,12 @@ using StringTools;
 // the selection with shift and taken from it; the title's layer dragged
 // below the input row; both undone (the resize one entry); every edit's
 // span applying in order, the file with the move and the colour alone.
+// Then the sidebar's file browser (tests/studio/files.json, examples/design
+// with an image, a font and code in folders): the folders opened, the image
+// in its viewer, the font in its specimen, code in the code view; the image
+// dragged from the tree onto the Home frame (an <image src> of its path,
+// its size the image's); a file dropped from the system on the assets
+// folder's row copied into it.
 // The measurements (cold start to the first frame, the project's screens
 // all shown, an inspector's change to the program's frame) printed.
 class Check {
@@ -55,6 +61,7 @@ class Check {
 				image('$app-$shot.png', '$dir/$app-$shot.png', bless);
 		}
 		design(File.getContent("examples/design/app.helder"), File.getContent('$dir/design/app.helder'), events('$dir/design.jsonl'));
+		files(File.getContent("examples/design/app.helder"), File.getContent('$dir/files/app.helder'), events('$dir/files.jsonl'), '$dir/files');
 		Sys.println("studio: | | cold start to first frame | open to all screens shown | inspector change to the program's frame |");
 		for (r in rows) Sys.println('studio: | ${r.app} | ${r.first} ms | ${r.shown} ms | ${r.patch} ms (${r.frames} studio frame(s)) |');
 		Sys.println('studio: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
@@ -111,6 +118,19 @@ class Check {
 			'<text tag="title" font-size={28} font-weight={700} color="#ef4444">todos');
 		check('$app: the file: the original with the colour and the tag alone', final_ == expected);
 		return {app: app, first: ff?.ms, shown: shown?.ms, patch: p?.ms, frames: p?.frames};
+	}
+
+	static function files(original:String, final_:String, ev:Array<Dynamic>, dir:String) {
+		var opened = [for (e in ev) if (e.event == "opened") e.file + " " + e.kind];
+		check('files: the folders opened, the image, the font and the code each in its view',
+			opened.join(", ") == "assets dir, fonts dir, src dir, assets/shapes.png image, fonts/HankenGrotesk-Medium.ttf font, src/Main.hx code", opened.join(", "));
+		var inserted:Dynamic = Lambda.find(ev, e -> e.event == "image-inserted");
+		check('files: the image dragged onto the Home frame', inserted != null && inserted.screen == "app.helder#Home" && inserted.src == "assets/shapes.png", Json.stringify(inserted));
+		check('files: the file: an <image> of the image\'s path and size, last in the frame',
+			final_ != original && final_.indexOf('<image src="assets/shapes.png" width={48} height={48}/>') > 0);
+		var dropped:Dynamic = Lambda.find(ev, e -> e.event == "dropped");
+		check('files: a file dropped from the system on the assets folder copied there',
+			dropped != null && (dropped.files : Array<String>).join(",") == "assets/boxes.png" && FileSystem.exists('$dir/assets/boxes.png'), Json.stringify(dropped));
 	}
 
 	static function design(original:String, final_:String, ev:Array<Dynamic>) {

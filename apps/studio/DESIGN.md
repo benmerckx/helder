@@ -1,6 +1,7 @@
 # helder studio: design files
 
-Status: a plan, its first steps built (README.md, "Design files"): a
+Status: a plan, its first steps built (README.md, "Design files" and
+"The sidebar: the project's files"): a
 screen's source (a story, the app, a design's frame), the interpreter
 (helder.ui.view.Interpreter), `.helder` files' frames on the canvas,
 selected and edited in place, followed as they change (on disk too), a
@@ -38,10 +39,18 @@ process, with no build: a design file.
   its folder as the project, that file's page shown.
 - **Each `.helder` file is a page**, as Figma's pages: its frames on the
   canvas together, a page per file.
-- **The canvas' sidebar lists pages**: the design files, then a page per
-  story flow, and the app. The file tree belongs to the code view, not
-  the canvas. The canvas keeps every page's screens (a row each); a
-  page's title in the sidebar flies to its screens.
+- **The sidebar is the project's folder**, as it is on disk (bin/,
+  node_modules/ and dot directories left out), followed as files change: a
+  design file's row goes on to its frames, a story file's to its stories,
+  and each file opens in its view: a design or story file its page on the
+  canvas, code the code editor, an image a viewer (fitted or 1:1, its size
+  and format, where it is used), a font its specimen; later a glTF model in
+  a viewport, a sound as a waveform. The layers of the open frame are a
+  section below the tree. An image dragged from the tree onto a design's
+  frame is an `<image src>` of its path; a file dropped from the system on
+  a folder's row lands in that folder. (Earlier the sidebar listed pages,
+  the file tree the code view's: one tree is simpler, and a project is
+  files first.)
 - **A new project starts with one `app.helder`**: a page to draw on before
   any code; the program comes when something needs to run.
 

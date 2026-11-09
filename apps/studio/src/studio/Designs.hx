@@ -51,10 +51,21 @@ class Designs {
 	function interpret(file:String, fr:DesignFile.Frame):Interpreted
 		return new Interpreted(fr.root, fr.base, src -> image(haxe.io.Path.normalize(haxe.io.Path.directory(file) + "/" + src)));
 
+	// an image's size in points (its pixels; an SVG's viewBox)
+	public function imageSize(path:String):{w:Float, h:Float} {
+		var img:Dynamic = image(path);
+		if (Std.isOfType(img, helder.ui.Svg)) {
+			var s:helder.ui.Svg = img;
+			return {w: s.width, h: s.height};
+		}
+		var i:helder.image.Image = img;
+		return {w: i.width, h: i.height};
+	}
+
 	// an image by its path (a design's src="logo.png", from its file's
 	// folder): read and decoded once (again when the file changes), an SVG
 	// parsed; helder.image's, natively
-	function image(path:String):Dynamic {
+	public function image(path:String):Dynamic {
 		#if (hxmc.target == "wasm32-wasi")
 		throw "an image by path: not in the browser yet";
 		#else

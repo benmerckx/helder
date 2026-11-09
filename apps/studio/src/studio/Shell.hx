@@ -52,7 +52,11 @@ class Shell implements Markup {
 				{sidebar(studio)}
 			</view>
 			<Show when={studio.mode() == "code"}>{codeCard(studio)}</Show>
-			<Show when={studio.mode() != "code"}>
+			<Show when={studio.mode() == "file"}>
+				<view tag="file-card" slot="card" position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={Theme.GAP} top={Theme.HEADER + Theme.GAP}
+					bottom={Theme.GAP} transition="fade" motion="snappy">{FileView.view(studio)}</view>
+			</Show>
+			<Show when={studio.mode() != "code" && studio.mode() != "file"}>
 				<view tag="inspector-card" slot="card" position="absolute" right={Theme.GAP} top={Theme.GAP} bottom={Theme.GAP} width={Theme.INSPECTOR}
 					onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>{Inspector.card(studio)}</view>
 			</Show>
@@ -79,7 +83,7 @@ class Shell implements Markup {
 
 	// the toolbar over the canvas: where you are, the command field, the buttons
 	static function toolbar(studio:Studio):View
-		return <view tag="header" drag-region position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={studio.mode() == "code" ? Theme.GAP : Theme.INSPECTOR + 2 * Theme.GAP}
+		return <view tag="header" drag-region position="absolute" left={Theme.SIDEBAR + 2 * Theme.GAP} right={studio.mode() == "code" || studio.mode() == "file" ? Theme.GAP : Theme.INSPECTOR + 2 * Theme.GAP}
 			top={0} height={Theme.HEADER + Theme.GAP} padding={'${Theme.GAP} 4 0'} direction="row" align-items="center" column-gap={10}>
 			{crumbs(studio)}
 			<view grow={1} min-width={8}/>
@@ -95,7 +99,7 @@ class Shell implements Markup {
 			<text tag="crumb-project" font-weight={Theme.MEDIUM} color={c("fg")} max-lines={1}>{p == null ? "helder studio" : p.name}</text>
 			<Show when={crumbPage(studio) != null}>
 				<image src={Icons.chevronRight} width={12} height={12} color={c("fg3")}/>
-				<text tag="crumb-page" max-lines={1} text-overflow="ellipsis" cursor="pointer" onClick={_ -> studio.showPage(crumbPage(studio))}>{crumbPage(studio)}</text>
+				<text tag="crumb-page" max-lines={1} text-overflow="ellipsis" cursor="pointer" onClick={_ -> if (studio.mode() == "design") studio.showPage(crumbPage(studio))}>{crumbPage(studio)}</text>
 			</Show>
 			<Show when={crumbFrame(studio) != null}>
 				<image src={Icons.chevronRight} width={12} height={12} color={c("fg3")}/>
@@ -144,7 +148,8 @@ class Shell implements Markup {
 				<Show when={studio.mode() == "code"}>
 					<view tag="code" grow={1} min-height={0} background={c("bg")}>{studio.editor}</view>
 				</Show>
-				<Show when={studio.mode() != "code"}>{Board.view(studio)}</Show>
+				<Show when={studio.mode() == "file"}><view grow={1} min-height={0} background={c("bg")}>{FileView.view(studio)}</view></Show>
+				<Show when={studio.mode() != "code" && studio.mode() != "file"}>{Board.view(studio)}</Show>
 			</view>
 			<Show when={studio.drawer()}>{drawer(studio)}</Show>
 		</view>;
@@ -183,28 +188,10 @@ class Shell implements Markup {
 					studio.setMode("stories");
 				})}
 			</view>
-			<view slot="section" grow={1} min-height={0} padding="10 6 6">
-				<view slot="section-head" padding="2 6 6"><image src={Icons.layers} width={12} height={12}/><text>Pages</text></view>
-				<view grow={1} min-height={0}><VirtualList tag="screens" each={sidebarRows(p)} by={(r:SidebarRow) -> r.key} estimate={Theme.ROW} label="Screens">{(r:Read<SidebarRow>, i:Int) -> {
-					var row = r(), info = row.screen;
-					info == null ? <view:button tag={"page-" + slug(row.flow)} slot="nav-item" role="button" label={row.flow} focusable
-						onPress={() -> {
-							studio.drawer(false);
-							studio.showPage(row.flow);
-						}}>
-						<image src={pageIcon(row)} width={Theme.ICON_S} height={Theme.ICON_S} color={c("fg3")}/>
-						<text max-lines={1} text-overflow="ellipsis">{row.flow}</text>
-					</view:button> :
-					<view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" padding="0 8 0 24" role="button" label={info.name} focusable
-						data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
-							studio.drawer(false);
-							if (studio.mode() == "stories") studio.setMode("design");
-							studio.focus(info.name);
-						}}>
-						<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("accent") : c("fg3")}/>
-						<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
-					</view:button>;
-				}}</VirtualList></view>
+			<view tag="files" slot="section" grow={1} min-height={0} padding="10 6 6">
+				<view slot="section-head" padding="2 6 6"><image src={Icons.folder} width={12} height={12}/><text>Files</text></view>
+				<view grow={1} min-height={0}><VirtualList tag="screens" each={studio.tree == null ? [] : studio.tree.rows()} by={(r:FileTree.TreeRow) -> r.key}
+					estimate={Theme.ROW} label="Files">{(r:Read<FileTree.TreeRow>, i:Int) -> treeRow(studio, r())}</VirtualList></view>
 			</view>
 			<Show when={studio.layers(studio.focused()) && studio.mode() != "stories"}>{Layers.view(studio)}</Show>
 		</view>;
@@ -216,22 +203,37 @@ class Shell implements Markup {
 		return designs > 0 && live == 0 ? "design files" : p.typescript ? "TypeScript" : "Haxe";
 	}
 
-	static function pageIcon(row:SidebarRow):helder.ui.Svg
-		return row.design ? Icons.penTool : row.flow == "App" ? Icons.appWindow : Icons.bookOpen;
-
-	// the sidebar's rows: each page's name (a design file, a story flow,
-	// the App; a click shows its screens), then its screens (a project of
-	// thousands of screens makes the rows in view only: a VirtualList)
-	static function sidebarRows(p:Null<Project>):Array<SidebarRow> {
-		var out:Array<SidebarRow> = [];
-		if (p != null)
-			for (f in p.flows()) {
-				var design = f.screens.length > 0 && f.screens[0].source.match(Design(_));
-				out.push({key: "flow:" + f.name, flow: f.name, screen: null, design: design});
-				for (s in f.screens)
-					out.push({key: "screen:" + s.name, flow: f.name, screen: s, design: design});
-			}
-		return out;
+	// a row of the tree: a folder (opens and closes), a file (opens in its
+	// view; an image dragged onto a design's frame inserts it), a frame
+	// under its file (focused on the canvas)
+	static function treeRow(studio:Studio, r:FileTree.TreeRow):View {
+		var e = r.entry, info = r.screen, tree = studio.tree;
+		var pad = '0 8 0 ${6 + r.depth * 14}';
+		if (info != null)
+			return <view:button tag={"nav-screen-" + slug(info.name)} slot="nav-item" padding={pad} role="button" label={info.name} focusable
+				data-on={studio.focused() == info.name ? "true" : "false"} onPress={() -> {
+					studio.drawer(false);
+					if (studio.mode() != "design") studio.setMode("design");
+					studio.focus(info.name);
+				}}>
+				<view width={12}/>
+				<image src={Icons.frame} width={Theme.ICON_S} height={Theme.ICON_S} color={studio.focused() == info.name ? c("accent") : c("fg3")}/>
+				<text max-lines={1} text-overflow="ellipsis">{info.label}</text>
+			</view:button>;
+		var on = studio.focused() == null && studio.shown() == e.path;
+		return <view:button tag={tree.tag(e.path)} slot="nav-item" padding={pad} role="button" label={tree.relative(e.path)} focusable
+			data-on={on ? "true" : "false"} drag-data={e.kind == Image ? e.path : null} onPress={() -> studio.openFile(e)}>
+			<view tag={"toggle-" + slug(tree.relative(e.path))} width={12} height={Theme.ROW} align-items="center" justify="center"
+				onClick={ev -> if (r.hasChildren) {
+					ev.stop();
+					tree.toggle(e);
+				}}>
+				{r.hasChildren ? <image src={tree.open(e) ? Icons.chevronDown : Icons.chevronRight} width={12} height={12} color={c("fg3")}/> : null}
+			</view>
+			<image src={e.kind == Dir && tree.open(e) ? Icons.folderOpen : FileView.icon(e.kind)} width={Theme.ICON_S} height={Theme.ICON_S}
+				color={e.kind == Dir ? c("fg3") : on ? c("accent") : c("fg3")}/>
+			<text max-lines={1} text-overflow="ellipsis">{e.name}</text>
+		</view:button>;
 	}
 
 	static function nav(studio:Studio, tag:String, label:String, icon:helder.ui.Svg, on:Void->Bool, press:Void->Void):View
@@ -243,6 +245,8 @@ class Shell implements Markup {
 	// (the breadcrumb's page and frame: the focused frame's, else none)
 	static function crumbPage(studio:Studio):Null<String> {
 		if (studio.mode() == "stories") return "Stories";
+		var shown = studio.shown();
+		if ((studio.mode() == "file" || studio.mode() == "code") && shown != null && studio.tree != null && studio.focused() == null) return studio.tree.relative(shown);
 		var f = studio.focused(), s = f == null ? null : studio.project?.screen(f);
 		return s == null ? null : s.flow;
 	}
@@ -284,10 +288,3 @@ enum StudioAction {
 	FitSelection;
 }
 
-// (a sidebar's row: a page's name, or one of its frames)
-@:structInit class SidebarRow {
-	public final key:String;
-	public final flow:String;
-	public final screen:Null<Project.ScreenInfo>;
-	public final design:Bool;
-}

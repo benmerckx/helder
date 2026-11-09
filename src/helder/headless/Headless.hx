@@ -377,6 +377,11 @@ class Headless {
 					a.x = Math.round(fw + (tw - fw) * (dur <= 0 ? 1 : e));
 					a.y = Math.round(fh + (th - fh) * (dur <= 0 ? 1 : e));
 				}
+			case "drop":
+				// (files dropped from the system on a node: their paths, relative ones from the working directory)
+				var p = target(s), files:Array<String> = Reflect.field(s.data, "files") ?? ([] : Array<String>);
+				var a = at(s, s.t, Drop).pos(p.x, p.y);
+				a.text = [for (f in files) sys.FileSystem.fullPath(f)].join("\n");
 			case "menu-pick":
 				var a = at(s, s.t, MenuPick);
 				a.text = s.str("label");
@@ -468,6 +473,10 @@ class Headless {
 				onEvent(e);
 			case Resize:
 				windows[0].resize(Std.int(a.x), Std.int(a.y));
+			case Drop:
+				e.kind = Drop;
+				e.files = a.text.split("\n");
+				onEvent(e);
 			case MenuPick:
 				var why = inspector == null ? "no node tree: this window has no pop-up menus" : inspector.menuPick(a.key < 0 ? null : a.key, a.text);
 				if (why != null) failStep(a.step, why);
@@ -891,6 +900,7 @@ enum ActKind {
 	Resize;
 	MenuPick;
 	MenuCancel;
+	Drop;
 }
 
 // one event of a step, due at t

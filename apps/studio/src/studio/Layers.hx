@@ -21,8 +21,12 @@ class Layers implements Markup {
 		var moving:Signal<Null<{key:String, dy:Float}>> = signal(null);
 		return <view tag="layers" slot="section" max-height="45%" shrink={0} padding="10 6 6" transition="fade" motion="snappy"
 			onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>
-			<view slot="section-head" padding="2 6 6"><image src={Icons.layers} width={12} height={12}/><text>Layers</text></view>
-			<scroll min-height={0}>
+			<view:button tag="layers-toggle" slot="section-head" padding="2 6 6" role="button" label={studio.layersOpen() ? "Hide the layers" : "Show the layers"}
+				cursor="pointer" onPress={() -> studio.layersOpen(!studio.layersOpen.peek())}>
+				<image src={Icons.layers} width={12} height={12}/><text grow={1}>Layers</text>
+				<image src={studio.layersOpen() ? Icons.chevronDown : Icons.chevronRight} width={12} height={12}/>
+			</view:button>
+			<Show when={studio.layersOpen()}><scroll min-height={0}>
 				<For each={rows(studio)} by={(r:Row) -> r.key}>{(r:Read<Row>) ->
 					<view tag={"layer-" + r().key} slot="nav-item" role="button" label={r().label} height={Theme.LAYER} padding={'0 8 0 ${8 + r().depth * 14}'}
 						data-on={r().on ? "true" : "false"} transform={offset(moving, r().key)} instant
@@ -38,7 +42,7 @@ class Layers implements Markup {
 						<text max-lines={1} text-overflow="ellipsis">{r().label}</text>
 					</view>
 				}</For>
-			</scroll>
+			</scroll></Show>
 		</view>;
 	}
 

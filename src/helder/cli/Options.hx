@@ -39,7 +39,7 @@ class Options {
 		{key: "snap", names: ["--snap"], value: "<png>", about: "a frame as a PNG, at --at (several: each --at after its --snap)"},
 		{key: "tree", names: ["--tree"], value: "<json>", about: "every node: tag, path, role, label, text, rect, opacity, colours, hover, press, focus, moving"},
 		{key: "at", names: ["--at"], value: "<t>", about: "when the --snap or --tree before it is taken (default: end)"},
-		{key: "script", names: ["--script"], value: "<json>", about: "timestamped steps: move, down, up, tap, double-click, drag, wheel, key, type, resize, menu-pick, file-dialog, mark, literal"},
+		{key: "script", names: ["--script"], value: "<json>", about: "timestamped steps: move, down, up, tap, double-click, drag, wheel, key, type, resize, drop, menu-pick, file-dialog, mark, literal"},
 		{key: "frames", names: ["--frames"], value: "<n>", number: true, about: "n frames as PNGs into -o/--out (frame_0000.png...) from --start"},
 		{key: "every", names: ["--every"], value: "<k>", number: true, about: "--frames: every k-th frame written (1)"},
 		{key: "start", names: ["--start"], value: "<t>", about: "where --frames and --video begin (0)"},
