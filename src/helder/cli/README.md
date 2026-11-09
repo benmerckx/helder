@@ -75,8 +75,9 @@ with a version and its platform packages before a publish.
 and macOS runners), installs the tarballs into an empty project on Linux
 (x64, arm64), macOS and Windows, builds examples/counter and
 examples/ts-counter natively and for the web there, then publishes
-(`0.1.0-nightly.<yyyymmdd>.<commit>`, npm's tag `next`) where the
-`NPM_TOKEN` secret is set.
+from main (`0.1.0-nightly.<yyyymmdd>.<commit>`, npm's tag `next`)
+through npm's trusted publishing: each package trusts the workflow, no
+token.
 
 ## The grammar
 

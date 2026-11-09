@@ -12,12 +12,11 @@
 #   arm64), macOS (arm64) and Windows (x64), then `npx helder build` on
 #   examples/counter (Haxe) and examples/ts-counter (TypeScript), natively
 #   and --target web;
-# - publish: the platform packages, then helder (with provenance); one
-#   already on npm at this version is left as it is.
-# Secret:
-#   NPM_TOKEN   a granular npm token with publish rights on helder and the
-#               @helder.build scope; without it the run ends after the smoke
-#               job with a notice, nothing published
+# - publish (main only): the platform packages, then helder (with
+#   provenance); one already on npm at this version is left as it is.
+# No secret: npm's trusted publishing (OIDC). Each of the seven packages
+# trusts this workflow, set once by its owner:
+#   npm trust github <package> --file npm.yml --repo benmerckx/helder --allow-publish
 name: npm
 
 on:
@@ -145,13 +144,13 @@ jobs:
         with:
           path: tgz
           merge-multiple: true
+      # (trusted publishing needs npm 11.5.1 or later)
+      - run: npm install -g npm@11.21.1
       - name: Publish (platform packages first, then helder)
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -e
-          if [ -z "$NODE_AUTH_TOKEN" ]; then echo "::notice::no NPM_TOKEN secret: helder $VERSION built and smoke-tested, not published"; exit 0; fi
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::notice::not main ($GITHUB_REF): not published"; exit 0; fi
           for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64 win32-arm64; do
             if npm view "@helder.build/$p@$VERSION" version >/dev/null 2>&1; then echo "@helder.build/$p@$VERSION is on npm"; continue; fi
