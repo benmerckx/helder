@@ -87,6 +87,7 @@ class Renderer implements Canvas {
 	// the GPU textures drawn this frame (texture: by their negative ids), the passes to record before the frame's (beforePass)
 	final gpu = new Map<Int, Texture>();
 	final before:Array<Encoder->Void> = [];
+	final next:Array<Encoder->Void> = [];
 	// (the atlas's changed region as RGBA: grown, kept)
 	var region = Bytes.alloc(0);
 	// (the ids evicted, kept)
@@ -160,11 +161,13 @@ class Renderer implements Canvas {
 		];
 	}
 
-	public function new(device:Device, ?atlas:GlyphAtlas) {
+	// (format: a render target's, drawn into in a pass of its own; by default the frame's)
+	public function new(device:Device, ?atlas:GlyphAtlas, ?format:TextureFormat) {
 		this.device = device;
 		this.atlas = atlas == null ? new GlyphAtlas(1024, 1024) : atlas;
 		var d = UiShader.pipeline({blend: Premultiplied});
 		d.layout = layout();
+		if (format != null) d.colorFormat = format;
 		pipeline = device.createPipeline(d);
 		atlasTexture = device.createTexture({width: this.atlas.width, height: this.atlas.height, format: RGBA8});
 		blank = device.createTexture({width: 1, height: 1, format: RGBA8, data: Bytes.ofHex("ffffffff")});
@@ -207,6 +210,9 @@ class Renderer implements Canvas {
 		targetH = height;
 		gpu.clear();
 		before.resize(0);
+		for (f in next)
+			before.push(f);
+		next.resize(0);
 		quads.clear();
 		run = 0;
 		runTextures.resize(0);
@@ -277,6 +283,10 @@ class Renderer implements Canvas {
 	// texture drawn this frame shows, rendered first (a <Scene>'s)
 	public function beforePass(f:Encoder->Void)
 		before.push(f);
+
+	// a pass recorded before the next frame's, asked outside a paint
+	public function nextPass(f:Encoder->Void)
+		next.push(f);
 
 	// records the passes asked for since begin, outside the frame's pass (UiWindow: after painting, before it)
 	public function prepare(enc:Encoder) {

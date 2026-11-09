@@ -29,6 +29,20 @@
 // - The compiler: helder.compiler.service as wasm in its own worker, when
 //   the page has one (compiler/worker.mjs): its requests relayed (not yet).
 //
+// - Agents: the studio's tools (Tools.hx, the desktop's MCP server's) are
+//   called through the module (WebTools: tool_next, tool_done), a
+//   snapshot's PNG made here from the GPU's pixels. Where the browser has
+//   WebMCP (document.modelContext, earlier navigator.modelContext) they
+//   are registered with it, with project.create, project.list and
+//   project.open beside them; without it nothing changes.
+// - Links: #import=<data> opens files given in the link (JSON, as is or
+//   base64url, or z.<base64url of deflate-raw>: {name?, files: {path:
+//   text}}) as a new project; #draft=<id> opens a draft of helder.build's
+//   relay (/mcp: an agent's) into OPFS and keeps it linked
+//   (.studio/draft.json): the agent's patches come over a WebSocket and go
+//   through the studio's history, the files written here go back, and
+//   after each change the tab reports its check, trees and small PNGs.
+//
 // ?gfx=webgl2 takes WebGL2 even where WebGPU is. window.studioWeb exposes
 // the page's state to checks (tests/studio-web): the studio's events (its
 // log: first frame, all shown, selected, patched, shown...), the preview's
@@ -112,12 +126,38 @@ async function openExample(name) {
 	go(name);
 }
 
-async function newProject() {
+async function freeName(base) {
 	const names = await projectNames();
-	let name = 'project';
-	for (let n = 2; names.includes(name); n++) name = 'project-' + n;
-	await writeFile(`projects/${name}/app.helder`, await fetch('new/app.helder').then((r) => r.text()));
-	go(name);
+	let name = base;
+	for (let n = 2; names.includes(name); n++) name = base + '-' + n;
+	return name;
+}
+const slug = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|-+$/g, '').slice(0, 40);
+const newFiles = async () => ({ 'app.helder': await fetch('new/app.helder').then((r) => r.text()) });
+
+// (files from a link or an agent: relative paths, no dot directories, at most 1 MB and 200 files)
+function checked(files) {
+	if (!files || typeof files !== 'object' || Array.isArray(files)) throw new Error('files: {path: text}');
+	const list = Object.entries(files);
+	if (list.length > 200) throw new Error('more than 200 files');
+	let size = 0;
+	for (const [p, t] of list) {
+		if (typeof t !== 'string') throw new Error(p + ': not text');
+		if (!p || p.length > 200 || p.split('/').some((x) => !x || x.startsWith('.'))) throw new Error(p + ': not a relative path');
+		size += enc.encode(t).length;
+	}
+	if (size > 1 << 20) throw new Error('more than 1 MB');
+	return files;
+}
+
+async function makeProject(base, files) {
+	const name = await freeName(slug(base) || 'project');
+	for (const [p, t] of Object.entries(checked(files))) await writeFile(`projects/${name}/${p}`, t);
+	return name;
+}
+
+async function newProject() {
+	go(await makeProject('project', await newFiles()));
 }
 
 async function openFolder() {
@@ -145,7 +185,51 @@ function go(name) {
 	u.searchParams.delete('example');
 	u.searchParams.delete('new');
 	u.searchParams.set('project', name);
+	u.hash = '';
 	location.href = u.href;
+}
+
+// ---- links: #import=<data>, #draft=<id>
+
+const relay = new URL('/mcp/draft/', location.href).href;
+
+async function openImport(data) {
+	let json;
+	if (data.startsWith('{')) json = data;
+	else {
+		const z = data.startsWith('z.'), b64 = (z ? data.slice(2) : data).replace(/-/g, '+').replace(/_/g, '/');
+		let bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+		if (z) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+		json = dec.decode(bytes);
+	}
+	const d = JSON.parse(json);
+	go(await makeProject(d.name ?? 'import', d.files));
+}
+
+async function openDraft(id) {
+	const r = await fetch(relay + encodeURIComponent(id));
+	if (!r.ok) throw new Error(r.status === 404 ? 'no such draft (expired?)' : 'the relay: ' + r.status);
+	const d = await r.json();
+	// (the same draft opened again: its project, its files the draft's)
+	const name = (slug(d.name) || 'draft') + '-' + id.slice(0, 6);
+	try {
+		await (await dirAt('projects')).removeEntry(name, { recursive: true });
+	} catch {}
+	for (const [p, t] of Object.entries(checked(d.files))) await writeFile(`projects/${name}/${p}`, t);
+	await writeFile(`projects/${name}/.studio/draft.json`, JSON.stringify({ id }));
+	go(name);
+}
+
+{
+	const hash = new URLSearchParams(location.hash.slice(1));
+	try {
+		if (hash.has('draft')) await openDraft(hash.get('draft'));
+		else if (hash.has('import')) await openImport(hash.get('import'));
+	} catch (e) {
+		state.linkError = e.message;
+		log('studio: the link: ' + e.message);
+		history.replaceState(null, '', location.pathname + location.search);
+	}
 }
 
 // ---- the project
@@ -158,7 +242,7 @@ if (!projectName && params.has('example')) {
 	else await openExample(name);
 } else if (!projectName && params.has('new')) await newProject();
 const files = new Map(), dirs = new Set();
-let meta = null, previewBytes = null, folder = null;
+let meta = null, previewBytes = null, folder = null, draft = null;
 if (projectName) {
 	try {
 		const d = await dirAt('projects/' + projectName);
@@ -176,6 +260,24 @@ if (projectName) {
 		} catch {}
 		folder = await folderOf(projectName).catch(() => null);
 		state.project = projectName;
+		try {
+			const f = await (await dirAt(`projects/${projectName}/.studio`)).getFileHandle('draft.json');
+			draft = { id: JSON.parse(await (await f.getFile()).text()).id };
+		} catch {}
+		// (a linked draft: its files as the relay has them, an agent's patches made while the tab was closed)
+		if (draft) try {
+			const r = await fetch(relay + encodeURIComponent(draft.id));
+			if (!r.ok) throw new Error(r.status === 404 ? 'expired' : String(r.status));
+			for (const [p, t] of Object.entries(checked((await r.json()).files)))
+				if (files.get(dir + '/' + p) !== t) {
+					files.set(dir + '/' + p, t);
+					for (let d = p; d.includes('/'); ) dirs.add(dir + '/' + (d = d.slice(0, d.lastIndexOf('/'))));
+					await writeFile(`projects/${projectName}/${p}`, t);
+				}
+		} catch (e) {
+			log('studio: the draft ' + draft.id + ': ' + e.message + ': not linked');
+			draft = null;
+		}
 	} catch (e) {
 		state.error = `no project ${projectName} (${e.message})`;
 	}
@@ -212,6 +314,7 @@ function saveFile(path, text) {
 	}).catch((e) => log('studio: ' + rel + ' not saved: ' + e.message));
 	writes.push(p);
 	state.saved = () => Promise.all(writes);
+	changed(path);
 }
 
 function log(s) {
@@ -287,27 +390,43 @@ function startPreview(host) {
 
 // ---- the compiler's worker (helder.compiler.web: its protocol's client), when the site has one
 
-let compiler = null;
-async function compilerClient() {
+let compiler = null, starting = null;
+// (one start at a time: a build asked while it starts waits for it)
+function compilerClient() {
 	if (compiler !== null) return compiler;
-	compiler = false;
+	return (starting ??= startCompiler().finally(() => (starting = null)));
+}
+async function startCompiler() {
+	let c = false;
 	try {
 		const r = await fetch('compiler-web/manifest.json', { method: 'HEAD' });
-		if (!r.ok) return compiler;
-		const { CompilerClient } = await import('./helder/compiler/web/client.mjs');
-		const c = new CompilerClient(new Worker(new URL('helder/compiler/web/worker.mjs', location.href), { type: 'module' }));
-		c.onLog = (t) => log('[compiler] ' + t);
-		const init = await c.init({ assets: { base: new URL('compiler-web/', location.href).href } });
-		state.compilerInit = init.ms;
-		compiler = c;
+		if (r.ok) {
+			const { CompilerClient } = await import('./helder/compiler/web/client.mjs');
+			const client = new CompilerClient(new Worker(new URL('helder/compiler/web/worker.mjs', location.href), { type: 'module' }));
+			client.onLog = (t) => log('[compiler] ' + t);
+			const init = await client.init({ assets: { base: new URL('compiler-web/', location.href).href } });
+			state.compilerInit = init.ms;
+			c = client;
+		}
 	} catch (e) {
 		log('studio: no compiler: ' + e.message);
 	}
-	state.compiler = !!compiler;
-	return compiler;
+	compiler = c;
+	state.compiler = !!c;
+	return c;
 }
 // (started at once for code only: design files need no build, and the toolchain is 14 MB to download)
 if ([...files.keys()].some((f) => /\.(hx|tsx?)$/.test(f))) compilerClient();
+
+async function importsOf(wasm) {
+	const names = [...new Set(WebAssembly.Module.imports(await WebAssembly.compile(wasm)).map((i) => i.module))];
+	const out = [];
+	for (const p of ['async', 'gfx', 'os', 'text', 'ui', 'image', 'canvas', 'jobs', 'asset']) {
+		const s = await fetch(`helder/${p}/imports.mjs`).then((r) => (r.ok ? r.text() : ''), () => '');
+		if (names.some((n) => new RegExp('\\b' + n + '\\b').test(s))) out.push(p);
+	}
+	return out;
+}
 
 // a build of the preview (the request: {entry, args}, the project's paths):
 // the project's files written to the compiler under /work/<name> (its
@@ -341,7 +460,12 @@ function compile(host, req, cold = false) {
 			} catch {}
 		}
 		log(`studio: built in the browser: ${b.ok ? 'ok' : 'failed'}, ${b.ms} ms, the module ${b.wasm?.byteLength ?? 'not'} bytes, ${tables.length} table(s)`);
-		if (b.ok && b.wasm) {
+		if (b.ok && b.wasm && !preview.worker) {
+			// (a project's first build here: the browser modules its preview imports, as the CLI's page finds them)
+			previewBytes = b.wasm;
+			meta ??= { root: '/work/' + projectName, imports: await importsOf(b.wasm) };
+			startPreview(host);
+		} else if (b.ok && b.wasm) {
 			previewBytes = b.wasm;
 			const snapshot = await new Promise((resolve) => {
 				if (!preview.worker) return resolve(null);
@@ -358,9 +482,231 @@ function compile(host, req, cold = false) {
 	return id;
 }
 
+// ---- the studio's tools (WebTools: the module calls them), WebMCP, a draft's link
+
+let hostRef = null;
+const tools = { list: null, queue: [], calls: new Map(), ids: 0 };
+let listed;
+const toolsListed = new Promise((r) => (listed = r));
+const snaps = new Map();
+let snapIds = 0;
+
+// a tool's result ({content, isError}), its pending images' PNGs made
+function call(name, args = {}) {
+	return new Promise((resolve) => {
+		const id = ++tools.ids;
+		tools.calls.set(id, resolve);
+		tools.queue.push(JSON.stringify({ id, name, arguments: args ?? {} }));
+		hostRef?.wake?.(0);
+	});
+}
+state.call = call;
+
+async function done(id, json) {
+	const r = JSON.parse(json);
+	for (const c of r.content ?? [])
+		if (c.pending !== undefined) {
+			try {
+				c.data = await base64(await snaps.get(c.pending));
+			} catch (e) {
+				Object.assign(c, { type: 'text', text: 'no PNG: ' + e.message });
+				delete c.data;
+				delete c.mimeType;
+			}
+			snaps.delete(c.pending);
+			delete c.pending;
+		}
+	tools.calls.get(id)?.(r);
+	tools.calls.delete(id);
+}
+
+async function base64(blob) {
+	const b = new Uint8Array(await blob.arrayBuffer());
+	let s = '';
+	for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+	return btoa(s);
+}
+
+// (drawn at once: the bitmap or the texture's copy is gone after the call)
+function png(draw, width, height) {
+	const c = new OffscreenCanvas(width, height);
+	draw(c.getContext('2d'));
+	return c.convertToBlob({ type: 'image/png' });
+}
+function snap(make) {
+	const id = ++snapIds;
+	let p;
+	try {
+		p = make();
+	} catch (e) {
+		p = Promise.reject(e);
+	}
+	p.catch(() => {});
+	snaps.set(id, p);
+	return id;
+}
+
+// (a PNG made smaller: a draft's reports)
+async function small(data, side = 400) {
+	const b = await createImageBitmap(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))]));
+	const k = Math.min(1, side / Math.max(b.width, b.height)), w = Math.max(1, Math.round(b.width * k)), h = Math.max(1, Math.round(b.height * k));
+	const out = await base64(await png((g) => g.drawImage(b, 0, 0, w, h), w, h));
+	b.close();
+	return out;
+}
+
+const text = (v) => ({ content: [{ type: 'text', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }], isError: false });
+const failed = (e) => ({ content: [{ type: 'text', text: e.message ?? String(e) }], isError: true });
+const later = (f) => setTimeout(f, 100);
+
+// the page's own tools: projects in this browser
+const pageTools = [
+	{
+		name: 'project.list',
+		description: "The projects in this browser's storage (OPFS) and the examples bundled with the studio; the one open.",
+		inputSchema: { type: 'object', properties: {} },
+		execute: async () => text({ open: projectName, projects: await projectNames(), examples: examples.map((e) => e.name) }),
+	},
+	{
+		name: 'project.create',
+		description: 'Make a new project in this browser and open it (the page loads it: call the tools again once it has). Without files, one design file (app.helder). Paths relative, text files.',
+		inputSchema: { type: 'object', properties: { name: { type: 'string' }, files: { type: 'object', additionalProperties: { type: 'string' }, description: '{path: text}' } } },
+		execute: async ({ name, files } = {}) => {
+			const n = await makeProject(name ?? 'project', files ?? (await newFiles()));
+			later(() => go(n));
+			return text({ name: n, opening: true });
+		},
+	},
+	{
+		name: 'project.open',
+		description: 'Open a project of this browser (project.list), or an example by name (a copy made the first time). The page loads it: call the tools again once it has.',
+		inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+		execute: async ({ name } = {}) => {
+			if ((await projectNames()).includes(name)) later(() => go(name));
+			else if (examples.some((e) => e.name === name)) later(() => openExample(name));
+			else throw new Error('no project ' + name);
+			return text({ name, opening: true });
+		},
+	},
+];
+
+toolsListed.then((list) => {
+	const table = [...list.map((t) => ({ ...t, execute: (args) => call(t.name, args) })), ...pageTools.map((t) => ({ ...t, execute: (args) => t.execute(args).catch(failed) }))];
+	state.tools = table;
+	const mc = document.modelContext ?? navigator.modelContext;
+	if (!mc?.registerTool) return;
+	for (const t of table)
+		try {
+			Promise.resolve(mc.registerTool(t)).catch((e) => log('studio: WebMCP: ' + t.name + ': ' + e.message));
+		} catch (e) {
+			log('studio: WebMCP: ' + t.name + ': ' + e.message);
+		}
+	state.webmcp = table.length;
+});
+
+// A draft's link: the relay's socket; its patches applied as the studio's
+// (project.patch: the history, undoable, shown at once), the files the
+// studio writes sent back, a report after each change: the check, each
+// screen's tree and a small PNG (at most 12 screens)
+const link = { ws: null, dirty: new Set(), flush: 0, report: 0, reporting: false, again: false, wait: 1000 };
+
+function connect() {
+	const ws = new WebSocket(relay.replace(/^http/, 'ws') + encodeURIComponent(draft.id) + '/live');
+	link.ws = ws;
+	ws.onopen = () => {
+		link.wait = 1000;
+		state.linked = true;
+		send();
+		reportSoon(0);
+	};
+	ws.onclose = () => {
+		state.linked = false;
+		link.ws = null;
+		setTimeout(connect, (link.wait = Math.min(link.wait * 2, 30000)));
+	};
+	ws.onmessage = (e) => received(JSON.parse(e.data)).catch((x) => log('studio: the draft: ' + x.message));
+}
+
+async function received(m) {
+	if (m.type !== 'patch') return;
+	const f = dir + '/' + m.path;
+	// (a file the studio has not read: written, the page loaded again with it)
+	if (!files.has(f)) {
+		saveFile(f, m.text);
+		await state.saved();
+		send();
+		link.ws?.send(JSON.stringify({ type: 'applied', seq: m.seq, result: { result: 'reloading' } }));
+		return later(() => location.reload());
+	}
+	let r = await call('project.patch', m.edits ? { path: m.path, edits: m.edits } : { path: m.path, text: m.text });
+	// (the edits not applying here, the user's own edits between: the relay's text)
+	if (r.isError && m.edits) r = await call('project.patch', { path: m.path, text: m.text });
+	const answer = r.content?.[0]?.text ?? '';
+	link.ws?.send(JSON.stringify({ type: 'applied', seq: m.seq, result: r.isError ? { error: answer } : JSON.parse(answer) }));
+	reportSoon();
+}
+
+function changed(path) {
+	if (!draft) return;
+	link.dirty.add(path.slice(dir.length + 1));
+	clearTimeout(link.flush);
+	link.flush = setTimeout(send, 300);
+	reportSoon();
+}
+
+function send() {
+	if (!link.ws || link.ws.readyState !== 1 || !link.dirty.size) return;
+	link.ws.send(JSON.stringify({ type: 'files', files: Object.fromEntries([...link.dirty].map((p) => [p, files.get(dir + '/' + p)])) }));
+	link.dirty.clear();
+}
+
+function reportSoon(ms = 800) {
+	clearTimeout(link.report);
+	link.report = setTimeout(report, ms);
+}
+
+async function report() {
+	if (!link.ws || link.ws.readyState !== 1) return;
+	if (link.reporting) return void (link.again = true);
+	link.reporting = true;
+	try {
+		await toolsListed;
+		const info = JSON.parse((await call('project.read')).content[0].text);
+		const screens = info.flows.flatMap((f) => f.screens.map((s) => s.name)).slice(0, 12);
+		const out = { type: 'results', diagnostics: [], screens: [] };
+		const check = await call('build.check');
+		if (!check.isError) out.diagnostics.push(...JSON.parse(check.content[0].text).diagnostics);
+		for (const name of screens) {
+			const s = { name };
+			const t = await call('run.tree', { screen: name });
+			if (t.isError) s.error = t.content[0].text;
+			else {
+				s.tree = JSON.parse(t.content[0].text);
+				for (const e of s.tree.errors ?? []) out.diagnostics.push({ ...e, screen: name });
+			}
+			const p = await call('run.snap', { screen: name });
+			const img = p.content.find((c) => c.type === 'image');
+			if (img) s.png = await small(img.data);
+			else s.snapError = p.content[0]?.text;
+			out.screens.push(s);
+		}
+		link.ws?.send(JSON.stringify(out));
+		state.reports = (state.reports ?? 0) + 1;
+	} catch (e) {
+		log('studio: the draft\'s report: ' + e.message);
+	} finally {
+		link.reporting = false;
+		if (link.again) {
+			link.again = false;
+			reportSoon(0);
+		}
+	}
+}
+
 // ---- the module's imports (studio_web)
 
 function studioWeb(host) {
+	hostRef = host;
 	const text = (s) => (s == null ? 0 : host.handles.add(String(s)));
 	const str = (p) => host.string(p);
 	const exists = (p) => (files.has(p) ? 1 : dirs.has(p.replace(/\/$/, '')) ? 2 : 0);
@@ -401,6 +747,19 @@ function studioWeb(host) {
 				if (im) host.handles.remove(h);
 			},
 			compile: (p) => (compiler === false ? 0 : compile(host, JSON.parse(str(p)))),
+			tools: (p) => listed(JSON.parse(str(p))),
+			tool_next: () => (tools.queue.length ? text(tools.queue.shift()) : 0),
+			tool_done: (id, p) => void done(id, str(p)),
+			snap_texture: (h) => snap(() => host.gfx.readTexture(h).then((px) => png((g) => g.putImageData(new ImageData(new Uint8ClampedArray(px.data.buffer), px.width, px.height), 0, 0), px.width, px.height))),
+			snap_image(h) {
+				const b = host.handles.get(h)?.bitmap;
+				return snap(() => {
+					if (!b) throw new Error('no frame');
+					const c = new OffscreenCanvas(b.width, b.height);
+					c.getContext('2d').drawImage(b, 0, 0);
+					return c.convertToBlob({ type: 'image/png' });
+				});
+			},
 			event(p) {
 				const e = JSON.parse(str(p));
 				e.ms_page = Math.round(performance.now() - t0);
@@ -449,6 +808,10 @@ try {
 	});
 	state.ready = true;
 	state.backend = r.host.gfx?.backend ?? null;
+	if (draft) {
+		state.draft = draft.id;
+		connect();
+	}
 } catch (e) {
 	state.error = String(e?.stack ?? e);
 	log('studio: ' + state.error);

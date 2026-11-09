@@ -139,6 +139,9 @@ class Studio {
 		}
 		var pr = previews;
 		if (pr != null) Async.launch(task -> pr.start(task));
+		#if (hxmc.target == "wasm32-wasi")
+		Async.launch(_ -> studio.web.WebTools.serve(this));
+		#end
 	}
 
 	// (a headless run's script waits while the studio waits on its processes: Headless.hold)

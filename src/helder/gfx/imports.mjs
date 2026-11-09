@@ -228,6 +228,13 @@ export default async function (host) {
 			}
 			return new Promise((resolve, reject) => captures.push({ resolve, reject }));
 		},
+		// a render target's pixels (its handle; WebGPU), as readPixels: once the frames drawing it are submitted
+		readTexture(h) {
+			const t = handles.get(h), enc = device.createCommandEncoder();
+			const pixels = copy(enc, t.texture, t.texture.format);
+			device.queue.submit([enc.finish()]);
+			return pixels();
+		},
 	};
 
 	// the current pipeline's bind group, with the slots' uniform offsets (a
@@ -320,7 +327,7 @@ export default async function (host) {
 			// (a mip chain's levels are drawn by generate_mips; a multisampled one is only drawn into, then resolved)
 			// (RGBA8's a render attachment too: copyExternalImageToTexture's, texture_image)
 			const usage = samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT
-				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) || format < 2 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
+				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target ? GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC : (levels > 1 && format < R32F) || format < 2 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
 			const label = samples > 1 ? 'helder multisampled target' : target ? 'helder render target' : 'helder texture';
 			const texture = device.createTexture({ label, size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, sampleCount: samples, usage });
 			const t = { serial: ++serials, texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format],

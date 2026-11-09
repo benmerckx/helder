@@ -79,16 +79,15 @@ class WebPreviews {
 
 	// the worker started (its module the page's), its events relayed
 	@:coroutine public function start(task:Node) {
-		if (StudioWeb.preview_start(0) == 0) {
-			fail("no preview module for this project (the compiler's worker builds one once it is there)");
-			return;
-		}
+		var ready = StudioWeb.preview_start(0) != 0;
 		running = true;
 		setStatus("running");
 		task.async(_ -> while (!stopping) {
 			poll();
 			Async.delay(0.004);
 		});
+		// (no module yet: a project from a link or an agent's, built first by the compiler's worker)
+		if (!ready && !rebuild(task, [])) fail("no preview module for this project, and no build of it");
 	}
 
 	function setStatus(s:String) {

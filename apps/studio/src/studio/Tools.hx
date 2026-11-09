@@ -4,6 +4,9 @@ import haxe.Json;
 import helder.async.*;
 import helder.syntax.Transaction;
 import studio.Previews;
+#if (hxmc.target == "wasm32-wasi")
+import studio.web.StudioWeb;
+#end
 
 using StringTools;
 
@@ -18,6 +21,9 @@ using StringTools;
 //   build.check    {}                         the program typed (tsgo's check too), nothing written: diagnostics
 //   run.snap       {screen?, path?}           a screen's last frame as a PNG (an image, and the file written; a design's frame drawn offscreen)
 //   run.tree       {screen?}                  a screen's node tree: tags, boxes, texts, styles, sources (a design's: its interpreted nodes)
+//
+// In the browser the page calls them (studio.web.WebTools: WebMCP's, a
+// draft's link) and makes the PNGs, its GPU's pixels read asynchronously.
 class Tools {
 	final studio:Studio;
 
@@ -158,6 +164,21 @@ class Tools {
 
 	@:coroutine function snap(args:Dynamic):{content:Array<Dynamic>, isError:Bool} {
 		var d = designOf(args.screen);
+		#if (hxmc.target == "wasm32-wasi")
+		// (the PNG is the page's to make, from the GPU's pixels: pending, its id)
+		if (d != null) {
+			var t = studio.designs.texture(d.name);
+			var id = StudioWeb.snap_texture(t.texture.id());
+			Main.window.device.destroyTexture(t.texture);
+			return {
+				content: [
+					{type: "image", data: "", mimeType: "image/png", pending: id},
+					{type: "text", text: '${d.name}: ${t.width}x${t.height}, interpreted from ${rel(d.file)}'}
+				],
+				isError: false
+			};
+		}
+		#end
 		if (d != null) {
 			var img = studio.designs.pixels(d.name);
 			var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
@@ -174,8 +195,14 @@ class Tools {
 		var img = s.image.peek();
 		if (img == null) throw '${s.info.name} has no frame yet';
 		#if (hxmc.target == "wasm32-wasi")
-		// (a frame of the preview host's is the browser's, its pixels on the GPU)
-		if (!img.hasPixels) throw '${s.info.name}: its frame is on the GPU (the web\'s previews): no PNG of it here';
+		// (a frame of the preview host's is the browser's: its bitmap, the page's to make a PNG of)
+		if (!img.hasPixels) return {
+			content: [
+				{type: "image", data: "", mimeType: "image/png", pending: StudioWeb.snap_image(img.browser)},
+				{type: "text", text: '${s.info.name}: ${img.width}x${img.height}, frame ${s.version}'}
+			],
+			isError: false
+		};
 		var out = "(not written)";
 		var png = helder.image.PngEncoder.encode(img.pixels, img.width, img.height, true);
 		#else

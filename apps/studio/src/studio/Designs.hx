@@ -130,6 +130,48 @@ class Designs {
 		#end
 	}
 
+	#if (hxmc.target == "wasm32-wasi")
+	// (in the browser: drawn by the studio's device into a render target, a
+	// pass before its next frame, one snap at a time (one renderer's
+	// buffers); the page reads it back, WebGPU's way: asynchronously)
+	var snapper:Null<helder.ui.draw.Renderer> = null;
+	var snapping = false;
+
+	@:coroutine public function texture(name:String, scale = 2.0):{texture:helder.gfx.Texture, width:Int, height:Int} {
+		var win = Main.window;
+		if (win == null) throw "no window";
+		while (snapping) helder.async.Async.delay(0.01);
+		var o = offscreen(name);
+		if (o == null) throw 'no design frame $name';
+		var w = Math.round(o.width * scale), h = Math.round(o.height * scale);
+		var device = win.device;
+		var t = device.createTexture({width: w, height: h, renderTarget: true});
+		var r = snapper ?? (snapper = new helder.ui.draw.Renderer(device, null, RGBA8));
+		r.scale = scale;
+		o.ui.scale = scale;
+		o.ui.update();
+		var drawn = false, late = false;
+		snapping = true;
+		win.renderer.nextPass(enc -> {
+			if (late) return;
+			enc.beginPass({colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1), texture: t}]});
+			r.begin(w, h);
+			o.ui.paint(r);
+			r.end(enc);
+			enc.endPass();
+			drawn = true;
+		});
+		win.ui.requestFrame();
+		var t0 = haxe.Timer.stamp();
+		while (!drawn && haxe.Timer.stamp() - t0 < 5) helder.async.Async.delay(0.01);
+		snapping = false;
+		if (drawn) return {texture: t, width: w, height: h};
+		late = true;
+		device.destroyTexture(t);
+		throw '$name: not drawn (no frame in 5 s: the tab in the background?)';
+	}
+	#end
+
 	// the node at (x, y) of a design screen (its points), the offset of its markup (null: none there)
 	public function pick(name:String, x:Float, y:Float):Null<{node:Node, at:Int}> {
 		var d = drawn.get(name);

@@ -324,6 +324,27 @@ screens' trees (`project.read`, `run.tree`), edits with `project.patch`
 The prompt bar's agent (`Agent`, `LocalAgent` for now) is the interface
 the hosted prompt box plugs into later, through the same tools.
 
+**In the browser** the same tools are the page's (`studio.web.WebTools`:
+the page calls them through the module, `studio.mjs`, and makes each
+`run.snap`'s PNG from the GPU's pixels: a design's frame drawn into a
+render target, read back asynchronously; a story's frame from its
+bitmap). Where the browser has WebMCP (`document.modelContext`, earlier
+`navigator.modelContext`: Chrome's `chrome://flags/#enable-webmcp-testing`)
+they are registered with it, beside `project.create {name?, files?}`,
+`project.list` and `project.open {name}` (the page's projects in OPFS);
+without it nothing changes. Two links open files an agent made:
+
+- `#import=<data>`: `{name?, files: {path: text}}` as JSON (as is,
+  percent-encoded), base64url, or `z.` and base64url of its deflate-raw
+  bytes; opened as a new project of OPFS (at most 1 MB and 200 files).
+- `#draft=<id>`: a draft of helder.build's MCP relay
+  (`https://helder.build/mcp`), opened into OPFS and kept linked
+  (`.studio/draft.json`): the agent's patches come over a WebSocket and go
+  through the studio's history (shown at once, undoable), the files the
+  studio writes go back, and after each change the tab reports its check,
+  each screen's tree and a small PNG (at most 12 screens), which the
+  agent reads with `project.status`.
+
 ## Look
 
 Every value of the look is in `src/studio/Theme.hx`: the colours as
@@ -409,7 +430,8 @@ runs through shared memory).
   state in one program (a story that sets a module's signal sets it for
   every screen: ts-todo's stories), so only Haxe examples are bundled; the
   screens' input (a click on a screen selects, it is not the app's yet);
-  MCP has no server there (WebMCP is the plan's).
+  no MCP server of its own (WebMCP, a draft's link); `run.snap` of a
+  design's frame needs WebGPU and a tab in the foreground (its frames).
 - Opening apps/studio in itself works crudely: its stories show the shell
   without a project and with examples/todo not started, at the window's
   size, without the camera fitted.

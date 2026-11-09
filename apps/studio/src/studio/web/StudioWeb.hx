@@ -48,6 +48,16 @@ import hxmc.unsafe.*;
 	// a request's JSON (its id told back as an event of kind 6, its
 	// result's string handle in ev[1]); 0: no compiler
 	static function compile(request:CString):Int;
+	// the studio's tools for the page (WebMCP's, a draft's link: WebTools):
+	// their list told (Tools.list, JSON), the next call ({id, name,
+	// arguments}, a string handle; 0: none), its result told back
+	static function tools(list:CString):Void;
+	static function tool_next():Int;
+	static function tool_done(id:Int, result:CString):Void;
+	// a PNG the page makes (an id in a call's result: pending): of a render
+	// target's pixels (its texture's handle), or of a preview's frame (its image)
+	static function snap_texture(texture:Int):Int;
+	static function snap_image(image:Int):Int;
 	// a measure for the page (its checks: window.studioWeb.events)
 	static function event(json:CString):Void;
 	static function text_length(h:Int):Int;

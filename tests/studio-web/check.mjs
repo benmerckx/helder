@@ -15,6 +15,12 @@
 //   (helder.compiler.web: the site built with it, the lane's) and the
 //   preview swapped in with its state, the title's box grown in the new
 //   build's tree (a site without that worker: saved and said);
+// - agents: run.snap of a story's screen (the preview's frame as a PNG);
+//   a design file opened from an #import= link, the studio's tools
+//   registered with WebMCP (a stand-in document.modelContext) and called:
+//   read, patched (undone from the header), its tree, its frame's PNG
+//   (drawn into a render target); a deflated (z.) link; a Haxe app
+//   (examples/signup) from a link, built at its open;
 // - phone (390 x 844, touch): the same project in the compact layout, a
 //   screen tapped, the inspector a bottom sheet, the title tapped, its
 //   colour patched, a pinch zooming the canvas, the screens' drawer;
@@ -30,6 +36,7 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { deflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -152,6 +159,12 @@ async function golden(pg, name) {
 	} else check(r.ok, `${name}: ${r.text}`);
 }
 
+// a PNG's size (base64)
+function png(b64) {
+	const b = Buffer.from(b64, 'base64');
+	return b.toString('latin1', 1, 4) === 'PNG' ? { width: b.readUInt32BE(16), height: b.readUInt32BE(20) } : null;
+}
+
 // a pixel of the studio's canvas
 async function pixel(pg, x, y) {
 	return pg.evaluate(async ([x, y]) => {
@@ -210,6 +223,10 @@ async function recolour(pg, x, y, tap) {
 	numbers.push(['desktop patch', p]);
 	check(red(await pixel(pg, 380, 122)), 'the title red in the studio\'s canvas (the preview\'s frame, composited)');
 	await pg.screenshot({ path: path.join(out, 'desktop-colored.png') });
+	// (an agent's run.snap of a story's screen: the preview's frame as a PNG, made by the page)
+	const shot = await pg.evaluate(() => window.studioWeb.call('run.snap', { screen: 'Todo/Three items' }));
+	const img = shot.content.find((c) => c.type === 'image');
+	check(img && png(img.data)?.width >= 480, `run.snap of a story's screen: a PNG ${img && JSON.stringify(png(img.data))} ${shot.content.at(-1).text}`);
 	// a structural edit: the compiler's worker builds it, or the studio says it cannot yet
 	await pg.waitForFunction(() => window.studioWeb.compiler !== undefined, null, { timeout: 60000 }).catch(() => {});
 	const compiler = await pg.evaluate(() => !!window.studioWeb.compiler);
@@ -239,6 +256,66 @@ async function recolour(pg, x, y, tap) {
 		console.log('studio-web: structural edits: skipped, the page has no compiler worker (helder.compiler.web)');
 	}
 	await pg.context().close();
+}
+
+// ---- agents: the studio's tools through WebMCP (a stand-in document.modelContext;
+// a browser with WebMCP is given the same table), on a design file opened
+// from an #import= link (JSON as base64url), then one deflated (z.)
+{
+	const ctx = await browser.newContext({ viewport: { width: 1180, height: 740 } });
+	await ctx.addInitScript(() => {
+		const tools = new Map();
+		document.modelContext = { registerTool: (t) => void tools.set(t.name, t), tools };
+	});
+	const pg = await ctx.newPage();
+	const design = '<Design>\n\t<Frame name="Card" width={200} height={120} background="#ffffff" padding="16">\n\t\t<text color="#dc2626">Hello</text>\n\t</Frame>\n</Design>\n';
+	const data = Buffer.from(JSON.stringify({ name: 'agent', files: { 'app.helder': design } })).toString('base64url');
+	await pg.goto(base + '#import=' + data);
+	await pg.waitForURL(/project=agent/, { timeout: 30000 });
+	await ready(pg);
+	check(await event(pg, 'designs-shown'), 'an #import= link opened as a project of OPFS, its frame shown');
+	const names = await pg.waitForFunction(() => document.modelContext.tools.size >= 8 && [...document.modelContext.tools.keys()], null, { timeout: 10000 }).then((h) => h.jsonValue(), () => []);
+	check(names.length === 8 && ['project.read', 'project.patch', 'build.check', 'run.snap', 'run.tree', 'project.create', 'project.list', 'project.open'].every((n) => names.includes(n)), 'WebMCP: the tools registered: ' + names.join(', '));
+	const run = (name, args) => pg.evaluate(([n, a]) => document.modelContext.tools.get(n).execute(a), [name, args]);
+	const read = await run('project.read', { path: 'app.helder' });
+	check(read.content[0].text === design, 'project.read: the file');
+	const patched = await run('project.patch', { path: 'app.helder', edits: [{ old: 'Hello', new: 'Hi there' }] });
+	check(!patched.isError, 'project.patch: ' + patched.content[0].text.replace(/\s+/g, ' '));
+	const tree = await run('run.tree', { screen: 'app.helder#Card' });
+	check(tree.content[0].text.includes('"Hi there"'), 'run.tree: the patched text in the frame\'s nodes');
+	const snap = await run('run.snap', { screen: 'app.helder#Card' });
+	const img = snap.content.find((c) => c.type === 'image');
+	const size = img && png(img.data);
+	check(size && size.width === 400 && size.height === 240, `run.snap: the design frame drawn into a render target, a PNG ${JSON.stringify(size)}`);
+	const saved = () => pg.evaluate(async () => {
+		await window.studioWeb.saved?.();
+		const d = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('projects')).getDirectoryHandle('agent');
+		return (await (await d.getFileHandle('app.helder')).getFile()).text();
+	});
+	check((await saved()).includes('Hi there'), 'the patch saved in OPFS');
+	check(await press(pg, 'Undo'), 'the patch undone (the header\'s Undo)');
+	await pg.waitForTimeout(300);
+	check((await saved()).includes('>Hello<'), 'the undo saved');
+	const list = JSON.parse((await run('project.list', {})).content[0].text);
+	check(list.open === 'agent' && list.projects.includes('agent'), 'project.list: ' + JSON.stringify(list));
+	const z = 'z.' + deflateRawSync(JSON.stringify({ name: 'agent', files: { 'app.helder': design.replace('Hello', 'Deflated') } })).toString('base64url');
+	await pg.goto(base + '#import=' + z);
+	await pg.waitForURL(/project=agent-2/, { timeout: 30000 });
+	await ready(pg);
+	await event(pg, 'designs-shown');
+	const tree2 = await pg.evaluate(() => window.studioWeb.call('run.tree', { screen: 'app.helder#Card' }));
+	check(tree2.content[0].text.includes('"Deflated"'), 'an #import=z. link (deflate-raw) opened as agent-2');
+	// (a Haxe app from a link: no preview module, built at its open by the compiler's worker)
+	const ex = path.join(here, '../../examples/signup');
+	const code = { 'Signup.hx': await readFile(path.join(ex, 'Signup.hx'), 'utf8'), 'Signup.story.hx': await readFile(path.join(ex, 'Signup.story.hx'), 'utf8') };
+	await pg.goto(base + '#import=' + Buffer.from(JSON.stringify({ name: 'signup', files: code })).toString('base64url'));
+	await pg.waitForURL(/project=signup/, { timeout: 30000 });
+	await ready(pg);
+	const all = await event(pg, 'all-shown', () => true, 240000);
+	const shot = await pg.evaluate(() => window.studioWeb.call('run.snap', { screen: 'Sign up/Light' }));
+	const signup = shot.content.find((c) => c.type === 'image');
+	check(all && png(signup?.data ?? '')?.width === 420, `a Haxe app from an #import= link built at its open, its screens shown in ${all?.ms} ms, run.snap ${shot.content.at(-1).text}`);
+	await ctx.close();
 }
 
 // ---- phone (touch, compact: the inspector a bottom sheet, the screens' list a drawer)
