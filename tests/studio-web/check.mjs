@@ -84,8 +84,16 @@ function check(ok, what) {
 	}
 }
 
+function mac() {
+	Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+	Object.defineProperty(navigator, 'userAgentData', { get: () => undefined });
+}
+
 async function page(viewport, touch) {
 	const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
+	// (the page on a Mac whatever runs it: the command field's ⌘K in the goldens, Command the secondary; Linux's
+	// Chromium has no Meta-A of its own, macOS's takes Control-A for the line's start)
+	await ctx.addInitScript(mac);
 	const pg = await ctx.newPage();
 	pg.on('pageerror', (e) => console.log('studio-web: page error: ' + e.message));
 	pg.on('console', (m) => /error|exit|stderr/i.test(m.text()) && console.log('studio-web: console: ' + m.text().slice(0, 400)));
@@ -203,7 +211,7 @@ async function recolour(pg, x, y, tap) {
 	if (tap) await pg.touchscreen.tap(x, y);
 	else await pg.mouse.click(x, y);
 	await pg.waitForTimeout(300);
-	await pg.keyboard.press('ControlOrMeta+a');
+	await pg.keyboard.press('Meta+a');
 	await pg.keyboard.type('#ef4444');
 	await pg.keyboard.press('Enter');
 	const patched = await event(pg, 'patched', (e) => e.frame >= before);
@@ -293,6 +301,7 @@ async function recolour(pg, x, y, tap) {
 // from an #import= link (JSON as base64url), then one deflated (z.)
 {
 	const ctx = await browser.newContext({ viewport: { width: 1180, height: 740 } });
+	await ctx.addInitScript(mac);
 	await ctx.addInitScript(() => {
 		const tools = new Map();
 		document.modelContext = { registerTool: (t) => void tools.set(t.name, t), tools };

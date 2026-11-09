@@ -588,7 +588,7 @@ export default function (host) {
 		height: (h) => host.handles.get(h).height,
 		scale: () => pixelRatio(),
 		prefers_dark: () => (globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ? 1 : 0),
-		apple: () => (/Mac|iPhone|iPad|iPod/.test(navigator.userAgentData?.platform || navigator.platform || '') ? 1 : 0),
+		apple: () => (/mac|iphone|ipad|ipod/i.test(navigator.userAgentData?.platform || navigator.platform || '') ? 1 : 0),
 		vibrate(ms) {
 			try {
 				navigator.vibrate?.(ms);
