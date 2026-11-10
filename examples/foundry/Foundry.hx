@@ -1,5 +1,5 @@
 // title: Foundry
-// summary: Make a font by drawing it: letters as pen lines on guides, one pen for the whole font (weight, contrast, nib angle), letters borrowed from each other (b from d, u from n, é from e), every edit set at once in a real font you type in, exported as a .ttf by helder.text's FontEncoder; agents draw too, over MCP
+// summary: Make a font by drawing it: letters as pen lines on guides, one pen for the whole font (weight, contrast, nib angle), letters borrowed from each other (b from d, u from n, é from e), open fonts traced into pen lines to start from, every edit set at once in a real font you type in, exported as a .ttf by helder.text's FontEncoder; agents draw and blend fonts too, over MCP
 // tags: ui, view, text, canvas, app, showcase
 // demo: canvas 1280x800
 import helder.ui.actions.Actions;
@@ -26,7 +26,8 @@ class Foundry implements Markup {
 			.bind("t", Guide)
 			.bind("]", Next)
 			.bind("[", Previous)
-			.bind("secondary-e", Export);
+			.bind("secondary-e", Export)
+			.bind("secondary-n", NewFont);
 		var ws = new Workshop();
 		// (the colours given inline follow the appearance chosen, as the sheet's do)
 		Theme.appearance = () -> ws.dark();
@@ -47,8 +48,7 @@ class Foundry implements Markup {
 					case Previous: step(ws, -1);
 					case Export: ws.export();
 					case Install: ws.install();
-					case Blank: ws.start(false);
-					case Sample: ws.start(true);
+					case NewFont: ws.starting(true);
 					case Appearance(kind): ws.appear(kind);
 				}
 				true;
@@ -79,7 +79,7 @@ class Foundry implements Markup {
 			{
 				label: "File",
 				items: [
-					Item("New Blank Font", Blank), Item("New From Sample", Sample), Separator, Item("Export .ttf", Export), Item("Install Font", Install),
+					Item("New Font…", NewFont), Separator, Item("Export .ttf", Export), Item("Install Font", Install),
 					Separator, Role(Quit)
 				]
 			},
@@ -95,15 +95,18 @@ class Foundry implements Markup {
 			{label: "Window", role: Window, items: []}
 		];
 
-	// Hanken Grotesk for the interface, Geist Mono for values (examples/foundry/fonts)
+	// Hanken Grotesk for the interface, Geist Mono for values, Inter to start
+	// from (examples/foundry/fonts), Pebble's own
 	static function fonts() {
 		var f = helder.text.SystemFonts.get();
 		for (b in [
 			helder.asset.Asset.embed("fonts/HankenGrotesk-Regular.ttf"),
 			helder.asset.Asset.embed("fonts/HankenGrotesk-Medium.ttf"),
-			helder.asset.Asset.embed("fonts/GeistMono-Regular.ttf")
+			helder.asset.Asset.embed("fonts/GeistMono-Regular.ttf"),
+			helder.asset.Asset.embed("fonts/Inter.ttf")
 		])
 			try f.add(b) catch (_:Dynamic) {}
+		Start.fonts();
 	}
 }
 
@@ -118,8 +121,7 @@ enum FoundryAction {
 	Previous;
 	Export;
 	Install;
-	Blank;
-	Sample;
+	NewFont;
 	// "system", "light" or "dark"
 	Appearance(kind:String);
 }

@@ -85,6 +85,10 @@ class DrawText implements TextEngine {
 	public function generation():Int
 		return FontFile.generation;
 
+	// (the generation the paragraphs kept were shaped in: a font replaced
+	// since, its glyphs and advances are another font's)
+	var shapedIn = FontFile.generation;
+
 	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1,
 			?into:Paragraph):Paragraph {
 		if (fallbackFaces == null) {
@@ -106,6 +110,11 @@ class DrawText implements TextEngine {
 			case BreakAll: TextLayout.BREAK_ALL;
 			case KeepAll: TextLayout.KEEP_ALL;
 		});
+		if (shapedIn != FontFile.generation) {
+			shapedIn = FontFile.generation;
+			plain.clear();
+			plainCount = 0;
+		}
 		var shared = runs == null && maxLines == 0 && !justify && cut < 0 && Math.isNaN(maxWidth);
 		var same = shared ? plain.get(text) : null;
 		if (same != null)
@@ -119,7 +128,8 @@ class DrawText implements TextEngine {
 		var again = shared || !Std.isOfType(into, DrawParagraph) ? null : (cast into : DrawParagraph);
 		if (again != null && !again.shared) {
 			var l = again.layout;
-			var rewrap = runs == null && l.runs.length == 0 && l.text == text && l.fonts == set && again.lineHeight == font.lineHeight
+			var rewrap = runs == null && l.runs.length == 0 && l.text == text && l.fonts == set && again.generation == FontFile.generation
+				&& again.lineHeight == font.lineHeight
 				&& again.letterSpacing == font.letterSpacing && again.wordSpacing == font.wordSpacing && again.base == base && again.breaking == breaking;
 			if (rewrap) l.wrap(maxWidth, maxLines, cut) else {
 				l.reset(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut, breaking);
@@ -179,6 +189,7 @@ class DrawParagraph implements Paragraph {
 	var wordSpacing = 0.0;
 	var base = -1;
 	var breaking = 0;
+	var generation = 0;
 
 	public var width(get, never):Float;
 	public var height(get, never):Float;
@@ -195,6 +206,7 @@ class DrawParagraph implements Paragraph {
 		this.wordSpacing = wordSpacing;
 		this.base = base;
 		this.breaking = breaking;
+		generation = FontFile.generation;
 	}
 
 	public function runs(width:Float, align:TextAlign):Array<GlyphRun> {

@@ -9,7 +9,7 @@ import haxe.crypto.Base64;
 // a person does at the board. Every edit goes through the Workshop's
 // history (undoable in the window) and opens the glyph on the board.
 class Tools {
-	public static final INSTRUCTIONS = "Foundry makes a font by drawing letters with a pen. A glyph is a few pen LINES, not outlines: each line is the path of the pen's centre, a list of knots [x, y] that a smooth curve passes through, in font units (1000 to the em, y up, baseline 0); [x, y, 1] marks a corner (a sharp turn, as at the bottom of v); {\"knots\": [...], \"closed\": true} is a loop (o, the bowl of a, b, d, p, q). One pen (pen.set) draws every line: its width, contrast and angle make the weight and style of the whole font, so draw skeletons only. Ink reaches half the pen (font.read's penHalf) beyond the knots, so knots of a letter resting on the baseline sit at y = penHalf, and those touching the x-height at xHeight - penHalf (likewise capital and ascender heights, descender + penHalf). A loop of 8 knots on an ellipse makes a clean bowl; 2 knots a straight stem; arches 5 to 6 knots. Where strokes meet, end one line on a knot of another (an arch starting on its stem). Spacing is automatic (metrics.spacing either side of the ink); fine-tune with glyph.space. Work like a type designer: font.read first, glyph.read a drawn letter to match its stems, bowls and widths; after each glyph.draw look at the picture it returns and at text.snap of the letter among others (\"nanbnonc\", \"HAHBHOHC\"), then correct. Letters borrow until drawn (b, p, q from d; u from n; capitals like O, S, V grown from small ones; accented letters from base and accent): draw the source to change them all, or glyph.draw the borrower to give it a shape of its own.";
+	public static final INSTRUCTIONS = "Foundry makes a font by drawing letters with a pen. A glyph is a few pen LINES, not outlines: each line is the path of the pen's centre, a list of knots [x, y] that a smooth curve passes through, in font units (1000 to the em, y up, baseline 0); [x, y, 1] marks a corner (a sharp turn, as at the bottom of v); {\"knots\": [...], \"closed\": true} is a loop (o, the bowl of a, b, d, p, q). One pen (pen.set) draws every line: its width, contrast and angle make the weight and style of the whole font, so draw skeletons only. Ink reaches half the pen (font.read's penHalf) beyond the knots, so knots of a letter resting on the baseline sit at y = penHalf, and those touching the x-height at xHeight - penHalf (likewise capital and ascender heights, descender + penHalf). A loop of 8 knots on an ellipse makes a clean bowl; 2 knots a straight stem; arches 5 to 6 knots. Where strokes meet, end one line on a knot of another (an arch starting on its stem). Spacing is automatic (metrics.spacing either side of the ink); fine-tune with glyph.space. Work like a type designer: font.read first, glyph.read a drawn letter to match its stems, bowls and widths; after each glyph.draw look at the picture it returns and at text.snap of the letter among others (\"nanbnonc\", \"HAHBHOHC\"), then correct. Letters borrow until drawn (b, p, q from d; u from n; capitals like O, S, V grown from small ones; accented letters from base and accent): draw the source to change them all, or glyph.draw the borrower to give it a shape of its own. Other fonts are material: sources.list names them (the open fonts Foundry carries, every font installed here), font.start begins from one traced into pen lines, font.blend makes a whole font between two (\"something between Inter and Geist Mono\": t 0.5; nearer one: t 0.25), glyph.blend one letter between two, fitted to this font. To restyle a single letter (a swirly x, a looped g), glyph.read it, then glyph.draw its lines changed: a swirl is a line of knots on a spiral, a loop a line that crosses itself; keep the knots where the letter meets the guides.";
 
 	public static final list:Array<Dynamic> = [
 		{
@@ -71,6 +71,34 @@ class Tools {
 					descender: {type: "number"},
 					spacing: {type: "number"}
 				}
+			}
+		},
+		{
+			name: "sources.list",
+			description: "The fonts other tools can take from: current (the one being drawn), Pebble, Inter, Hanken Grotesk, Geist Mono (SIL Open Font License), and every font installed on this machine (keep to a font's license when sharing what is made from it).",
+			inputSchema: {type: "object", properties: {}}
+		},
+		{
+			name: "font.start",
+			description: "Start the font again from a source, traced into pen lines (undoable). Answers with a picture of text in it.",
+			inputSchema: {type: "object", properties: {from: {type: "string"}, name: {type: "string"}}, required: ["from"]}
+		},
+		{
+			name: "font.blend",
+			description: "Make the whole font between two sources (each traced into pen lines): t 0 is a, 1 is b, 0.5 halfway; pen, proportions, spacing and every letter's lines in between. Answers with a picture of text in it.",
+			inputSchema: {
+				type: "object",
+				properties: {a: {type: "string"}, b: {type: "string"}, t: {type: "number"}, name: {type: "string"}},
+				required: ["a", "b"]
+			}
+		},
+		{
+			name: "glyph.blend",
+			description: "One letter between two sources (b left out: a's letter alone), fitted to this font's guides; a may be \"current\". Answers with a picture.",
+			inputSchema: {
+				type: "object",
+				properties: {char: {type: "string"}, a: {type: "string"}, b: {type: "string"}, t: {type: "number"}},
+				required: ["char", "a"]
 			}
 		},
 		{
@@ -153,6 +181,30 @@ class Tools {
 				});
 				ws.agent("Changed the proportions");
 				[text(Json.stringify(ws.value().metrics))];
+			case "sources.list":
+				[text(Sources.names().join("\n"))];
+			case "font.start":
+				var from = Std.string(args.from);
+				var f = Model.named(Sources.face(from, ws), args.name ?? "My " + from);
+				ws.begin(f);
+				everything('started from $from');
+				[text('${f.name}: ${[for (k in f.glyphs.keys()) k].length} letters traced from $from'), image(Picture.text(ws.value(), SAMPLE, 72))];
+			case "font.blend":
+				var a = Std.string(args.a), b = Std.string(args.b), t:Float = args.t ?? 0.5;
+				var f = Blend.faces(Sources.face(a, ws), Sources.face(b, ws), t, args.name ?? '$a $b');
+				ws.begin(f);
+				everything('blended $a and $b');
+				[text('${f.name}: ${Math.round((1 - t) * 100)}% $a, ${Math.round(t * 100)}% $b'), image(Picture.text(ws.value(), SAMPLE, 72))];
+			case "glyph.blend":
+				var char = character(args), cur = ws.value(), t:Float = args.t ?? 0.5;
+				var fa = Sources.face(Std.string(args.a), ws), fb = args.b == null ? fa : Sources.face(Std.string(args.b), ws);
+				var la = Workshop.fit(Ink.lines(fa, char), fa, cur, char), lb = Workshop.fit(Ink.lines(fb, char), fb, cur, char);
+				if (la.length == 0 && lb.length == 0) throw 'Neither source has "$char"';
+				var g = ws.glyph(char);
+				var lines = [for (l in Blend.shapes(la, fa.pen, lb, fb.pen, args.b == null ? 0 : t)) Freehand.snap(l, cur, [])];
+				ws.setGlyph(char, {lines: lines, parts: [], left: g.left, right: g.right});
+				shown(char, 'drew $char');
+				[text('$char: ${lines.length} lines'), image(Picture.glyph(ws.value(), char))];
 			case "font.rename":
 				ws.rename(Std.string(args.name));
 				[text(ws.value().name)];
@@ -172,8 +224,19 @@ class Tools {
 		}
 	}
 
+	static inline var SAMPLE = "Hamburgefonstiv HOXA 0123";
+
+	// a whole font changed by an agent: every letter marked, the one on the board written out
+	function everything(what:String) {
+		ws.agentGlyphs([for (k in ws.value().glyphs.keys()) k]);
+		ws.agentStroke({char: ws.current.peek(), at: helder.ui.Clock.now});
+		ws.agent("Agent " + what);
+		haxe.Timer.delay(() -> if (ws.agent.peek() == "Agent " + what) ws.agent(""), 5000);
+	}
+
 	function shown(char:String, what:String) {
 		ws.open(char);
+		if (what.indexOf("drew") == 0 || what.indexOf("made") == 0) ws.byAgent(char);
 		ws.agent("Agent " + what);
 		haxe.Timer.delay(() -> if (ws.agent.peek() == "Agent " + what) ws.agent(""), 4000);
 	}

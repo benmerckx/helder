@@ -5,9 +5,8 @@ import helder.async.http.Http;
 // Foundry's tools (Tools) over MCP's Streamable HTTP transport in its
 // simplest form, as helder studio serves its own (apps/studio's Mcp):
 // JSON-RPC POSTed to /mcp, each answered with one JSON response. On
-// 127.0.0.1 only, port FOUNDRY_MCP_PORT, else 7341 (else any free one).
-//
-//   claude mcp add --transport http foundry http://127.0.0.1:7341/mcp
+// 127.0.0.1 only, port FOUNDRY_MCP_PORT, else 7341 (else any free one):
+// any agent that speaks MCP adds it as an HTTP server at http://127.0.0.1:7341/mcp.
 class Mcp {
 	static inline var VERSION = "2025-06-18";
 
@@ -22,7 +21,7 @@ class Mcp {
 		}
 		var url = 'http://127.0.0.1:${server.port}/mcp';
 		ws.mcp(url);
-		Sys.println('foundry: MCP at $url (claude mcp add --transport http foundry $url)');
+		Sys.println('foundry: MCP at $url (an HTTP server for any agent that speaks MCP)');
 		var tools = new Tools(ws);
 		Http.serve(server, req -> handle(req, tools));
 	}

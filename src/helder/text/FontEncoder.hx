@@ -29,6 +29,10 @@ typedef FontSource = {
 	?weight:Int,
 	// glyph 0 is .notdef, drawn where a character is missing
 	glyphs:Array<FontGlyph>,
+	// its PostScript name (null: the family's and style's, "Family-Style");
+	// a font replaced while running needs a new one, as a system's engine
+	// (Core Text) keeps the first font of a name it was given
+	?postScriptName:String,
 	// when it was made, in seconds since 1970 (null: now)
 	?modified:Float,
 	// pairs of glyph indices and the space put between them
@@ -315,7 +319,7 @@ class FontEncoder {
 			font.family + " " + style,
 			style == "Regular" ? font.family : font.family + " " + style,
 			"Version 1.000",
-			ps + "-" + ~/[^A-Za-z0-9]/g.replace(style, "")
+			font.postScriptName ?? ps + "-" + ~/[^A-Za-z0-9]/g.replace(style, "")
 		];
 		var strings = new BytesOutput(), o = output();
 		strings.bigEndian = true;

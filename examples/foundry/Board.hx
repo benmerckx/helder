@@ -133,11 +133,14 @@ class Board extends Node {
 			var hot = drag != null && drag.kind == (side == sp.start ? "left" : "right");
 			c.rect(sx - 5, y + handleY(), 11, 22, 3, hot ? accent : Theme.c("active"), 1, hot ? accent : edge);
 		}
-		// the ink
-		var s = Ink.shape(f, char), own = Model.drawn(f, char);
-		if (s.contours.length > 0) c.path(path(s.contours, x + px(-s.dx), y + base, "ink"), own ? fg : Theme.c("fg2"));
+		// the ink, or an agent's lines being written out
+		var s = Ink.shape(f, char), own = Model.drawn(f, char), g = ws.glyph(char);
+		var a = ws.agentStroke.peek();
+		if (a != null && a.char == char && Clock.now - a.at < AFTER + duration(g)) {
+			writeOut(c, x, y, g, f, s, Clock.now - a.at);
+			repaint();
+		} else if (s.contours.length > 0) c.path(path(s.contours, x + px(-s.dx), y + base, "ink"), own ? fg : Theme.c("fg2"));
 		// erasing: the line under the pointer
-		var g = ws.glyph(char);
 		if (ws.tool.peek() == "erase" && hoverLine >= 0 && hoverLine < g.lines.length) {
 			var one = Ink.contours([g.lines[hoverLine]], f.pen);
 			c.path(Glyphs.path(one, scale, x + ox, y + base), alpha(Theme.c("red"), 0.85));
@@ -154,6 +157,101 @@ class Board extends Node {
 			if (pts.length == 1) p.lineTo(x + px(pts[0].x) + 0.01, y + py(pts[0].y));
 			c.path(p, null, {width: f.pen.width * scale, paint: alpha(fg, 0.5), cap: Round, join: Round});
 		}
+	}
+
+	// ---- an agent's lines written out: along the pen's path, in violet,
+	// sparks trailing the pen's tip; the letter then turning to ink
+
+	static inline var AFTER = 0.45;
+
+	function duration(g:Glyph):Float
+		return 0.7 + length(g) / 2600;
+
+	static function length(g:Glyph):Float {
+		var total = 0.0;
+		for (l in g.lines)
+			for (p in Ink.centre(l))
+				for (i in 1...p.length)
+					total += Math.sqrt(Math.pow(p[i].x - p[i - 1].x, 2) + Math.pow(p[i].y - p[i - 1].y, 2));
+		return total;
+	}
+
+	function writeOut(c:Canvas, x:Float, y:Float, g:Glyph, f:Face, s:Ink.Shape, age:Float) {
+		var violet = Theme.c("violet"), fg = Theme.c("fg"), d = duration(g), total = length(g);
+		var t = Math.min(1, age / d), eased = t * t * (3 - 2 * t);
+		// (where the pen is after so far along its path, in pixels)
+		function at(along:Float):Null<{x:Float, y:Float}> {
+			var walked = 0.0, last:Null<{x:Float, y:Float}> = null;
+			for (l in g.lines)
+				for (p in Ink.centre(l)) {
+					last = {x: p[p.length - 1].x, y: p[p.length - 1].y};
+					for (i in 1...p.length) {
+						var step = Math.sqrt(Math.pow(p[i].x - p[i - 1].x, 2) + Math.pow(p[i].y - p[i - 1].y, 2));
+						if (walked + step >= along) {
+							var k = step == 0 ? 0 : (along - walked) / step;
+							return {x: x + px(p[i - 1].x + (p[i].x - p[i - 1].x) * k), y: y + py(p[i - 1].y + (p[i].y - p[i - 1].y) * k)};
+						}
+						walked += step;
+					}
+				}
+			return last == null ? null : {x: x + px(last.x), y: y + py(last.y)};
+		}
+		if (t >= 1 || total == 0) {
+			var k = Math.min(1, (age - d) / AFTER);
+			if (s.contours.length > 0) c.path(path(s.contours, x + px(-s.dx), y + base, "ink"), Color.mix(violet, fg, k * k));
+		} else {
+			var reveal = eased * total, walked = 0.0;
+			for (l in g.lines)
+				for (p in Ink.centre(l)) {
+					if (walked >= reveal) break;
+					var part = new Path();
+					part.moveTo(x + px(p[0].x), y + py(p[0].y));
+					if (p.length == 1) part.lineTo(x + px(p[0].x) + 0.01, y + py(p[0].y));
+					for (i in 1...p.length) {
+						var step = Math.sqrt(Math.pow(p[i].x - p[i - 1].x, 2) + Math.pow(p[i].y - p[i - 1].y, 2));
+						if (walked + step > reveal) {
+							var k = (reveal - walked) / step;
+							part.lineTo(x + px(p[i - 1].x + (p[i].x - p[i - 1].x) * k), y + py(p[i - 1].y + (p[i].y - p[i - 1].y) * k));
+							walked = reveal;
+							break;
+						}
+						walked += step;
+						part.lineTo(x + px(p[i].x), y + py(p[i].y));
+					}
+					c.path(part, null, {width: f.pen.width * scale, paint: alpha(violet, 0.92), cap: Round, join: Round});
+				}
+			var tip = at(reveal);
+			if (tip != null) c.rect(tip.x - 16, tip.y - 16, 32, 32, 16, alpha(violet, 0.28), 0, 0);
+		}
+		// sparks: each left where the pen was a moment ago, drifting up and fading
+		for (k in 0...16) {
+			var born = age - k * 0.05, life = (age - born) / 0.8;
+			if (born < 0 || born > d || life > 1) continue;
+			var from = at(Math.min(1, born / d) * Math.min(1, born / d) * (3 - 2 * Math.min(1, born / d)) * total);
+			if (from == null) continue;
+			var seed = Std.int(born * 20) * 7919 + k, rx = rand(seed) - 0.5, ry = rand(seed + 1);
+			var size = (1 - life) * (4 + rand(seed + 2) * 6);
+			star(c, from.x + rx * 44 * life, from.y - (12 + ry * 30) * life, size, alpha(Color.mix(violet, 0xFFFFFFFF, 0.35), 1 - life));
+		}
+	}
+
+	// a four-pointed spark
+	static function star(c:Canvas, cx:Float, cy:Float, r:Float, color:Color) {
+		if (r <= 0.2) return;
+		var p = new Path(), i = r * 0.28;
+		p.moveTo(cx, cy - r);
+		p.quadTo(cx + i * 0.3, cy - i * 0.3, cx + r, cy);
+		p.quadTo(cx + i * 0.3, cy + i * 0.3, cx, cy + r);
+		p.quadTo(cx - i * 0.3, cy + i * 0.3, cx - r, cy);
+		p.quadTo(cx - i * 0.3, cy - i * 0.3, cx, cy - r);
+		p.close();
+		c.path(p, color);
+	}
+
+	static function rand(n:Int):Float {
+		var h = n * 0x45d9f3b;
+		h = (h ^ (h >>> 16)) * 0x45d9f3b;
+		return ((h ^ (h >>> 16)) & 0xFFFFFF) / 0xFFFFFF;
 	}
 
 	function paintLines(c:Canvas, x:Float, y:Float, g:Glyph, f:Face) {

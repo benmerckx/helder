@@ -25,19 +25,25 @@ class Freehand {
 				x: (smooth[i - 1].x + 2 * smooth[i].x + smooth[i + 1].x) / 4,
 				y: (smooth[i - 1].y + 2 * smooth[i].y + smooth[i + 1].y) / 4
 			}];
-		var kept = thin(smooth, THIN);
-		var closed = kept.length > 3 && dist(kept[0], kept[kept.length - 1]) < pen.width * 0.9 && length > pen.width * 4;
-		if (closed) kept.pop();
-		var n = kept.length, knots:Array<Knot> = [];
+		var closed = points.length > 3 && dist(smooth[0], smooth[smooth.length - 1]) < pen.width * 0.9 && length > pen.width * 4;
+		return snap({knots: knots(smooth, closed, THIN), closed: closed}, face, others);
+	}
+
+	// the knots that keep a path (a loop's: its last point its first's) within
+	// tolerance, a sharp turn a corner
+	public static function knots(points:Array<{x:Float, y:Float}>, closed:Bool, tolerance:Float):Array<Knot> {
+		var kept = thin(points, tolerance);
+		if (closed && kept.length > 3) kept.pop();
+		var n = kept.length, out:Array<Knot> = [];
 		for (i in 0...n) {
 			var p = kept[i], corner = false;
 			if (closed || i > 0 && i < n - 1) {
 				var a = kept[(i - 1 + n) % n], b = kept[(i + 1) % n];
 				corner = angle(a, p, b) > TURN;
 			}
-			knots.push({x: p.x, y: p.y, corner: corner});
+			out.push({x: Math.round(p.x), y: Math.round(p.y), corner: corner});
 		}
-		return snap({knots: knots, closed: closed}, face, others);
+		return out;
 	}
 
 	// a line made to sit on the guides near it (stretched so its lowest

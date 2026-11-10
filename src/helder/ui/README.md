@@ -341,9 +341,10 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   `<icon/>`); `Theme`, the studio's look for any app (its sheet's
   parts by slot: panels, sections, buttons, fields, menus; light and dark
   from the same tokens, `Theme.c` for a colour given inline); `Controls`,
-  two controls styled by it: `Slider` (a number as a field filled up to
-  it, set by a press, a drag or the keys) and `Segmented` (one of a few
-  options, a radio group). Other controls (buttons, checkboxes, menus)
+  styled by it: `Slider` (a number as a field filled up to it, set by a
+  press, a drag or the keys), `Segmented` (one of a few options, a radio
+  group) and `Tip` (a tooltip: what a control does and its shortcut, under
+  it once the pointer rests there, for a button that shows only an icon). Other controls (buttons, checkboxes, menus)
   are views with a role, `focusable` and `onPress`, as in the examples
   and `GUIDE.md`. A
   `UiWindow`'s `Ui.dark` follows the system's appearance

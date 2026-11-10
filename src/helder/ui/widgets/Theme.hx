@@ -208,6 +208,9 @@ class Theme {
 			{slot: "slider", when: ["focus-visible"], style: {outlineWidth: 1, outlineOffset: 0, outlineColor: t("focus")}},
 			{slot: "slider-fill", style: {background: t("accent-soft")}},
 			{slot: "slider-value", style: {shrink: 0, color: t("fg"), fontFamily: CODE, fontSize: SMALL}},
+			// Controls' tooltip: a small label under a control
+			{slot: "tip", style: {height: 22, padding: [0, 8], radius: RADIUS, background: t("active"), color: t("fg"), fontFamily: UI, fontSize: SMALL,
+				borderWidth: 1, borderColor: t("edge")}},
 		],
 		light: light,
 		dark: dark,

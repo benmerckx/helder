@@ -13,8 +13,9 @@ class Draft {
 	public static inline var FAMILY = "Foundry Draft";
 
 	static var live:Null<FontFile> = null;
+	static var version = 1;
 
-	public static function encode(face:Face, ?family:String):Bytes {
+	public static function encode(face:Face, ?family:String, ?postScriptName:String):Bytes {
 		var m = face.metrics, glyphs:Array<FontGlyph> = [{codes: [], advance: 500, contours: []}];
 		glyphs.push({codes: [32, 0xA0], advance: Math.round(Model.EM * 0.22 + face.pen.width * 0.5), contours: []});
 		for (char in Charset.all) {
@@ -32,13 +33,15 @@ class Draft {
 			xHeight: Math.round(m.xHeight),
 			capHeight: Math.round(m.capHeight),
 			weight: weight(face.pen),
+			postScriptName: postScriptName,
 			glyphs: glyphs
 		});
 	}
 
 	// the draft font shown in the window: the face's glyphs now
 	public static function show(face:Face) {
-		var bytes = encode(face, FAMILY);
+		// (each version its own PostScript name: Core Text keeps the first font of a name)
+		var bytes = encode(face, FAMILY, "FoundryDraft-" + version++);
 		var fresh = try FontFile.parse(bytes) catch (_:Dynamic) null;
 		if (fresh == null) return;
 		var f = live;

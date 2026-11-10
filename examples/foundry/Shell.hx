@@ -2,6 +2,7 @@ import Model;
 import helder.ui.*;
 import helder.ui.widgets.Controls.Segmented;
 import helder.ui.widgets.Controls.Slider;
+import helder.ui.widgets.Controls.Tip;
 import helder.ui.widgets.Theme;
 import helder.ui.widgets.Theme.c;
 import helder.ui.widgets.WindowButtons.WindowControls;
@@ -42,6 +43,9 @@ class Shell implements Markup {
 			{slot: "chip", when: ["hover"], style: {background: t("hover")}},
 			{slot: "chip", when: ["data-on=true"], style: {borderColor: t("accent")}},
 			{slot: "chip", when: ["data-done=true"], style: {background: t("on")}},
+			{slot: "starter", style: {padding: 8, radius: Theme.RADIUS_M + 2, background: t("bg"), borderWidth: 1, borderColor: t("line"), cursor: Pointer}},
+			{slot: "starter", when: ["hover"], style: {background: t("hover"), borderColor: t("edge")}},
+			{slot: "starter", when: ["focus-visible"], style: {outlineWidth: 1, outlineOffset: 1, outlineColor: t("focus")}},
 		]),
 		light: Theme.light,
 		dark: Theme.dark
@@ -57,6 +61,7 @@ class Shell implements Markup {
 				{status(ws)}
 			</view>
 			{inspector(ws)}
+			{Start.view(ws)}
 		</view>;
 
 	static function icon(src:Svg, size = Theme.ICON_S):View
@@ -110,6 +115,9 @@ class Shell implements Markup {
 					{thumb(ws, char)}
 				</Show>
 			</view>
+			<Show when={ws.agentGlyphs().indexOf(char) >= 0}>
+				<image position="absolute" top={4} right={4} src={Icons.sparkles} width={10} height={10} color={c("violet")} label="Drawn by an agent"/>
+			</Show>
 			<view direction="row" align-items="center" column-gap={3} height={12}>
 				<text font-size={10} line-height="12px" color={c("fg3")}>{char}</text>
 				<Show when={state() == "borrowed"}><view width={4} height={4} radius={2} background={c("accent-ink")} label="Borrowed"/></Show>
@@ -179,14 +187,10 @@ class Shell implements Markup {
 				{value: "erase", label: "Erase", icon: Icons.eraser, hint: "Erase (E)"}
 			]}/>
 			<view width={1} height={16} background={c("line")}/>
-			<view:button tag="guide" slot="button" role="button" label="Tracing letter" focusable data-on={ws.guide() ? "true" : "false"}
-				onPress={() -> ws.guide(!ws.guide.peek())}>{icon(Icons.eye)}</view:button>
-			<view:button tag="undo" slot="button" role="button" label="Undo" focusable data-disabled={ws.canUndo() ? "false" : "true"} onPress={ws.undo}>
-				{icon(Icons.undo)}
-			</view:button>
-			<view:button tag="redo" slot="button" role="button" label="Redo" focusable data-disabled={ws.canRedo() ? "false" : "true"} onPress={ws.redo}>
-				{icon(Icons.redo)}
-			</view:button>
+			<Tip label={ws.guide() ? "Hide the tracing letter" : "Show the tracing letter"} keys="T">
+				<view:button tag="guide" slot="button" role="button" label="Tracing letter" focusable data-on={ws.guide() ? "true" : "false"}
+					onPress={() -> ws.guide(!ws.guide.peek())}>{icon(Icons.eye)}</view:button>
+			</Tip>
 		</view>;
 
 	static function describe(ws:Workshop):String {
@@ -223,9 +227,10 @@ class Shell implements Markup {
 			</view>
 			<view position="absolute" top={14} right={14} pointer-events="none">
 				<Show when={ws.agent() != ""}>
-					<view slot="floating" direction="row" align-items="center" column-gap={8} padding="7 12" transition="fade slide-down" shadow={Theme.popover()}>
-						<view width={6} height={6} radius={3} background={c("violet")}/>
-						<text color={c("fg2")}>{ws.agent}</text>
+					<view tag="agent" direction="row" align-items="center" column-gap={7} padding="6 12 6 10" radius={14} transition="fade slide-down"
+						background={c("bg")} border-width={1} border-color={c("violet")} shadow={"0 0 18 " + (ws.dark() ? "rgba(185,174,224,0.35)" : "rgba(108,79,179,0.25)")}>
+						<image src={Icons.sparkles} width={13} height={13} color={c("violet")}/>
+						<text color={c("violet")} font-weight={Theme.MEDIUM}>{ws.agent}</text>
 					</view>
 				</Show>
 			</view>
@@ -243,6 +248,7 @@ class Shell implements Markup {
 			ws.selected();
 			ws.guide();
 			ws.dark();
+			ws.agentStroke();
 			0;
 		}, _ -> b.repaint());
 		return b;
@@ -433,11 +439,9 @@ class Shell implements Markup {
 		return <view tag="agents" slot="section">
 			<view slot="section-head">{icon(Icons.sparkles, 12)}<text>Draw with an agent</text></view>
 			<Show when={ws.mcp() != ""} fallback={<text color={c("fg3")} line-height="17px">Agents connect to the desktop app over MCP.</text>}>
-				<text color={c("fg2")} line-height="17px">Connect Claude Code, then ask it for letters. Its strokes land here, undoable.</text>
+				<text color={c("fg2")} line-height="17px">Add Foundry to any agent that speaks MCP, as an HTTP server, then ask it for letters. Its strokes are written out here, in violet, and undo like yours.</text>
 				<view padding="6 8" radius={Theme.RADIUS} background={c("well")}>
-					<text font-family={Theme.CODE} font-size={10} line-height="15px" color={c("fg2")} user-select="text" selectable>
-						{() -> 'claude mcp add --transport http foundry ${ws.mcp()}'}
-					</text>
+					<text font-family={Theme.CODE} font-size={Theme.SMALL} color={c("fg2")} user-select="text" selectable>{ws.mcp}</text>
 				</view>
 			</Show>
 		</view>;

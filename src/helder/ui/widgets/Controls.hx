@@ -5,13 +5,16 @@ import helder.ui.Node;
 import helder.ui.Svg;
 import helder.view.*;
 import helder.view.Flow.*;
+import helder.view.graph.Graph.*;
 import helder.view.graph.Read;
+import helder.ui.view.UiFlow.Popover;
 
-// Small controls with their look by slot (Theme's): a slider and a
-// segmented choice.
+// Small controls with their look by slot (Theme's): a slider, a
+// segmented choice, a tooltip.
 //
 //   <Slider label="Weight" value={weight} min={20} max={200} step={1} onChange={weight}/>
 //   <Segmented label="Tool" value={tool} options={[{value: "draw", label: "Draw"}, ...]} onChange={tool}/>
+//   <Tip label="Tracing letter" keys="T"><view:button ...><image src={eye}/></view:button></Tip>
 class Controls implements Markup {
 	// A number between min and max, shown as a field (its label inside on
 	// the left, its value on the right, the part up to it filled): a press
@@ -83,6 +86,36 @@ class Controls implements Markup {
 					<Show when={!(props.compact ?? false) || option.icon == null}><text>{option.label}</text></Show>
 				</view:button>;
 			}}</For>
+		</view>;
+	}
+
+	// What a control does, said under it once the pointer rests on it (half
+	// a second), with its shortcut beside it: for a button that shows only an
+	// icon. A press or the pointer leaving hides it. Slots: "tip", "kbd".
+	public static function Tip(props:{label:String, ?keys:String, ?placement:String, ?children:Any}):View {
+		// (on the animation clock: the same in a headless run as on a screen)
+		var open = signal(false), hovered = -1.0;
+		function hide() {
+			hovered = -1;
+			open(false);
+		}
+		onCleanup(hide);
+		return <view direction="row" onPointerEnter={_ -> {
+			var since = hovered = helder.ui.Clock.now;
+			helder.ui.Clock.add(now -> {
+				if (hovered != since) return false;
+				if (now - since < 0.5) return true;
+				open(true);
+				return false;
+			});
+		}} onPointerLeave={_ -> hide()} onPointerDown={_ -> hide()}>
+			{props.children}
+			<Popover open={open} placement={props.placement ?? "below"} gap={6} dismissOnOutside={false}>
+				<view slot="tip" role="tooltip" direction="row" align-items="center" column-gap={8} pointer-events="none">
+					<text>{props.label}</text>
+					<Show when={props.keys != null}><text slot="kbd">{props.keys ?? ""}</text></Show>
+				</view>
+			</Popover>
 		</view>;
 	}
 

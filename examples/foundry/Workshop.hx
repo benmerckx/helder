@@ -29,8 +29,14 @@ class Workshop {
 	public final status = signal("");
 	// where agents reach the app (Mcp), "" while there is none
 	public final mcp = signal("");
-	// what an agent did last (shown on the board)
+	// what an agent did last (shown on the board), the glyphs it changed
+	// (marked in the grid until a person edits them), and its last glyph
+	// drawn: which, and when (Clock.now), for the board to write it out
 	public final agent = signal("");
+	public final agentGlyphs:Signal<Array<String>> = signal([]);
+	public final agentStroke:Signal<Null<{char:String, at:Float}>> = signal(null);
+	// the start screen shown (a first run, File, New Font)
+	public final starting = signal(false);
 
 	// (the face after the last edit, at once: a signal's write lands at the
 	// end of the event, and an agent's call reads back what it just did)
@@ -44,8 +50,10 @@ class Workshop {
 	public function new() {
 		store = Store.open("foundry");
 		var saved = store.get("face");
-		latest = saved == null ? Sample.face() : Model.load(saved) ?? Sample.face();
+		var loaded = saved == null ? null : Model.load(saved);
+		latest = loaded ?? Sample.face();
 		face = signal(latest);
+		starting(loaded == null);
 		appearance(store.get("appearance") ?? "system");
 		dark = memo(() -> appearance() == "dark" || appearance() == "system" && helder.ui.draw.UiWindow.dark());
 		// (saved a moment after the last change: a drag saves once)
@@ -114,8 +122,22 @@ class Workshop {
 		return Model.glyph(f, char) ?? {lines: [], parts: Charset.borrow(f, char)};
 	}
 
-	public function setGlyph(char:String, g:Glyph, ?group:String)
+	public function setGlyph(char:String, g:Glyph, ?group:String) {
+		forget(char);
 		edit(Model.with(latest, char, g), group);
+	}
+
+	// an agent's edit of char: marked, written out on the board
+	public function byAgent(char:String) {
+		var marked = agentGlyphs.peek();
+		if (marked.indexOf(char) < 0) agentGlyphs(marked.concat([char]));
+		agentStroke({char: char, at: helder.ui.Clock.now});
+	}
+
+	function forget(char:String) {
+		var marked = agentGlyphs.peek();
+		if (marked.indexOf(char) >= 0) agentGlyphs(marked.filter(c -> c != char));
+	}
 
 	public function addLine(char:String, line:Line) {
 		var g = glyph(char);
@@ -181,6 +203,7 @@ class Workshop {
 
 	// back to empty, or to what it would borrow
 	public function clear(char:String) {
+		forget(char);
 		edit(Model.with(latest, char, null));
 		selected(null);
 	}
@@ -214,6 +237,19 @@ class Workshop {
 			});
 		}
 		return {name: f.name, pen: pen, metrics: m, glyphs: glyphs};
+	}
+
+	// a glyph's lines from another face made to stand on this one's guides
+	// (as refit moves them: knots on a guide stay on it)
+	public static function fit(lines:Array<Line>, from:Face, to:Face, char:String):Array<Line> {
+		var h0 = Ink.vertical(from.pen), h1 = Ink.vertical(to.pen), m0 = from.metrics, m = to.metrics, tall = Charset.tall(char);
+		var a = [m0.descender + h0, h0, (tall ? m0.capHeight : m0.xHeight) - h0, m0.ascender - h0];
+		var b = [m.descender + h1, h1, (tall ? m.capHeight : m.xHeight) - h1, m.ascender - h1];
+		if (tall) {
+			a.pop();
+			b.pop();
+		}
+		return [for (l in lines) {knots: [for (k in l.knots) {x: k.x, y: remap(k.y, a, b), corner: k.corner}], closed: l.closed}];
 	}
 
 	// y moved piecewise between anchors (outside them, with the nearest)
@@ -261,10 +297,13 @@ class Workshop {
 	public function rename(name:String)
 		edit(Model.named(latest, name), "name");
 
-	// a fresh face, empty or the sample
-	public function start(sample:Bool) {
-		edit(sample ? Sample.face() : Model.empty(latest.name));
-		open(Charset.start[0]);
+	// a face to start from (the start screen's): undoable, the first letter opened
+	public function begin(f:Face) {
+		edit(f);
+		agentGlyphs([]);
+		starting(false);
+		current(Charset.start[0]);
+		selected(null);
 	}
 
 	// ---- reading
