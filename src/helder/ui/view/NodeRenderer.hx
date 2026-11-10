@@ -33,7 +33,7 @@ import helder.image.AnimatedImage;
 // handler given it, a Tap, a Pan, a Scale; declared by NodeEvents, which
 // markup checks handlers against: @:events);
 // a node's own handler, a field's editing, after the markup's unless it
-// prevented the default), focusable, selectable,
+// prevented the default), focusable, autofocus, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
 // role, label, description, href, checked, selected, expanded, level, disabled,
 // value-now, value-min, value-max, value-text, pos-in-set, set-size, hidden), and what a theme
@@ -209,6 +209,10 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 
 	@:attribute static function focusable(n:Node, name:String, v:Dynamic)
 		n.focusable = v == true || v == "true";
+
+	// takes the focus once in a window (Node.autofocus)
+	@:attribute static function autofocus(n:Node, name:String, v:Dynamic)
+		n.autofocus = v == true || v == "true";
 
 	// what it is to the keymap (helder.ui.actions.KeyContext: "Editor mode=full")
 	@:attribute static function keyContext(n:Node, name:String, v:Dynamic)

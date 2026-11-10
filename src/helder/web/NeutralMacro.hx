@@ -153,6 +153,7 @@ class NeutralMacro {
 		if (mapped(tag, name) != null) return macro @:pos(pos) helder.web.Neutral.attr;
 		if (CSS.exists(name)) return CSS[name].px ? macro @:pos(pos) helder.web.Neutral.cssPx : macro @:pos(pos) helder.web.Neutral.cssValue;
 		if (name == "focusable") return macro @:pos(pos) helder.web.Neutral.focusable;
+		if (name == "autofocus") return macro @:pos(pos) helder.web.Neutral.autofocus;
 		if (name == "states") return macro @:pos(pos) helder.web.Neutral.states;
 		if (name == "disabled") return macro @:pos(pos) helder.web.Neutral.disabled;
 		return Context.error('helder.web: <$tag>\'s attribute $name has no DOM form (NeutralMacro)', pos);

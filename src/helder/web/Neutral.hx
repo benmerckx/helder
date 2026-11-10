@@ -66,6 +66,14 @@ class Neutral {
 		else if (v == false) el.setAttribute("tabindex", "-1")
 		else el.removeAttribute("tabindex");
 
+	// autofocus: the DOM's attribute (a page's first load), and focused once
+	// inserted, which the DOM leaves to a dialog's showModal
+	public static function autofocus(el:Dynamic, name:String, v:Dynamic)
+		if (v == true || v == "true") {
+			el.setAttribute("autofocus", "");
+			js.Browser.window.requestAnimationFrame(_ -> if (el.isConnected) el.focus());
+		} else el.removeAttribute("autofocus");
+
 	// disabled: a control's own property, else aria-disabled
 	public static function disabled(el:Dynamic, name:String, v:Dynamic) {
 		var on = v == true;

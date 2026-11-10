@@ -34,6 +34,17 @@ function tests() {
 			equals(ui.root.find("chip").hittable(), false);
 			dispose();
 		});
+		test("autofocus: focused when it comes into the window", () -> {
+			var ui = new Ui(null, 200, 200);
+			var open = Graph.signal(false);
+			var dispose = Render.render(Fixture.dialog(open), ui.root);
+			ui.update();
+			equals(ui.focus == null, true);
+			open(true);
+			Graph.flush();
+			equals(tag(ui.focus), "ok");
+			dispose();
+		});
 		test("onResize: the size after each layout that changed it", () -> {
 			var ui = new Ui(null, 200, 200);
 			var w = Graph.signal(50.0), sizes = [];
@@ -78,6 +89,11 @@ private class Fixture implements helder.view.Markup {
 		return <view>
 			<text tag="px" line-height="22px">a</text>
 			<text tag="times" line-height={1.5}>b</text>
+		</view>;
+
+	public static function dialog(open:Signal<Bool>)
+		return <view>
+			{open() ? <view tag="dialog"><view tag="cancel" focusable/><view tag="ok" focusable autofocus/></view> : null}
 		</view>;
 
 	public static function overlay()

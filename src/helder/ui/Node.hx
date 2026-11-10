@@ -89,6 +89,9 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	public var onDragEnd(get, set):Null<Event->Void>;
 	// takes the keyboard focus when clicked or tabbed to
 	public var focusable(default, set) = false;
+	// takes the focus when it comes into a window (a dialog's first button, a
+	// menu's first item: as the DOM's autofocus, wherever it is inserted)
+	public var autofocus(default, set) = false;
 	// what it is to assistive technology (helder.ui.access.AccessTree)
 	public var semantics(default, set):Null<helder.ui.access.Semantics> = null;
 	// its id in the accessibility tree (0: none yet)
@@ -322,6 +325,7 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 		if (ui != null) ui.detached(this);
 		ui = u;
 		if (u != null && slot == "body") u.setBody(this);
+		if (u != null && autofocus) u.setFocus(this, false);
 		// (out of a window: drawn anew when back, its starting rules again)
 		if (u == null) @:privateAccess style.drawn = false;
 		restyleLater();
@@ -340,6 +344,11 @@ class Node implements Part #if ((hxmc.dev || helder.headless) && !macro) impleme
 	function set_scrollY(v:Float):Float {
 		if (v != scrollY) Ui.accessEpoch++;
 		return scrollY = v;
+	}
+
+	function set_autofocus(v:Bool):Bool {
+		if (v && !autofocus && ui != null) ui.setFocus(this, false);
+		return autofocus = v;
 	}
 
 	function set_focusable(v:Bool):Bool {

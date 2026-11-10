@@ -639,6 +639,9 @@ class Headless {
 		frame++;
 		if (scriptTime() > end + eps) {
 			finish();
+			// (the run's time is the frames': a timer still set, a status's
+			// note to clear, would wait for frames that never come)
+			Sys.exit(0);
 			return false;
 		}
 		return true;
