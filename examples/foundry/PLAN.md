@@ -13,7 +13,7 @@ What Foundry keeps through all of it: no expert mode, the font real from
 the first line, the pen for structure and outlines for quality, and
 agents using the same model as a person.
 
-## 1. The canvas: zoom, grid, snapping, measuring
+## 1. The canvas: zoom, grid, snapping, measuring (done)
 
 Outline points need precision the fixed view cannot give: at fit, a
 font unit is about a third of a pixel.

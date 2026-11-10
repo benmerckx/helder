@@ -27,7 +27,13 @@ class Foundry implements Markup {
 			.bind("]", Next)
 			.bind("[", Previous)
 			.bind("secondary-e", Export)
-			.bind("secondary-n", NewFont);
+			.bind("secondary-n", NewFont)
+			.bind("secondary-=", ZoomIn)
+			.bind("secondary-shift-=", ZoomIn)
+			.bind("secondary--", ZoomOut)
+			.bind("secondary-0", ZoomFit)
+			.bind("secondary-1", ZoomActual)
+			.bind("secondary-2", ZoomSelection);
 		var ws = new Workshop();
 		// (the colours given inline follow the appearance chosen, as the sheet's do)
 		Theme.appearance = () -> ws.dark();
@@ -49,6 +55,11 @@ class Foundry implements Markup {
 					case Export: ws.export();
 					case Install: ws.install();
 					case NewFont: ws.starting(true);
+					case ZoomIn: ws.board?.zoomBy(1.5);
+					case ZoomOut: ws.board?.zoomBy(1 / 1.5);
+					case ZoomFit: ws.board?.fit();
+					case ZoomActual: ws.board?.actual();
+					case ZoomSelection: ws.board?.zoomToSelection();
 					case Appearance(kind): ws.appear(kind);
 				}
 				true;
@@ -87,7 +98,9 @@ class Foundry implements Markup {
 			{
 				label: "View",
 				items: [
-					Item("Draw", Draw), Item("Adjust", Adjust), Item("Erase", Erase), Separator, Item("Tracing Letter", Guide), Item("Next Glyph", Next),
+					Item("Draw", Draw), Item("Adjust", Adjust), Item("Erase", Erase), Separator, Item("Zoom In", ZoomIn), Item("Zoom Out", ZoomOut),
+					Item("Fit Letter", ZoomFit), Item("Actual Size", ZoomActual), Item("Zoom to Selection", ZoomSelection), Separator,
+					Item("Tracing Letter", Guide), Item("Next Glyph", Next),
 					Item("Previous Glyph", Previous), Separator,
 					Submenu("Appearance", [Item("System", Appearance("system")), Item("Light", Appearance("light")), Item("Dark", Appearance("dark"))])
 				]
@@ -122,6 +135,11 @@ enum FoundryAction {
 	Export;
 	Install;
 	NewFont;
+	ZoomIn;
+	ZoomOut;
+	ZoomFit;
+	ZoomActual;
+	ZoomSelection;
 	// "system", "light" or "dark"
 	Appearance(kind:String);
 }

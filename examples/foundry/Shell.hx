@@ -236,12 +236,18 @@ class Shell implements Markup {
 				</Match>
 			</Switch>
 			<view grow={1}/>
-			<Show when={ws.agent() != ""} fallback={<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1}>{() -> hint(ws)}</text>}>
+			<Show when={ws.agent() != ""} fallback={<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1} shrink={1} min-width={0}>{() -> hint(ws)}</text>}>
 				<view tag="agent" direction="row" align-items="center" column-gap={6} transition="fade">
 					<image src={Icons.sparkles} width={12} height={12} color={c("violet")}/>
 					<text font-size={Theme.SMALL} color={c("violet")} font-weight={Theme.MEDIUM}>{ws.agent}</text>
 				</view>
 			</Show>
+			<Tip label={ws.view().fitted ? "Zoom: Cmd/Ctrl and the wheel, or a pinch" : "Fit the letter"} keys={Keys.primary("0")} placement="below">
+				<view:button tag="zoom" slot="button" role="button" label="Zoom" focusable data-on={ws.view().fitted ? "false" : "true"} height={22}
+					onPress={() -> ws.board?.fit()}>
+					<text font-family={Theme.CODE} font-size={Theme.SMALL} font-variant-numeric="tabular-nums">{() -> Math.round(ws.view().scale * 100) + "%"}</text>
+				</view:button>
+			</Tip>
 		</view>;
 
 	// what the letter on the board is
@@ -264,6 +270,10 @@ class Shell implements Markup {
 		return <view tag="board-area" grow={1} min-height={0} position="relative" overflow="hidden" onResize={e -> area({w: e.target.width, h: e.target.height})}>
 			{boardNode(ws)}
 			{guides(ws, area)}
+			<For each={ws.measure} keyed={false}>{(l:Read<{x:Float, y:Float, text:String}>) -> <view position="absolute" left={l().x} top={l().y}
+				padding="1 5" radius={4} background={c("rose")} pointer-events="none">
+				<text font-family={Theme.CODE} font-size={10} color={c("bg")}>{l().text}</text>
+			</view>}</For>
 		</view>;
 	}
 
@@ -290,7 +300,7 @@ class Shell implements Markup {
 	static function guides(ws:Workshop, area:Read<{w:Float, h:Float}>):View
 		return <view position="absolute" left={0} top={0} bottom={0} width={110} pointer-events="none">
 			<For each={() -> {
-				var f = ws.face(), m = f.metrics, a = area(), v = Board.vertical(f, a.h, a.w);
+				var f = ws.face(), m = f.metrics, v = ws.view();
 				var close = Math.abs(m.ascender - m.capHeight) * v.scale < 16;
 				[
 					{name: close ? "Capitals, ascenders" : "Ascenders", y: v.base - m.ascender * v.scale - 16},
@@ -360,7 +370,7 @@ class Shell implements Markup {
 
 	// how the tool on the board is used, in a few words
 	static function hint(ws:Workshop):String
-		return if (ws.layer() == "outline") "Shift picks several · double-click: smooth or corner, a new point" else switch ws.tool() {
+		return if (ws.layer() == "outline") "Shift picks several · double-click: smooth or corner, a new point · Alt measures" else switch ws.tool() {
 			case "adjust": "Double-click a knot for a corner";
 			case "erase": "Drag over lines to erase them";
 			case _: "Shift draws straight";
@@ -474,4 +484,10 @@ class Shell implements Markup {
 				</view>
 			</Show>
 		</view>;
+}
+
+// shortcuts as the system writes them
+class Keys {
+	public static function primary(key:String):String
+		return (helder.ui.actions.Keymap.mac ? "⌘" : "Ctrl+") + key;
 }

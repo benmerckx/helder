@@ -18,6 +18,10 @@ class Workshop {
 	public final guide = signal(true);
 	// the selected line and knot (knot -1: the whole line)
 	public final selected:Signal<Null<{line:Int, knot:Int}>> = signal(null);
+	// the board: its zoom and where the baseline is (for the guides' names), what Alt measures (labels in its pixels)
+	public var board:Null<Board> = null;
+	public final view = signal({scale: 1.0, base: 0.0, fitted: true});
+	public final measure:Signal<Array<{x:Float, y:Float, text:String}>> = signal([]);
 	// what the board edits: "pen" (lines) or "outline" (points), and the outline's points selected
 	public final layer = signal("pen");
 	public final points:Signal<Array<{c:Int, p:Int}>> = signal([]);

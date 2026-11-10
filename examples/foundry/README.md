@@ -102,6 +102,19 @@ installed font.
   it a corner. Delete removes what is selected; the arrow keys nudge it
   (Shift: five times as far).
 - **Erase (E)**: drag over lines.
+- **Zoom**: Cmd/Ctrl and the wheel, or a trackpad's pinch, zooms about
+  the pointer; the wheel (two fingers) pans, as do Space and a drag or the
+  middle button. Cmd/Ctrl+0 fits the letter, Cmd/Ctrl+1 shows a font unit
+  as a pixel, Cmd/Ctrl+2 zooms to the selection (or the letter), plus and
+  minus step. The zoom stays as you open other letters, to compare the
+  same detail; the readout in the context bar fits again. Zoomed in, a
+  grid of 50 units, then 10.
+- **Snapping**: a dragged outline point comes onto the guides and level
+  or in line with the outline's other points, the line it snapped to
+  shown. Points stay on whole units.
+- **Measuring**: hold Alt over the letter for the distances across it
+  where the pointer is (stems, counters, sidebearings); with Shift, up
+  and down (to the guides: overshoots, heights).
 - **T** toggles the tracing letter, **[** and **]** step through the
   glyphs, **Ctrl/Cmd+Z** undoes (Shift: redoes), **Ctrl/Cmd+E** exports,
   **Ctrl/Cmd+N** opens the start screen. Hover the eye for its tooltip.

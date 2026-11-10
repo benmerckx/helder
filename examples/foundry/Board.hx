@@ -20,6 +20,16 @@ class Board extends Node {
 	var base = 0.0;
 	var viewFor = "";
 	var viewWidth = 0.0;
+	var viewHeight = 0.0;
+	// (fitted: the letter and its neighbours in view, centred on the letter;
+	// else where a zoom or a pan left it, kept from letter to letter)
+	var fitted = true;
+	var spaceDown = false;
+	var panFrom:Null<{x:Float, y:Float}> = null;
+	// (while points are dragged: the lines they snapped to, in font units; Alt: what it measures)
+	var snapX:Null<Float> = null;
+	var snapY:Null<Float> = null;
+	var measured:Null<Measure> = null;
 
 	var stroke:Null<Array<{x:Float, y:Float}>> = null;
 	var straight = false;
@@ -39,13 +49,101 @@ class Board extends Node {
 		onLostPointerCapture = _ -> {
 			stroke = null;
 			drag = null;
+			panFrom = null;
 		};
 		onPointerLeave = _ -> {
 			hoverLine = -1;
 			hoverKnot = null;
+			measure(null);
 			repaint();
 		};
 		onKeyDown = key;
+		onKeyUp = e -> {
+			if (e.key == Key.SPACE) spaceDown = false;
+			if (e.mods & Key.MOD_ALT == 0) measure(null);
+		};
+		onWheel = e -> {
+			var p = local(e);
+			// (Control or Command and the wheel, or a trackpad's pinch (a wheel with Control): zoom; else pan)
+			if (e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) zoomAt(Math.exp(-e.deltaY * 0.004), p.x, p.y) else pan(-e.deltaX, -e.deltaY);
+			e.preventDefault();
+		};
+		ws.board = this;
+	}
+
+	// ---- zoom and pan (in the node's pixels)
+
+	public function zoomAt(factor:Float, x:Float, y:Float) {
+		var v = vertical(ws.value(), height, width);
+		var at = {x: gx(x), y: gy(y)};
+		scale = Math.max(v.scale * 0.5, Math.min(40, scale * factor));
+		ox = x - at.x * scale;
+		base = y + at.y * scale;
+		fitted = false;
+		changed();
+	}
+
+	public function zoomBy(factor:Float)
+		zoomAt(factor, width / 2, height / 2);
+
+	// a font unit a pixel
+	public function actual()
+		zoomBy(1 / scale);
+
+	public function fit() {
+		fitted = true;
+		viewFor = "";
+		changed();
+	}
+
+	// the selected points (or knots), else the letter, filling the view
+	public function zoomToSelection() {
+		var g = ws.glyph(ws.current.peek()), xs = [], ys = [];
+		if (ws.layer.peek() == "outline" && g.outline != null)
+			for (s in ws.points.peek()) {
+				var q = g.outline[s.c][s.p];
+				xs.push(q.x);
+				ys.push(q.y);
+			}
+		var sel = ws.selected.peek();
+		if (ws.layer.peek() == "pen" && sel != null && g.lines[sel.line] != null)
+			for (k in g.lines[sel.line].knots) {
+				xs.push(k.x);
+				ys.push(k.y);
+			}
+		if (xs.length == 0) {
+			var b = Ink.bounds(ws.value(), ws.current.peek());
+			xs = [b.x0, b.x1];
+			ys = [b.y0, b.y1];
+		}
+		var x0 = Lambda.fold(xs, Math.min, xs[0]), x1 = Lambda.fold(xs, Math.max, xs[0]);
+		var y0 = Lambda.fold(ys, Math.min, ys[0]), y1 = Lambda.fold(ys, Math.max, ys[0]);
+		var span = Math.max(Math.max(x1 - x0, y1 - y0), 60);
+		scale = Math.min(40, Math.min(width, height) * 0.7 / span);
+		ox = width / 2 - (x0 + x1) / 2 * scale;
+		base = height / 2 + (y0 + y1) / 2 * scale;
+		fitted = false;
+		changed();
+	}
+
+	public function pan(dx:Float, dy:Float) {
+		ox += dx;
+		base += dy;
+		fitted = false;
+		changed();
+	}
+
+	// (the view moved: drawn again, and told, for the guides' names)
+	function changed() {
+		ws.view({scale: scale, base: base, fitted: fitted});
+		repaint();
+	}
+
+	function measure(m:Null<Measure>) {
+		if (m == null && measured == null) return;
+		measured = m;
+		ws.measure(m == null ? [] : m.labels);
+		repaint();
 	}
 
 	public function repaint()
@@ -64,16 +162,24 @@ class Board extends Node {
 	}
 
 	function frame(w:Float, h:Float) {
-		var f = ws.value(), char = ws.current.peek(), v = vertical(f, h, w);
-		var rescale = Math.abs(v.scale - scale) > 1e-6;
+		var f = ws.value(), char = ws.current.peek();
+		if (!fitted) {
+			viewFor = char;
+			return;
+		}
+		var v = vertical(f, h, w);
+		var rescale = Math.abs(v.scale - scale) > 1e-6 || Math.abs(v.base - base) > 1e-6;
 		scale = v.scale;
 		base = v.base;
-		if (viewFor != char || Math.abs(w - viewWidth) > 0.5 || rescale) {
+		if (viewFor != char || Math.abs(w - viewWidth) > 0.5 || Math.abs(h - viewHeight) > 0.5 || rescale) {
 			var b = Ink.bounds(f, char);
 			var cx = b.x1 <= b.x0 ? 260 : (b.x0 + b.x1) / 2;
 			ox = w / 2 - cx * scale;
 			viewFor = char;
 			viewWidth = w;
+			viewHeight = h;
+			var told = ws.view.peek();
+			if (told.scale != scale || told.base != base || !told.fitted) ws.view({scale: scale, base: base, fitted: true});
 		}
 	}
 
@@ -103,8 +209,24 @@ class Board extends Node {
 		var f = ws.value(), char = ws.current.peek(), m = f.metrics;
 		var fg = Theme.c("fg"), line = Theme.c("line"), edge = Theme.c("edge"), accent = Theme.c("accent");
 		var sp = span(f, char);
-		// the x-height's band, the guides
+		// the x-height's band, a grid when zoomed in (every 50 units, then 10), the guides
 		c.rect(x, y + py(m.xHeight), w, (m.xHeight) * scale, 0, alpha(Theme.c("well"), 0.55), 0, 0);
+		for (step in [50, 10]) {
+			var shown = Math.min(1, (scale * step - 24) / 24);
+			if (shown <= 0) continue;
+			var color = alpha(line, (step == 50 ? 0.9 : 0.5) * shown);
+			var gx0 = Math.ceil(gx(0) / step) * step, gy0 = Math.ceil(gy(h) / step) * step;
+			var gxv = gx0;
+			while (gxv <= gx(w)) {
+				c.rect(x + Math.round(px(gxv)), y, 1, h, 0, color, 0, 0);
+				gxv += step;
+			}
+			var gyv = gy0;
+			while (gyv <= gy(0)) {
+				c.rect(x, y + Math.round(py(gyv)), w, 1, 0, color, 0, 0);
+				gyv += step;
+			}
+		}
 		for (g in [m.descender, m.xHeight, m.capHeight, m.ascender])
 			c.rect(x, y + Math.round(py(g)), w, 1, 0, line, 0, 0);
 		c.rect(x, y + Math.round(py(0)), w, 1, 0, edge, 0, 0);
@@ -149,6 +271,25 @@ class Board extends Node {
 		}
 		// the outline's points (the outline layer), the lines and knots (adjusting), the line being drawn
 		if (ws.layer.peek() == "outline") paintOutline(c, x, y, g) else if (ws.tool.peek() == "adjust") paintLines(c, x, y, g, f);
+		// what a dragged point snapped to, what Alt measures
+		var sx = snapX, sy = snapY;
+		if (sx != null) c.rect(x + Math.round(px(sx)), y, 1, h, 0, alpha(Theme.c("rose"), 0.9), 0, 0);
+		if (sy != null) c.rect(x, y + Math.round(py(sy)), w, 1, 0, alpha(Theme.c("rose"), 0.9), 0, 0);
+		var me = measured;
+		if (me != null) {
+			var rose = Theme.c("rose");
+			if (me.across) {
+				var my = y + Math.round(py(me.at));
+				c.rect(x, my, w, 1, 0, alpha(rose, 0.8), 0, 0);
+				for (v in me.marks)
+					c.rect(x + px(v) - 3, my - 3, 6, 6, 3, rose, 0, 0);
+			} else {
+				var mx = x + Math.round(px(me.at));
+				c.rect(mx, y, 1, h, 0, alpha(rose, 0.8), 0, 0);
+				for (v in me.marks)
+					c.rect(mx - 3, y + py(v) - 3, 6, 6, 3, rose, 0, 0);
+			}
+		}
 		var st = stroke;
 		if (st != null && st.length > 0) {
 			var p = new Path();
@@ -358,6 +499,11 @@ class Board extends Node {
 		focus();
 		capture();
 		var p = local(e), f = ws.value(), char = ws.current.peek();
+		// (Space held, or the middle button: the view moved)
+		if (spaceDown || e.button == 2) {
+			panFrom = p;
+			return;
+		}
 		frame(width, height);
 		var sp = span(f, char), g = ws.glyph(char);
 		for (side in ["left", "right"]) {
@@ -399,7 +545,17 @@ class Board extends Node {
 	function move(e:Event) {
 		var p = local(e), f = ws.value(), char = ws.current.peek(), g = ws.glyph(char);
 		pointer = p;
+		var pf = panFrom;
+		if (pf != null) {
+			pan(p.x - pf.x, p.y - pf.y);
+			panFrom = p;
+			return;
+		}
 		var st = stroke, d = drag;
+		// (Alt held over the board, nothing pressed: measured where the pointer is)
+		if (st == null && d == null) {
+			if (e.mods & Key.MOD_ALT != 0) measure(measuring(p, f, char, e.mods & Key.MOD_SHIFT != 0)) else if (measured != null) measure(null);
+		}
 		if (st != null) {
 			var q = {x: gx(p.x), y: gy(p.y)}, last = st[st.length - 1];
 			if (Math.abs(px(q.x) - px(last.x)) + Math.abs(py(q.y) - py(last.y)) > 1.5) st.push(q);
@@ -410,15 +566,38 @@ class Board extends Node {
 			var dx = gx(p.x) - d.x, dy = gy(p.y) - d.y, sel = ws.selected.peek();
 			switch d.kind {
 				case "points" if (dragFrom != null):
-					var chosen = ws.points.peek(), sx = dx, sy = dy;
-					// (one point on the curve near a guide: on it)
-					if (chosen.length == 1) {
-						var q = dragFrom[chosen[0].c][chosen[0].p], m = f.metrics;
-						if (q.off != true)
-							for (guide in [m.descender, 0, m.xHeight, m.capHeight, m.ascender])
-								if (Math.abs(py(q.y + dy) - py(guide)) < 6) sy = guide - q.y;
+					var chosen = ws.points.peek(), sx = dx, sy = dy, from = dragFrom;
+					// (the first point dragged near a guide, or level or in line with
+					// another point of the outline: on it; the line shown)
+					snapX = snapY = null;
+					if (chosen.length > 0) {
+						var q = from[chosen[0].c][chosen[0].p], m = f.metrics, near = 6.0, nearX = 6.0;
+						var ys:Array<Float> = [m.descender, 0, m.xHeight, m.capHeight, m.ascender], xs:Array<Float> = [];
+						for (ci in 0...from.length)
+							for (pi in 0...from[ci].length) {
+								var o = from[ci][pi];
+								if (o.off == true || Lambda.exists(chosen, s -> s.c == ci && s.p == pi)) continue;
+								xs.push(o.x);
+								ys.push(o.y);
+							}
+						for (v in ys) {
+							var d = Math.abs(py(q.y + dy) - py(v));
+							if (d < near) {
+								near = d;
+								sy = v - q.y;
+								snapY = v;
+							}
+						}
+						for (v in xs) {
+							var d = Math.abs(px(q.x + dx) - px(v));
+							if (d < nearX) {
+								nearX = d;
+								sx = v - q.x;
+								snapX = v;
+							}
+						}
 					}
-					ws.setOutline(char, OutlineEdit.moved(dragFrom, chosen, Math.round(sx), Math.round(sy)), "drag");
+					ws.setOutline(char, OutlineEdit.moved(from, chosen, Math.round(sx), Math.round(sy)), "drag");
 				case "left": ws.setSpacing(char, Math.round(d.left - dx), d.right, "space");
 				case "right": ws.setSpacing(char, d.left, Math.round(d.right + dx), "space");
 				case "knot" if (sel != null):
@@ -471,6 +650,8 @@ class Board extends Node {
 		}
 		drag = null;
 		dragFrom = null;
+		panFrom = null;
+		snapX = snapY = null;
 		releaseCapture();
 		repaint();
 	}
@@ -483,6 +664,10 @@ class Board extends Node {
 	}
 
 	function key(e:Event) {
+		if (e.key == Key.SPACE) {
+			spaceDown = true;
+			return e.preventDefault();
+		}
 		if (ws.layer.peek() == "outline") return keyOutline(e);
 		var sel = ws.selected.peek(), char = ws.current.peek();
 		if (e.key == Key.ESCAPE) {
@@ -504,6 +689,70 @@ class Board extends Node {
 			closed: l.closed
 		}, "nudge");
 		e.preventDefault();
+	}
+
+	// ---- measuring (Alt): a line across the letter where the pointer is
+	// (Shift: up and down), the ink's edges on it and the spacing's (or the
+	// guides'), the distance between each two
+
+	function measuring(p:{x:Float, y:Float}, f:Face, char:String, upright:Bool):Null<Measure> {
+		var at = upright ? gx(p.x) : gy(p.y), marks:Array<Float> = [];
+		for (c in Ink.ink(f, char)) {
+			var pts = flat(c);
+			for (i in 0...pts.length) {
+				var a = pts[i], b = pts[(i + 1) % pts.length];
+				var u0 = upright ? a.x : a.y, u1 = upright ? b.x : b.y;
+				if (u0 == u1 || (at < Math.min(u0, u1)) || (at >= Math.max(u0, u1))) continue;
+				var t = (at - u0) / (u1 - u0);
+				marks.push(upright ? a.y + (b.y - a.y) * t : a.x + (b.x - a.x) * t);
+			}
+		}
+		if (marks.length == 0) return null;
+		marks.sort((a, b) -> a < b ? -1 : a > b ? 1 : 0);
+		var lo = marks[0], hi = marks[marks.length - 1], m = f.metrics;
+		var sp = span(f, char);
+		var ends:Array<Float> = upright ? [for (g in [m.descender, 0, m.xHeight, m.capHeight, m.ascender]) if (g > lo - 80 && g < hi + 80) g] : [sp.start, sp.end];
+		var all = marks.concat(ends);
+		all.sort((a, b) -> a < b ? -1 : a > b ? 1 : 0);
+		var labels = [];
+		for (i in 1...all.length) {
+			var d = all[i] - all[i - 1];
+			if (d < 0.5) continue;
+			var mid = (all[i] + all[i - 1]) / 2;
+			labels.push(upright ? {x: px(at) + 6, y: py(mid) - 8, text: Std.string(Math.round(d))} : {x: px(mid) - 10, y: py(at) - 20, text: Std.string(Math.round(d))});
+		}
+		return {across: !upright, at: at, marks: marks, labels: labels};
+	}
+
+	// a TrueType contour as points along it (its curves in steps)
+	static function flat(c:Array<FontPoint>):Array<{x:Float, y:Float}> {
+		var n = c.length, start = 0, out = [];
+		while (start < n && !c[start].on)
+			start++;
+		if (start == n) return out;
+		var px = c[start].x, py = c[start].y;
+		out.push({x: px, y: py});
+		var i = 1;
+		while (i <= n) {
+			var q = c[(start + i) % n];
+			if (q.on) {
+				out.push({x: q.x, y: q.y});
+				px = q.x;
+				py = q.y;
+				i++;
+				continue;
+			}
+			var nx = c[(start + i + 1) % n];
+			var ex = nx.on ? nx.x : (q.x + nx.x) / 2, ey = nx.on ? nx.y : (q.y + nx.y) / 2;
+			for (k in 1...9) {
+				var t = k / 8, u = 1 - t;
+				out.push({x: u * u * px + 2 * u * t * q.x + t * t * ex, y: u * u * py + 2 * u * t * q.y + t * t * ey});
+			}
+			px = ex;
+			py = ey;
+			i += nx.on ? 2 : 1;
+		}
+		return out;
 	}
 
 	// ---- the outline layer: points chosen (Shift adds), dragged, a
@@ -599,3 +848,6 @@ class Board extends Node {
 }
 
 private typedef Drag = {kind:String, x:Float, y:Float, left:Float, right:Float};
+
+// what Alt measures: a line across the ink at the pointer, the ink's crossings on it, the distances between
+typedef Measure = {across:Bool, at:Float, marks:Array<Float>, labels:Array<{x:Float, y:Float, text:String}>};
