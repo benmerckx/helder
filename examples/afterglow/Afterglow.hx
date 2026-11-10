@@ -1,8 +1,9 @@
 // title: Afterglow
-// summary: A calm puzzle in overgrown ruins over still water: a tiny moth whose light wakes glyphs that move the stone, leading a snail home; a painted 2.5D diorama in helder.scene's HDR renderer, drawn at half size and finished in dithered, painted pixels
+// summary: A calm puzzle in overgrown ruins over still water: a tiny moth whose light wakes glyphs that move the stone, leading a larva home; a painted 2.5D diorama in helder.scene's HDR renderer, multisampled at the screen's own size and finished as a painting
 // tags: 3d, shaders, post-processing, game
 // demo: canvas 360x640
 import BeamShader;
+import FarShader;
 import FinishShader;
 import GlyphShader;
 import MothShader;
@@ -10,6 +11,7 @@ import PaintShader;
 import PaintShader.magenta;
 import Puzzle;
 import Ruins;
+import Sdf;
 import WaterShader;
 import haxe.io.Bytes;
 import helder.gfx.*;
@@ -26,10 +28,10 @@ import helder.scene.render.*;
 // small target for the water's mirror, then into the renderer's HDR
 // target (its BeforeOpaque and AfterOpaque injection points: the ruins
 // and the screen's pieces, each posed, then the water, the shafts of
-// light, the glyphs, the moth's aura, the snail, the moth and the motes),
-// bloomed and tone mapped by helder's PostProcess, all of it at half the
-// screen's size or so (a pixel scale: the shorter side about 540), and
-// shown in 2 x 2 pixels, dithered, by the chain's last stage (FinishShader).
+// light, the glyphs, the moth's aura, the larva, the moth and the motes),
+// multisampled, at the screen's own size (or DETAIL of it), bloomed and
+// tone mapped by helder's PostProcess, and finished as a painting by the
+// chain's last stage (FinishShader), measured in points.
 // The play is Game's: drag or tap to lead the moth.
 //
 //   bun run helder run examples/afterglow
@@ -45,17 +47,33 @@ class Afterglow {
 	final world = new World("afterglow");
 	final eye:Node;
 	final camera:Camera;
-	final ruins = new Ruins();
+	public final ruins = new Ruins();
 	public final game:Game;
+
+	// of the screen's pixels each way what is drawn: 1 all; less only where
+	// a device is too slow (-- --detail 0.7); and never more than BUDGET
+	// pixels (a 5K screen's are drawn at two thirds; the finish is always the screen's)
+	public static var DETAIL = 1.0;
+	static inline var BUDGET = 6.6e6;
+	// pixels a point (the window's scale): the finish is measured in points
+	public var points = 1.0;
+	// the characters alone, in their poses at a few sizes (-- --sheet)
+	public var sheet = false;
+	final sheetBytes:Array<Bytes> = [];
 
 	final paint:Pipeline;
 	final mirrored:Pipeline;
+	final mothMirrored:Pipeline;
 	final water:Pipeline;
 	final aura:Pipeline;
 	final moth:Pipeline;
 	final motes:Pipeline;
 	final beams:Pipeline;
 	final glyphs:Pipeline;
+	final far:Pipeline;
+	final farMirrored:Pipeline;
+	final farVertices:Buffer;
+	final farCount:Int;
 
 	final ruinsVertices:Buffer;
 	final ruinsIndices:Buffer;
@@ -72,9 +90,6 @@ class Afterglow {
 	var glyphVertices:Null<Buffer> = null;
 	var glyphCount = 0;
 	var shown = -1;
-	final lights:Texture;
-	final lightData = Bytes.alloc(32 * 16);
-	final nearest:Sampler;
 	final linear:Sampler;
 
 	final paintBytes = Bytes.alloc(PaintShader.uniforms[0].size);
@@ -86,39 +101,40 @@ class Afterglow {
 	final mothBytes = Bytes.alloc(MothShader.uniforms[0].size);
 	final auraMirror = Bytes.alloc(MothShader.uniforms[0].size);
 	final mothMirror = Bytes.alloc(MothShader.uniforms[0].size);
-	final snailBytes = Bytes.alloc(MothShader.uniforms[0].size);
-	final snailMirror = Bytes.alloc(MothShader.uniforms[0].size);
+	final larvaBytes = Bytes.alloc(MothShader.uniforms[0].size);
+	final larvaMirror = Bytes.alloc(MothShader.uniforms[0].size);
 	final glyphBytes = Bytes.alloc(GlyphShader.uniforms[0].size);
 	final finishBytes = Bytes.alloc(FinishShader.uniforms[0].size);
 
 	// (the shaders' blocks, written each frame from these)
 	final paintView:PaintView = {
 		viewProj: Mat4.identity(), eye: new Vec4(0, 0, 0, 0), moth: new Vec4(0, 0, 0, 0), aura: new Vec4(0, 0, 0, 0), pose: new Vec4(0, 0, 0, 0),
-		pivot: new Vec4(0, 0, 1, 0), flags: new Vec4(0, 0, 0, 0)
+		pivot: new Vec4(0, 0, 1, 0), flags: new Vec4(0, 0, 0, 0), glowAt: [for (_ in 0...4) new Vec4(0, 0, 0, 0)],
+		glowColor: [for (_ in 0...4) new Vec4(0, 0, 0, 0)]
 	};
 	final waterView:WaterView = {viewProj: Mat4.identity(), eye: new Vec4(0, 0, 0, 0), size: new Vec4(0, 0, 0, 0)};
 	final mothView:MothView = {
 		viewProj: Mat4.identity(), right: new Vec4(0, 0, 0, 0), up: new Vec4(0, 0, 0, 0), moth: new Vec4(0, 0, 0, 0), color: new Vec4(0, 0, 0, 0)
 	};
 	final glyphView:GlyphView = {viewProj: Mat4.identity(), moth: new Vec4(0, 0, 0, 0), state: [for (_ in 0...8) new Vec4(0, 0, 0, 0)]};
-	// (levels, the dither's strength, the indigo's share, grain; the mist faded into)
-	final finishView:FinishView = {size: new Vec4(0, 0, 0, 0), look: new Vec4(32, 0.9, 0.25, 0.2), fade: new Vec4(0.03, 0.05, 0.09, 0)};
+	// (bands of tone, how far edges wander, the indigo's share, grain; the mist faded into)
+	final finishView:FinishView = {size: new Vec4(0, 0, 0, 0), look: new Vec4(18, 0.45, 0.25, 0.09), fade: new Vec4(0.03, 0.05, 0.09, 0)};
 	final mirrorPass:PassDesc = {colors: [{load: Clear, clear: new Color(0.02, 0.03, 0.06)}], depth: {load: Clear}};
 	final extra:Array<Glow> = [];
 	var width = 0;
 	var height = 0;
-	var scale = 1;
 	var color:Null<Texture> = null;
+	var resolved:Null<Texture> = null;
 	var depth:Null<Texture> = null;
 	var mirror:Null<Texture> = null;
 	var mirrorDepth:Null<Texture> = null;
-	var lightCount = 0;
 	var time = 0.0;
+	var pixel = 0.0;
 	var aspect = 0.5625;
 
 	public function new(device:Device) {
 		this.device = device;
-		renderer = new Renderer(device, true, 1, true);
+		renderer = new Renderer(device, true, 4, true);
 		renderer.clearColor = new Color(0.02, 0.03, 0.06);
 		post = new PostProcess(device, RGBA8, true);
 		post.bloom = 0.17;
@@ -127,19 +143,34 @@ class Afterglow {
 		post.saturation = 1.15;
 		post.contrast = 1.08;
 		post.transparent = false;
-		post.add(FinishShader, finishBytes).filter = Nearest;
+		var finish = post.add(FinishShader, finishBytes);
+		var grain = device.createTexture({width: 256, height: 256, data: noise()});
+		var tiled = device.createSampler({filter: Linear, wrap: Repeat});
+		finish.bind = enc -> enc.setTexture(FinishShader.textures[1].binding, grain, tiled);
 		eye = world.node("eye");
 		camera = Camera.attach(eye, Camera.perspective(1, 0.1, 200));
 		game = new Game(still(aspect));
 
 		paint = renderer.createPipeline(PaintShader.pipeline({cull: Cull.None, depthCompare: Less, depthWrite: true}));
-		mirrored = renderer.createPipeline(PaintShader.pipeline({cull: Cull.None, depthCompare: Less, depthWrite: true}));
+		// (the mirror's targets are single-sampled: the water blurs it)
+		mirrored = device.createPipeline(single(PaintShader.pipeline({cull: Cull.None, depthCompare: Less, depthWrite: true})));
+		mothMirrored = device.createPipeline(single(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false})));
 		water = renderer.createPipeline(WaterShader.pipeline({cull: Cull.None, depthCompare: Less, depthWrite: true}));
 		aura = renderer.createPipeline(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		moth = renderer.createPipeline(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		motes = renderer.createPipeline(MoteShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		beams = renderer.createPipeline(BeamShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		glyphs = renderer.createPipeline(GlyphShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
+
+		far = renderer.createPipeline(FarShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
+		farMirrored = device.createPipeline(single(FarShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false})));
+		var cards:Array<FarVertex> = [];
+		for (c in ruins.planes)
+			for (q in [[-1, 0], [1, 0], [1, 1], [-1, 0], [1, 1], [-1, 1]])
+				cards.push({pos: new Vec3(q[0] * c[1], -1 + q[1] * c[2], c[0]), plane: new Vec4(c[3], c[4], c[5], c[6])});
+		var fb = FarShader.vertexBytes(cards);
+		farVertices = device.createBuffer({size: fb.length, usage: Vertex, data: fb});
+		farCount = cards.length;
 
 		var m = ruins.mesh;
 		var vb = m.vertexBytes(), ib = m.indexBytes();
@@ -173,20 +204,29 @@ class Afterglow {
 		var mb = MoteShader.vertexBytes(drift);
 		moteVertices = device.createBuffer({size: mb.length, usage: Vertex, data: mb});
 		moteCount = drift.length;
-		lights = device.createTexture({width: 2, height: 32, format: RGBA16F, data: lightData});
-		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
 		linear = device.createSampler({filter: Linear, wrap: Clamp});
 
 		renderer.inject(BeforeOpaque, (enc, frame) -> {
+			if (sheet) return;
 			enc.setPipeline(paint);
 			ruinsDraw(enc, false);
 		});
 		renderer.inject(AfterOpaque, (enc, frame) -> {
+			if (sheet) {
+				enc.setVertexBuffer(0, quad);
+				enc.setPipeline(aura);
+				for (b in sheetBytes) {
+					enc.setUniforms(MothShader.uniforms[0].binding, b);
+					enc.draw(6);
+				}
+				return;
+			}
 			enc.setPipeline(water);
 			enc.setUniforms(WaterShader.uniforms[0].binding, waterBytes);
 			enc.setTexture(WaterShader.textures[0].binding, mirror, linear);
 			enc.setVertexBuffer(0, waterVertices);
 			enc.draw(6);
+			farDraw(enc, far, paintBytes);
 			enc.setPipeline(beams);
 			enc.setUniforms(BeamShader.uniforms[0].binding, mothBytes);
 			enc.setVertexBuffer(0, beamVertices);
@@ -197,7 +237,7 @@ class Afterglow {
 				enc.setVertexBuffer(0, glyphVertices);
 				enc.draw(glyphCount);
 			}
-			creatures(enc, auraBytes, snailBytes, mothBytes);
+			creatures(enc, aura, auraBytes, larvaBytes, mothBytes);
 			enc.setPipeline(motes);
 			enc.setUniforms(MoteShader.uniforms[0].binding, mothBytes);
 			enc.setVertexBuffer(0, moteVertices);
@@ -205,13 +245,50 @@ class Afterglow {
 		});
 	}
 
-	function creatures(enc:Encoder, aura:Bytes, snail:Bytes, moth:Bytes) {
+	function farDraw(enc:Encoder, pipeline:Pipeline, bytes:Bytes) {
+		enc.setPipeline(pipeline);
+		enc.setUniforms(FarShader.uniforms[0].binding, bytes);
+		enc.setVertexBuffer(0, farVertices);
+		enc.draw(farCount);
+	}
+
+	// the finish's noise, 256 x 256, tiling: r, g: two smooth noises (cells
+	// of 16 texels), b: a cloudier one (32, 16 and 8), a: a fine one (2 and 1)
+	static function noise():Bytes {
+		var b = Bytes.alloc(256 * 256 * 4);
+		function value(x:Float, y:Float, cell:Int, seed:Float):Float {
+			var n = Std.int(256 / cell), fx = x / cell, fy = y / cell;
+			var i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+			u = u * u * (3 - 2 * u);
+			v = v * v * (3 - 2 * v);
+			inline function h(a:Int, c:Int)
+				return hash3(a % n, c % n, seed);
+			var top = h(i, j) + (h(i + 1, j) - h(i, j)) * u, bottom = h(i, j + 1) + (h(i + 1, j + 1) - h(i, j + 1)) * u;
+			return top + (bottom - top) * v;
+		}
+		for (y in 0...256)
+			for (x in 0...256) {
+				var o = (y * 256 + x) * 4;
+				b.set(o, Std.int(value(x, y, 16, 1.7) * 255));
+				b.set(o + 1, Std.int(value(x, y, 16, 5.3) * 255));
+				b.set(o + 2, Std.int((value(x, y, 32, 9.1) * 0.5 + value(x, y, 16, 3.9) * 0.3 + value(x, y, 8, 7.7) * 0.2) * 255));
+				b.set(o + 3, Std.int((value(x, y, 2, 2.3) * 0.5 + value(x, y, 1, 4.1) * 0.5) * 255));
+			}
+		return b;
+	}
+
+	static function single(d:PipelineDesc):PipelineDesc {
+		d.colorFormat = RGBA16F;
+		d.depthFormat = Depth32F;
+		return d;
+	}
+
+	function creatures(enc:Encoder, pipeline:Pipeline, aura:Bytes, larva:Bytes, moth:Bytes) {
 		enc.setVertexBuffer(0, quad);
-		enc.setPipeline(this.aura);
+		enc.setPipeline(pipeline);
 		enc.setUniforms(MothShader.uniforms[0].binding, aura);
 		enc.draw(6);
-		enc.setPipeline(this.moth);
-		enc.setUniforms(MothShader.uniforms[0].binding, snail);
+		enc.setUniforms(MothShader.uniforms[0].binding, larva);
 		enc.draw(6);
 		enc.setUniforms(MothShader.uniforms[0].binding, moth);
 		enc.draw(6);
@@ -222,14 +299,10 @@ class Afterglow {
 	function ruinsDraw(enc:Encoder, mirror:Bool) {
 		var built = ruins.screen(game.index);
 		enc.setUniforms(PaintShader.uniforms[0].binding, mirror ? mirrorBytes : paintBytes);
-		enc.setTexture(PaintShader.textures[0].binding, lights, nearest);
 		enc.setVertexBuffer(0, ruinsVertices);
 		enc.setIndexBuffer(ruinsIndices, UInt32);
-		range(enc, ruins.back);
-		if (!mirror) {
-			range(enc, ruins.far);
-			range(enc, wide ? ruins.wide : ruins.tall);
-		}
+		// (nearest first: the roots, the screen's stone, then what is behind them)
+		if (!mirror) range(enc, wide ? ruins.wide : ruins.tall);
 		enc.setVertexBuffer(0, screenVertices[game.index]);
 		enc.setIndexBuffer(screenIndices[game.index], UInt32);
 		range(enc, built.stone);
@@ -237,49 +310,72 @@ class Afterglow {
 			enc.setUniforms(PaintShader.uniforms[0].binding, mirror ? pieceMirror[k] : pieceBytes[k]);
 			range(enc, built.pieces[k]);
 		}
+		enc.setUniforms(PaintShader.uniforms[0].binding, mirror ? mirrorBytes : paintBytes);
+		enc.setVertexBuffer(0, ruinsVertices);
+		enc.setIndexBuffer(ruinsIndices, UInt32);
+		range(enc, ruins.back);
 	}
 
 	inline function range(enc:Encoder, r:Range)
 		if (r.count > 0) enc.drawIndexed(r.count, 1, r.first);
 
-	// the targets for a screen of w by h: drawn at 1 / scale of it
+	// the targets for a screen of w by h
 	function resize(w:Int, h:Int) {
 		if (w == width && h == height) return;
-		for (t in [color, depth, mirror, mirrorDepth])
+		for (t in [color, resolved, depth, mirror, mirrorDepth])
 			if (t != null) device.destroyTexture(t);
 		width = w;
 		height = h;
-		scale = Std.int(Math.max(1, Math.round(Math.min(w, h) / 540)));
 		var sw = smallWidth(), sh = smallHeight();
-		color = device.createTexture({width: sw, height: sh, format: RGBA16F, renderTarget: true});
-		depth = device.createTexture({width: sw, height: sh, format: Depth32F, renderTarget: true});
-		// (the mirror at half size: the water blurs it anyway)
-		mirror = device.createTexture({width: sw >> 1, height: sh >> 1, format: RGBA16F, renderTarget: true});
-		mirrorDepth = device.createTexture({width: sw >> 1, height: sh >> 1, format: Depth32F, renderTarget: true});
+		color = device.createTexture({width: sw, height: sh, format: RGBA16F, renderTarget: true, samples: 4});
+		resolved = device.createTexture({width: sw, height: sh, format: RGBA16F, renderTarget: true});
+		depth = device.createTexture({width: sw, height: sh, format: Depth32F, renderTarget: true, samples: 4});
+		// (the mirror at a third: the water blurs it anyway)
+		mirror = device.createTexture({width: mirrorWidth(), height: mirrorHeight(), format: RGBA16F, renderTarget: true});
+		mirrorDepth = device.createTexture({width: mirrorWidth(), height: mirrorHeight(), format: Depth32F, renderTarget: true});
+		// (the bloom as wide on any screen: from a quarter on a large one)
+		post.base = sh >= 1300 ? 2 : 1;
 	}
 
+	inline function detail():Float
+		return Math.min(DETAIL, Math.sqrt(BUDGET / Math.max(1, width * height)));
+
 	inline function smallWidth()
-		return Std.int(Math.ceil(width / scale));
+		return Std.int(Math.ceil(width * detail()));
 
 	inline function smallHeight()
-		return Std.int(Math.ceil(height / scale));
+		return Std.int(Math.ceil(height * detail()));
 
-	// where the camera stands: a portrait screen looks up the ledge into
-	// the arch, a landscape one wider and lower; a slow drift either way
+	inline function mirrorWidth()
+		return Std.int(Math.max(1, smallWidth() / 3));
+
+	inline function mirrorHeight()
+		return Std.int(Math.max(1, smallHeight() / 3));
+
+	// where the camera stands: what is played with (3.3 units either side
+	// on the stage's plane, 3.9 up and down) always in the frame, so a
+	// narrow phone sees more above and below it, a wide window more beside
+	// it; the stage low in a tall frame; a slow drift
+	// (play/aim.mjs has the same numbers: the scripts' taps)
 	function frame(aspect:Float) {
-		var f = clamp((aspect - 0.5625) / (1.7778 - 0.5625), 0, 1);
-		var drift = new Vec3(Math.sin(time * 0.11) * 0.35, Math.sin(time * 0.083 + 1) * 0.15, Math.sin(time * 0.07) * 0.3);
-		var from = mix(new Vec3(0.3, 2.3, 5.4), new Vec3(0.8, 2.0, 7.0), f) + drift;
-		var to = mix(new Vec3(-0.6, 3.9, -8), new Vec3(0.4, 4.1, -8), f);
-		camera.fovY = mix(1.12, 0.82, f);
-		eye.position = from;
-		eye.lookAt(to);
+		var half = Math.max(3.9, 3.3 / aspect), wide = clamp((aspect - 0.5625) / (1.7778 - 0.5625), 0, 1);
+		var bottom = -0.9 - (half - 3.9) * 0.37;
+		var to = new Vec3(-0.05 + 0.35 * wide, bottom + half, -2.3);
+		var from = stand(aspect);
+		camera.fovY = 2 * Math.atan(half / length(to - from));
+		eye.position = from + new Vec3(Math.sin(time * 0.11) * 0.3, Math.sin(time * 0.083 + 1) * 0.12, Math.sin(time * 0.07) * 0.3);
+		eye.lookAt(to + new Vec3(Math.sin(time * 0.11) * 0.12, 0, 0));
+	}
+
+	static function stand(aspect:Float):Vec3 {
+		var half = Math.max(3.9, 3.3 / aspect), wide = clamp((aspect - 0.5625) / (1.7778 - 0.5625), 0, 1);
+		var y = -0.9 - (half - 3.9) * 0.37 + half;
+		return new Vec3(0.15 + 0.35 * wide, 2.4 + (y - 3) * 0.2, 4.2 + half * 0.6);
 	}
 
 	// where the eye is without its drift: what the play measures by
 	function still(aspect:Float):Vec {
-		var f = clamp((aspect - 0.5625) / (1.7778 - 0.5625), 0, 1);
-		var e = mix(new Vec3(0.3, 2.3, 5.4), new Vec3(0.8, 2.0, 7.0), f);
+		var e = stand(aspect);
 		return {x: e.x, y: e.y, z: e.z};
 	}
 
@@ -294,7 +390,7 @@ class Afterglow {
 		return {x: from.x + dir.x * t, y: from.y + dir.y * t, z: Puzzle.FLY};
 	}
 
-	// the screen's glyphs and the home's door: a quad each
+	// the screen's glyphs and the home's cocoon: a quad each
 	function glyphQuads() {
 		if (glyphVertices != null) device.destroyBuffer(glyphVertices);
 		var s = Screens.all[game.index], out:Array<GlyphVertex> = [];
@@ -331,7 +427,7 @@ class Afterglow {
 				screenIndices[shown] = device.createBuffer({size: ib.length, usage: Index, data: ib});
 			}
 		}
-		var puzzle = game.puzzle, fly = game.moth, snail = puzzle.snail;
+		var puzzle = game.puzzle, fly = game.moth, larva = puzzle.larva;
 		var viewProj = camera.viewProjection(aspect);
 		var from = camera.eye();
 		var mothAt = new Vec3(fly.x, fly.y, fly.z);
@@ -343,10 +439,15 @@ class Afterglow {
 				extra.push({pos: new Vec3(l[0] + p.x, l[1] + p.y, l[2]), radius: 4.0, color: magenta(), power: 3.2 * p.light});
 			}
 		var h = Screens.all[game.index].home;
-		extra.push({pos: new Vec3(h[0], h[1] + 0.5, h[2] + 0.5), radius: 1.8, color: WARM, power: 0.5 + snail.home * 2.5});
-		lightCount = ruins.lightBytes(t, game.index, extra, lightData);
-		device.writeTexture(lights, lightData);
+		extra.push({pos: new Vec3(h[0], h[1] + 0.5, h[2] + 0.5), radius: 2.2, color: magenta(), power: 0.15 + larva.home * 3});
+		for (k in 0...4) {
+			var l = k < extra.length ? extra[k] : null;
+			paintView.glowAt[k] = l == null ? new Vec4(0, 0, 0, 0) : new Vec4(l.pos.x, l.pos.y, l.pos.z, l.radius);
+			paintView.glowColor[k] = l == null ? new Vec4(0, 0, 0, 0) : new Vec4(l.color.x, l.color.y, l.color.z, l.power);
+		}
 
+		// (a pixel's size a unit away: the far planes' soft edge)
+		pixel = 2 * Math.tan(camera.fovY / 2) / sh;
 		var v = paintView;
 		v.viewProj = viewProj;
 		v.eye = new Vec4(from.x, from.y, from.z, t);
@@ -354,7 +455,7 @@ class Afterglow {
 		v.aura = VIOLET * 2.4;
 		v.pose = new Vec4(0, 0, 0, 0);
 		v.pivot = new Vec4(0, 0, 1, 0);
-		v.flags = new Vec4(0, lightCount, DENSITY, 0);
+		v.flags = new Vec4(0, 0, DENSITY, pixel);
 		PaintShader.params.view.write(v, paintBytes);
 		var mirrorProj = viewProj * Mat4.scaling(1, -1, 1);
 		pieces(viewProj, mirrorProj, from, t);
@@ -362,7 +463,7 @@ class Afterglow {
 		v.eye = new Vec4(from.x, -from.y, from.z, t);
 		v.pose = new Vec4(0, 0, 0, 0);
 		v.pivot = new Vec4(0, 0, 1, 0);
-		v.flags = new Vec4(1, lightCount, DENSITY, 0);
+		v.flags = new Vec4(1, 0, DENSITY, pixel * 3);
 		PaintShader.params.view.write(v, mirrorBytes);
 		waterView.viewProj = viewProj;
 		waterView.eye = new Vec4(from.x, from.y, from.z, t);
@@ -383,10 +484,10 @@ class Afterglow {
 		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 1);
 		w.color = new Vec4(fly.fly, wings, fly.tilt * fly.facing, fly.facing);
 		both(w, viewProj, mirrorProj, mothBytes, mothMirror);
-		w.right = new Vec4(right.x, right.y, right.z, Ruins.SNAIL);
-		w.moth = new Vec4(snail.x, snail.y + Ruins.SNAIL * 0.8 + 0.02, snail.z, 2);
-		w.color = new Vec4(snail.out, snail.phase, snail.home, snail.facing);
-		both(w, viewProj, mirrorProj, snailBytes, snailMirror);
+		w.right = new Vec4(right.x, right.y, right.z, Ruins.LARVA);
+		w.moth = new Vec4(larva.x, larva.y + Ruins.LARVA * 0.8 + 0.02, larva.z, 2);
+		w.color = new Vec4(larva.out, larva.phase, larva.home, larva.facing);
+		both(w, viewProj, mirrorProj, larvaBytes, larvaMirror);
 
 		var g = glyphView;
 		g.viewProj = viewProj;
@@ -395,24 +496,60 @@ class Afterglow {
 			var s = puzzle.glyphs[k];
 			g.state[k] = new Vec4(s.charge, s.lit ? 1 : 0, s.near, s.armed ? 1 : 0);
 		}
-		var near = Math.max(0, 1 - Math.abs(snail.x - h[0]) / 2.5) * (Math.abs(snail.y - h[1]) < 0.1 ? 1 : 0);
-		g.state[7] = new Vec4(near, snail.home, 0, 0);
+		var near = Math.max(0, 1 - Math.abs(larva.x - h[0]) / 2.5) * (Math.abs(larva.y - h[1]) < 0.1 ? 1 : 0);
+		g.state[7] = new Vec4(near, larva.home, 0, 0);
 		GlyphShader.params.view.write(g, glyphBytes);
 
 		// (the mirror: the ruins drawn upside down about the water)
 		mirrorPass.colors[0].texture = mirror;
 		mirrorPass.depth.texture = mirrorDepth;
 		enc.beginPass(mirrorPass);
-		enc.setPipeline(mirrored);
-		ruinsDraw(enc, true);
-		creatures(enc, auraMirror, snailMirror, mothMirror);
+		if (!sheet) {
+			enc.setPipeline(mirrored);
+			ruinsDraw(enc, true);
+			farDraw(enc, farMirrored, mirrorBytes);
+			creatures(enc, mothMirrored, auraMirror, larvaMirror, mothMirror);
+		}
 		enc.endPass();
+		if (sheet) poses(viewProj, right, up, t);
 
-		renderer.drawInto(enc, world, camera, color, depth, sw, sh);
-		finishView.size = new Vec4(sw, sh, scale, t);
+		renderer.drawInto(enc, world, camera, color, depth, sw, sh, resolved);
+		finishView.size = new Vec4(width, height, points, t);
 		finishView.fade = new Vec4(0.03, 0.05, 0.09, game.fade * game.fade * (3 - 2 * game.fade));
 		FinishShader.params.view.write(finishView, finishBytes);
-		post.run(enc, color, null, sw, sh, t);
+		post.run(enc, resolved, null, sw, sh, t);
+	}
+
+	// the characters' sheet: the moth standing (its aura about it), its
+	// wings up and down in flight, facing left; the larva asleep, waking and
+	// crawling; then both at the size they are played at and smaller
+	function poses(viewProj:Mat4, right:Vec4, up:Vec4, t:Float) {
+		// (x, y, half size, kind, then MothView's color)
+		var v = VIOLET * 0.6, m = Ruins.MOTH, l = Ruins.LARVA;
+		var list:Array<Array<Float>> = [
+			[-4.6, 4.7, 1.9, 0, v.x, v.y, v.z, 0], [-4.6, 4.7, 1.3, 1, 0, 0, 0, 1], [-1.4, 4.7, 1.3, 1, 1, -1.8, 0.2, 1], [1.7, 4.7, 1.3, 1, 1, -0.1, -0.15, 1],
+			[4.9, 4.7, 1.3, 1, 0, 0, 0, -1], [-5.0, 1.9, 1.0, 2, 0, 0, 0, 1], [-2.6, 1.9, 1.0, 2, 0.55, 0, 0, 1], [0.0, 1.9, 1.0, 2, 1, 0.15, 0, 1],
+			[2.6, 1.9, 1.0, 2, 1, 0.45, 0, 1], [5.2, 1.9, 1.0, 2, 1, 0.3, 0, -1]
+		];
+		var x = -4.9;
+		for (k in [1.0, 0.6, 0.36]) {
+			var low = 0.05 - (m * 0.6 - l * 0.8) * k;
+			list.push([x, 0.05, m * k, 1, 0, 0, 0, 1]);
+			list.push([x + 1.3 * k, low, l * k, 2, 1, 0.2, 0, 1]);
+			list.push([x + 2.4 * k, low, l * k, 2, 0, 0, 0, 1]);
+			list.push([x + 3.6 * k, 0.25, m * k, 1, 1, -1.2, 0.15, -1]);
+			x += 4.9 * k + 0.4;
+		}
+		for (k in 0...list.length) {
+			var e = list[k];
+			if (k == sheetBytes.length) sheetBytes.push(Bytes.alloc(MothShader.uniforms[0].size));
+			mothView.viewProj = viewProj;
+			mothView.right = new Vec4(right.x, right.y, right.z, e[2]);
+			mothView.up = up;
+			mothView.moth = new Vec4(e[0], e[1], Puzzle.FLY, e[3]);
+			mothView.color = new Vec4(e[4], e[5], e[6], e[7]);
+			MothShader.params.view.write(mothView, sheetBytes[k]);
+		}
 	}
 
 	// each piece's block: its pose, its pivot, its lantern's light and the moth's hint at it
@@ -424,11 +561,11 @@ class Afterglow {
 			v.pivot = new Vec4(pv[0], pv[1], p.lantern != null ? ember(p.light, t) : 1, p.hint);
 			v.viewProj = viewProj;
 			v.eye = new Vec4(from.x, from.y, from.z, t);
-			v.flags = new Vec4(0, lightCount, DENSITY, 0);
+			v.flags = new Vec4(0, 0, DENSITY, pixel);
 			PaintShader.params.view.write(v, pieceBytes[k]);
 			v.viewProj = mirrorProj;
 			v.eye = new Vec4(from.x, -from.y, from.z, t);
-			v.flags = new Vec4(1, lightCount, DENSITY, 0);
+			v.flags = new Vec4(1, 0, DENSITY, pixel * 3);
 			PaintShader.params.view.write(v, pieceMirror[k]);
 		}
 	}
@@ -444,13 +581,19 @@ class Afterglow {
 		MothShader.params.view.write(w, mirror);
 	}
 
-	static final WARM = new Vec3(1.0, 0.55, 0.18);
-
 	static function main() {
 		// (on the web 0 x 0: the canvas fills the page, a phone's whole screen)
+		var det = Sys.args().indexOf("--detail");
+		if (det >= 0) DETAIL = Std.parseFloat(Sys.args()[det + 1]);
 		var window = #if (hxmc.target == "wasm32-wasi") new Window("Afterglow", 0, 0) #else new Window("Afterglow", 405, 720) #end;
 		var device = Device.create(window.surface);
+		var t0 = Sys.time();
 		var glow = new Afterglow(device);
+		if (Sys.args().indexOf("--log") >= 0)
+			Sys.println('afterglow: built in ${Math.round((Sys.time() - t0) * 1000)} ms, ${Std.int(glow.ruins.mesh.count / 3)} triangles, screen 1 ${Std.int(glow.ruins.screen(0).mesh.count / 3)}');
+		glow.points = window.scale;
+		glow.game.log = Sys.args().indexOf("--log") >= 0;
+		glow.sheet = Sys.args().indexOf("--sheet") >= 0;
 		var start = -1.0;
 		App.run(() -> {
 			if (start < 0) start = App.frame.time;

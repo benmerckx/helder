@@ -5,10 +5,10 @@ import Screens;
 // reaches: a glyph charges while lit and, once full, moves its pieces to
 // their next state (then it must go dark before it moves them again); a
 // piece held by eyes stays open only while they are all lit; a lantern,
-// once woken, is a light of its own. The snail crawls towards the moth's
+// once woken, is a light of its own. The larva crawls towards the moth's
 // light, as far as the way it is on goes: along walks joined end to end at
 // one height, through no shut gate, over no piece that is moving. A
-// piece that carries takes the snail with it. Nothing fails: anything done
+// piece that carries takes the larva with it. Nothing fails: anything done
 // can be done again.
 //
 // Distances to the moth are measured as seen: everything is brought along
@@ -17,7 +17,7 @@ class Puzzle {
 	public static inline var STEP = 1 / 60;
 	// the plane the moth flies in, in front of all the stone
 	public static inline var FLY = -1.25;
-	// how far the moth's light wakes a glyph, the snail, a lantern; a lantern's
+	// how far the moth's light wakes a glyph, the larva, a lantern; a lantern's
 	public static inline var REACH = 1.0;
 	public static inline var LANTERN = 0.9;
 	static inline var CHARGE = 0.6;
@@ -26,7 +26,7 @@ class Puzzle {
 	public final screen:Screen;
 	public final pieces:Array<Part>;
 	public final glyphs:Array<Sign>;
-	public final snail:Snail;
+	public final larva:Larva;
 	public var solved(default, null) = false;
 	// what has happened, for the sounds and the flashes: "glyph a", "piece left", "home"
 	public final events:Array<String> = [];
@@ -41,8 +41,8 @@ class Puzzle {
 		for (p in pieces)
 			if (p.def.hang != null) p.parent = part(p.def.hang.piece);
 		glyphs = [for (g in screen.glyphs) new Sign(g)];
-		var s = screen.snail;
-		snail = new Snail(s[0], s[1], s[2], screen.asleep == true);
+		var s = screen.larva;
+		larva = new Larva(s[0], s[1], s[2], screen.asleep == true);
 	}
 
 	public function part(name:String):Part {
@@ -91,7 +91,7 @@ class Puzzle {
 			if (g.charge <= 0) g.armed = true;
 			if (g.def.drives == null || !g.armed || g.charge < 1) continue;
 			// (it moves its pieces when all can go: none moving, none with
-			// the snail on it that would drop it)
+			// the larva on it that would drop it)
 			var ready = true;
 			for (name in g.def.drives) {
 				var p = part(name);
@@ -105,7 +105,7 @@ class Puzzle {
 			events.push('glyph ${g.def.name}');
 			for (name in g.def.drives) {
 				var p = part(name);
-				if (onto(p)) snail.ride = p;
+				if (onto(p)) larva.ride = p;
 				p.go((p.state + 1) % p.def.states.length);
 				events.push('piece ${p.def.name}');
 			}
@@ -115,31 +115,31 @@ class Puzzle {
 				var open = true;
 				for (name in p.def.holds)
 					if (glyph(name).charge < 1) open = false;
-				// (never shut on the snail)
+				// (never shut on the larva: while it is under an open one)
 				var b = p.def.blocks;
-				if (!open && b != null && snail.x > b[0] + p.x - 0.3 && snail.x < b[1] + p.x + 0.3 && Math.abs(snail.y - b[2]) < 0.3) open = true;
+				if (!open && b != null && p.y > 0.3 && larva.x > b[0] + p.x - 0.25 && larva.x < b[1] + p.x + 0.25 && Math.abs(larva.y - b[2]) < 0.3) open = true;
 				var want = open ? 1 : 0;
 				if (p.target != want) {
 					p.go(want);
 					events.push('piece ${p.def.name}');
 				}
 			}
-		// (pieces move; the snail rides the one carrying it)
+		// (pieces move; the larva rides the one carrying it)
 		var rx = 0.0, ry = 0.0;
 		for (p in pieces) {
 			var x = p.x, y = p.y;
 			p.advance(STEP);
-			if (snail.ride == p) {
+			if (larva.ride == p) {
 				rx = p.x - x;
 				ry = p.y - y;
 			}
 		}
 		for (p in pieces)
 			if (p.parent != null) p.hangFrom(p.parent);
-		snail.x += rx;
-		snail.y += ry;
+		larva.x += rx;
+		larva.y += ry;
 		hints();
-		if (snail.ride != null && !snail.ride.moving()) snail.ride = null;
+		if (larva.ride != null && !larva.ride.moving()) larva.ride = null;
 		crawl(moth);
 	}
 
@@ -172,7 +172,7 @@ class Puzzle {
 	}
 
 	function crawl(moth:Vec) {
-		var s = snail;
+		var s = larva;
 		if (s.moving) s.phase += STEP;
 		if (s.home > 0) {
 			s.home = Math.min(1, s.home + STEP / 1.6);
@@ -184,7 +184,7 @@ class Puzzle {
 			var at = flat(s.x, s.y + 0.2, s.z);
 			if (!near(at, m, REACH * 1.2)) return;
 			s.asleep = false;
-			events.push("snail");
+			events.push("larva");
 		}
 		s.out = Math.min(1, s.out + STEP / 0.9);
 		if (s.ride != null || s.out < 1) return;
@@ -194,7 +194,7 @@ class Puzzle {
 		var seen = deep(m.x, m.y, s.z);
 		s.z += (way.z - s.z) * 0.1;
 		var goal = clamp2(seen.x, way.a + 0.12, way.b - 0.12);
-		// (led near its door, it goes in)
+		// (led near its cocoon, it goes in)
 		var h = screen.home;
 		if (Math.abs(s.y - h[1]) < 0.1 && h[0] > way.a && h[0] < way.b && Math.abs(seen.x - h[0]) < 1.0) goal = h[0];
 		var d = goal - s.x;
@@ -211,10 +211,10 @@ class Puzzle {
 		}
 	}
 
-	// the way the snail is on: the walks at its height joined end to end,
+	// the way the larva is on: the walks at its height joined end to end,
 	// cut where a gate is shut; pieces moving left out
 	public function reach():Null<{a:Float, b:Float, z:Float}> {
-		var s = snail, spans:Array<Array<Float>> = [], z = s.z;
+		var s = larva, spans:Array<Array<Float>> = [], z = s.z;
 		for (w in walks(false))
 			if (Math.abs(w[2] - s.y) < 0.06) {
 				spans.push([w[0], w[1]]);
@@ -230,9 +230,10 @@ class Puzzle {
 		for (p in pieces) {
 			var b = p.def.blocks;
 			if (b == null) continue;
-			// (shut while its foot is below the snail's shell)
+			// (shut while its foot is below the larva's shell)
 			if (b[2] + p.y > s.y + 0.3 || b[3] + p.y < s.y) continue;
-			var x0 = b[0] + p.x, x1 = b[1] + p.x;
+			// (it stops its own length short of one)
+			var x0 = b[0] + p.x - 0.2, x1 = b[1] + p.x + 0.2;
 			joined = [
 				for (w in joined)
 					for (part in [[w[0], Math.min(w[1], x0)], [Math.max(w[0], x1), w[1]]])
@@ -269,11 +270,11 @@ class Puzzle {
 		return best;
 	}
 
-	// whether the snail is on piece p
+	// whether the larva is on piece p
 	function onto(p:Part):Bool {
 		if (p.def.walks == null) return false;
 		for (w in p.def.walks)
-			if (Math.abs(w[2] + p.y - snail.y) < 0.06 && snail.x > w[0] + p.x - 0.05 && snail.x < w[1] + p.x + 0.05) return true;
+			if (Math.abs(w[2] + p.y - larva.y) < 0.06 && larva.x > w[0] + p.x - 0.05 && larva.x < w[1] + p.x + 0.05) return true;
 		return false;
 	}
 
@@ -377,7 +378,7 @@ class Sign {
 		this.def = def;
 }
 
-class Snail {
+class Larva {
 	public var x:Float;
 	public var y:Float;
 	public var z:Float;

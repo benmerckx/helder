@@ -1,0 +1,13 @@
+{"events": [
+  {"t": 0.2, "type": "key", "name": "2"},
+  {"t": 6.5, "type": "mark", "name": "waiting"},
+  {"t": 6.6, "type": "tap", "wx": -1.62, "wy": 5.11, "x": 96, "y": 292},
+  {"t": 8.6, "type": "mark", "name": "lantern"},
+  {"t": 9, "type": "tap", "wx": -1.82, "wy": 3.1, "x": 78, "y": 427},
+  {"t": 11.8, "type": "mark", "name": "turned"},
+  {"t": 12.5, "type": "tap", "wx": 1.28, "wy": 2.27, "x": 295, "y": 486},
+  {"t": 14.5, "type": "mark", "name": "open"},
+  {"t": 17.5, "type": "tap", "wx": 1.8, "wy": 1.62, "x": 334, "y": 534},
+  {"t": 21, "type": "mark", "name": "home"},
+  {"t": 22, "type": "mark", "name": "end"}
+]}

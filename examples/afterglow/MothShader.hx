@@ -6,12 +6,15 @@ import Mood.haze;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
-// The moth: a paper cutout seen side on, drawn from shapes as the
-// reference's moth is (its wings folded down and back like a cape, fern
-// antennae in a V, a round head with a dark eye, thin legs), breathing
-// where it stands, its wings beating about the shoulder in flight; its
-// aura, a soft violet light about it (additive); and the snail. Each is a
-// quad about it, spanned by the camera's right and up.
+// The moth and its young, the larva, drawn from a few bold shapes, the
+// same for both: a round head with one large dark eye (it blinks; asleep
+// it is shut), feathers of a few thick barbs, flat cream with lilac marks,
+// a thin violet line about it all, so each reads small on a phone. The
+// moth is the reference's: side on, standing, its pale wings swept down
+// and back like a cape, their hems in scallops, feathered antennae in a V;
+// in flight its wings beat about the shoulder. Its aura is a soft violet
+// light about it (additive). Each is a quad about it, spanned by the
+// camera's right and up.
 @:structInit @:publicFields class MothVertex {
 	var corner:Vec2;
 }
@@ -25,9 +28,9 @@ import helder.gfx.shader.ShaderMath.*;
 	var viewProj:Mat4;
 	var right:Vec4; // the camera's right, w: the quad's half size
 	var up:Vec4; // the camera's up, w: seconds
-	var moth:Vec4; // xyz: the moth, w: 0 its aura, 1 the moth, 2 the snail
+	var moth:Vec4; // xyz: the moth, w: 0 its aura, 1 the moth, 2 the larva
 	// the aura: rgb its colour; the moth: x flying (0 standing, 1 in
-	// flight), y its wings' angle, z its lean; the snail: x how far out of
+	// flight), y its wings' angle, z its lean; the larva: x how far out of
 	// its shell, y its crawl's phase, z gone home; w: which way it faces (1: right, -1: left)
 	var color:Vec4;
 }
@@ -71,72 +74,81 @@ final MothShader = shader({
 			var a = exp(-r * r * 3.5) * 0.45 + exp(-r * r * 16) * 0.45;
 			return vec4(p.view.color.xyz * a, 0);
 		}
-		if (p.view.moth.w > 1.5) return snail(q, p.view.color, t);
+		if (p.view.moth.w > 1.5) return larva(q, p.view.color, t);
 		// (side on, facing color.w: +1 right, -1 left; standing on its feet
-		// at the quad's foot, the wings folded down and back like a cape;
-		// in flight leaning and its wings turning about the shoulder)
+		// at the quad's foot; in flight leaning and its wings turning about
+		// the shoulder)
 		q = vec2(q.x * p.view.color.w, q.y);
 		var fly = p.view.color.x;
 		q = turn(q, vec2(0.15, -0.05), -p.view.color.z);
-		var shoulder = vec2(0.14, 0.2);
+		var shoulder = vec2(0.13, 0.2);
 		var breathe = 1 + 0.025 * sin(t * 1.4) * (1 - fly);
 		var wq = shoulder + turn(q - shoulder, vec2(0, 0), -p.view.color.y) / breathe;
 		var fq = shoulder + turn(q - shoulder, vec2(0, 0), -p.view.color.y * 0.8) / breathe;
 		var near = nearWing(wq);
 		var far = farWing(fq);
-		var body = ellipse(q, vec2(0.15, -0.1), vec2(0.075, 0.27), -0.08);
-		var head = length(q - vec2(0.27, 0.27)) - 0.105;
-		var eye = length(q - vec2(0.31, 0.275)) - 0.04;
-		// (antennae: two fern fronds in a V from the head, swaying a little)
+		var body = ellipse(q, vec2(0.17, -0.13), vec2(0.07, 0.25), -0.08);
+		var at = vec2(0.27, 0.3);
+		var head = length(q - at) - 0.15;
 		var sway = sin(t * 0.9) * 0.03;
-		var back = frond(q, vec2(0.22, 0.36), vec2(-0.22 + sway, 0.84));
-		var front = frond(q, vec2(0.3, 0.36), vec2(0.75 + sway, 0.78));
-		var fronds = min(back, front);
-		// (thin dark legs to the ground)
-		// (tucked up in flight)
-		var tuck = vec2(-0.16, 0.12) * fly;
-		var legs = min(min(segment(q, vec2(0.08, -0.36), vec2(-0.16, -0.6) + tuck).x, segment(q, vec2(0.12, -0.38), vec2(0.0, -0.61) + tuck).x),
-			segment(q, vec2(0.18, -0.38), vec2(0.2, -0.6) + tuck).x) - 0.014;
+		var fronds = min(frond(q, vec2(0.2, 0.42), vec2(-0.2 + sway, 0.93), 6, 0.17), frond(q, vec2(0.33, 0.43), vec2(0.8 + sway, 0.86), 6, 0.17));
+		// (two short legs, tucked up in flight)
+		var tuck = vec2(-0.1, 0.13) * fly;
+		var legs = min(segment(q, vec2(0.12, -0.36), vec2(0.06, -0.6) + tuck).x, segment(q, vec2(0.2, -0.36), vec2(0.24, -0.6) + tuck).x) - 0.02;
 		var shape = min(min(min(near, far), min(body, head)), min(fronds, legs));
-		var edge = 0.012;
-		var a = 1 - smoothstep(-edge, edge, shape);
+		var a = 1 - smoothstep(LINE - 0.008, LINE + 0.008, shape);
 		if (a <= 0.01) discard();
 		// (back to front: legs, far wing, body, near wing, fronds, head)
-		var cream = vec3(1.0, 0.95, 0.86), lilac = vec3(0.6, 0.48, 0.92);
-		var c = vec3(0.16, 0.11, 0.26);
+		var c = INK;
 		if (far < 0) {
-			c = mix(cream, vec3(0.8, 0.74, 0.92), 0.35) * mix(0.72, 0.92, smoothstep(-0.45, 0.1, q.y));
-			var ring = abs(length((q - vec2(0.34, -0.12)) / vec2(1, 1.8)) - 0.07);
-			c = mix(c, lilac, smoothstep(0.022, 0.008, ring) * 0.8);
-			c = mix(c, lilac, smoothstep(-0.03, -0.008, far) * 0.6);
+			c = CREAM * vec3(0.84, 0.82, 0.95);
+			// (two streaks down it, a spot, a line along its hem)
+			var fall = abs(fract((fq.x - fq.y * 0.3) * 6.5 + 0.2) - 0.5) / 6.5 - 0.014;
+			fall = max(fall, max(fq.y - 0.0, -0.3 - fq.y));
+			var marks = min(fall, min(length(fq - vec2(0.34, 0.06)) - 0.035, abs(far + 0.055) - 0.012));
+			c = mix(c, LILAC, smoothstep(0.006, -0.006, marks));
 		}
-		if (body < 0 && near > 0) c = vec3(0.56, 0.48, 0.72);
+		// (its body banded as its young's)
+		if (body < 0 && near > 0) c = mix(CREAM * vec3(0.84, 0.82, 0.95), LILAC, smoothstep(0.1, 0.0, abs(fract(q.y * 6.5 + 0.2) - 0.5) - 0.12));
 		if (near < 0) {
-			c = cream * mix(0.8, 1.0, smoothstep(-0.45, 0.15, wq.y));
-			// (lilac crescents and a loop, as painted on the reference's wing)
-			var c1 = abs(length(wq - vec2(-0.17, -0.06)) - 0.17);
-			c1 = max(c1, -(length(wq - vec2(-0.24, -0.15)) - 0.15));
-			var c2 = abs(length(wq - vec2(-0.5, -0.24)) - 0.09);
-			c2 = max(c2, -(length(wq - vec2(-0.55, -0.31)) - 0.08));
-			var loop = abs(length((wq - vec2(-0.12, -0.3)) / vec2(1, 2.6)) - 0.15);
-			var marks = min(min(c1, c2), loop * 0.6);
-			c = mix(c, lilac, smoothstep(0.024, 0.01, marks) * 0.85);
-			// (veins from the shoulder, faint; a lilac hem)
-			var d = wq - shoulder;
-			var vein = abs(sin(d.y / max(length(d), 0.01) * 14));
-			c = mix(c, lilac, smoothstep(0.1, 0.0, vein) * 0.15 * smoothstep(0.25, 0.6, length(d)));
-			c = mix(c, lilac, smoothstep(-0.035, -0.01, near) * 0.55);
+			c = CREAM;
+			// (as painted on the reference's wing, drawn bold: two crescents,
+			// one in the other, high on it; three rays running out to the
+			// hem; an oval spot low by the body; a line along the hem)
+			var o = wq - vec2(-0.1, 0.0);
+			var half = o.y + o.x * 0.7;
+			var c1 = max(abs(length(o) - 0.12) - 0.02, half - 0.02);
+			var c2 = max(abs(length(o) - 0.23) - 0.023, half + 0.03);
+			var ray = min(segment(wq, vec2(-0.3, -0.16), vec2(-0.56, -0.3)).x, segment(wq, vec2(-0.16, -0.24), vec2(-0.3, -0.38)).x) - 0.02;
+			var spot = ellipse(wq, vec2(-0.02, -0.27), vec2(0.05, 0.095), 0.35);
+			var marks = min(min(c1, c2), min(min(ray, spot), abs(near + 0.06) - 0.015));
+			c = mix(c, LILAC, smoothstep(0.006, -0.006, marks));
 		}
-		if (fronds < 0 && head > 0) c = vec3(0.86, 0.8, 0.98);
-		if (head < 0) {
-			c = cream * mix(0.86, 1.0, smoothstep(0.17, 0.36, q.y + q.x * 0.3));
-			c = mix(c, vec3(0.05, 0.03, 0.1), smoothstep(0.006, -0.006, eye));
-			c = mix(c, vec3(0.9, 0.86, 1.0), smoothstep(0.016, 0.004, length(q - vec2(0.322, 0.29))));
-		}
-		if (legs < 0 && min(min(near, far), body) > 0) c = vec3(0.16, 0.11, 0.26);
-		return vec4(c * 0.95 * a, a);
+		if (fronds < 0 && head > 0) c = CREAM * vec3(0.9, 0.86, 1.0);
+		if (head < 0) c = face(q - at, 0.15, t, 1);
+		// (the line about it)
+		c = mix(c, LINED, smoothstep(-0.006, 0.006, shape));
+		return vec4(c * 0.8 * a, a);
 	}
 });
+
+final CREAM = vec3(1.0, 0.95, 0.86);
+final LILAC = vec3(0.4, 0.26, 0.84);
+final INK = vec3(0.13, 0.09, 0.24);
+final LINED = vec3(0.24, 0.16, 0.5);
+// how wide the line about a shape is
+final LINE = 0.016;
+
+// a head of radius r about the origin: cream, one large dark eye with a
+// spark in it, shut by how little awake it is (0: a lash), blinking
+function face(q:Vec2, r:Float, t:Float, awake:Float):Vec3 {
+	var blink = 1 - smoothstep(0.985, 0.998, sin(t * 1.3));
+	var open = max(awake * blink, 0.1);
+	var e = (q - vec2(0.3, 0.03) * r) / vec2(1, open);
+	var eye = length(e) - 0.43 * r;
+	var c = mix(CREAM, INK, smoothstep(0.008, -0.008, eye));
+	return mix(c, vec3(0.95, 0.92, 1.0), smoothstep(0.008, -0.008, length(q - vec2(0.42, 0.2) * r) - 0.13 * r) * step(0.6, open));
+}
 
 // q turned by a about c
 function turn(q:Vec2, c:Vec2, a:Float):Vec2 {
@@ -144,71 +156,100 @@ function turn(q:Vec2, c:Vec2, a:Float):Vec2 {
 	return c + vec2(d.x * co - d.y * si, d.x * si + d.y * co);
 }
 
-// the snail, side on, facing c.w: a spiral shell with a faint glowing
-// line (it reads in the dark), its soft body out of it by c.x, rippling
-// as it crawls (c.y), its eye stalks; fading as it goes home (c.z)
-function snail(p:Vec2, c:Vec4, t:Float):Vec4 {
+// the larva, side on, facing c.w: four round segments, each banded
+// lilac, and the moth's head, half as large again, with two small
+// feathers; a bud of light held up on its tail (it reads in the dark);
+// asleep curled into a bun, its eye shut (c.x: 0), uncurling as it wakes,
+// inching along as it crawls (c.y), fading as it goes into its cocoon (c.z)
+function larva(p:Vec2, c:Vec4, t:Float):Vec4 {
 	var q = vec2(p.x * c.w, p.y);
-	var out = c.x, phase = c.y;
-	var ripple = sin(q.x * 14 - phase * 7) * 0.012 * out;
-	var tail = mix(-0.15, -0.78, out), head = mix(0.05, 0.6, out);
-	var body = segment(q, vec2(tail, -0.72 + ripple), vec2(head, -0.68)).x - mix(0.04, 0.1, out);
-	var hc = vec2(head + 0.02, -0.6);
-	var face = length(q - hc) - 0.13 * out;
-	var sway = sin(t * 1.3 + phase) * 0.04;
-	var tip1 = hc + vec2(0.16 + sway, 0.36) * out, tip2 = hc + vec2(0.04 + sway * 0.5, 0.33) * out;
-	var stalks = min(segment(q, hc, tip1).x, segment(q, hc, tip2).x) - 0.022 * out;
-	var eyes = min(length(q - tip1), length(q - tip2)) - 0.045 * out;
-	var soft = min(min(body, face), min(stalks, eyes));
-	var sc = vec2(-0.12, mix(-0.36, -0.3, out));
-	var r = 0.44;
-	var shell = length(q - sc) - r;
-	var shape = min(soft, shell);
-	var a = 1 - smoothstep(-0.015, 0.015, shape);
-	if (a <= 0.01) discard();
-	var col = vec3(0.5, 0.46, 0.62) * mix(0.8, 1.05, smoothstep(-0.8, -0.55, q.y));
-	if (eyes < 0) col = vec3(0.08, 0.05, 0.14);
-	var glow = vec3(0, 0, 0);
-	if (shell < 0) {
-		var d = (q - sc) / r;
-		var rho = length(d), th = atan2(d.y, d.x);
-		var v = fract(rho * 2.4 - th / 6.2832);
-		var line = 1 - smoothstep(0.05, 0.14, abs(v - 0.5));
-		col = mix(vec3(0.82, 0.64, 0.42), vec3(0.45, 0.28, 0.2), smoothstep(0.2, 1.0, rho)) * (0.85 + 0.15 * d.y);
-		col = mix(col, vec3(0.3, 0.17, 0.12), line * 0.7);
-		glow = vec3(0.2, 0.85, 0.75) * (line * smoothstep(1.0, 0.3, rho) * 0.5 * (0.8 + 0.2 * sin(t * 1.7)));
-		col *= 0.9 + 0.1 * smoothstep(-0.6, 0.4, d.x + d.y);
+	var out = smoothstep(0, 1, c.x), phase = c.y;
+	var best = 9.0, local = vec2(0, 0);
+	var tail = vec2(0, 0);
+	for (k in 0...4) {
+		var f = k / 3.0;
+		// (curled: a ring about its head; out: a line along the ground, a wave running up it)
+		var turned = 2.6 - f * 4.4;
+		var curled = vec2(-0.02 + cos(turned) * 0.3, -0.46 + sin(turned) * 0.27);
+		var hump = max(sin(phase * 7 - f * 3.4), 0);
+		var r = 0.165 + 0.035 * sin(f * 3.14159);
+		var along = vec2(-0.6 + f * 0.72 - hump * 0.04, -0.8 + r + hump * 0.13 * sin(f * 3.14159));
+		var at = mix(curled, along, out);
+		var d = length(q - at) - mix(0.2, r, out);
+		if (k == 0) tail = at;
+		if (d < best) {
+			best = d;
+			local = (q - at) / r;
+		}
 	}
+	var hr = 0.25;
+	var headAt = mix(vec2(0.0, -0.5), vec2(0.48, -0.8 + hr + 0.05 + 0.015 * sin(t * 1.3)), out);
+	var head = length(q - headAt) - hr;
+	// (two small feathers on its head, as its mother's; laid flat asleep)
+	var up = out * (0.85 + 0.15 * sin(t * 1.1));
+	var feathers = min(frond(q, headAt + vec2(-0.08, 0.21), headAt + vec2(-0.08, 0.21) + vec2(-0.2, 0.36) * up, 3, 0.12),
+		frond(q, headAt + vec2(0.08, 0.22), headAt + vec2(0.08, 0.22) + vec2(0.2, 0.36) * up, 3, 0.12)) + (1 - out) * 0.2;
+	// (the bud on its tail: a drop of light on a short stalk)
+	var budAt = tail + vec2(-0.1, 0.27) * out + vec2(-0.1, 0.1) * (1 - out);
+	var stalk = segment(q, tail, budAt).x - 0.02;
+	var bud = length(q - budAt) - 0.085;
+	var shape = min(min(best, head), min(feathers, min(stalk, bud)));
+	var a = 1 - smoothstep(LINE - 0.008, LINE + 0.008, shape);
+	if (a <= 0.01) discard();
+	var col = INK;
+	var glow = vec3(0, 0, 0);
+	if (stalk < 0) col = LILAC;
+	if (best < 0) {
+		// (a band about each segment, its belly in shade)
+		col = mix(CREAM, LILAC, smoothstep(0.03, -0.03, abs(local.x + 0.1) - 0.2));
+		col = mix(col, col * vec3(0.8, 0.76, 0.95), smoothstep(-0.25, -0.4, local.y));
+	}
+	if (feathers < 0) col = CREAM * vec3(0.9, 0.86, 1.0);
+	if (head < 0) col = face(q - headAt, hr, t, out);
+	if (bud < 0) {
+		var pulse = 0.75 + 0.25 * sin(t * 1.7);
+		col = vec3(1.0, 0.3, 0.75);
+		glow = vec3(1.0, 0.1, 0.62) * (1.2 * pulse);
+	}
+	col = mix(col, LINED, smoothstep(-0.006, 0.006, shape));
 	a *= 1 - c.z;
-	return vec4((col * 0.9 + glow) * a, a);
+	return vec4((col * 0.8 + glow) * a, a);
 }
 
 // the near wing, swept back and down from the shoulder to a long tip, its
-// hem scalloped
+// hem three scallops
 function nearWing(q:Vec2):Float {
-	var d = triangle(q, vec2(0.13, 0.22), vec2(-0.76, -0.33), vec2(0.08, -0.44)) - 0.03;
-	d = min(d, ellipse(q, vec2(-0.3, -0.33), vec2(0.42, 0.11), -0.12));
-	var along = dot(q - vec2(-0.76, -0.33), vec2(0.993, -0.12));
-	return d + 0.03 * pow(abs(cos(along * 11)), 10) * smoothstep(-0.18, -0.36, q.y);
+	var tip = vec2(-0.8, -0.36), hem = vec2(0.1, -0.46);
+	var d = triangle(q, vec2(0.13, 0.23), tip, hem) - 0.025;
+	for (k in 0...3)
+		d = min(d, length(q - mix(tip, hem, (k + 0.95) / 3.4) - vec2(0.02, 0.085)) - 0.15);
+	return d;
 }
 
-// the far wing, hanging behind the body on the other side
+// the far wing, hanging before the body on the other side: two scallops
 function farWing(q:Vec2):Float {
-	var d = min(ellipse(q, vec2(0.33, -0.15), vec2(0.15, 0.31), 0.22), triangle(q, vec2(0.17, 0.22), vec2(0.42, -0.05), vec2(0.17, -0.25)));
-	return d + 0.025 * pow(abs(cos(q.x * 30)), 10) * smoothstep(-0.3, -0.44, q.y);
+	var out = vec2(0.52, -0.42), hem = vec2(0.17, -0.42);
+	var d = triangle(q, vec2(0.2, 0.2), out, hem) - 0.02;
+	for (k in 0...2)
+		d = min(d, length(q - mix(hem, out, (k + 0.5) / 2) - vec2(0, 0.06)) - 0.115);
+	return d;
 }
 
-// a feathered antenna from a to b: a stem, its barbs slanting towards the tip, longest midway
-function frond(q:Vec2, a:Vec2, b:Vec2):Float {
-	var ab = b - a, len = length(ab), dir = ab / len;
+// a feather from a to b: a stem, n thick barbs a side slanting towards
+// its tip, longest past the middle (wide)
+function frond(q:Vec2, a:Vec2, b:Vec2, n:Float, wide:Float):Float {
+	var ab = b - a, len = max(length(ab), 0.001), dir = ab / len;
 	var r = q - a;
-	var u = dot(r, dir), v = r.x * dir.y - r.y * dir.x;
-	var h = clamp(u / len, 0, 1);
-	var stem = length(r - dir * (h * len)) - 0.012;
-	var w = 0.11 * pow(sin(h * 3.14159), 0.7) * (0.4 + 0.6 * h);
-	var barb = abs(fract((u - abs(v) * 0.9) * 22) - 0.5) / 22 - 0.008;
-	var inside = max(abs(v) - w, max(-u, u - len));
-	return min(stem, max(barb, inside));
+	var u = dot(r, dir), v = abs(r.x * dir.y - r.y * dir.x);
+	var d = length(vec2(u - clamp(u, 0, len), v)) - 0.017;
+	var cell = len / (n + 0.6);
+	for (j in 0...2) {
+		var k = clamp(floor(u / cell) - j, 1, n);
+		var h = k / (n + 0.6);
+		var reach = wide * pow(sin(h * 3.14159), 0.6) * (0.55 + 0.45 * h) * (len / 0.65);
+		d = min(d, segment(vec2(u, v), vec2(k * cell, 0), vec2(k * cell + reach * 0.55, reach)).x - 0.015);
+	}
+	return d;
 }
 
 // a triangle's signed distance

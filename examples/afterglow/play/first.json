@@ -1,12 +1,12 @@
 {"events": [
-  {"t": 1.5, "type": "tap", "x": 175, "y": 505},
+  {"t": 1.5, "type": "tap", "x": 172, "y": 547, "wx": -0.46, "wy": 1.43},
   {"t": 2.6, "type": "mark", "name": "woken"},
-  {"t": 4.5, "type": "tap", "x": 81, "y": 470},
+  {"t": 4.5, "type": "tap", "x": 94, "y": 518, "wx": -1.56, "wy": 1.82},
   {"t": 5.4, "type": "mark", "name": "charging"},
-  {"t": 7.0, "type": "mark", "name": "bridged"},
-  {"t": 7.5, "type": "tap", "x": 349, "y": 430},
-  {"t": 11.0, "type": "mark", "name": "crossed"},
-  {"t": 12.0, "type": "tap", "x": 381, "y": 480},
+  {"t": 7, "type": "mark", "name": "bridged"},
+  {"t": 7.5, "type": "tap", "x": 312, "y": 485, "wx": 1.52, "wy": 2.28},
+  {"t": 11, "type": "mark", "name": "crossed"},
+  {"t": 12, "type": "tap", "x": 337, "y": 526, "wx": 1.85, "wy": 1.73},
   {"t": 16.5, "type": "mark", "name": "home"},
-  {"t": 21.0, "type": "mark", "name": "end"}
+  {"t": 21, "type": "mark", "name": "end"}
 ]}

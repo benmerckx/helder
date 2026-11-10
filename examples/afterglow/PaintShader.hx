@@ -3,6 +3,7 @@ import Mood.noise2;
 import Mood.fbm2;
 import Mood.mist;
 import Mood.haze;
+import Mood.bricks;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
@@ -11,8 +12,9 @@ import helder.gfx.shader.ShaderMath.*;
 // drawn from the world's coordinates, moss creeps over the tops and drips
 // down the faces, roots are near black; what glows (moss's tips, veins,
 // mushrooms, sprouts, the lanterns) is emissive and lights what is near
-// it through the lights' texture (Ruins.lights: two RGBA16F texels a
-// light). The moth's violet aura lights too. A piece that moves is drawn
+// it: the glows that stay are summed into each vertex when it is built
+// (Builder.bake), those of the moment (a woken lantern, the home's) are
+// the view's. The moth's violet aura lights too. A piece that moves is drawn
 // as built, posed (moved and turned) by the view's pose.
 @:structInit @:publicFields class PaintVertex {
 	var pos:Vec3;
@@ -20,6 +22,7 @@ import helder.gfx.shader.ShaderMath.*;
 	var uv:Vec2;
 	var kind:Vec4; // x: the kind, y: the top of its solid (moss), z: a seed, w: a kind's own
 	var anchor:Vec4; // xyz: what it hangs from, w: how far it sways (radians)
+	var light:Vec3; // the glows' light on it
 }
 
 @:structInit @:publicFields class PaintVaryings {
@@ -28,6 +31,7 @@ import helder.gfx.shader.ShaderMath.*;
 	var normal:Vec3;
 	var uv:Vec2;
 	var kind:Vec4;
+	var light:Vec3;
 }
 
 @:structInit @:publicFields class PaintView {
@@ -37,7 +41,10 @@ import helder.gfx.shader.ShaderMath.*;
 	var aura:Vec4; // rgb: the aura's light
 	var pose:Vec4; // a piece's: x, y moved, z turned (radians) about pivot
 	var pivot:Vec4; // xy: the pivot, z: a lantern's light (0 dark), w: how much the moth's light hints at it
-	var flags:Vec4; // x: 1 into the reflection, y: the lights' count, z: the mist's density
+	var flags:Vec4; // x: 1 into the reflection, z: the mist's density
+	// the glows of the moment: xyz where, w its radius (0: none); rgb, w its power
+	@:length(4) var glowAt:Array<Vec4>;
+	@:length(4) var glowColor:Array<Vec4>;
 }
 
 inline var STONE = 0;
@@ -47,11 +54,9 @@ inline var CAP = 3;
 inline var STEM = 4;
 inline var BULB = 5;
 inline var CAGE = 6;
-inline var CORE = 7;
 inline var VEIN = 8;
 inline var PAD = 9;
 inline var SKY = 10;
-inline var MOSS = 11;
 
 function acid():Vec3
 	return vec3(0.55, 1.0, 0.06);
@@ -76,42 +81,13 @@ function sway(p:Vec3, anchor:Vec4, t:Float, seed:Float):Vec3 {
 	return anchor.xyz + vec3(x, y, z);
 }
 
-// a glow's light on a point: lights' texture, two texels each
-function glow(lights:Texture2D, count:Float, p:Vec3, n:Vec3):Vec3 {
-	var sum = vec3(0, 0, 0);
-	var k = 0.0;
-	while (k < count) {
-		var v = (k + 0.5) / 32;
-		var a = sampleLevel(lights, vec2(0.25, v), 0), c = sampleLevel(lights, vec2(0.75, v), 0);
-		var d = a.xyz - p, dist2 = dot(d, d), r2 = a.w * a.w;
-		if (dist2 < r2) {
-			var fall = 1 - dist2 / r2;
-			var wrap = dot(n, d * inversesqrt(max(dist2, 0.0001))) * 0.6 + 0.4;
-			sum += c.xyz * (c.w * fall * fall * max(wrap, 0) / (1 + dist2 * 2));
-		}
-		k += 1;
-	}
-	return sum;
-}
-
-// stone blocks on a face: (albedo's shade, mortar's 0 to 1)
-function blocks(world:Vec3, n:Vec3, seed:Float):Vec2 {
-	var an = abs(n);
-	var flat = an.y > 0.7 ? world.xz : (an.x > an.z ? world.zy : world.xy);
-	// (courses drawn by hand: wavering, blocks of uneven size)
-	var uv = flat + vec2(noise2(flat * 0.9 + vec2(seed)) - 0.5, noise2(flat * 1.3 + vec2(4.1, seed)) - 0.5) * 0.14;
-	var rowH = 0.3;
-	var row = floor(uv.y / rowH);
-	var w = 0.42 + 0.3 * hash2(vec2(row, seed + 5));
-	var u = uv.x + hash2(vec2(row, seed)) * 3.0;
-	var col = floor(u / w);
-	var f = vec2(fract(u / w) * w, fract(uv.y / rowH) * rowH);
-	var edge = min(min(f.x, w - f.x), min(f.y, rowH - f.y));
-	var chip = noise2(uv * 11) * 0.04;
-	var mortar = (1 - smoothstep(0.012, 0.035 + chip, edge)) * smoothstep(0.25, 0.5, noise2(uv * 2.7 + vec2(seed * 3)));
-	var lip = an.y > 0.7 ? 0 : smoothstep(0.06, 0.0, rowH - f.y) * (1 - mortar);
-	var shade = 0.6 + 0.6 * hash2(vec2(col, row) + vec2(seed * 7.1, 3));
-	return vec2(shade * (0.75 + 0.5 * fbm2(uv * 2.3)) + lip * 0.5, mortar);
+// a glow's light on a point (Builder.bake sums the same for those that stay)
+function glow(at:Vec4, color:Vec4, p:Vec3, n:Vec3):Vec3 {
+	var d = at.xyz - p, dist2 = dot(d, d), r2 = at.w * at.w;
+	if (dist2 >= r2) return vec3(0, 0, 0);
+	var fall = 1 - dist2 / r2;
+	var wrap = dot(n, d * inversesqrt(max(dist2, 0.0001))) * 0.6 + 0.4;
+	return color.xyz * (color.w * fall * fall * max(wrap, 0) / (1 + dist2 * 2));
 }
 
 // the mist darkening as one looks up, the same on the ruins as behind them
@@ -122,7 +98,7 @@ function high(d:Vec3):Float
 // darker upwards, and glowing low in the deep distance (far at depth)
 function fog(d:Vec3, far:Float):Vec3 {
 	var beams = pow(noise2(vec2(d.x * 9 + d.y * 3.5, 0.3)), 4) * smoothstep(-0.1, 0.5, d.y);
-	var mottle = fbm2(vec2(d.x * 4, d.y * 7));
+	var mottle = noise2(vec2(d.x * 4, d.y * 7));
 	var low = exp(-max(d.y + 0.02, 0) * 9) * far;
 	return mist(d) * ((0.75 + 0.45 * mottle + beams * 3 + low * 1.4) * high(d));
 }
@@ -134,9 +110,9 @@ final PaintShader = shader({
 		var c = cos(p.view.pose.z), s = sin(p.view.pose.z), r = w.xy - p.view.pivot.xy;
 		w = vec3(p.view.pivot.x + r.x * c - r.y * s + p.view.pose.x, p.view.pivot.y + r.x * s + r.y * c + p.view.pose.y, w.z);
 		n = vec3(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
-		return {clip: position(p.view.viewProj * vec4(w, 1)), world: w, normal: n, uv: v.uv, kind: v.kind};
+		return {clip: position(p.view.viewProj * vec4(w, 1)), world: w, normal: n, uv: v.uv, kind: v.kind, light: v.light};
 	},
-	fragment: function(i:PaintVaryings, p:{view:PaintView, lights:Texture2D}):Vec4 {
+	fragment: function(i:PaintVaryings, p:{view:PaintView}):Vec4 {
 		if (p.view.flags.x > 0.5 && i.world.y < -0.02) discard();
 		var kind = floor(i.kind.x + 0.5);
 		var n = normalize(i.normal);
@@ -149,30 +125,54 @@ final PaintShader = shader({
 		var emit = vec3(0, 0, 0);
 		var open = 1.0;
 		var detail = smoothstep(34, 10, dist);
+		var bevel = 0.0;
 		if (kind == STONE) {
-			var b = blocks(i.world, n, seed);
-			var tone = mix(0.85, b.x, detail);
-			albedo = mix(vec3(0.05, 0.045, 0.1), vec3(0.13, 0.11, 0.22), clamp(tone - 0.35, 0, 1)) * (1 - b.y * 0.45 * detail);
-			albedo *= 0.55 + 0.45 * smoothstep(-0.5, 3.5, i.world.y) * (0.7 + 0.6 * noise2(i.world.xy * 0.35 + vec2(seed)));
+			var an = abs(n);
+			var up = an.y > 0.7 ? 1.0 : 0.0;
+			var f = up > 0.5 ? i.world.xz : (an.x > an.z ? i.world.zy : i.world.xy);
+			// (the blocks the mesh has in relief: their joints, each its own tone, a few gone)
+			var k = bricks(f, seed);
+			var joint = (1 - smoothstep(0.01, 0.035, k.x)) * detail;
+			var gone = step(0.95, k.z) * (1 - up) * detail;
+			var grainy = noise2(f * 3.1 + vec2(seed)) * 0.65 + noise2(f * 9.3) * 0.35;
+			var tone = 0.25 + 0.5 * mix(0.5, k.y, detail) + (grainy - 0.5) * 0.5;
+			albedo = mix(vec3(0.05, 0.045, 0.1), vec3(0.2, 0.17, 0.34), clamp(tone, 0, 1));
+			albedo *= (1 - joint * 0.6) * (1 - gone * 0.55);
+			// (a block's upper edge catches the mist's light)
+			bevel = smoothstep(0.78, 0.93, k.w) * (1 - joint) * (1 - up) * detail;
+			// (stained where the water was)
+			var damp = smoothstep(1.4, -0.2, i.world.y + noise2(i.world.xz * 1.5) * 0.5);
+			albedo = mix(albedo, albedo * vec3(0.45, 0.8, 0.75), damp * 0.7);
 			// (moss: the mesh's share of it, its edge broken up; glowing specks in it)
-			var share = i.uv.y + (fbm2(i.world.xz * 4.5 + i.world.yy * 2.5 + vec2(seed)) - 0.5) * 0.6;
+			var patchy = fbm2(i.world.xz * 4.5 + i.world.yy * 2.5 + vec2(seed));
+			var share = i.uv.y + (patchy - 0.5) * 0.6;
 			var cover = smoothstep(0.42, 0.56, share);
-			// (hanging from the top above, in strands of uneven length, in clumps; their tips glow)
+			// (hanging from the top above: a fringe, and drips of uneven
+			// length in clumps, bright where they start, their tips glowing)
 			var below = i.kind.y;
-			var along = abs(n.x) > abs(n.z) ? i.world.z : i.world.x;
-			var strand = floor(along * 26);
-			var clump = smoothstep(0.25, 0.7, noise2(vec2(along * 2.3, seed * 3)));
-			var len = (0.03 + 0.85 * pow(hash2(vec2(strand, seed)), 4)) * clump + 0.04;
-			var hang = (below < len && below > 0.03 && n.y < 0.35) ? 1 : 0;
-			var tip = smoothstep(len - 0.12, len, below) * hang;
+			var along = an.x > an.z ? i.world.z : i.world.x;
+			var u = along * 7 + noise2(vec2(along * 1.7, seed)) * 1.5;
+			var id = floor(u), fx = abs(fract(u) - 0.5);
+			var clump = smoothstep(0.4, 0.7, noise2(vec2(along * 0.9, seed * 3)));
+			var len = (0.06 + 0.85 * pow(hash2(vec2(id, seed)), 3)) * (0.15 + 0.85 * clump);
+			var t01 = clamp(below / len, 0, 1);
+			var width = 0.4 * sqrt(1 - t01) + 0.06;
+			var face = (below > -0.06 && n.y < 0.5) ? 1.0 : 0.0;
+			var drip = smoothstep(width, width - 0.1, fx) * step(below, len) * face;
+			var fringe = smoothstep(0.07, 0.03, below - 0.07 * noise2(vec2(along * 5, seed)) * clump) * face;
+			var hang = max(drip, fringe);
 			cover = max(cover, hang);
-			var moss = mix(vec3(0.035, 0.07, 0.02), vec3(0.12, 0.24, 0.035), fbm2(i.world.xz * 6 + i.world.yy * 3));
+			var moss = mix(vec3(0.03, 0.065, 0.02), vec3(0.11, 0.22, 0.03), patchy * 0.55 + grainy * 0.45);
+			moss = mix(moss, mix(vec3(0.16, 0.3, 0.03), vec3(0.03, 0.08, 0.02), t01), hang);
 			albedo = mix(albedo, moss, cover);
+			bevel *= 1 - cover;
 			var cell = i.world * 18;
 			var spot = length(fract(cell) - vec3(0.5));
 			var speck = step(0.93, hash2(floor(cell.xz) + floor(cell.yy) * 7.1 + vec2(seed))) * smoothstep(0.42, 0.15, spot);
-			var fringe = smoothstep(0.3, 0.45, share) * (1 - smoothstep(0.45, 0.6, share));
-			emit += acid() * ((cover * 0.012 + speck * cover * 0.9 * detail + fringe * 0.05 + tip * 0.35 * detail) * (0.75 + 0.25 * sin(t * 1.3 + seed * 9)));
+			var edge = smoothstep(0.3, 0.45, share) * (1 - smoothstep(0.45, 0.6, share));
+			var tip = smoothstep(0.7, 1.0, t01) * drip;
+			var lit = fringe * 0.22 + drip * (1 - t01) * 0.12 + tip * 0.4;
+			emit += acid() * ((cover * 0.012 + speck * cover * 0.9 * detail + edge * 0.05 + lit * detail) * (0.75 + 0.25 * sin(t * 1.3 + seed * 9 + along * 3)));
 			open = i.uv.x;
 		} else if (kind == ROOT) {
 			// (bark: long fibres, knots, and a violet sheen only where the fibres catch it)
@@ -204,13 +204,15 @@ final PaintShader = shader({
 			albedo = magenta() * 0.3;
 			emit = magenta() * (2.2 * (0.75 + 0.25 * sin(t * 2.3 + seed * 13)));
 		} else if (kind == CAGE) {
-			var a = abs(fract(i.uv.x * 5 + i.uv.y * 3) - 0.5), b = abs(fract(i.uv.x * 5 - i.uv.y * 3) - 0.5);
-			var ring = abs(fract(i.uv.y * 4) - 0.5);
-			if (min(min(a, b), ring * 1.4) > 0.09 && i.uv.y > 0.06 && i.uv.y < 0.94) discard();
-			albedo = vec3(0.05, 0.035, 0.06);
-		} else if (kind == CORE) {
-			emit = magenta() * (9 * p.view.pivot.z * (0.85 + 0.15 * sin(t * 1.9 + seed * 5)));
-			albedo = vec3(0, 0, 0);
+			// (a lantern: a lattice of bars about a glowing heart, the heart
+			// seen through its lower cells, as cells of light)
+			var a = abs(fract(i.uv.x * 7 + i.uv.y * 4.5) - 0.5), b = abs(fract(i.uv.x * 7 - i.uv.y * 4.5) - 0.5);
+			var bar = 1 - smoothstep(0.1, 0.14, min(a, b));
+			bar = max(bar, max(smoothstep(0.12, 0.08, i.uv.y), smoothstep(0.9, 0.94, i.uv.y)));
+			var heart = exp(-(i.uv.y - 0.66) * (i.uv.y - 0.66) * 48) * pow(max(dot(n, -dir), 0), 1.5);
+			var lightUp = p.view.pivot.z * (0.85 + 0.15 * sin(t * 1.9 + seed * 5));
+			albedo = mix(vec3(0.012, 0.008, 0.03), vec3(0.3, 0.26, 0.5), bar);
+			emit = mix(magenta() * (heart * 3.0) + vec3(0.3, 0.05, 0.5) * 0.03, magenta() * (heart * 0.1), bar) * lightUp;
 		} else if (kind == VEIN) {
 			var pulse = 0.65 + 0.35 * sin(i.uv.y * 9 - t * 0.8 + seed * 4);
 			albedo = vec3(0.1, 0.2, 0.02);
@@ -219,11 +221,6 @@ final PaintShader = shader({
 			var r = length(i.uv - vec2(0.5)) * 2;
 			albedo = mix(vec3(0.03, 0.09, 0.05), vec3(0.1, 0.2, 0.06), noise2(i.uv * 12));
 			emit = acid() * (smoothstep(0.82, 1.0, r) * smoothstep(0.3, 0.7, noise2(i.uv * 5 + vec2(seed * 9))) * 0.3 * i.kind.w) + acid() * 0.008;
-		} else if (kind == MOSS) {
-			var f = fbm2(i.world.xz * 7 + i.world.yy * 5);
-			albedo = mix(vec3(0.03, 0.06, 0.015), vec3(0.1, 0.2, 0.03), f);
-			var speck = step(0.985, hash2(floor(i.world.xz * 16) + vec2(floor(i.world.y * 16), seed)));
-			emit = acid() * ((0.015 + speck * 1.1) * (0.8 + 0.2 * sin(t * 1.3 + seed * 9)));
 		} else if (kind == SKY) {
 			// (the far mist itself, brighter than the mist on the ruins: they
 			// stand dark against it; darkening upwards, pale shafts falling in)
@@ -240,10 +237,11 @@ final PaintShader = shader({
 		// (light: a cool glow from the mist behind and above, the sky's ambient, the glows, the moth's aura)
 		var back = normalize(vec3(0.15, 0.55, -1));
 		var rim = pow(1 - max(dot(n, -dir), 0), 3) * max(dot(n, back) * 0.5 + 0.5, 0);
-		var ambient = mix(vec3(0.03, 0.03, 0.07), vec3(0.12, 0.1, 0.26), n.y * 0.5 + 0.5) * 0.22;
-		var light = ambient + vec3(0.08, 0.16, 0.34) * (max(dot(n, back), 0) * 0.25 + rim * 0.9);
-		// (no glow reaches the far planes)
-		if (i.world.z > -20) light += glow(p.lights, p.view.flags.y, i.world, n);
+		var ambient = mix(vec3(0.02, 0.02, 0.05), vec3(0.1, 0.11, 0.3), n.y * 0.5 + 0.5) * 0.3;
+		var light = ambient + vec3(0.08, 0.16, 0.34) * (max(dot(n, back), 0) * 0.25 + rim * 0.9) + i.light;
+		for (k in 0...4)
+			light += glow(p.view.glowAt[k], p.view.glowColor[k], i.world, n);
+		light += vec3(0.1, 0.13, 0.3) * (bevel * 0.5);
 		var m = p.view.moth.xyz - i.world, md = length(m);
 		var auraFall = clamp(1 - md / p.view.moth.w, 0, 1);
 		light += p.view.aura.xyz * (auraFall * auraFall * (dot(n, m / max(md, 0.001)) * 0.5 + 0.5));

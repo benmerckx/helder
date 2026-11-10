@@ -1,12 +1,13 @@
 // The three screens, as data: the stone that stays, the pieces that move
-// (each a few fixed states), the glyphs that move them, where the snail
+// (each a few fixed states), the glyphs that move them, where the larva
 // starts and where its home is. Puzzle plays them, Ruins builds them.
 // Coordinates are the world's (x right, y up, z towards the eye); the
-// snail walks along walks (x0, x1, y, z), the moth flies in front of it all.
+// larva walks along walks (x0, x1, y, z), the moth flies in front of it all.
 typedef Stone = {
 	var box:Array<Float>; // x0, y0, z0, x1, y1, z1
 	var ?wear:Float;
 	var ?fallen:Float; // how much of its top has come down (low: a flat top to walk on)
+	var ?under:Float; // how far it steps back under its lip (1)
 }
 
 typedef Piece = {
@@ -17,7 +18,7 @@ typedef Piece = {
 	var ?start:Int;
 	var ?pivot:Array<Float>;
 	var ?walks:Array<Array<Float>>;
-	// it moves with the snail on it (else it waits for it to step off)
+	// it moves with the larva on it (else it waits for it to step off)
 	var ?carries:Bool;
 	// open (its state 1) only while all these eyes are lit together
 	var ?holds:Array<String>;
@@ -43,7 +44,7 @@ typedef Screen = {
 	var walks:Array<Array<Float>>;
 	var pieces:Array<Piece>;
 	var glyphs:Array<Glyph>;
-	var snail:Array<Float>;
+	var larva:Array<Float>;
 	var ?asleep:Bool;
 	var home:Array<Float>; // x, y (the ground), z (the face its door is in)
 	var moth:Array<Float>; // where the moth comes in
@@ -55,7 +56,7 @@ typedef Screen = {
 
 class Screens {
 	// 1. First light: light wakes; a lit glyph moves its stone. Wake the
-	// snail, slide out the two halves of the bridge, lead it home.
+	// larva, slide out the two halves of the bridge, lead it home.
 	public static final first:Screen = {
 		name: "First light",
 		stones: [
@@ -75,7 +76,7 @@ class Screens {
 			{name: "a", at: [-2.25, 1.85, -3.7], drives: ["left"]},
 			{name: "b", at: [1.95, 2.45, -3.6], drives: ["right"]}
 		],
-		snail: [-0.9, 1.0, -2.3],
+		larva: [-0.9, 1.0, -2.3],
 		asleep: true,
 		home: [2.4, 1.0, -3.6],
 		moth: [-2.0, 4.85, -3.3],
@@ -86,7 +87,7 @@ class Screens {
 
 	// 2. Two lights: a gate opens only while both its eyes are lit; the
 	// moth has one light, a lantern can keep the other. Wake the lantern,
-	// turn its arm to the left eye, light the right one, lead the snail home.
+	// turn its arm to the left eye, light the right one, lead the larva home.
 	public static final second:Screen = {
 		name: "Two lights",
 		stones: [
@@ -116,7 +117,7 @@ class Screens {
 			{name: "left eye", at: [-1.9, 1.9, -3.4], eye: true},
 			{name: "right eye", at: [1.6, 2.3, -3.4], eye: true}
 		],
-		snail: [-2.3, 1.0, -1.95],
+		larva: [-2.3, 1.0, -1.95],
 		home: [2.3, 1.0, -3.4],
 		moth: [2.0, 1.0, -1.35],
 		caps: [[-3.8, 1.0, -2.6, 0.6, 6, 0.14, 0], [2.9, 3.8, -4.2, 0.5, 5, 0.16, 1]],
@@ -124,9 +125,9 @@ class Screens {
 		shelves: [[-3.3, 4.1]]
 	};
 
-	// 3. The lift: a stone that carries the snail; the order matters.
-	// Lower the lift, let the snail climb on, raise it with the snail on
-	// it, slide out the bridge, lead the snail home.
+	// 3. The lift: a stone that carries the larva; the order matters.
+	// Lower the lift, let the larva climb on, raise it with the larva on
+	// it, slide out the bridge, lead the larva home.
 	public static final third:Screen = {
 		name: "The lift",
 		stones: [
@@ -152,7 +153,7 @@ class Screens {
 			{name: "lift", at: [1.75, 1.75, -1.6], drives: ["lift"]},
 			{name: "bridge", at: [-1.1, 4.9, -3.6], drives: ["bridge"]}
 		],
-		snail: [-2.2, 1.0, -2.2],
+		larva: [-2.2, 1.0, -2.2],
 		home: [-2.75, 3.6, -3.6],
 		moth: [-1.6, 1.0, -1.6],
 		caps: [[-3.9, 1.0, -2.0, 0.5, 6, 0.13, 0], [-4.2, 3.6, -3.2, 0.6, 5, 0.15, 1]],

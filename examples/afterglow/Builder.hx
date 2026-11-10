@@ -3,12 +3,12 @@ import helder.gfx.shader.Vec3;
 import helder.gfx.shader.ShaderMath.*;
 import Sdf;
 
-// Meshes made in code for PaintShader: 16 floats a vertex (position,
-// normal, uv, kind, anchor), 32-bit indices. What a shape is painted as
+// Meshes made in code for PaintShader: 19 floats a vertex (position,
+// normal, uv, kind, anchor, the glows' light on it: bake), 32-bit indices. What a shape is painted as
 // (kind, its solid's top for the moss, a seed, a kind's own value) and
 // what it hangs from (anchor, sway) are set before adding it.
 class Builder {
-	public static inline var FLOATS = 16;
+	public static inline var FLOATS = 19;
 
 	public var kind = 0;
 	public var top = 0.0;
@@ -29,7 +29,7 @@ class Builder {
 
 	public function vertex(p:Vec3, n:Vec3, u:Float, v:Float):Int {
 		var at = vertices;
-		for (f in [p.x, p.y, p.z, n.x, n.y, n.z, u, v, kind, top, seed, extra, anchor.x, anchor.y, anchor.z, sway])
+		for (f in [p.x, p.y, p.z, n.x, n.y, n.z, u, v, kind, top, seed, extra, anchor.x, anchor.y, anchor.z, sway, 0, 0, 0])
 			data.push(f);
 		return at;
 	}
@@ -181,7 +181,8 @@ class Builder {
 					top = 99;
 					if (tops != null)
 						for (t in tops)
-							if (t - py > -0.15) top = Math.min(top, t - py);
+							// (a top only where it is one: open above its lip here)
+							if (t - py > -0.15 && t - py < top && f(px - gx * 0.12, t + 0.1, pz - gz * 0.12) > 0) top = t - py;
 					ids[id] = vertex(new Vec3(px, py, pz), new Vec3(gx, gy, gz), open, moss == null ? 0 : moss(px, py, pz, gx, gy, gz));
 				}
 		inline function cellId(i:Int, j:Int, k:Int)
@@ -193,27 +194,58 @@ class Builder {
 					var inside = v[at] < 0;
 					if (i < cx && j > 0 && k > 0 && j < cy && k < cz && (v[at + 1] < 0) != inside) {
 						var a = cellId(i, j - 1, k - 1), b = cellId(i, j, k - 1), c = cellId(i, j, k), d = cellId(i, j - 1, k);
-						if (a >= 0 && b >= 0 && c >= 0 && d >= 0) {
+						if (a >= 0 && b >= 0 && c >= 0 && d >= 0 && seen(a, b, c, d)) {
 							tri(a, b, c);
 							tri(a, c, d);
 						}
 					}
 					if (j < cy && i > 0 && k > 0 && i < cx && k < cz && (v[at + nx] < 0) != inside) {
 						var a = cellId(i - 1, j, k - 1), b = cellId(i, j, k - 1), c = cellId(i, j, k), d = cellId(i - 1, j, k);
-						if (a >= 0 && b >= 0 && c >= 0 && d >= 0) {
+						if (a >= 0 && b >= 0 && c >= 0 && d >= 0 && seen(a, b, c, d)) {
 							tri(a, b, c);
 							tri(a, c, d);
 						}
 					}
 					if (k < cz && i > 0 && j > 0 && i < cx && j < cy && (v[at + nx * ny] < 0) != inside) {
 						var a = cellId(i - 1, j - 1, k), b = cellId(i, j - 1, k), c = cellId(i, j, k), d = cellId(i - 1, j, k);
-						if (a >= 0 && b >= 0 && c >= 0 && d >= 0) {
+						if (a >= 0 && b >= 0 && c >= 0 && d >= 0 && seen(a, b, c, d)) {
 							tri(a, b, c);
 							tri(a, c, d);
 						}
 					}
 				}
 	}
+
+	// the glows' light on each vertex from first on (what PaintShader.glow
+	// would add there), kept in the vertex: nothing to sum a pixel
+	public function bake(lights:Array<{pos:Vec3, radius:Float, color:Vec3, power:Float}>, first = 0) {
+		for (k in first...vertices) {
+			var o = k * FLOATS;
+			if (data[o + 8] == PaintShader.SKY) continue;
+			var x = data[o], y = data[o + 1], z = data[o + 2];
+			var r = 0.0, g = 0.0, b = 0.0;
+			for (l in lights) {
+				var dx = l.pos.x - x, dy = l.pos.y - y, dz = l.pos.z - z;
+				var d2 = dx * dx + dy * dy + dz * dz, r2 = l.radius * l.radius;
+				if (d2 >= r2) continue;
+				var fall = 1 - d2 / r2, inv = 1 / Math.sqrt(Math.max(d2, 0.0001));
+				var wrap = (data[o + 3] * dx + data[o + 4] * dy + data[o + 5] * dz) * inv * 0.6 + 0.4;
+				if (wrap <= 0) continue;
+				var e = l.power * fall * fall * wrap / (1 + d2 * 2);
+				r += l.color.x * e;
+				g += l.color.y * e;
+				b += l.color.z * e;
+			}
+			data[o + 16] = r;
+			data[o + 17] = g;
+			data[o + 18] = b;
+		}
+	}
+
+	// whether a quad can be seen at all: the eye is always in front (+z),
+	// so what faces well away from it never is
+	inline function seen(a:Int, b:Int, c:Int, d:Int):Bool
+		return data[a * FLOATS + 5] > -0.45 || data[b * FLOATS + 5] > -0.45 || data[c * FLOATS + 5] > -0.45 || data[d * FLOATS + 5] > -0.45;
 
 	public function vertexBytes():Bytes {
 		var b = Bytes.alloc(data.length * 4);

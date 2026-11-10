@@ -34,3 +34,19 @@ function haze(dist:Float, y:Float, density:Float):Float {
 	var thick = density * (0.55 + 1.5 * exp(-max(y, 0) * 0.35));
 	return 1 - exp(-max(dist - 4, 0) * thick);
 }
+
+function tri(x:Float):Float
+	return abs(2 * fract(x) - 1);
+
+// the blocks of a face at f (along, up), as Stones.brick lays them (the
+// mesh's relief): x: how far from the block's edge, y: the block's own
+// number (0 to 1), z: over 0.95 a block gone, w: how far up the block (0 to 1)
+function bricks(f:Vec2, s:Float):Vec4 {
+	var bb = f.y + 0.035 * sin(f.x * 1.3 + s * 5) + 0.02 * sin(f.x * 3.7 + s * 2);
+	var row = floor(bb / 0.3);
+	var w = 0.42 + 0.3 * tri(row * 0.381966 + s * 0.37);
+	var u = f.x / w + fract(row * 0.618034 + s * 0.71);
+	var col = floor(u);
+	var fa = (u - col) * w, fb = bb - row * 0.3;
+	return vec4(min(min(fa, w - fa), min(fb, 0.3 - fb)), tri(col * 0.7548777 + row * 0.5698403 + s * 0.31), tri(col * 0.4142136 + row * 0.7320508 + s * 0.53), fb / 0.3);
+}

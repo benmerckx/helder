@@ -3,15 +3,15 @@ import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
 // What the moth can wake, drawn on the stone's faces (quads in the wall's
-// plane, a little in front of it): a glyph's sigil, an eye, the snail's
-// home door. Carved hairlines that breathe faintly so they read as
+// plane, a little in front of it): a glyph's sigil, an eye, the larva's
+// home, a cocoon in a niche. Carved hairlines that breathe faintly so they read as
 // something to touch; lit from the moth's side as it comes near, filling
 // with light as they charge. Each one's state is an entry of one block's
 // array (written each frame): one draw for them all.
 @:structInit @:publicFields class GlyphVertex {
 	var corner:Vec2;
 	var at:Vec4; // xyz: its centre, w: its half size
-	var kind:Vec4; // x: 0 a glyph, 1 an eye, 2 the home's door; y: its entry in state
+	var kind:Vec4; // x: 0 a glyph, 1 an eye, 2 the home's cocoon; y: its entry in state
 }
 
 @:structInit @:publicFields class GlyphVaryings {
@@ -26,12 +26,12 @@ import helder.gfx.shader.ShaderMath.*;
 	var viewProj:Mat4;
 	var moth:Vec4; // xyz: the moth, w: seconds
 	// x: charge (0 to 1), y: lit, z: how near the moth is (0 to 1), w: 1 armed
-	// (the door's: x the snail near, y home)
+	// (the home's: x the larva near, y home)
 	@:length(8) var state:Array<Vec4>;
 }
 
 final GLOW = vec3(0.62, 0.3, 1.0);
-final WARM = vec3(1.0, 0.55, 0.18);
+final MAGENTA = vec3(1.0, 0.1, 0.62);
 
 // the sigil's distance (q: its half size 1)
 function sigil(q:Vec2):Float {
@@ -61,17 +61,29 @@ final GlyphShader = shader({
 		var t = p.view.moth.w, q = i.q, st = i.state;
 		var kind = floor(i.kind.x + 0.5);
 		if (kind > 1.5) {
-			// (the home: a round-topped door, dark inside, a warm light in
-			// it that brightens as the snail comes, full once it is home)
-			var d = max(abs(q.x) - 0.42, -q.y - 0.95);
-			d = q.y > 0.1 ? length(q - vec2(0, 0.1)) - 0.42 : d;
-			var inside = 1 - smoothstep(-0.02, 0.02, d);
-			var rim = 1 - smoothstep(0.0, 0.1, abs(d));
+			// (the home: a niche in the stone, a cocoon hung in it, a
+			// lattice about an ember that brightens as the larva comes; once
+			// it is in, a lantern)
+			var nd = q.y > 0.3 ? length(q - vec2(0, 0.3)) - 0.6 : max(abs(q.x) - 0.6, -q.y - 0.95);
+			var niche = 1 - smoothstep(-0.02, 0.02, nd);
+			var rim = 1 - smoothstep(0.0, 0.07, abs(nd));
 			var breathe = 0.8 + 0.2 * sin(t * 1.2);
-			var lamp = 0.35 + st.x * 0.8 + st.y * 2.5;
-			var glow = WARM * ((inside * (0.5 + 0.5 * smoothstep(-0.95, 0.4, -q.y)) * 1.2 + rim * 0.8) * lamp * breathe);
-			var halo = exp(-max(d, 0) * 5) * (1 - inside) * (0.15 + st.y * 0.6) * breathe;
-			return vec4(glow + WARM * halo, inside * 0.85);
+			var cq = (q - vec2(0, -0.12)) / vec2(0.34, 0.62);
+			var cr = length(cq), cd = (cr - 1) * 0.34;
+			var inside = 1 - smoothstep(-0.02, 0.02, cd);
+			var u = cq.x / sqrt(max(1 - cq.y * cq.y, 0.05)) * 0.3;
+			var a = abs(fract(u * 4 + cq.y * 1.6) - 0.5), b = abs(fract(u * 4 - cq.y * 1.6) - 0.5);
+			var bar = max(1 - smoothstep(0.09, 0.14, min(a, b)), smoothstep(0.82, 0.92, cr));
+			var thread = (1 - smoothstep(0.012, 0.03, abs(q.x))) * step(0.45, q.y) * step(q.y, 0.9);
+			var heart = exp(-dot(cq - vec2(0, -0.2), cq - vec2(0, -0.2)) * 2.2);
+			var lamp = 0.1 + 0.06 * breathe + st.x * 0.5 + st.y * 3.2;
+			var cells = MAGENTA * (heart * lamp * 2.4) + vec3(0.2, 0.04, 0.3) * (0.03 + st.y * 0.3);
+			var bars = vec3(0.3, 0.26, 0.5) * (0.22 + st.x * 0.3 + heart * lamp * 0.5);
+			var c = mix(vec3(0.006, 0.004, 0.014), mix(cells, bars, bar), inside);
+			c = mix(c, vec3(0.25, 0.2, 0.4) * 0.5, thread * (1 - inside));
+			var halo = exp(-max(cd, 0) * 4.5) * (1 - inside) * (0.05 + st.x * 0.12 + st.y * 0.9) * breathe;
+			var edge = GLOW * (rim * (0.1 + 0.06 * breathe + st.x * 0.25 + st.y * 0.4));
+			return vec4(c * niche + MAGENTA * halo + edge, niche * 0.92);
 		}
 		var line = 0.0, fill = 0.0;
 		if (kind > 0.5) {

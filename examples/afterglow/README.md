@@ -2,35 +2,42 @@
 
 A calm puzzle in overgrown ruins over still black water, lit only by
 what lives there: a tiny white moth whose light wakes glyphs that move
-the stone, leading a snail home. GAME.md is the game as designed and
-built; this is the code.
+the stone, leading its young, a caterpillar, to its cocoon. GAME.md is
+the game as designed and built; this is the code.
 
 ```sh
 bun run helder run examples/afterglow          # drag or tap to fly; 1, 2, 3: a screen
-bun run helder run --headless examples/afterglow --size 1080x1920 --snap out.png --at 3
+bun run helder run --headless examples/afterglow --size 390x844 --scale 3 --snap out.png --at 3
 bun run helder run --headless examples/afterglow --size 405x720 --scale 2 \
-  --script examples/afterglow/play/first.json --snap home.png --at mark:home
+  --script examples/afterglow/play/first.json --snap home.png --at mark:home -- --log
+bun run helder run --headless examples/afterglow --size 1920x1080 --snap sheet.png --at 2 -- --sheet
 ```
+
+`-- --log` prints what happens as it does (`afterglow: screen 1: home at
+12.3 s`: a script solved its screen), `-- --sheet` draws the two
+characters alone, in their poses at a few sizes, `-- --detail 0.7` draws
+the scene at that share of the screen's pixels each way (a slow device).
 
 ## How it plays
 
 - **Screens** (Screens.hx): each screen as data: its stone (boxes,
   worn and with flat tops where something walks), its walks (x0, x1, y,
   z), its pieces (the stone that moves: a few poses each, dx, dy and a
-  turn about a pivot; what carries the snail, what a pair of eyes holds
+  turn about a pivot; what carries the larva, what a pair of eyes holds
   open, what bars the way while shut, a lantern hung from another
-  piece), its glyphs (what each moves), where the snail starts and its
+  piece), its glyphs (what each moves), where the larva starts and its
   home.
 - **Puzzle** (Puzzle.hx): one screen's play, stepped at a fixed 60 a
   second from where the moth is. Distances to the moth are taken as seen:
   each point brought along the line of sight to the plane the moth flies
   in. A glyph charges while a light is within reach and moves its pieces
   when full, then waits to go dark; eyes hold a piece open while all are
-  lit; a woken lantern is a light. The snail crawls to the point of its
-  way nearest the moth: the walks at its height joined, cut by shut
-  gates, pieces that move left out (it rides the one carrying it).
-  Pieces ease between poses with a little weight; a glyph near the moth
-  stirs its stone towards its next pose and edges it violet (the hint).
+  lit; a woken lantern is a light. The larva crawls to the point of its
+  way nearest the moth: the walks at its height joined, cut a little
+  before a shut gate (it waits there), pieces that move left out (it
+  rides the one carrying it). Pieces ease between poses with a little
+  weight; a glyph near the moth stirs its stone towards its next pose and
+  edges it violet (the hint).
 - **Flight** (Flight.hx): the moth flies to where it is led (steered
   towards it, wings beating, facing its way, leaning into a climb), hovers
   a moment when it stops (long enough to wake what it stopped by), then
@@ -39,72 +46,100 @@ bun run helder run --headless examples/afterglow --size 405x720 --scale 2 \
   the pause and the fade into the mist between screens.
 - **Playtests** (play/*.json): headless scripts that solve each screen,
   one that does the lift's in the wrong order first (no failure: the
-  lift goes up empty, the snail waits), and all three in a row.
+  lift goes up empty, the larva waits), one that leaves the larva
+  waiting at the shut gate first (gate.json: it once opened for it), and
+  all three in a row. Their taps are in the world's coordinates on the
+  moth's plane (wx, wy); `node examples/afterglow/play/aim.mjs 405x720`
+  writes the window's points (x, y) for a window's size, as Afterglow
+  frames it.
 
 ## How it is drawn
 
-- **The ruins** (Stones, Sdf, Builder): stone is signed distance fields,
-  meshed once at start (surface nets, Builder.field), so nothing is a box:
-  walls and arcades whose top courses have fallen in steps, some bays
-  broken through from above, ends crumbling away, edges rounded and worn
-  by noise at their own scale, footings sunk in rubble; slabs with ragged
-  outlines and bites out of their lips; towers tapering to a slanted
-  break. Each vertex carries how open it is (the field probed along its
-  normal, so crevices are dark), how much moss covers it, and how far
-  below a ledge's top it is. Roots are knotted strands twisting about a
-  path; mushrooms and lanterns are lathed, strands and veins are tubes
-  (veins hug the arch's face). One shader (PaintShader) paints each
-  surface by its kind: blocks in wavering hand-drawn courses, moss on what
-  faces up, and moss hanging below each top in strands of uneven length,
-  in clumps, their tips glowing.
-- **Depth**: planes one behind another, each larger and paler: the moth's
-  ledge and its cliff, the great arch, a low bridge, then aqueducts at 16,
-  26, 42 and 60 units, towers further off. The mist is thick over the
-  water and thinner higher up (bases dissolve, tops stay readable), teal
-  at the horizon, blue above, violet high up, so each plane stands lighter
-  than the one in front. Shafts of light fall slanted through it between
-  the planes (BeamShader, additive), and dark vines hang from the arch's
-  crown against it.
-- **Light comes from life.** The glows are lights (a 2 x 32 RGBA16F
-  texture, the lanterns' swaying with them; the far planes skip them); the
-  moth's violet aura is one more. Everything else is a dim indigo ambient
-  and a cold rim from the mist behind.
-- **A screen's stone** is meshed when the screen is first shown (Ruins.screen,
-  its own buffers): screen 1's at start, the others under the mist
-  between screens. Its pieces are meshed as built and posed in
-  PaintShader's vertex stage (the view's pose and pivot: a draw each,
-  with the moth's hint and a lantern's light).
-- **Glyphs** (GlyphShader): a sigil, an eye, the home's door, quads on
-  the stone's faces (kept flat there when meshed); carved hairlines that
-  breathe faintly, lit from the moth's side as it comes near, filling as
-  they charge. Their states are an array in one uniform block: one draw.
-- **Water**: the ruins near (not the far planes) and the moth drawn
-  mirrored into a half-size target, read back stirred by ripples and
-  smeared downwards.
-- **The moth** is the reference's: side on, standing, its pale wings
-  folded down and back like a cape with lilac crescents and a scalloped
-  hem, fern antennae in a V, a round head with a dark eye, thin legs;
-  drawn from shapes in its shader, its wings breathing and its antennae
-  swaying; in flight its legs tuck up and its wings beat about the
-  shoulder. A soft violet halo; motes drifting, moved by the GPU.
-- **The snail** is drawn the same way (MothShader's third shape): a
-  spiral shell with a faint glowing line, so it reads in the dark, its
-  body out of it by how awake it is, rippling as it crawls.
-- **The finish**: helder.scene's HDR renderer (the injection points) and
-  PostProcess (bloom, ACES) at half the screen (the shorter side about
-  540 pixels), shown in 2 x 2 pixels with an ordered dither, brush dabs,
-  and the darks pulled towards indigo (FinishShader, the chain's own last
-  stage: `post.add`, read Nearest, into the frame): the same grain over
-  everything, and the fade into the mist between screens. The mist stays
-  the shaders' own (Mood.haze): its colour follows the view (teal low,
-  violet high, shafts in it), which helder.scene's Fog, one colour, can't.
-- **Framing**: a phone's portrait view and a wide one share the scene;
-  the camera and the roots in front (a stage's wings) change with the
-  aspect.
+- **Stone** (Stones, Sdf, Builder): signed distance fields, meshed once
+  (surface nets, Builder.field). Masonry is laid in blocks that stand in
+  and out of its faces, a few gone (Stones.brick); PaintShader draws the
+  joints of the same blocks (Mood.bricks: both from sequences that come
+  out the same in a shader's floats), so relief and paint agree. A ledge
+  has a lip over its top course and steps back under it (a corbel), its
+  top courses fallen in steps, bites out of its lip; an arcade's broken
+  bays open in steps; the great arch has two orders of voussoirs. Each
+  vertex carries how open it is (crevices dark), how much moss covers it,
+  how far below a ledge's top it is (only where that top is open above
+  it), and the light of the glows about it (Builder.bake: nothing is
+  summed a pixel). Faces that look away from the eye are never meshed.
+- **Moss**: on what faces up; from each lip a fringe and drips of uneven
+  length in clumps, bright where they start, their tips glowing
+  (PaintShader, from the height below the top). Under the arch it hangs
+  in strands, and dark vines from its crown.
+- **Depth**: the screen's stone in front; the great arch over it all,
+  veins glowing on its face, lanterns hung in it; through it a cliff of
+  ledges and a bridge's last bays; behind them six planes of far ruins
+  (FarShader): each one upright quad whose silhouette is worked out a
+  pixel (tiers of arcades, tall arches under small ones, tops fallen in
+  steps, posts left standing, a pier's thickness seen in each opening, a
+  small glow here and there), its edge a pixel soft at any resolution,
+  nothing to mesh. The mist is thick over the water and thinner higher
+  up, so each plane stands paler than the one in front; shafts of light
+  fall slanted between them (BeamShader).
+- **Light comes from life.** The glows that stay light the stone through
+  its vertices; those of the moment (a woken lantern, the cocoon as the
+  larva comes) are four of the view's; the moth's violet aura is one
+  more. Everything else is a dim indigo ambient and a cold rim from the
+  mist behind.
+- **Lanterns**: a long drop of lattice about a heart of light seen
+  through its lower cells, a knot over it, a tassel under it. They are
+  cocoons: the larva's home is an empty one in a niche (GlyphShader), an
+  ember that brightens as it comes, lit once it is in.
+- **The characters** (MothShader): the moth and its young from the same
+  few bold shapes: a round head with one large dark eye (it blinks; shut
+  asleep), feathers of a few thick barbs, flat cream with lilac marks, a
+  thin violet line about each, so they read small on a phone. The moth is
+  the reference's: side on, its pale wings swept down and back like a
+  cape, their hems in scallops, two crescents, two rays and a spot on the
+  near one, antennae in a V; in flight its wings beat about the shoulder
+  and its banded body shows. The larva is four banded segments and that
+  head, two small feathers, a bud of light on its tail; asleep it is
+  curled into a bun.
+- **Water**: the scene drawn mirrored into a target a third the size,
+  read back stirred by ripples and smeared downwards.
+- **The finish** (FinishShader, the last stage of PostProcess's chain:
+  `post.add`): the scene is drawn multisampled (4 samples) in HDR at the
+  screen's own resolution, bloomed and tone mapped, then finished at the
+  screen's resolution in points (pixels over the window's scale), so a
+  phone and a 5K screen show the same picture: edges wander half a point
+  as a hand's would, strokes smear a little along their way, tone lies
+  in soft bands whose borders wander, a brush's dabs and a paper's tooth
+  lie over it, darks are pulled towards indigo. Its noise is one small
+  tiling texture. No big pixels, no dither.
+- **Resolution**: all of the screen's pixels up to a budget (6.6
+  million: a 2880 x 1800 screen whole, a 5K one at two thirds each way,
+  the finish always at the screen's own); `--detail` lowers it for a slow
+  device. The bloom starts from a quarter on large targets, so it is as
+  wide on any screen.
+- **Framing** (Afterglow.frame): what is played with (3.3 units either
+  side, 3.9 up and down on the stage's plane) is always in the frame: a
+  narrow phone (9:21) sees more of the arch above and the water below, a
+  wide window more of the ruin beside it; the roots in front (a stage's
+  wings) change with it.
 
-A frame is 15 passes and 33 to 35 draws over about 400,000 triangles;
-the play allocates a few small arrays a step (about 4.5 KB a frame, the
-look alone 2.8). On an M-series Mac (Metal, headless) a 1080 x 1920 frame
-takes about 7.5 ms (the look alone 6.4; the first pass took 3.7 there);
-meshing takes about 2.9 s at start and about 1 s for each later screen,
-under the mist. None of it has been measured on a phone yet.
+A frame is 15 passes and 34 draws over about 295,000 triangles (the
+ruins 200,000, a screen about 95,000; 400,000 before faces looking away
+were left out). Meshing the ruins takes about 1.1 s at start; the first frame, which
+meshes the first screen and makes the pipelines, 1.3 s more (later
+screens are meshed under the mist between screens). Start to first
+frame was 2.9 s when the far ruins were meshes. Headless on an M-series Mac
+(Metal), a frame's work with the harness reading every frame back:
+
+| window | frame | of it, the scene at a tenth |
+| --- | --- | --- |
+| 1080 x 1920 | 11 ms | 6 ms |
+| 1170 x 2532 (a phone) | 15 ms | 10 ms |
+| 1920 x 1080 | 13 ms | |
+| 2880 x 1800 | 22 ms | 15 ms |
+| 5120 x 2880 | 40 ms | 33 ms |
+
+The second column is the same run with the scene drawn at a tenth each
+way: the harness's reading back, the play and the finish; the difference
+is the scene at full size (5 to 7 ms). The half-size, 2 x 2 pixel
+version took 7.5 ms at 1080 x 1920. None of it has been measured on a
+phone yet.

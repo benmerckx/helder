@@ -7,7 +7,7 @@ import Puzzle;
 // below it hovers. Stepped with the puzzle, at its rate.
 class Flight {
 	// the moth's feet below its middle (its quad's 0.6 of Ruins.MOTH)
-	public static inline var FEET = 0.6 * 0.45 + 0.03;
+	public static inline var FEET = 0.6 * Ruins.MOTH + 0.03;
 	static inline var SPEED = 5.0;
 
 	public var x:Float;

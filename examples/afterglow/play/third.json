@@ -1,15 +1,15 @@
 {"events": [
   {"t": 0.2, "type": "key", "name": "3"},
   {"t": 1.5, "type": "mark", "name": "start"},
-  {"t": 1.6, "type": "tap", "x": 365, "y": 481},
-  {"t": 5.0, "type": "mark", "name": "lowered"},
-  {"t": 6.5, "type": "tap", "x": 330, "y": 380},
-  {"t": 7.0, "type": "mark", "name": "aboard"},
-  {"t": 8.0, "type": "tap", "x": 365, "y": 481},
+  {"t": 1.6, "type": "tap", "x": 325, "y": 526, "wx": 1.68, "wy": 1.72},
+  {"t": 5, "type": "mark", "name": "lowered"},
+  {"t": 6.5, "type": "tap", "x": 297, "y": 444, "wx": 1.32, "wy": 2.85},
+  {"t": 7, "type": "mark", "name": "aboard"},
+  {"t": 8, "type": "tap", "x": 325, "y": 526, "wx": 1.68, "wy": 1.72},
   {"t": 9.6, "type": "mark", "name": "rising"},
-  {"t": 11.2, "type": "tap", "x": 153, "y": 272},
+  {"t": 11.2, "type": "tap", "x": 154, "y": 354, "wx": -0.74, "wy": 4.16},
   {"t": 13.5, "type": "mark", "name": "bridged"},
-  {"t": 15.5, "type": "tap", "x": 52, "y": 320},
-  {"t": 18.0, "type": "mark", "name": "home"},
-  {"t": 19.0, "type": "mark", "name": "end"}
+  {"t": 15.5, "type": "tap", "x": 70, "y": 393, "wx": -1.96, "wy": 3.59},
+  {"t": 18, "type": "mark", "name": "home"},
+  {"t": 19, "type": "mark", "name": "end"}
 ]}

@@ -3,7 +3,7 @@ import Puzzle;
 // The game: the screens in turn, the moth led by the pointer, the puzzle
 // stepped at its fixed rate (the same steps whatever the frame rate: the
 // same play for the same input), and the passing from one screen to the
-// next (a pause once the snail is home, a fade into the mist and out).
+// next (a pause once the larva is home, a fade into the mist and out).
 class Game {
 	public var index(default, null) = 0;
 	public var puzzle(default, null):Puzzle;
@@ -11,6 +11,8 @@ class Game {
 	// 1: all mist, 0: clear
 	public var fade(default, null) = 1.0;
 	public var eye:Vec;
+	// what happens printed as it does (the playtests' check: -- --log)
+	public var log = false;
 	var clock = 0.0;
 	var steps = 0;
 	var home = -1.0;
@@ -55,6 +57,10 @@ class Game {
 		puzzle.eye = eye;
 		moth.step(dt, puzzle);
 		puzzle.step({x: moth.x, y: moth.y, z: moth.z});
+		if (log)
+			for (e in puzzle.events)
+				Sys.println('afterglow: screen ${index + 1}: $e at ${Math.round(clock * 10) / 10} s');
+		puzzle.events.resize(0);
 		if (puzzle.solved && home < 0) home = clock;
 		var last = index == Screens.all.length - 1;
 		if (home >= 0 && !last && clock - home > 3.2) leaving = true;
