@@ -725,9 +725,22 @@ class Renderer implements Canvas {
 		var reach = stroke == null ? 0.0 : stroke.width / 2 * ((stroke.join ?? Miter) == Miter ? Math.max(1, stroke.miterLimit ?? 4) : 1.5);
 		var x0 = Math.floor((b.x - reach) * s) - 1, y0 = Math.floor((b.y - reach) * s) - 1;
 		var w = Std.int(Math.ceil((b.x + b.width + reach) * s) + 1 - x0), h = Std.int(Math.ceil((b.y + b.height + reach) * s) + 1 - y0);
+		// (untransformed: only the part inside the clip rasterized, so a path
+		// far larger than the window (a glyph zoomed in) costs the window)
+		if (flat) {
+			var cx0 = Math.floor(clipX0 - tx * s) - 1, cy0 = Math.floor(clipY0 - ty * s) - 1;
+			var cx1 = Math.ceil(clipX1 - tx * s) + 1, cy1 = Math.ceil(clipY1 - ty * s) + 1;
+			var nx0 = Std.int(Math.max(x0, cx0)), ny0 = Std.int(Math.max(y0, cy0));
+			var nx1 = Std.int(Math.min(x0 + w, cx1)), ny1 = Std.int(Math.min(y0 + h, cy1));
+			if (nx1 <= nx0 || ny1 <= ny0) return;
+			x0 = nx0;
+			y0 = ny0;
+			w = nx1 - nx0;
+			h = ny1 - ny0;
+		}
 		if (w <= 0 || h <= 0 || w * h > 4096 * 4096) return;
 		var e = paths.get(p);
-		if (e == null || !e.same(s, p, fill, stroke)) {
+		if (e == null || !e.same(s, p, fill, stroke) || e.x != x0 / s || e.y != y0 / s || e.img.width != w || e.img.height != h) {
 			e = new PathImage(s, p, fill, stroke, p.render(w, h, [s, 0, 0, s, -x0, -y0], fill, stroke), x0 / s, y0 / s);
 			paths.set(p, e);
 		}
