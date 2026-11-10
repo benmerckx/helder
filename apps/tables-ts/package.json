@@ -1,0 +1,10 @@
+{
+  "name": "tables-ts",
+  "private": true,
+  "description": "A table browser for Drizzle: drizzle-kit studio's server in a native window, in TypeScript",
+  "license": "MIT",
+  "author": "Ben Merckx",
+  "dependencies": {
+    "helder": "link:../.."
+  }
+}

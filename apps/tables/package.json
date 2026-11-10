@@ -1,0 +1,11 @@
+{
+  "name": "tables",
+  "private": true,
+  "description": "A table browser for Drizzle: drizzle-kit studio's server, its tables in a native window",
+  "license": "MIT",
+  "author": "Ben Merckx",
+  "homepage": "https://github.com/benmerckx/helder/tree/main/apps/tables",
+  "helder": {
+    "main": "Main"
+  }
+}
