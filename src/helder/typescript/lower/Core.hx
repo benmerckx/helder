@@ -126,7 +126,23 @@ abstract class Core {
 	// a let or const binding's, or a direct function's parameter's: as its type says
 	// (a `yield`'s value is whatever next() is given: TypeScript's TNext does not hold for it)
 	function bindingType(n:Node):Ty
-		return n.name().kind == KindIdentifier && (n.initializer() == null || n.initializer().kind != KindYieldExpression) ? reps.rep(n.name().tsType) : TRef(RAny);
+		return n.name().kind == KindIdentifier && (n.initializer() == null || n.initializer().kind != KindYieldExpression) && !loose(n.initializer())
+			? reps.rep(n.name().tsType) : TRef(RAny);
+
+	// whether a value may be undefined where its type says otherwise: a
+	// regular expression's group (m[2], string by TypeScript's library,
+	// undefined where the group took no part), and what passes one on
+	function loose(n:Null<Node>):Bool {
+		if (n == null) return false;
+		return switch n.kind {
+			case KindParenthesizedExpression | KindAsExpression | KindNonNullExpression: loose(n.expression());
+			case KindElementAccessExpression: types.isMatch(n.expression().tsType);
+			case KindBinaryExpression if ([KindQuestionQuestionToken, KindBarBarToken, KindAmpersandAmpersandToken].contains(n.operatorToken().kind)):
+				loose(n.left()) || loose(n.right());
+			case KindConditionalExpression: loose(n.whenTrue()) || loose(n.whenFalse());
+			case _: false;
+		}
+	}
 
 	// a parameter's slot: typed unless it takes a default, is optional or a rest
 	function parameterType(n:Node):Ty

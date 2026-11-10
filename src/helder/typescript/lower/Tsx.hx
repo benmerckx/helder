@@ -816,7 +816,7 @@ class Tsx {
 				}
 				var fallback = b.block(() -> {
 					var call = b.block(() -> b.out.push(SExpr(ECallClos(s, before, Vector.fromArrayCopy([for (a in args) ELocal(a)])))));
-					var none = b.block(() -> bridge.call(bridge.interop("fail"), [EStr("helder.view: no code for this markup")]));
+					var none = b.block(() -> bridge.call(bridge.interop("noMarkup"), [ELocal(args[0])]));
 					b.out.push(SIf(EBin(RefEq, before, ENull(t)), none, call));
 				});
 				// (by key: a chain of tests, the IR the frontend writes)

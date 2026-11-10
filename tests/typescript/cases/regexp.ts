@@ -14,3 +14,14 @@ console.log(/(\d+)(?=px)/.exec("width: 100px")![1], /(?<!\$)\b\d+/.exec("$50 or 
 console.log(/(a)|(b)/.exec("b"), /(\w)\1/.test("hello"), /^.$/su.test("😀"), /^.$/.test("😀"), /\u{1F600}/u.test("😀"));
 console.log(/a.c/s.test("a\nc"), /^b/m.test("a\nb"), new RegExp("a/b", "gi").source, String(/x\/y/g)); try { new RegExp("["); } catch (e: any) { console.log(e.name); }
 }
+{
+// a group that took no part: undefined, though TypeScript's library types it string
+const m = /(\d+)(?:-(\d+))?(?::(\w+))?/.exec("12")!;
+const second = m[2];
+const named = m[3] ?? "none";
+const hour = Number(m[2] ?? 0) * 60;
+const either = m[2] || m[1];
+const picked = m[2] !== undefined ? m[2] : "no second";
+console.log(second, second === undefined, named, hour, either, picked, typeof m[3]);
+for (const x of "a=1 b".matchAll(/(\w)(?:=(\d))?/g)) { const v = x[2]; console.log(x[1], v ?? "unset", v === undefined); }
+}

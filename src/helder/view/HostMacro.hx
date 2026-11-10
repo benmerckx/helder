@@ -122,8 +122,23 @@ class HostMacro {
 			reached.push(i.path);
 			hook();
 		}
+		// (noted on the class that reached it: a build whose modules are all
+		// cached, a dev host's reload of a TypeScript program, reaches it too)
+		var local = try Context.getLocalClass() catch (_:Dynamic) null;
+		if (local != null) {
+			var c = local.get();
+			if (!Lambda.exists(c.meta.extract(":helder.reached"), m -> m.params != null && m.params.length == 1 && switch m.params[0].expr {
+				case EConst(CString(p, _)): p == i.path;
+				case _: false;
+			})) c.meta.add(":helder.reached", [macro $v{i.path}], Context.currentPos());
+		}
 		return i;
 	}
+
+	// (every build of a program with helder.view: Compiler's init macro; the
+	// renderers its cached modules reached are found after typing)
+	public static function init()
+		hook();
 
 	// the renderer whose nodes t is: its class's (or a superclass's) @:rendered, else a
 	// reached renderer's node type it unifies with; null when none
@@ -242,6 +257,11 @@ class HostMacro {
 		for (t in types)
 			switch t {
 				case TClassDecl(c):
+					for (m in c.get().meta.extract(":helder.reached"))
+						switch m.params[0].expr {
+							case EConst(CString(p, _)): if (reached.indexOf(p) < 0) reach(p);
+							case _:
+						}
 					for (m in c.get().meta.extract(":helder.late")) {
 						var key = switch m.params[0].expr {
 							case EConst(CInt(s)): Std.parseInt(s);

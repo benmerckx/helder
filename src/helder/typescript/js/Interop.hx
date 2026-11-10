@@ -220,6 +220,9 @@ class Interop {
 	// (what a renderer cannot do: an agnostic literal's code for it, a component it has no version of)
 	public static function fail(message:String):Dynamic throw message;
 
+	// (markup whose code no part of the program has: its key)
+	public static function noMarkup(key:Int):Dynamic throw "helder.view: no code for this markup (" + key + ")";
+
 	// (helder dev) the signal f, its value the last build's signal's of this
 	// key (Hot's, in its scope) when its initial value's source is the same;
 	// saved on each snapshot when it is data (helder.view.Refresh's, for a

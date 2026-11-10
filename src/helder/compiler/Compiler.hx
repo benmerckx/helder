@@ -66,6 +66,7 @@ class Compiler {
 			noOutput = actx.noOutput;
 			dev(com);
 			nullSafety(actx);
+			views(com, actx);
 			if (typing != null) typing(com, actx);
 			// (a compilation server's parse replaces hxmc's: around it again)
 			MarkupHook.install();
@@ -181,6 +182,12 @@ class Compiler {
 	// Haxe's null safety for helder's packages that keep it (NullSafety's,
 	// by package; HELDER_NULL_SAFETY="<package>=<mode>,..." adds others, a
 	// measure's): an init macro of every build this compiler makes
+	// (helder.view's renderers found after typing in every build, a cached one's too: HostMacro.init)
+	static function views(com:context.Common.CommonContext, actx:compiler.ParsedArg.ArgContext) {
+		if (Lambda.exists(com.classPaths.asStringList(), p -> FileSystem.exists(Path.join([p, "helder/view/HostMacro.hx"]))))
+			actx.configMacros.push("helder.view.HostMacro.init()");
+	}
+
 	static function nullSafety(actx:compiler.ParsedArg.ArgContext) {
 		var env = Sys.getEnv("HELDER_NULL_SAFETY") ?? "";
 		var all = [for (p in NullSafety.packages.keys()) p => NullSafety.packages.get(p)];

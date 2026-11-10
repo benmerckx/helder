@@ -52,6 +52,9 @@ class Types {
 	final typeParameter:Int;
 	final classFlag:Int;
 	final reference:Int;
+	// (RegExpMatchArray's and RegExpExecArray's symbols: a match's groups, string by
+	// their type, undefined where a group took no part)
+	var matches:Null<Array<String>> = null;
 	// type parameters taken as number: a generic function's copy for numbers
 	// (lower.Expressions.specialization), while it is declared and lowered
 	public var numberParams:Null<Map<Int, Bool>> = null;
@@ -83,6 +86,12 @@ class Types {
 	// a file's types: of its expressions and names in one request, then of
 	// its functions' results
 	public function load(sf:SourceFile) {
+		if (matches == null) matches = [for (name in ["RegExpMatchArray", "RegExpExecArray"]) {
+			// (64: SymbolFlags.Interface)
+			final r:Dynamic = try tsgo.call("resolveName", {snapshot: at.snapshot, project: at.project, name: name, meaning: 64}) catch (_:Dynamic) null;
+			final id:Dynamic = r == null ? null : r.reference != null ? r.reference.id : r.id;
+			if (id != null) Std.string(id);
+		}];
 		var ids = [for (i in 1...sf.count) if (typed.contains(sf.kindAt(i))) i];
 		if (ids.length > 0) {
 			var result:Array<Dynamic> = tsgo.call("getTypeAtLocations", {snapshot: at.snapshot, project: at.project, locations: [for (i in ids) sf.location(i)]});
@@ -193,6 +202,10 @@ class Types {
 		final rest = t.members.filter(m -> m.flags & nullish == 0);
 		return rest.length == 1 ? rest[0] : t;
 	}
+
+	// whether the type is a regular expression's match (its groups read by index)
+	public function isMatch(t:Null<TsType>):Bool
+		return t != null && t.symbol != null && matches != null && matches.contains(t.symbol);
 
 	// whether every value of the type is an array
 	public function isArray(t:Null<TsType>):Bool return t != null && t.element != null;

@@ -191,7 +191,7 @@ abstract class Expressions extends Statements {
 			case KindConditionalExpression:
 				var c = n;
 				var cond = truth(expr(c.condition()));
-				var l = b.local("conditional", reps.rep(n.tsType));
+				var l = b.local("conditional", loose(n) ? TRef(RAny) : reps.rep(n.tsType));
 				var yes = b.block(() -> b.out.push(SSet(l, store(valueFor(c.whenTrue(), l.ty), l.ty))));
 				var no = b.block(() -> b.out.push(SSet(l, store(valueFor(c.whenFalse(), l.ty), l.ty))));
 				b.out.push(SIf(cond, yes, no));
@@ -317,7 +317,7 @@ abstract class Expressions extends Statements {
 		var a = numericOperator(op, n) ? numeric(x.left(), false) : expr(x.left());
 		if (op == KindAmpersandAmpersandToken || op == KindBarBarToken || op == KindQuestionQuestionToken) {
 			// (the result, the left or the right value, in a slot of the expression's type)
-			var l = b.local("shortCircuit", reps.rep(n.tsType));
+			var l = b.local("shortCircuit", loose(n) ? TRef(RAny) : reps.rep(n.tsType));
 			var right = op == KindQuestionQuestionToken ? isNullish(a, null) : op == KindBarBarToken ? ENot(truth(a)) : truth(a);
 			var lhs = b.block(() -> b.out.push(SSet(l, store(a, l.ty))));
 			var rhs = b.block(() -> b.out.push(SSet(l, store(expr(x.right()), l.ty))));
