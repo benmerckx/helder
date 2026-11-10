@@ -56,6 +56,7 @@ class Shell implements Markup {
 			{sidebar(ws)}
 			<view tag="main" grow={1} min-width={0} direction="column" background={c("bg")}>
 				{header(ws)}
+				{context(ws)}
 				{board(ws)}
 				{preview(ws)}
 				{status(ws)}
@@ -178,21 +179,20 @@ class Shell implements Markup {
 			<view direction="row" align-items="baseline" column-gap={8} min-width={0} shrink={1}>
 				<text font-size={15} font-weight={Theme.MEDIUM}>{ws.current}</text>
 				<text color={c("fg3")} font-family={Theme.CODE} font-size={Theme.SMALL}>{() -> unicode(ws.current())}</text>
-				<text color={c("fg3")} font-size={Theme.SMALL} max-lines={1}>{() -> describe(ws)}</text>
 			</view>
 			<view grow={1}/>
+			<Show when={ws.layer() == "pen"}>
+				<Segmented tag="tool" label="Tool" value={ws.tool} onChange={v -> ws.tool(v)} options={[
+					{value: "draw", label: "Draw", icon: Icons.pen, hint: "Draw (P)"},
+					{value: "adjust", label: "Adjust", icon: Icons.pointer, hint: "Adjust (V)"},
+					{value: "erase", label: "Erase", icon: Icons.eraser, hint: "Erase (E)"}
+				]}/>
+			</Show>
 			<Segmented tag="layer" label="Edit" value={ws.layer} onChange={v -> {
 				ws.layer(v);
 				ws.points([]);
 				ws.selected(null);
 			}} options={[{value: "pen", label: "Pen", hint: "Pen lines"}, {value: "outline", label: "Outline", hint: "Outline points"}]}/>
-			<Show when={ws.layer() == "pen"}>
-			<Segmented tag="tool" label="Tool" value={ws.tool} onChange={v -> ws.tool(v)} options={[
-				{value: "draw", label: "Draw", icon: Icons.pen, hint: "Draw (P)"},
-				{value: "adjust", label: "Adjust", icon: Icons.pointer, hint: "Adjust (V)"},
-				{value: "erase", label: "Erase", icon: Icons.eraser, hint: "Erase (E)"}
-			]}/>
-			</Show>
 			<view width={1} height={16} background={c("line")}/>
 			<Tip label={ws.guide() ? "Hide the tracing letter" : "Show the tracing letter"} keys="T">
 				<view:button tag="guide" slot="button" role="button" label="Tracing letter" focusable data-on={ws.guide() ? "true" : "false"}
@@ -200,76 +200,68 @@ class Shell implements Markup {
 			</Tip>
 		</view>;
 
-	static function describe(ws:Workshop):String {
-		var f = ws.face(), char = ws.current(), g = Model.glyph(f, char);
-		var parts = Charset.parts(f, char), group = Lambda.find(Charset.groups, g -> g.chars.indexOf(char) >= 0)?.name ?? "";
-		return switch Workshop.state(f, char) {
-			case "drawn":
-				var n = g == null ? 0 : g.lines.length;
-				'$group · $n ${n == 1 ? "line" : "lines"}';
-			case "borrowed": '$group · ${Charset.describe(parts)}';
-			case _: '$group · not drawn yet';
-		}
-	}
-
 	static function unicode(char:String):String
 		return "U+" + StringTools.hex(Charset.code(char), 4);
+
+	// under the header: what this letter is, what can be done with it; on
+	// the right, what an agent did, else how the tool is used
+	static function context(ws:Workshop):View
+		return <view tag="context" direction="row" align-items="center" column-gap={6} height={34} shrink={0} padding={'0 ${Theme.PAD}'}
+			border-width="0 0 1 0" border-color={c("line")}>
+			{icon(Icons.component, 12)}
+			<text color={c("fg2")} max-lines={1} text-overflow="ellipsis" shrink={1} min-width={0} padding="0 4 0 0">{() -> describe(ws)}</text>
+			<Switch>
+				<Match when={ws.layer() == "pen" && Model.outlined(Model.glyph(ws.face(), ws.current()))}>
+					<view:button tag="trace" slot="button" role="button" label="Trace into pen lines" focusable onPress={() -> ws.trace(ws.current())}>
+						<text>Trace into pen lines</text>
+					</view:button>
+				</Match>
+				<Match when={ws.layer() == "outline" && !Model.outlined(Model.glyph(ws.face(), ws.current()))
+					&& (Model.glyph(ws.face(), ws.current())?.lines.length ?? 0) > 0}>
+					<view:button tag="bake" slot="button" role="button" label="Edit as outline" focusable onPress={() -> ws.bake(ws.current())}>
+						<text>Edit as outline</text>
+					</view:button>
+				</Match>
+				<Match when={Workshop.state(ws.face(), ws.current()) == "borrowed"}>
+					<view:button tag="adopt" slot="button" role="button" label="Make it its own" focusable onPress={() -> ws.adopt(ws.current())}>
+						<text>Make it its own</text>
+					</view:button>
+					<view:button tag="own" slot="button" role="button" label="Draw it myself" focusable onPress={() -> ws.own(ws.current())}>
+						<text>Draw it myself</text>
+					</view:button>
+				</Match>
+			</Switch>
+			<view grow={1}/>
+			<Show when={ws.agent() != ""} fallback={<text font-size={Theme.SMALL} color={c("fg3")} max-lines={1}>{() -> hint(ws)}</text>}>
+				<view tag="agent" direction="row" align-items="center" column-gap={6} transition="fade">
+					<image src={Icons.sparkles} width={12} height={12} color={c("violet")}/>
+					<text font-size={Theme.SMALL} color={c("violet")} font-weight={Theme.MEDIUM}>{ws.agent}</text>
+				</view>
+			</Show>
+		</view>;
+
+	// what the letter on the board is
+	static function describe(ws:Workshop):String {
+		var f = ws.face(), char = ws.current(), g = Model.glyph(f, char);
+		var lines = g == null ? 0 : g.lines.length, contours = g?.outline?.length ?? 0;
+		function count(n:Int, one:String, many:String)
+			return '$n ${n == 1 ? one : many}';
+		return switch Workshop.state(f, char) {
+			case "borrowed": Charset.describe(Charset.parts(f, char));
+			case "empty": "Not drawn yet";
+			case _ if (contours > 0 && lines > 0): 'Outline, ${count(contours, "contour", "contours")}, and ${count(lines, "pen line", "pen lines")}';
+			case _ if (contours > 0): 'Outline, ${count(contours, "contour", "contours")}';
+			case _: 'Drawn with the pen, ${count(lines, "line", "lines")}';
+		}
+	}
 
 	static function board(ws:Workshop):View {
 		var area = signal({w: 0.0, h: 0.0});
 		return <view tag="board-area" grow={1} min-height={0} position="relative" overflow="hidden" onResize={e -> area({w: e.target.width, h: e.target.height})}>
 			{boardNode(ws)}
 			{guides(ws, area)}
-			<view position="absolute" top={14} left={0} right={0} align-items="center" pointer-events="none">
-				<Switch>
-					<Match when={ws.layer() == "outline" && !Model.outlined(Model.glyph(ws.face(), ws.current()))}>{layerNote(ws)}</Match>
-					<Match when={ws.layer() == "pen" && Model.outlined(Model.glyph(ws.face(), ws.current()))}>{layerNote(ws)}</Match>
-					<Match when={Workshop.state(ws.face(), ws.current()) == "borrowed" || Charset.parts(ws.face(), ws.current()).length > 0
-						&& Model.drawn(ws.face(), ws.current())}>{borrowed(ws)}</Match>
-				</Switch>
-			</view>
-			<view position="absolute" bottom={16} left={0} right={0} align-items="center" pointer-events="none">
-				<Show when={Workshop.state(ws.face(), ws.current()) == "empty"}>
-					<view slot="floating" direction="row" align-items="center" column-gap={8} padding="7 12" shadow={Theme.popover()}>
-						{icon(Icons.pen, 12)}
-						<text color={c("fg2")}>{() -> 'Draw ${ws.current()}: press and drag, one line per stroke. Shift draws straight.'}</text>
-					</view>
-				</Show>
-			</view>
-			<view position="absolute" top={14} right={14} pointer-events="none">
-				<Show when={ws.agent() != ""}>
-					<view tag="agent" direction="row" align-items="center" column-gap={7} padding="6 12 6 10" radius={14} transition="fade slide-down"
-						background={c("bg")} border-width={1} border-color={c("violet")} shadow={"0 0 18 " + (ws.dark() ? "rgba(185,174,224,0.35)" : "rgba(108,79,179,0.25)")}>
-						<image src={Icons.sparkles} width={13} height={13} color={c("violet")}/>
-						<text color={c("violet")} font-weight={Theme.MEDIUM}>{ws.agent}</text>
-					</view>
-				</Show>
-			</view>
 		</view>;
 	}
-
-	// what the layer shows of a letter that is the other kind, and the way across
-	static function layerNote(ws:Workshop):View
-		return <view tag="layer-note" slot="floating" direction="row" align-items="center" column-gap={6} padding="4 4 4 12" pointer-events="auto"
-			shadow={Theme.popover()}>
-			<Switch>
-				<Match when={ws.layer() == "pen"}>
-					<text color={c("fg2")} padding="0 4 0 0">An outline: its points are in Outline. Draw here to add pen lines over it.</text>
-					<view:button tag="trace" slot="button" role="button" label="Trace into pen lines" focusable onPress={() -> ws.trace(ws.current())}>
-						{icon(Icons.pen, 12)}<text>Trace into pen lines</text>
-					</view:button>
-				</Match>
-				<Match when={Model.glyph(ws.face(), ws.current())?.lines.length > 0}>
-					<text color={c("fg2")} padding="0 4 0 0">Drawn with the pen.</text>
-					<view:button tag="bake" slot="button" role="button" label="Edit as outline" focusable onPress={() -> ws.bake(ws.current())}>
-						{icon(Icons.pointer, 12)}<text>Edit as outline</text>
-					</view:button>
-				</Match>
-				<Match when={true}>
-					<text color={c("fg2")} padding="0 8 0 0">No outline. Draw it with the pen, or start from a font (File, New Font).</text>
-				</Match>
-			</Switch>
-		</view>;
 
 	static function boardNode(ws:Workshop):Node {
 		var b = new Board(ws);
@@ -307,21 +299,6 @@ class Shell implements Markup {
 				opacity={g().y < 0 ? 0 : 1}>{g().name}</text>}</For>
 		</view>;
 
-	static function borrowed(ws:Workshop):View
-		return <view tag="borrowed" slot="floating" direction="row" align-items="center" column-gap={6} padding="4 4 4 12" pointer-events="auto"
-			shadow={Theme.popover()}>
-			{icon(Icons.component, 12)}
-			<text color={c("fg2")} padding="0 4 0 0">{() -> Charset.describe(Charset.parts(ws.face(), ws.current()))}</text>
-			<view:button tag="adopt" slot="button" role="button" label="Make it its own" focusable onPress={() -> ws.adopt(ws.current())}>
-				{icon(Icons.scissors, 12)}<text>Make it its own</text>
-			</view:button>
-			<Show when={!Model.drawn(ws.face(), ws.current())}>
-				<view:button tag="own" slot="button" role="button" label="Draw it myself" focusable onPress={() -> ws.own(ws.current())}>
-					{icon(Icons.pen, 12)}<text>Draw it myself</text>
-				</view:button>
-			</Show>
-		</view>;
-
 	// ---- the draft font
 
 	static final SAMPLES = ["Hamburgefonstiv", "The quick brown fox jumps over the lazy dog", "Sphinx of black quartz, judge my vow!", "Über café, ¿sí? Ça va."];
@@ -329,8 +306,7 @@ class Shell implements Markup {
 	static function preview(ws:Workshop):View
 		return <view tag="preview" shrink={0} border-width="1 0 0 0" border-color={c("line")} padding={'10 ${Theme.PAD} 12'} row-gap={8}>
 			<view direction="row" align-items="center" column-gap={8}>
-				<text slot="section-head" font-size={Theme.SMALL}>Preview</text>
-				<text font-size={Theme.SMALL} color={c("fg3")} grow={1}>Type to try it, as an installed font draws it</text>
+				<text slot="section-head" font-size={Theme.SMALL} grow={1}>Preview</text>
 				<view direction="row" column-gap={2}>
 					<For each={SAMPLES}>{(s:Read<String>) -> {
 						var text = s();
@@ -353,25 +329,27 @@ class Shell implements Markup {
 		</view>;
 
 	static function status(ws:Workshop):View
-		return <view tag="status" direction="row" align-items="center" column-gap={10} height={26} shrink={0} padding={'0 ${Theme.PAD}'}
+		return <view tag="status" direction="row" align-items="center" column-gap={10} height={24} shrink={0} padding={'0 ${Theme.PAD}'}
 			border-width="1 0 0 0" border-color={c("line")}>
-			<text font-size={Theme.SMALL} color={c("fg3")} grow={1} max-lines={1} text-overflow="ellipsis">{() -> ws.status() == "" ? hint(ws) : ws.status()}</text>
-			<text font-size={Theme.SMALL} color={c("fg3")}>{() -> {
+			<text font-size={Theme.SMALL} color={c("fg3")} grow={1} max-lines={1} text-overflow="ellipsis">{ws.status}</text>
+			<text font-size={Theme.SMALL} color={c("fg3")} font-variant-numeric="tabular-nums">{() -> {
 				var p = ws.progress();
-				'${p.drawn} drawn · ${p.borrowed} borrowed';
+				'${p.drawn} drawn, ${p.borrowed} borrowed';
 			}}</text>
-			<view direction="row" align-items="center" column-gap={5}>
-				<view width={6} height={6} radius={3} background={ws.mcp() == "" ? c("fg3") : c("green")}/>
-				<text font-size={Theme.SMALL} color={c("fg3")}>{() -> ws.mcp() == "" ? "No agent link" : "Agents can connect"}</text>
-			</view>
+			<Tip label={ws.mcp() == "" ? "No agent server here" : "Agents connect at " + ws.mcp()} placement="above">
+				<view direction="row" align-items="center" column-gap={5}>
+					<view width={6} height={6} radius={3} background={ws.mcp() == "" ? c("fg3") : c("green")}/>
+					<text font-size={Theme.SMALL} color={c("fg3")}>MCP</text>
+				</view>
+			</Tip>
 		</view>;
 
+	// how the tool on the board is used, in a few words
 	static function hint(ws:Workshop):String
-		return if (ws.layer() == "outline")
-			"Drag points and handles (Shift: several). Double-click a point: smooth or corner; a curve: a new point. Delete removes. Arrows nudge." else switch ws.tool() {
-			case "adjust": "Drag a knot or a line. Double-click a knot for a corner. Delete removes. Arrows nudge.";
-			case "erase": "Drag over lines to erase them.";
-			case _: "Press and drag to draw a line. Ends near another line join it; knots near a guide rest on it.";
+		return if (ws.layer() == "outline") "Shift picks several · double-click: smooth or corner, a new point" else switch ws.tool() {
+			case "adjust": "Double-click a knot for a corner";
+			case "erase": "Drag over lines to erase them";
+			case _: "Shift draws straight";
 		}
 
 	// ---- the font's settings
