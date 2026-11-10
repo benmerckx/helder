@@ -71,8 +71,8 @@ export class Tables {
 	// the row panel: shown, and bumped when what it shows changed
 	readonly panel = signal(false);
 	readonly version = signal(0);
-	// columns hidden, by table
-	readonly hidden: Signal<Map<string, string[]>> = signal(new Map<string, string[]>());
+	// columns hidden, by table (a record: data, which a dev reload keeps)
+	readonly hidden: Signal<Record<string, string[]>> = signal<Record<string, string[]>>({});
 	// the SQL console's text, its result's note, its state
 	readonly query = signal("");
 	readonly resultNote = signal("");
@@ -182,7 +182,12 @@ export class Tables {
 				this.tables(list);
 				this.state("ready");
 				const first = list.find(t => !t.view) ?? list[0];
-				if (first !== undefined && this.current.peek() === null) this.openTab(first);
+				// (the tabs a dev reload kept: shown again, else the first table)
+				const kept = this.tabs.peek().filter(tab => list.some(t => t.id === tab.table));
+				if (this.current.peek() === null && kept.length > 0) {
+					this.tabList = kept;
+					this.showTab(Math.max(0, Math.min(this.active.peek(), kept.length - 1)), list);
+				} else if (first !== undefined && this.current.peek() === null) this.openTab(first);
 				if (this.query.peek() === "" && first !== undefined) {
 					// (the signal's write lands later: the editor given the text itself)
 					const q = `SELECT * FROM ${this.sql.table(first)} LIMIT 100`;
@@ -283,7 +288,7 @@ export class Tables {
 	// (the grid's columns: the table's not hidden)
 	// (hidden: the map just written, as a signal's write is read only once the graph has taken it)
 	private showColumns(t: Table, hidden = this.hidden.peek()) {
-		const off = hidden.get(t.id) ?? [];
+		const off = hidden[t.id] ?? [];
 		this.cols = t.columns.map((_, k) => k).filter(k => !off.includes(t.columns[k].name));
 		this.grid.columns = this.cols.map(k => {
 			const c = t.columns[k];
@@ -414,14 +419,14 @@ export class Tables {
 		else this.grid.focus(false);
 	}
 
-	private showTab(k: number) {
+	private showTab(k: number, list = this.tables.peek()) {
 		const tab = this.tabList[k];
 		this.at = k;
 		this.publishTabs();
 		this.history = tab.history;
 		this.canBack(tab.history.length > 0);
 		this.mode(tab.mode);
-		const t = this.tables.peek().find(t => t.id === tab.table);
+		const t = list.find(t => t.id === tab.table);
 		if (t !== undefined) this.open(t, tab.where, false, tab);
 	}
 
@@ -594,8 +599,7 @@ export class Tables {
 	hide(col: number) {
 		const t = this.current.peek();
 		if (t === null || this.cols.length <= 1) return;
-		const m = new Map(this.hidden.peek());
-		m.set(t.id, [...(m.get(t.id) ?? []), t.columns[col].name]);
+		const m = { ...this.hidden.peek(), [t.id]: [...(this.hidden.peek()[t.id] ?? []), t.columns[col].name] };
 		this.hidden(m);
 		const at = this.grid.cursorCol;
 		this.showColumns(t, m);
@@ -605,8 +609,8 @@ export class Tables {
 	showAll() {
 		const t = this.current.peek();
 		if (t === null) return;
-		const m = new Map(this.hidden.peek());
-		m.delete(t.id);
+		const m = { ...this.hidden.peek() };
+		delete m[t.id];
 		this.hidden(m);
 		this.showColumns(t, m);
 		this.grid.refresh();
