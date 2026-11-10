@@ -276,7 +276,7 @@ class Ruins {
 			vein(start, rand() * Math.PI * 2, 3.0, 0.07, 3);
 		// (moss hanging under the arch: thick strands, in clumps)
 		b.kind = PaintShader.STRAND;
-		for (k in 0...26) {
+		for (k in 0...44) {
 			var th = range(0.25, Math.PI - 0.25), z = range(-8.4, -7.0);
 			if (k % 3 != 0) th = Math.round(th * 4) / 4 + range(-0.08, 0.08);
 			// (from the intrados: march up from inside the opening to the stone)
@@ -289,7 +289,7 @@ class Ruins {
 		}
 		// (long vines hanging from the crown, dark against the mist)
 		b.kind = PaintShader.ROOT;
-		for (v in [[-4.4, 6.0], [-1.6, 3.4], [4.9, 5.2], [6.1, 7.4], [-6.2, 4.2], [2.2, 2.2]]) {
+		for (v in [[-4.4, 6.0], [-1.6, 3.4], [4.9, 5.2], [6.1, 7.4], [-6.2, 4.2], [2.2, 2.2], [-0.4, 1.6], [3.4, 2.8], [-2.9, 2.4], [1.0, 3.0]]) {
 			var x = v[0], z = range(-8.4, -7.2), y = SPRING + Math.sqrt(Math.max(RADIUS * RADIUS - x * x, 0));
 			while (y < 16 && arch(x, y, z) > 0)
 				y += 0.03;
@@ -304,6 +304,11 @@ class Ruins {
 		lantern(new Vec3(0.4, 14.1, -8.0), 2.4, 0.4, 0.34);
 		lantern(new Vec3(3.3, 13.2, -7.4), 5.0, 0.7, 0.48);
 		lantern(new Vec3(-5.4, 11.6, -8.2), 2.6, 0.9, 0.3);
+		// (small ones high under the crown, deep in its shadow: a tall phone's top)
+		lantern(new Vec3(-1.5, 14.0, -8.5), 1.0, 0.25, 0.2, 1.6);
+		lantern(new Vec3(2.0, 13.9, -8.3), 1.5, 0.55, 0.24, 1.8);
+		lantern(new Vec3(4.6, 13.0, -8.6), 1.1, 0.8, 0.18, 1.4);
+		lantern(new Vec3(-3.9, 13.4, -8.6), 0.8, 0.15, 0.16, 1.2);
 		for (p in [
 			new Vec3(-7.4, 11.4, -6.0), new Vec3(6, 14, -6.0), new Vec3(0.6, 16.4, -6.0), new Vec3(-9, 6, -6.0), new Vec3(9, 8, -6.0), new Vec3(-3, 18.5, -6.0),
 			new Vec3(5, 19.5, -6.0), new Vec3(-7, 20, -6)
@@ -344,7 +349,7 @@ class Ruins {
 		b.sway = 0;
 	}
 
-	function lantern(hook:Vec3, drop:Float, seed:Float, size:Float) {
+	function lantern(hook:Vec3, drop:Float, seed:Float, size:Float, power = 3.4) {
 		var b = mesh;
 		var c = new Vec3(hook.x, hook.y - drop, hook.z);
 		var anchor = new Vec4(hook.x, hook.y, hook.z, 0.07);
@@ -353,7 +358,7 @@ class Ruins {
 		b.seed = seed;
 		cage(hook, c, size, 1.1);
 		b.sway = 0;
-		lights.push({pos: c, radius: 5, color: PaintShader.magenta(), power: 3.4, anchor: anchor, seed: seed});
+		lights.push({pos: c, radius: 5, color: PaintShader.magenta(), power: power, anchor: anchor, seed: seed});
 	}
 
 	// a lantern's cage about c, hung from hook: a long drop of lattice,

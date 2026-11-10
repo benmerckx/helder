@@ -26,7 +26,8 @@ each part of it, is at the end.
   eye, a lantern's ember); as the moth comes near it lights from the
   moth's side, and the stone it moves gets a violet edge and stirs
   towards where it will go. The caterpillar's home is a cocoon in a niche,
-  an ember in its lattice that brightens as the caterpillar comes.
+  an amber ember in its lattice (the lanterns are magenta: home is the
+  one warm light) that brightens as the caterpillar comes.
 
 ## Verbs
 
@@ -88,9 +89,13 @@ next one. The last one stays.
 
 It was a snail at first, walking home to a warm door. A snail is brown
 and round in a world of indigo and living light, and has nothing to do
-with a moth. The caterpillar is the moth's own young: pale and banded
-lilac as the moth is, with its dark eye and two small feathers, a bud of
-light at its tail; asleep it is curled into a ball. It follows the light
+with a moth. The caterpillar is the moth's own young: dusk lilac with a
+pale line and a row of small lights along its side, fine hairs, a horn
+on its tail with an ember of its cocoon's amber; asleep it is wound into
+a ring. (It was a cartoon first, as the moth was: a round head with one
+large eye, flat cream, a line about it. Neither is now: both are drawn
+as lit forms, the way Dead Cells lights its characters, at full
+resolution: README, The characters.) It follows the light
 for the reason a moth does. Its home explains the lanterns: each is a
 cocoon, and each screen solved lights one more. The play is the same
 (it crawls along walks, rides what carries it, waits at a shut gate).

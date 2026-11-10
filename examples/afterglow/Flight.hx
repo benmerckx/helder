@@ -7,7 +7,7 @@ import Puzzle;
 // below it hovers. Stepped with the puzzle, at its rate.
 class Flight {
 	// the moth's feet below its middle (its quad's 0.6 of Ruins.MOTH)
-	public static inline var FEET = 0.6 * Ruins.MOTH + 0.03;
+	public static inline var FEET = 0.6 * Ruins.MOTH + 0.01;
 	static inline var SPEED = 5.0;
 
 	public var x:Float;
@@ -19,6 +19,16 @@ class Flight {
 	public var phase = 0.0;
 	public var tilt = 0.0;
 	public var perched(default, null) = false;
+	// how it is shown, nothing the play goes by: turning to face its way,
+	// what trails behind it (its speed and its change), having just
+	// landed (1, falling to 0), reaching for the ground
+	public var turn = 1.0;
+	public var trailX = 0.0;
+	public var trailY = 0.0;
+	public var settle = 0.0;
+	public var reach = 0.0;
+	var slowX = 0.0;
+	var slowY = 0.0;
 	public var held = false;
 	var vx = 0.0;
 	var vy = 0.0;
@@ -44,7 +54,8 @@ class Flight {
 	}
 
 	public function step(dt:Float, puzzle:Puzzle) {
-		phase += dt * (perched ? 0 : 6 + 10 * fly);
+		phase += dt * (perched ? 0 : 8 + 13 * fly);
+		feel(dt);
 		if (perched) {
 			// (riding what it stands on; off when that slides from under it)
 			var g = puzzle.ground(puzzle.flat(x, y, z).x, puzzle.flat(x, y, z).y + 0.15);
@@ -87,6 +98,7 @@ class Flight {
 				z = gz;
 				vx = vy = 0;
 				perched = true;
+				settle = 1;
 				landing = null;
 			}
 			return;
@@ -98,6 +110,18 @@ class Flight {
 		settled += dt;
 		// (hovering a moment first: long enough to wake what it stopped by)
 		if (settled > 0.9) landing = puzzle.ground(x, y);
+	}
+
+	function feel(dt:Float) {
+		var k = 1 - Math.exp(-dt * 6);
+		turn += (facing - turn) * (1 - Math.exp(-dt * 16));
+		settle = Math.max(0, settle - dt / 0.75);
+		reach += ((landing != null ? 1 : 0) - reach) * k;
+		if (perched) vx = vy = 0;
+		slowX += (vx - slowX) * k;
+		slowY += (vy - slowY) * k;
+		trailX += (clamp(vx * 0.05 + (vx - slowX) * 0.1, -0.6, 0.6) - trailX) * k * 2;
+		trailY += (clamp(vy * 0.05 + (vy - slowY) * 0.1, -0.6, 0.6) - trailY) * k * 2;
 	}
 
 	static inline function clamp(v:Float, a:Float, b:Float):Float

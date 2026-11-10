@@ -9,6 +9,8 @@ import GlyphShader;
 import MothShader;
 import PaintShader;
 import PaintShader.magenta;
+import PaintShader.acid;
+import PaintShader.cyan;
 import Puzzle;
 import Ruins;
 import Sdf;
@@ -40,6 +42,11 @@ class Afterglow {
 	static inline var MAX_PIECES = 4;
 	static inline var DENSITY = 0.04;
 	static final VIOLET = new Vec4(0.62, 0.3, 1.0, 0);
+	// the cocoon the caterpillar goes home to: warm, apart from the lanterns' magenta
+	static final AMBER = new Vec3(1.0, 0.5, 0.1);
+	// how much farther a glow reaches a character than the stone, and how much brighter
+	static inline var REACH = 1.8;
+	static inline var GAIN = 4.5;
 
 	final device:Device;
 	final renderer:Renderer;
@@ -114,7 +121,8 @@ class Afterglow {
 	};
 	final waterView:WaterView = {viewProj: Mat4.identity(), eye: new Vec4(0, 0, 0, 0), size: new Vec4(0, 0, 0, 0)};
 	final mothView:MothView = {
-		viewProj: Mat4.identity(), right: new Vec4(0, 0, 0, 0), up: new Vec4(0, 0, 0, 0), moth: new Vec4(0, 0, 0, 0), color: new Vec4(0, 0, 0, 0)
+		viewProj: Mat4.identity(), right: new Vec4(0, 0, 0, 0), up: new Vec4(0, 0, 0, 0), moth: new Vec4(0, 0, 0, 0), color: new Vec4(0, 0, 0, 0),
+		more: new Vec4(0, 0, 0, 0), key: new Vec4(0, 0, 1, 0.01), keyColor: new Vec4(0, 0, 0, 0), cube: [for (_ in 0...6) new Vec4(0, 0, 0, 0)]
 	};
 	final glyphView:GlyphView = {viewProj: Mat4.identity(), moth: new Vec4(0, 0, 0, 0), state: [for (_ in 0...8) new Vec4(0, 0, 0, 0)]};
 	// (bands of tone, how far edges wander, the indigo's share, grain; the mist faded into)
@@ -129,6 +137,15 @@ class Afterglow {
 	var mirror:Null<Texture> = null;
 	var mirrorDepth:Null<Texture> = null;
 	var time = 0.0;
+	var before = 0.0;
+	// the caterpillar as shown: turning, starting to crawl, raising its head (eased)
+	// the glows that stay (the ruins', the screen's), and the sums of lights()
+	// (x, y, z, radius, r, g, b, power each)
+	var steady:Array<Float> = [];
+	final acc = [for (_ in 0...25) 0.0];
+	var larvaTurn = 1.0;
+	var larvaMoving = 0.0;
+	var larvaLook = 0.0;
 	var pixel = 0.0;
 	var aspect = 0.5625;
 
@@ -418,9 +435,14 @@ class Afterglow {
 		frame(aspect);
 		game.eye = still(aspect);
 		game.update(t);
-		if (shown != game.index) {
+		var fresh = shown != game.index;
+		if (fresh) {
 			shown = game.index;
 			glyphQuads();
+			steady = [];
+			for (l in ruins.lights.concat(ruins.screen(shown).lights))
+				for (v in [l.pos.x, l.pos.y, l.pos.z, l.radius, l.color.x, l.color.y, l.color.z, l.power])
+					steady.push(v);
 			if (screenVertices[shown] == null) {
 				var m = ruins.screen(shown).mesh, vb = m.vertexBytes(), ib = m.indexBytes();
 				screenVertices[shown] = device.createBuffer({size: vb.length, usage: Vertex, data: vb});
@@ -439,7 +461,7 @@ class Afterglow {
 				extra.push({pos: new Vec3(l[0] + p.x, l[1] + p.y, l[2]), radius: 4.0, color: magenta(), power: 3.2 * p.light});
 			}
 		var h = Screens.all[game.index].home;
-		extra.push({pos: new Vec3(h[0], h[1] + 0.5, h[2] + 0.5), radius: 2.2, color: magenta(), power: 0.15 + larva.home * 3});
+		extra.push({pos: new Vec3(h[0], h[1] + 0.5, h[2] + 0.5), radius: 2.2, color: AMBER, power: 0.25 + larva.home * 3});
 		for (k in 0...4) {
 			var l = k < extra.length ? extra[k] : null;
 			paintView.glowAt[k] = l == null ? new Vec4(0, 0, 0, 0) : new Vec4(l.pos.x, l.pos.y, l.pos.z, l.radius);
@@ -473,20 +495,32 @@ class Afterglow {
 		var m = camera.view();
 		var w = mothView;
 		var right = new Vec4(m.c0.x, m.c1.x, m.c2.x, 1.1), up = new Vec4(m.c0.y, m.c1.y, m.c2.y, t);
+		var back = new Vec3(m.c0.z, m.c1.z, m.c2.z);
 		w.up = up;
 		w.right = right;
 		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 0);
 		w.color = VIOLET * 0.6;
 		both(w, viewProj, mirrorProj, auraBytes, auraMirror);
-		// (its wings: still when standing, beating in flight, from folded to raised high)
-		var wings = -fly.fly * (0.95 + 0.9 * Math.sin(fly.phase));
-		w.right = new Vec4(right.x, right.y, right.z, Ruins.MOTH);
+		w.right = new Vec4(right.x, right.y, right.z, Ruins.MOTH * 1.5);
 		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 1);
-		w.color = new Vec4(fly.fly, wings, fly.tilt * fly.facing, fly.facing);
+		w.color = new Vec4(fly.fly, fly.phase, fly.tilt, fly.turn);
+		w.more = new Vec4(fly.trailX * fly.facing, fly.trailY, fly.settle, fly.reach);
+		lights(w, mothAt, right.xyz, up.xyz, back, null);
+		w.key = new Vec4(w.key.x, w.key.y, w.key.z, pixel * length(mothAt - from) / Ruins.MOTH);
 		both(w, viewProj, mirrorProj, mothBytes, mothMirror);
-		w.right = new Vec4(right.x, right.y, right.z, Ruins.LARVA);
-		w.moth = new Vec4(larva.x, larva.y + Ruins.LARVA * 0.8 + 0.02, larva.z, 2);
-		w.color = new Vec4(larva.out, larva.phase, larva.home, larva.facing);
+		var dt = clamp(t - before, 0, 0.1), ease = 1 - Math.exp(-dt * 9);
+		before = t;
+		if (fresh) ease = 1;
+		larvaTurn += (larva.facing - larvaTurn) * ease;
+		larvaMoving += ((larva.moving ? 1 : 0) - larvaMoving) * ease;
+		larvaLook += (clamp((mothAt.y - larva.y - 0.3) / 1.5, 0, 1) * (1 - clamp(Math.abs(mothAt.x - larva.x) / 4, 0, 1)) - larvaLook) * ease * 0.4;
+		var larvaAt = new Vec3(larva.x, larva.y + Ruins.LARVA * 0.8 + 0.01, larva.z);
+		w.right = new Vec4(right.x, right.y, right.z, Ruins.LARVA * 1.5);
+		w.moth = new Vec4(larvaAt.x, larvaAt.y, larvaAt.z, 2);
+		w.color = new Vec4(larva.out, larva.phase, larva.home, larvaTurn);
+		w.more = new Vec4(larvaMoving, larvaLook, 0, 0);
+		lights(w, larvaAt, right.xyz, up.xyz, back, mothAt);
+		w.key = new Vec4(w.key.x, w.key.y, w.key.z, pixel * length(larvaAt - from) / Ruins.LARVA);
 		both(w, viewProj, mirrorProj, larvaBytes, larvaMirror);
 
 		var g = glyphView;
@@ -520,34 +554,108 @@ class Afterglow {
 		post.run(enc, resolved, null, sw, sh, t);
 	}
 
+	// the light about a character at `at`, in the camera's axes (right, up,
+	// towards the eye): every glow in reach summed into six lights along
+	// them (nothing pops as it moves) and one key light, where most of it
+	// comes from; the caterpillar is lit by the moth's aura too
+	function lights(w:MothView, at:Vec3, right:Vec3, up:Vec3, back:Vec3, aura:Null<Vec3>) {
+		for (k in 0...25)
+			acc[k] = 0;
+		var s = steady, n = Std.int(s.length / 8);
+		for (k in 0...n)
+			light(s[k * 8], s[k * 8 + 1], s[k * 8 + 2], s[k * 8 + 3], s[k * 8 + 4], s[k * 8 + 5], s[k * 8 + 6], s[k * 8 + 7], at, right, up, back);
+		for (l in extra)
+			light(l.pos.x, l.pos.y, l.pos.z, l.radius, l.color.x, l.color.y, l.color.z, l.power, at, right, up, back);
+		if (aura != null) light(aura.x, aura.y, aura.z, 2.8 / REACH, VIOLET.x, VIOLET.y, VIOLET.z, 0.6, at, right, up, back);
+		// (close by a lantern: no more than about its colour, not white)
+		var a = acc, weight = a[24], soft = 1 / (1 + weight * 0.6);
+		var len = Math.sqrt(a[18] * a[18] + a[19] * a[19] + a[20] * a[20]), together = weight > 0 ? soft * len / weight : 0;
+		for (k in 0...6)
+			w.cube[k] = new Vec4(a[k * 3] * soft, a[k * 3 + 1] * soft, a[k * 3 + 2] * soft, 0);
+		w.key = len > 0.0001 ? new Vec4(a[18] / len, a[19] / len, a[20] / len, 0) : new Vec4(-0.4, 0.6, -0.7, 0);
+		w.keyColor = new Vec4(a[21] * together, a[22] * together, a[23] * together, 0);
+	}
+
+	// (into acc: six lights' rgb, then the sum of where they come from, of
+	// their colours and of how bright they are)
+	function light(x:Float, y:Float, z:Float, radius:Float, red:Float, green:Float, blue:Float, power:Float, at:Vec3, right:Vec3, up:Vec3, back:Vec3) {
+		var dx = x - at.x, dy = y - at.y, dz = z - at.z;
+		var dist2 = dx * dx + dy * dy + dz * dz, r2 = radius * radius * REACH * REACH;
+		if (dist2 >= r2 || power <= 0) return;
+		var fall = 1 - dist2 / r2, k = power * GAIN * fall * fall / (1 + dist2 * 0.6);
+		var inv = 1 / Math.sqrt(Math.max(dist2, 0.0001)), a = acc;
+		var cx = (dx * right.x + dy * right.y + dz * right.z) * inv, cy = (dx * up.x + dy * up.y + dz * up.z) * inv,
+			cz = (dx * back.x + dy * back.y + dz * back.z) * inv;
+		var sx = (cx > 0 ? 0 : 3), sy = (cy > 0 ? 6 : 9), sz = (cz > 0 ? 12 : 15);
+		var r = red * k, g = green * k, b = blue * k;
+		a[sx] += r * cx * cx;
+		a[sx + 1] += g * cx * cx;
+		a[sx + 2] += b * cx * cx;
+		a[sy] += r * cy * cy;
+		a[sy + 1] += g * cy * cy;
+		a[sy + 2] += b * cy * cy;
+		a[sz] += r * cz * cz;
+		a[sz + 1] += g * cz * cz;
+		a[sz + 2] += b * cz * cz;
+		var lum = r + g + b;
+		a[18] += cx * lum;
+		a[19] += cy * lum;
+		a[20] += cz * lum;
+		a[21] += r;
+		a[22] += g;
+		a[23] += b;
+		a[24] += lum;
+	}
+
+	static function rig(w:MothView, cube:Array<Vec3>, dir:Vec3, color:Vec3) {
+		for (k in 0...6)
+			w.cube[k] = new Vec4(cube[k].x, cube[k].y, cube[k].z, 0);
+		w.key = new Vec4(dir.x, dir.y, dir.z, w.key.w);
+		w.keyColor = new Vec4(color.x, color.y, color.z, 0);
+	}
+
 	// the characters' sheet: the moth standing (its aura about it), its
 	// wings up and down in flight, facing left; the larva asleep, waking and
 	// crawling; then both at the size they are played at and smaller
 	function poses(viewProj:Mat4, right:Vec4, up:Vec4, t:Float) {
-		// (x, y, half size, kind, then MothView's color)
+		// (x, y, a unit of it, kind, then MothView's color and more)
 		var v = VIOLET * 0.6, m = Ruins.MOTH, l = Ruins.LARVA;
 		var list:Array<Array<Float>> = [
-			[-4.6, 4.7, 1.9, 0, v.x, v.y, v.z, 0], [-4.6, 4.7, 1.3, 1, 0, 0, 0, 1], [-1.4, 4.7, 1.3, 1, 1, -1.8, 0.2, 1], [1.7, 4.7, 1.3, 1, 1, -0.1, -0.15, 1],
-			[4.9, 4.7, 1.3, 1, 0, 0, 0, -1], [-5.0, 1.9, 1.0, 2, 0, 0, 0, 1], [-2.6, 1.9, 1.0, 2, 0.55, 0, 0, 1], [0.0, 1.9, 1.0, 2, 1, 0.15, 0, 1],
-			[2.6, 1.9, 1.0, 2, 1, 0.45, 0, 1], [5.2, 1.9, 1.0, 2, 1, 0.3, 0, -1]
+			[-4.8, 5.6, 2.0, 0, v.x, v.y, v.z, 0, 0, 0, 0, 0], [-4.8, 5.6, 1.0, 1, 0, 0, 0, 1, 0, 0, 0, 0], [-2.3, 5.6, 1.0, 1, 0, 0, 0, -1, 0, 0, 0, 0],
+			[-0.6, 5.6, 1.0, 1, 0.3, 0.9, 0, 1, 0, 0, 0, 0], [1.5, 5.6, 1.0, 1, 0.5, 5.6, 0, 1, 0, 0.1, 0.75, 1], [3.3, 5.6, 1.0, 1, 0, 0, 0, 1, 0, 0, 0.35, 0],
+			[5.0, 5.6, 1.0, 1, 1, 0.6, 0.1, -0.45, 0, 0, 0, 0]
 		];
-		var x = -4.9;
-		for (k in [1.0, 0.6, 0.36]) {
-			var low = 0.05 - (m * 0.6 - l * 0.8) * k;
-			list.push([x, 0.05, m * k, 1, 0, 0, 0, 1]);
-			list.push([x + 1.3 * k, low, l * k, 2, 1, 0.2, 0, 1]);
-			list.push([x + 2.4 * k, low, l * k, 2, 0, 0, 0, 1]);
-			list.push([x + 3.6 * k, 0.25, m * k, 1, 1, -1.2, 0.15, -1]);
-			x += 4.9 * k + 0.4;
+		for (k in 0...6)
+			list.push([-4.9 + k * 1.95, 3.4, 0.9, 1, 1, k * 1.047, k == 4 ? 0.25 : (k == 1 ? -0.2 : 0), 1, k == 2 ? 0.4 : 0, k == 4 ? 0.3 : 0, 0, 0]);
+		var crawls:Array<Array<Float>> = [[0, 0, 1, 0, 0], [0.5, 0, 1, 0, 0], [1, 0, 1, 0, 1], [1, 0.2, 1, 1, 0], [1, 0.48, 1, 1, 0], [1, 0.76, 1, 1, 0], [1, 0.3, -1, 1, 0.3]];
+		for (k in 0...crawls.length) {
+			var c = crawls[k];
+			list.push([-5.0 + k * 1.7, 1.75, 0.66, 2, c[0], c[1], 0, c[2], c[3], c[4], 0, 0]);
 		}
+		var x = -5.2;
+		for (k in [1.0, 0.6, 0.36]) {
+			var low = 0.15 - (m * 0.6 - l * 0.8) * k;
+			list.push([x, 0.15, m * k, 1, 0, 0, 0, 1, 0, 0, 0, 0]);
+			list.push([x + 1.2 * k, low, l * k, 2, 1, 0.2, 0, 1, 1, 0, 0, 0]);
+			list.push([x + 2.3 * k, low, l * k, 2, 0, 0, 0, 1, 0, 0, 0, 0]);
+			list.push([x + 3.5 * k, 0.45, m * k, 1, 1, 0.9, 0.15, -1, 0.2, 0, 0, 0]);
+			x += 4.6 * k + 0.5;
+		}
+		// (lit as under a lantern up behind them to the left, moss below, a blue cap to the right)
+		var mg = magenta(), ac = acid(), cy = cyan();
+		var cube:Array<Vec3> = [cy * 0.2, mg * 0.12, mg * 0.05 + cy * 0.03, ac * 0.14, new Vec3(0.004, 0.004, 0.012), mg * 0.12 + cy * 0.06];
+		var from = camera.eye();
 		for (k in 0...list.length) {
 			var e = list[k];
 			if (k == sheetBytes.length) sheetBytes.push(Bytes.alloc(MothShader.uniforms[0].size));
 			mothView.viewProj = viewProj;
-			mothView.right = new Vec4(right.x, right.y, right.z, e[2]);
+			mothView.right = new Vec4(right.x, right.y, right.z, e[3] > 0.5 ? e[2] * 1.5 : e[2]);
 			mothView.up = up;
 			mothView.moth = new Vec4(e[0], e[1], Puzzle.FLY, e[3]);
 			mothView.color = new Vec4(e[4], e[5], e[6], e[7]);
+			mothView.more = new Vec4(e[8], e[9], e[10], e[11]);
+			mothView.key = new Vec4(0, 0, 1, pixel * length(new Vec3(e[0], e[1], Puzzle.FLY) - from) / e[2]);
+			rig(mothView, cube, normalize(new Vec3(-0.6, 0.55, -0.58)), mg * 0.22);
 			MothShader.params.view.write(mothView, sheetBytes[k]);
 		}
 	}

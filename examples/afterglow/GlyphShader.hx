@@ -31,7 +31,8 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 final GLOW = vec3(0.62, 0.3, 1.0);
-final MAGENTA = vec3(1.0, 0.1, 0.62);
+// the home's cocoon: warm, apart from the lanterns
+final AMBER = vec3(1.0, 0.5, 0.1);
 
 // the sigil's distance (q: its half size 1)
 function sigil(q:Vec2):Float {
@@ -77,13 +78,13 @@ final GlyphShader = shader({
 			var thread = (1 - smoothstep(0.012, 0.03, abs(q.x))) * step(0.45, q.y) * step(q.y, 0.9);
 			var heart = exp(-dot(cq - vec2(0, -0.2), cq - vec2(0, -0.2)) * 2.2);
 			var lamp = 0.1 + 0.06 * breathe + st.x * 0.5 + st.y * 3.2;
-			var cells = MAGENTA * (heart * lamp * 2.4) + vec3(0.2, 0.04, 0.3) * (0.03 + st.y * 0.3);
-			var bars = vec3(0.3, 0.26, 0.5) * (0.22 + st.x * 0.3 + heart * lamp * 0.5);
+			var cells = AMBER * (heart * lamp * 2.4) + vec3(0.3, 0.1, 0.04) * (0.03 + st.y * 0.3);
+			var bars = vec3(0.45, 0.3, 0.22) * (0.22 + st.x * 0.3 + heart * lamp * 0.5);
 			var c = mix(vec3(0.006, 0.004, 0.014), mix(cells, bars, bar), inside);
 			c = mix(c, vec3(0.25, 0.2, 0.4) * 0.5, thread * (1 - inside));
 			var halo = exp(-max(cd, 0) * 4.5) * (1 - inside) * (0.05 + st.x * 0.12 + st.y * 0.9) * breathe;
 			var edge = GLOW * (rim * (0.1 + 0.06 * breathe + st.x * 0.25 + st.y * 0.4));
-			return vec4(c * niche + MAGENTA * halo + edge, niche * 0.92);
+			return vec4(c * niche + AMBER * halo + edge, niche * 0.92);
 		}
 		var line = 0.0, fill = 0.0;
 		if (kind > 0.5) {

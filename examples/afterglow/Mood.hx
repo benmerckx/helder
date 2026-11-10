@@ -40,13 +40,21 @@ function tri(x:Float):Float
 
 // the blocks of a face at f (along, up), as Stones.brick lays them (the
 // mesh's relief): x: how far from the block's edge, y: the block's own
-// number (0 to 1), z: over 0.95 a block gone, w: how far up the block (0 to 1)
+// number (0 to 1), z: over 0.95 a block gone, w: how far up the block (0 to 1);
+// courses in pairs whose middle joint is higher or lower, a block now and
+// then as long as two
 function bricks(f:Vec2, s:Float):Vec4 {
 	var bb = f.y + 0.035 * sin(f.x * 1.3 + s * 5) + 0.02 * sin(f.x * 3.7 + s * 2);
-	var row = floor(bb / 0.3);
+	var pair = floor(bb / 0.6), fy = bb - pair * 0.6;
+	var split = 0.3 + 0.085 * (2 * tri(pair * 0.4656 + s * 0.13) - 1);
+	var upper = fy >= split ? 1.0 : 0.0;
+	var row = pair * 2 + upper, h = mix(split, 0.6 - split, upper);
 	var w = 0.42 + 0.3 * tri(row * 0.381966 + s * 0.37);
 	var u = f.x / w + fract(row * 0.618034 + s * 0.71);
-	var col = floor(u);
-	var fa = (u - col) * w, fb = bb - row * 0.3;
-	return vec4(min(min(fa, w - fa), min(fb, 0.3 - fb)), tri(col * 0.7548777 + row * 0.5698403 + s * 0.31), tri(col * 0.4142136 + row * 0.7320508 + s * 0.53), fb / 0.3);
+	var col = floor(u), two = floor(u / 2) * 2;
+	var long = tri(two * 0.2763932 + row * 0.6457513 + s * 0.23) > 0.72 ? 1.0 : 0.0;
+	col = mix(col, two, long);
+	var fa = (u - col) * w, fb = fy - split * upper;
+	w *= 1 + long;
+	return vec4(min(min(fa, w - fa), min(fb, h - fb)), tri(col * 0.7548777 + row * 0.5698403 + s * 0.31), tri(col * 0.4142136 + row * 0.7320508 + s * 0.53), fb / h);
 }

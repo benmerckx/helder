@@ -15,13 +15,21 @@ inline function tri(x:Float):Float
 // shader's), from sequences that come out the same in a shader's floats
 function brick(a:Float, b:Float, s:Float):Float {
 	var bb = b + 0.035 * Math.sin(a * 1.3 + s * 5) + 0.02 * Math.sin(a * 3.7 + s * 2);
-	var row = Math.floor(bb / ROW);
+	// (courses in pairs, the joint between a pair higher or lower; a block
+	// now and then as long as two)
+	var pair = Math.floor(bb / (2 * ROW)), fy = bb - pair * 2 * ROW;
+	var split = ROW + 0.085 * (2 * tri(pair * 0.4656 + s * 0.13) - 1);
+	var upper = fy >= split;
+	var row = pair * 2 + (upper ? 1 : 0), h = upper ? 2 * ROW - split : split;
 	var w = 0.42 + 0.3 * tri(row * 0.381966 + s * 0.37);
 	var u = a / w + frac(row * 0.618034 + s * 0.71);
-	var col = Math.floor(u);
+	var col = Math.floor(u), two = Math.floor(u / 2) * 2;
+	var long = tri(two * 0.2763932 + row * 0.6457513 + s * 0.23) > 0.72;
+	if (long) col = two;
+	var fa = (u - col) * w, fb = upper ? fy - split : fy;
+	if (long) w *= 2;
 	var g = tri(col * 0.7548777 + row * 0.5698403 + s * 0.31), gone = tri(col * 0.4142136 + row * 0.7320508 + s * 0.53);
-	var fa = (u - col) * w, fb = bb - row * ROW;
-	var edge = smooth(0, 0.06, Math.min(Math.min(fa, w - fa), Math.min(fb, ROW - fb)));
+	var edge = smooth(0, 0.06, Math.min(Math.min(fa, w - fa), Math.min(fb, h - fb)));
 	return (gone > 0.95 ? -0.16 : (g - 0.5) * 0.1) * edge - 0.025 * (1 - edge);
 }
 typedef Arcade = {
