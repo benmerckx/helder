@@ -169,7 +169,7 @@ function Header(props: { app: Tables }) {
 	</view>;
 }
 
-// an open table's tab: its name (the one shown: its rows' count too), a way to close it
+// an open table's tab: its name, a way to close it (its width the same shown or not)
 function TabItem(props: { app: Tables; index: number }) {
 	const app = props.app, k = props.index;
 	const on = () => app.active() === k;
@@ -177,7 +177,6 @@ function TabItem(props: { app: Tables; index: number }) {
 	return <view:button tag={"tab-" + k} slot="nav-item" role="tab" label={name()} selected={on()} data-on={on() ? "true" : "false"} focusable
 		height={28} padding="0 4 0 10" column-gap={6} min-width={0} shrink={1} onPress={() => app.switchTab(k)}>
 		<text font-weight={on() ? Theme.MEDIUM : 400} max-lines={1} text-overflow="ellipsis" min-width={0} shrink={1}>{name()}</text>
-		<Show when={on()}><text color={c("fg3")} font-variant-numeric="tabular-nums" shrink={0}>{rowsText(app)}</text></Show>
 		<view:button tag={"close-tab-" + k} slot="button" role="button" label={"Close " + name()} width={18} height={18} min-width={18} padding={0} shrink={0}
 			onPointerDown={(e) => e.stop()} onPress={(e) => {
 				e.stop();
@@ -562,6 +561,7 @@ function Status(props: { app: Tables }) {
 		</Show>
 		<view grow={1}/>
 		<Show when={app.mode() === "data"}>
+			<text max-lines={1} font-variant-numeric="tabular-nums">{rowsText(app)}</text>
 			<text max-lines={1} font-variant-numeric="tabular-nums">{app.cell}</text>
 			<text max-lines={1} font-variant-numeric="tabular-nums">{app.took() > 0 ? `${Math.round(app.took() * 1000)} ms` : ""}</text>
 		</Show>
