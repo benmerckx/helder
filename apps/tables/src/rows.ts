@@ -289,19 +289,24 @@ export class Rows {
 		return o;
 	}
 
-	// the changes in one transaction (deleted rows' edits dropped), then the rows again
-	async save() {
-		const t = this.table, statements: string[] = [];
+	// the changes as SQL: updates (deleted rows' edits dropped), deletes, inserts
+	statements(): string[] {
+		const t = this.table, out: string[] = [];
 		for (const [k, e] of this.edits) {
 			if (this.deleted.has(k)) continue;
 			const cols = [...e.cells.keys()].sort((a, b) => a - b);
-			statements.push(this.sql.update(t, e.key, cols, cols.map(c => e.cells.get(c))));
+			out.push(this.sql.update(t, e.key, cols, cols.map(c => e.cells.get(c))));
 		}
-		for (const key of this.deleted.values()) statements.push(this.sql.delete(t, key));
+		for (const key of this.deleted.values()) out.push(this.sql.delete(t, key));
 		for (const a of this.added) {
 			const cols = [...a.keys()].sort((a, b) => a - b);
-			statements.push(this.sql.insert(t, cols, cols.map(c => a.get(c))));
+			out.push(this.sql.insert(t, cols, cols.map(c => a.get(c))));
 		}
+		return out;
+	}
+
+	// the changes in one transaction, then the rows again
+	async save(statements = this.statements()) {
 		if (statements.length === 0) return;
 		await this.db.transaction(statements);
 		this.undos.length = 0;

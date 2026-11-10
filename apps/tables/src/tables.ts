@@ -70,6 +70,11 @@ export class Tables {
 	readonly structure = new DataGrid("structure");
 	readonly results = new DataGrid("results");
 	readonly editor = new CodeEditor("", "query.sql");
+	// the changes as SQL, shown before they are saved
+	readonly review = new CodeEditor("", "review.sql");
+	readonly reviewing = signal(false);
+	readonly reviewCount = signal(0);
+	private reviewed: string[] = [];
 
 	private db: Drizzle;
 	private sql = new Sql("sqlite");
@@ -113,9 +118,12 @@ export class Tables {
 		grid.onPaste = text => this.paste(text);
 		this.structure.readOnly = true;
 		this.results.readOnly = true;
-		this.editor.view.fontFamily = Theme.CODE;
-		this.editor.view.fontSize = Theme.BODY;
-		this.editor.view.lineHeight = 20;
+		for (const e of [this.editor, this.review]) {
+			e.view.fontFamily = Theme.CODE;
+			e.view.fontSize = Theme.BODY;
+			e.view.lineHeight = 20;
+		}
+		this.review.model.readOnly = true;
 		this.editor.onChange = () => this.query(this.editor.text);
 		this.editor.complete = (text, caret) => complete(text, caret, this.tables.peek(), this.sql);
 		this.results.text = (r, c) => {
@@ -490,12 +498,35 @@ export class Tables {
 		this.rows?.discard();
 	}
 
+	// the changes' SQL shown, saved once confirmed
 	save() {
+		if (this.reviewing.peek()) return this.confirm();
+		// (a cell being edited: its value in, and the editor closed)
+		this.grid.commitEdit(false);
 		const r = this.rows;
 		if (r === null || r.changes() === 0 || this.saving.peek()) return;
+		const list = r.statements();
+		if (list.length === 0) return;
+		this.reviewed = list;
+		this.review.text = list.map(s => s + ";").join("\n");
+		this.reviewCount(list.length);
+		this.reviewing(true);
+	}
+
+	cancelReview() {
+		this.reviewing(false);
+		this.grid.focus(false);
+	}
+
+	// the SQL reviewed run, in one transaction
+	confirm() {
+		const r = this.rows;
+		if (!this.reviewing.peek() || r === null || this.saving.peek()) return;
+		this.reviewing(false);
+		this.grid.focus(false);
 		const n = r.changes();
 		this.saving(true);
-		r.save().then(async () => {
+		r.save(this.reviewed).then(async () => {
 			this.saving(false);
 			this.say(n === 1 ? "Saved 1 change" : `Saved ${n} changes`);
 			// (rows added or deleted: the sidebar's counts again)

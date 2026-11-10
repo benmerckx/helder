@@ -30,6 +30,7 @@ export function view(app: Tables) {
 			<Status app={app}/>
 		</view>
 		<Show when={app.menu() !== null}><MenuLayer app={app}/></Show>
+		<Show when={app.reviewing()}><Review app={app}/></Show>
 	</view>;
 }
 
@@ -261,6 +262,39 @@ function Data(props: { app: Tables }) {
 	</view>;
 }
 
+// ---- the changes' SQL before they are saved: Save (or the save key again) runs it, Escape goes back
+
+function Review(props: { app: Tables }) {
+	const app = props.app;
+	const n = app.reviewCount.peek();
+	return <view tag="review-layer" position="absolute" inset={0} align-items="center" justify="center" padding={24}
+		background={app.dark() ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.16)"} onPointerDown={() => app.cancelReview()}>
+		<view tag="review" slot="floating" width={680} max-width="100%" max-height="80%" padding={0} shadow={Theme.popover()} role="dialog" label="Review changes"
+			onPointerDown={(e) => e.stop()} onKeyDown={(e) => {
+				if (e.key === Key.ESCAPE) {
+					app.cancelReview();
+					e.preventDefault();
+				}
+			}}>
+			<view direction="row" align-items="baseline" column-gap={8} padding={`14 ${Theme.PAD + 4} 10`} shrink={0}>
+				<text font-weight={Theme.MEDIUM}>Review changes</text>
+				<text color={c("fg3")} font-size={Theme.SMALL}>{(n === 1 ? "1 statement" : `${n} statements`) + ", run in one transaction"}</text>
+			</view>
+			<view height={Math.min(360, 16 + n * 20)} min-height={56} shrink={1} margin={`0 ${Theme.PAD}`} radius={Theme.RADIUS} border-width={1}
+				border-color={c("line")} overflow="hidden">{app.review}</view>
+			<view direction="row" align-items="center" justify="end" column-gap={8} padding={Theme.PAD} shrink={0}>
+				<view:button tag="review-cancel" slot="button" role="button" label="Back to editing" focusable onPress={() => app.cancelReview()}>
+					<text>Cancel</text>
+				</view:button>
+				<view:button tag="review-save" slot="primary" role="button" label="Save changes" focusable autofocus onPress={() => app.confirm()}>
+					<text>Save changes</text>
+					<text color="rgba(255,255,255,0.65)" font-weight={400}>{primary("S")}</text>
+				</view:button>
+			</view>
+		</view>
+	</view>;
+}
+
 function example(app: Tables): string {
 	const t = app.current();
 	if (t === null || t.columns.length === 0) return "";
@@ -444,10 +478,9 @@ function MenuLayer(props: { app: Tables }) {
 					const i = item();
 					return i.line ? <view height={1} margin="4 4" background={c("line")}/> :
 						<view:button slot="menu-item" role="menuitem" label={i.label} focusable data-disabled={i.disabled ? "true" : "false"} selected={i.on === true}
-							ref={(n: Node) => {
+							autofocus={i === first} ref={(n: Node) => {
 								nodes.push(n);
 								entries.push(i);
-								if (i === first) setTimeout(() => n.focus(false), 0);
 							}} onPress={() => {
 								if (i.disabled) return;
 								close();
