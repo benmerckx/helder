@@ -169,8 +169,15 @@ class Board extends Node {
 		return {scale: scale, base: (height - (top - bottom) * scale) / 2 + top * scale};
 	}
 
+	// (where the tracing letter stands, in the glyph's own units: set when it is opened, still while it is drawn over or zoomed)
+	var traceX = 260.0;
+
 	function frame(w:Float, h:Float) {
 		var f = ws.value(), char = ws.current.peek();
+		if (viewFor != char) {
+			var b = Ink.bounds(f, char);
+			traceX = b.x1 <= b.x0 ? 260 : (b.x0 + b.x1) / 2;
+		}
 		if (!fitted) {
 			viewFor = char;
 			return;
@@ -247,7 +254,7 @@ class Board extends Node {
 			}
 		// the tracing letter, where the view put the glyph (still while it is drawn over)
 		if (ws.guide.peek()) {
-			var cx = gx(w / 2), k = kept.get("tracing");
+			var cx = traceX, k = kept.get("tracing");
 			var key = '$char ${f.metrics.xHeight} ${f.metrics.capHeight} $cx';
 			var t = if (k != null && k.of == key && k.x == x + ox && k.y == y + base && k.scale == scale) k.path else {
 				var made = Tracing.path(char, f, cx, scale, x + ox, y + base);
