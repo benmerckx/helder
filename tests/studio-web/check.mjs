@@ -296,6 +296,27 @@ async function recolour(pg, x, y, tap) {
 	await pg.context().close();
 }
 
+// ---- a project kept in OPFS from an older site: its project.json's imports
+// those of the module it was exported with, not of the one started now
+// (hxmc_os missing from them: the preview failed to instantiate)
+{
+	const pg = await page({ width: 1180, height: 740 }, false);
+	await openExample(pg, 'Todo');
+	await pg.evaluate(async () => {
+		const d = await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('projects')).getDirectoryHandle(window.studioWeb.project)).getDirectoryHandle('.studio');
+		const f = await d.getFileHandle('project.json');
+		const w = await f.createWritable();
+		await w.write(JSON.stringify({ ...JSON.parse(await (await f.getFile()).text()), imports: ['async'] }));
+		await w.close();
+	});
+	await pg.reload();
+	await ready(pg);
+	const shown = await event(pg, 'all-shown', () => true, 60000);
+	const ended = (await pg.evaluate(() => window.studioWeb.logs)).filter((l) => l.startsWith('studio: the preview ended'));
+	check(shown && ended.length === 0, 'a project.json with stale imports: the preview\'s imports read from its module, all screens shown ' + JSON.stringify(ended));
+	await pg.context().close();
+}
+
 // ---- agents: the studio's tools through WebMCP (a stand-in document.modelContext;
 // a browser with WebMCP is given the same table), on a design file opened
 // from an #import= link (JSON as base64url), then one deflated (z.)

@@ -391,7 +391,7 @@ function startPreview(host) {
 	w.onerror = (e) => log('studio: the preview\'s worker: ' + e.message);
 	previewFonts.then(async (fonts) => {
 		const module = await WebAssembly.compile(previewBytes);
-		w.postMessage({ type: 'start', wasm: module, imports: (meta.imports ?? []).map((p) => new URL(`helder/${p}/imports.mjs`, location.href).href), fonts, gfx });
+		w.postMessage({ type: 'start', wasm: module, imports: await importsOf(module), fonts, gfx });
 	});
 	return 1;
 }
@@ -426,12 +426,18 @@ async function startCompiler() {
 // (started at once for code only: design files need no build, and the toolchain is 14 MB to download)
 if ([...files.keys()].some((f) => /\.(hx|tsx?)$/.test(f))) compilerClient();
 
-async function importsOf(wasm) {
-	const names = [...new Set(WebAssembly.Module.imports(await WebAssembly.compile(wasm)).map((i) => i.module))];
+// the browser modules a preview's module imports (their URLs), as the CLI's page finds them: read from each module
+// started, not from project.json, which an export wrote for its own module (a project kept in OPFS from an older
+// site, its build here importing what that one did not: hxmc_os)
+const importTexts = new Map();
+async function importsOf(module) {
+	const names = [...new Set(WebAssembly.Module.imports(module).map((i) => i.module))];
 	const out = [];
-	for (const p of ['async', 'gfx', 'os', 'text', 'ui', 'image', 'canvas', 'jobs', 'asset']) {
-		const s = await fetch(`helder/${p}/imports.mjs`).then((r) => (r.ok ? r.text() : ''), () => '');
-		if (names.some((n) => new RegExp('\\b' + n + '\\b').test(s))) out.push(p);
+	for (const p of ['async', 'canvas', 'gfx', 'jobs', 'os', 'text', 'ui', 'web']) {
+		const u = new URL(`helder/${p}/imports.mjs`, location.href).href;
+		if (!importTexts.has(u)) importTexts.set(u, fetch(u).then((r) => (r.ok ? r.text() : ''), () => ''));
+		const s = await importTexts.get(u);
+		if (names.some((n) => new RegExp('\\b' + n + '\\b').test(s))) out.push(u);
 	}
 	return out;
 }
@@ -471,7 +477,7 @@ function compile(host, req, cold = false) {
 		if (b.ok && b.wasm && !preview.worker) {
 			// (a project's first build here: the browser modules its preview imports, as the CLI's page finds them)
 			previewBytes = b.wasm;
-			meta ??= { root: '/work/' + projectName, imports: await importsOf(b.wasm) };
+			meta ??= { root: '/work/' + projectName };
 			startPreview(host);
 		} else if (b.ok && b.wasm) {
 			previewBytes = b.wasm;
@@ -481,8 +487,8 @@ function compile(host, req, cold = false) {
 				preview.worker.postMessage({ type: 'snapshot' });
 				setTimeout(() => resolve(null), 3000);
 			});
-			preview.worker.postMessage({ type: 'start', wasm: await WebAssembly.compile(previewBytes), imports: (meta.imports ?? []).map((p) => new URL(`helder/${p}/imports.mjs`, location.href).href),
-				fonts: await previewFonts, gfx, snapshot });
+			const module = await WebAssembly.compile(previewBytes);
+			preview.worker.postMessage({ type: 'start', wasm: module, imports: await importsOf(module), fonts: await previewFonts, gfx, snapshot });
 			preview.lastBuild = { req, at: performance.now(), cold };
 		}
 		answer({ ok: b.ok, diagnostics: (b.diagnostics ?? []).map((d) => ({ ...d, file: unwork(d.file) })), messages: b.messages, ms: b.ms, tables });
