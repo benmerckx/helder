@@ -131,8 +131,9 @@ class Previews {
 		if (!startCompiler(task)) return;
 		server = Server.listen("127.0.0.1", 0);
 		var srv = server;
-		task.async(_ -> while (!stopping) {
+		task.async(_ -> while (true) {
 			var s = srv.accept();
+			if (s == null) break;
 			task.async(_ -> connected(s));
 		});
 		// (the frames' targets given back, when the canvas drew newer ones)

@@ -6,7 +6,11 @@ import sys.net.Socket as NetSocket;
 // A listening TCP socket: accept suspends until a connection comes.
 //
 //   var server = Server.listen("127.0.0.1", 8080);   // port 0: any free one, server.port
-//   while (true) { var s = server.accept(); task.async(_ -> serve(s)); }
+//   while (true) {
+//     var s = server.accept();
+//     if (s == null) break;   // closed: a pending accept ends with null
+//     task.async(_ -> serve(s));
+//   }
 class Server {
 	public final handle:Handle;
 	public final port:Int;
@@ -24,8 +28,10 @@ class Server {
 		return new Server(s);
 	}
 
-	@:coroutine public function accept():Socket
-		return @:privateAccess new Socket(new Op(Accept, handle).run().socket);
+	@:coroutine public function accept():Null<Socket> {
+		var s = new Op(Accept, handle).run().socket;
+		return s == null ? null : @:privateAccess new Socket(s);
+	}
 
 	public function close() {
 		if (handle.closed) return;

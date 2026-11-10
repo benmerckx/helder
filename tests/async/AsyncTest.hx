@@ -132,6 +132,26 @@ class AsyncTest {
 			l;
 		});
 		eq(after, "late", "a read cancelled by a timeout, then another");
+		// (closed by the program under a pending operation: a read ends, an accept too, a write throws Closed)
+		var under = Async.run(task -> {
+			var server = Server.listen("127.0.0.1", 0);
+			var accepted = task.async(_ -> server.accept());
+			var c = Socket.connect("127.0.0.1", server.port);
+			var s = accepted.await();
+			var reading = task.async(_ -> c.read(Bytes.alloc(8), 0, 8));
+			var accepting = task.async(_ -> server.accept());
+			Async.delay(0.02);
+			c.close();
+			server.close();
+			var read = reading.await(), next = accepting.await();
+			var wrote = try {
+				c.writeString("late\n");
+				"written";
+			} catch (e:Closed) "closed";
+			s.close();
+			[Std.string(read), Std.string(next), wrote].join(" ");
+		});
+		eq(under, "0 null closed", "closed under a read (its end), an accept (null) and a write (Closed)");
 		ok(!Loop.current().alive(), "TCP: nothing left");
 	}
 

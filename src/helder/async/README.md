@@ -16,6 +16,7 @@ Async.main(task -> {
   var server = Server.listen("127.0.0.1", 0);          // server.port
   task.async(_ -> while (true) {
     var s = server.accept();
+    if (s == null) break;                              // closed
     task.async(_ -> {
       var line = new Reader(s).readLine();
       s.writeString(line.toUpperCase() + "\n");
@@ -106,10 +107,18 @@ select(2)) a thread reads each pipe and another waits for the exit,
 posting to the loop. io_uring, kqueue and IOCP are backends to come behind
 the same interface.
 
+A socket, server or pipe the program closes while an operation waits on
+it (another task's close, a shutdown): a read ends as the stream's end
+(0, `readLine`'s null), an accept with null, so the loops reading and
+accepting end as they do when the other side goes; a write or a connect
+throws `Closed`, as it does on a handle closed before. The close is the
+program's own decision, so nothing is lost by ending quietly; a write
+cut off is the one case its caller may need to know of.
+
 | | |
 | --- | --- |
 | `Socket` | `Socket.connect(host, port)`, `read(b, pos, len)` (0 at the end), `write`, `writeString`, `shutdown`, `close` |
-| `Server` | `Server.listen(host, port)` (port 0: any free one, `port`), `accept()`, `close` |
+| `Server` | `Server.listen(host, port)` (port 0: any free one, `port`), `accept()` (null once closed), `close` |
 | `Process` | `new Process(cmd, args, ?{cwd, env})` (`env` the whole environment, `Process.environment()` a copy): `stdout` and `stderr` (`Source`s), `stdin` (a `Sink`), `wait()`, `signal(SIGINT/SIGTERM/SIGKILL)`, `kill`, `stop(grace)` (SIGTERM, SIGKILL after `grace` s), `close` |
 | `Signals` | `Signals.next([SIGINT, SIGTERM])`: the next signal this process receives, which then no longer ends it (POSIX natively: a handler writing to a polled pipe) |
 | `Reader` | a `Source` through a buffer: `readLine` (null at the end), `readBytes(n)`, `readAll` |

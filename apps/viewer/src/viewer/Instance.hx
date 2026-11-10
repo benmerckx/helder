@@ -39,6 +39,7 @@ class Instance {
 		}
 		Async.launch(task -> while (true) {
 			var s = server.accept();
+			if (s == null) break;
 			task.async(_ -> {
 				var line = try new Reader(s).readLine() catch (_:Dynamic) null;
 				var prefix = 'open $token ';

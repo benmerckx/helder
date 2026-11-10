@@ -189,6 +189,21 @@ class ReadyIo implements Backend {
 		}
 	}
 
+	// an operation on a handle the program closed under it (Closed): a read
+	// ends (0, the end of the stream), an accept too (no socket: Server.accept's
+	// null), a write or a connect fails
+	function closedUnder(op:Op) {
+		switch op.kind {
+			case Read:
+				op.result = 0;
+			case Accept:
+				op.socket = null;
+			case _:
+				op.error = new Closed();
+		}
+		done(op);
+	}
+
 	function done(op:Op) {
 		if (ops.remove(op) && asks(op)) asked--;
 		complete(op, op.error);
@@ -391,10 +406,7 @@ class PollIo extends ReadyIo {
 			var i = ops.length;
 			while (i-- > 0) {
 				var op = ops[i];
-				if (op.kind != Exit && op.handle.closed) {
-					op.error = new Exception("closed");
-					done(op);
-				}
+				if (op.kind != Exit && op.handle.closed) closedUnder(op);
 			}
 		}
 		if (asked > 0) ask();
@@ -502,7 +514,11 @@ class SelectIo extends ReadyIo {
 	}
 
 	// (select failed: a socket closed meanwhile, found alone)
-	function bad(op:Op):Bool
+	function bad(op:Op):Bool {
+		if (op.handle.closed) {
+			closedUnder(op);
+			return false;
+		}
 		return try {
 			var w = op.kind == Connect || op.kind == Write;
 			NetSocket.select(w ? [] : [op.handle.socket], w ? [op.handle.socket] : [], [], 0);
@@ -512,6 +528,7 @@ class SelectIo extends ReadyIo {
 			done(op);
 			false;
 		}
+	}
 }
 #end
 

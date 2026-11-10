@@ -19,6 +19,7 @@ class Http {
 		var node = Async.context().get(Node.key);
 		while (true) {
 			var s = server.accept();
+			if (s == null) return;
 			node.async(_ -> connection(s, handler));
 		}
 	}

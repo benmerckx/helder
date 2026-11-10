@@ -209,6 +209,7 @@ class DevCommand {
 			appPort = app.port;
 			task.async(_ -> while (true) {
 				var s = app.accept();
+				if (s == null) break;
 				task.async(_ -> connection(s));
 				// (the phone's app reached us, Android's through adb reverse: told
 				// once it is the program's connection, not a library's fetch)
