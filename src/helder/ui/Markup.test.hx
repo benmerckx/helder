@@ -7,7 +7,8 @@ import helder.view.graph.Signal;
 
 // ui's markup attributes at run time: a transform from a string built
 // then, pointer-events inherited by what a transform moves, onResize told
-// a node's laid-out size, line-height in pixels or as a multiple
+// a node's laid-out size, line-height in pixels or as a multiple, a
+// wheel's modifiers
 function tests() {
 	describe("Markup", () -> {
 		test("a transform bound to a runtime string", () -> {
@@ -58,6 +59,15 @@ function tests() {
 			equals(sizes, ["50x20", "80x20"]);
 			dispose();
 		});
+		test("a wheel's own modifiers (a pinch: Control), else the keys'", () -> {
+			var ui = new Ui(null, 200, 200), seen = [];
+			var dispose = Render.render(Fixture.wheeled(seen), ui.root);
+			ui.update();
+			ui.wheel(10, 10, 0, 5, false, Key.MOD_CONTROL);
+			ui.wheel(10, 10, 0, 5);
+			equals(seen, [Key.MOD_CONTROL, 0]);
+			dispose();
+		});
 		test("line-height in pixels or as a multiple", () -> {
 			var ui = new Ui(null, 200, 200);
 			var dispose = Render.render(Fixture.leading(), ui.root);
@@ -84,6 +94,9 @@ private class Fixture implements helder.view.Markup {
 		return <view>
 			<view width={w()} height={20} onResize={e -> sizes.push(e.target.width + "x" + e.target.height)}/>
 		</view>;
+
+	public static function wheeled(seen:Array<Int>)
+		return <view width={200} height={200} onWheel={e -> seen.push(e.mods)}/>;
 
 	public static function leading()
 		return <view>

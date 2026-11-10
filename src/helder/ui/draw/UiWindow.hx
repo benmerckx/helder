@@ -413,7 +413,7 @@ class UiWindow {
 					dx = dy;
 					dy = 0;
 				}
-				ui.wheel(e.x / k, e.y / k, dx / k, dy / k, e.eased);
+				ui.wheel(e.x / k, e.y / k, dx / k, dy / k, e.eased, e.mods);
 			case MouseDown:
 				ui.pointerDown(e.x / k, e.y / k, e.button);
 			case MouseUp:

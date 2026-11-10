@@ -1127,16 +1127,18 @@ class Ui {
 
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	// (eased: a mouse's notches, the scroll gliding to them)
-	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float, eased = false) {
-		wheelNow(x, y, deltaX, deltaY, eased);
+	// mods: the scroll's own modifiers (Key.MOD_*), else (-1) the keys' last
+	// (a trackpad's pinch is a wheel with Control that no key event carries)
+	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float, eased = false, mods = -1) {
+		wheelNow(x, y, deltaX, deltaY, eased, mods);
 		helder.view.graph.Graph.flush();
 	}
 
-	function wheelNow(x:Float, y:Float, deltaX:Float, deltaY:Float, eased:Bool) {
+	function wheelNow(x:Float, y:Float, deltaX:Float, deltaY:Float, eased:Bool, mods = -1) {
 		var target = hit(x, y);
 		if (target == null) return;
 		var e = Event.of(Wheel, target, x, y);
-		e.mods = mods;
+		e.mods = mods >= 0 ? mods : this.mods;
 		e.deltaX = deltaX;
 		e.deltaY = deltaY;
 		e.eased = eased;
