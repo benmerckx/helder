@@ -68,6 +68,14 @@ class FontFile {
 	public function hasTable(tag:String):Bool
 		return tables.exists(tag);
 
+	// a table's bytes as the file has them (a copy; null: none): what an
+	// editor keeps of a font it writes again (its GSUB, GPOS, GDEF)
+	public function table(tag:String):Null<Bytes> {
+		var at = tables.get(tag), n = lengths.get(tag);
+		if (at == null || n == null || at + n > data.length) return null;
+		return data.sub(at, n);
+	}
+
 	inline function get_trueType():Bool
 		return glyf != 0 && cff == null;
 

@@ -36,14 +36,19 @@ typedef FontSource = {
 	// when it was made, in seconds since 1970 (null: now)
 	?modified:Float,
 	// pairs of glyph indices and the space put between them
-	?kerning:Array<{left:Int, right:Int, value:Int}>
+	?kerning:Array<{left:Int, right:Int, value:Int}>,
+	// tables written as they are, beside the encoder's own (a font's GSUB,
+	// GPOS and GDEF kept: they name glyphs by index, so the glyphs keep
+	// their order); one the encoder writes itself is left out
+	?tables:Map<String, Bytes>
 }
 
 // A TrueType font (.ttf) written from glyphs of quadratic contours: the
 // tables an installed font and a browser's @font-face need (head, hhea,
 // maxp, OS/2, hmtx, cmap formats 4, name, post 3, loca, glyf) and kerning
 // as the old kern table; no hinting, the characters of the Basic
-// Multilingual Plane. FontFile.parse reads it back.
+// Multilingual Plane; other tables as they are given (tables). FontFile.parse
+// reads it back.
 class FontEncoder {
 	public static function encode(font:FontSource):Bytes {
 		if (font.glyphs.length == 0) throw "No glyphs";
@@ -70,6 +75,9 @@ class FontEncoder {
 		tables["hhea"] = hhea(font, glyphs);
 		tables["maxp"] = maxp(glyphs);
 		if (font.kerning != null && font.kerning.length > 0) tables["kern"] = kern(font.kerning);
+		if (font.tables != null)
+			for (tag => b in font.tables)
+				if (!tables.exists(tag)) tables[tag] = b;
 		return sfnt(tables);
 	}
 

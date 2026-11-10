@@ -26,6 +26,21 @@ place and advance. What you make from it is still a proper font: the
 x-height slider moves outline points with the guides, and the Outline tab
 edits them. A font made from an OFL font is shared under the OFL.
 
+Started from a font, Foundry keeps the whole of it: every glyph in its
+order (under its character, or "#" and its name for one without, such as
+a ligature or an alternate), each glyph's advance, the font's units to
+the em, and its layout tables (GSUB, GPOS, GDEF: ligatures, alternates,
+kerning). They name glyphs by their place, so the font is written back in
+that order, and in its own units, with its tables as they were. Glyphs
+added after it come at the end. Hanken Grotesk goes in with 608 glyphs
+and 30 GSUB lookups and comes out the same, each character at its own
+glyph. The grid groups what is beyond Foundry's own letters by kind and
+script (Latin Extended, Greek, Cyrillic, numbers, punctuation, currency,
+arrows, math, marks, those without a character), and Find searches it: a
+letter, its code (U+0142), a name's part. Languages in the panel says
+which languages the font sets and what each still needs (a letter in it
+opens it), and so does font.read for an agent.
+
 A letter can also be traced into pen lines (the Pen tab's "Trace into
 pen lines", or `font.start {pen: true}` for a whole font), to restyle it
 with the pen. `Trace` does that:

@@ -33,7 +33,7 @@ font unit is about a third of a pixel.
 
 Small, and it makes everything after it easier.
 
-## 2. The whole font
+## 2. The whole font (done but font info)
 
 Today only Foundry's own 127 characters exist. Starting from Hanken
 drops the rest of Hanken, and its kerning and features with them.

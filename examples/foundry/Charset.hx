@@ -109,6 +109,10 @@ class Charset {
 
 	// the letter shown either side of char on the board, for its spacing
 	public static function neighbour(char:String):String {
+		var cp = code(char);
+		if (cp >= 0x0410 && cp <= 0x042F) return "Н";
+		if (cp >= 0x0430 && cp <= 0x044F) return "н";
+		if (cp >= 0x0391 && cp <= 0x03A9) return "Η";
 		for (g in groups)
 			if (g.chars.indexOf(char) >= 0) return switch g.name {
 				case "Uppercase": "H";
@@ -119,11 +123,65 @@ class Charset {
 	}
 
 	// whether char stands as tall as a capital (its guides, a part's turns)
-	public static function tall(char:String):Bool
-		return groups[1].chars.indexOf(char) >= 0 || groups[2].chars.indexOf(char) >= 0;
+	public static function tall(char:String):Bool {
+		if (groups[1].chars.indexOf(char) >= 0 || groups[2].chars.indexOf(char) >= 0) return true;
+		// (a capital of any script: as tall as the capitals)
+		return !unencoded(char) && char.length <= 2 && char.toUpperCase() == char && char.toLowerCase() != char;
+	}
 
+	// a key's character (-1: a glyph without one, "#" and its name)
 	public static function code(char:String):Int
-		return new haxe.iterators.StringIteratorUnicode(char).next();
+		return unencoded(char) ? -1 : new haxe.iterators.StringIteratorUnicode(char).next();
+
+	public static inline function unencoded(key:String):Bool
+		return key.length > 1 && key.charAt(0) == "#";
+
+	// a face's groups: Foundry's own (what a font is made of), then the
+	// rest it has, by kind and script, in Unicode's order; glyphs without
+	// a character last
+	public static function of(face:Face):Array<{name:String, chars:Array<String>}> {
+		if (last != null && last.glyphs == face.glyphs) return last.groups;
+		var core = new Map<String, Bool>();
+		for (c in all)
+			core.set(c, true);
+		var more = new Map<String, Array<String>>(), names = [];
+		var keys = [for (k in face.glyphs.keys()) if (!core.exists(k)) k];
+		keys.sort((a, b) -> {
+			var ca = code(a), cb = code(b);
+			return ca != cb ? ca - cb : a < b ? -1 : a > b ? 1 : 0;
+		});
+		for (k in keys) {
+			var name = kind(code(k));
+			var g = more.get(name);
+			if (g == null) {
+				more.set(name, g = []);
+				names.push(name);
+			}
+			g.push(k);
+		}
+		var order = ["Latin Extended", "Greek", "Cyrillic", "Numbers", "More punctuation", "Currency", "Arrows", "Math", "Symbols", "Marks", "Other", "Without a character"];
+		names.sort((a, b) -> order.indexOf(a) - order.indexOf(b));
+		var groups = groups.concat([for (n in names) {name: n, chars: more.get(n)}]);
+		last = {glyphs: face.glyphs, groups: groups};
+		return groups;
+	}
+
+	static var last:Null<{glyphs:Dynamic, groups:Array<{name:String, chars:Array<String>}>}> = null;
+
+	// every key of a face's groups
+	public static function list(face:Face):Array<String>
+		return [for (g in of(face)) for (c in g.chars) c];
+
+	static function kind(cp:Int):String
+		return if (cp < 0) "Without a character" else if (cp >= 0x0300 && cp <= 0x036F || cp >= 0x02B0 && cp <= 0x02FF) "Marks" else
+			if (cp >= 0x00C0 && cp <= 0x024F || cp >= 0x1E00 && cp <= 0x1EFF || cp >= 0x2C60 && cp <= 0x2C7F || cp >= 0xA720 && cp <= 0xA7FF) "Latin Extended" else
+			if (cp >= 0x0370 && cp <= 0x03FF || cp >= 0x1F00 && cp <= 0x1FFF) "Greek" else if (cp >= 0x0400 && cp <= 0x052F) "Cyrillic" else
+			if (cp >= 0x0030 && cp <= 0x0039 || cp >= 0x00B2 && cp <= 0x00B3 || cp == 0x00B9 || cp >= 0x00BC && cp <= 0x00BE || cp >= 0x2070 && cp <= 0x209F
+				|| cp >= 0x2150 && cp <= 0x218F) "Numbers" else if (cp >= 0x20A0 && cp <= 0x20CF || cp == 0x24 || cp >= 0xA2 && cp <= 0xA5) "Currency" else
+			if (cp >= 0x2190 && cp <= 0x21FF || cp >= 0x27F0 && cp <= 0x27FF) "Arrows" else
+			if (cp >= 0x2200 && cp <= 0x22FF || cp == 0xD7 || cp == 0xF7 || cp == 0xB1 || cp == 0xAC || cp >= 0x2B && cp <= 0x2B || cp >= 0x3C && cp <= 0x3E) "Math" else
+			if (cp >= 0x21 && cp <= 0x7E || cp >= 0xA0 && cp <= 0xBF || cp >= 0x2000 && cp <= 0x206F) "More punctuation" else
+			if (cp >= 0x2100 && cp <= 0x214F || cp >= 0x2300 && cp <= 0x2BFF || cp >= 0x25A0 && cp <= 0x25FF) "Symbols" else "Other";
 
 	static function split(s:String):Array<String>
 		return [for (c in new haxe.iterators.StringIteratorUnicode(s)) String.fromCharCode(c)];

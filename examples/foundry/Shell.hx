@@ -85,40 +85,65 @@ class Shell implements Markup {
 					'${p.drawn + p.borrowed} / ${p.total}';
 				}}</text>
 			</view>
+			<view padding="8 10 0" shrink={0}>
+				<view slot="field">
+					<text slot="field-label">Find</text>
+					<field tag="search" slot="field-input" font-family={Theme.UI} label="Find a glyph" placeholder="a letter, U+0142, a name" value={ws.search}
+						onInput={e -> ws.search(e.text)}/>
+				</view>
+			</view>
 			<scroll tag="glyphs" grow={1} min-height={0} padding="8 10 12" row-gap={14}>
-				{start(ws)}
-				<For each={Charset.groups}>{(group:Read<{name:String, chars:Array<String>}>) -> {
-					var g = group();
+				<Show when={ws.search() == ""}>{start(ws)}</Show>
+				<For each={() -> [for (g in Charset.of(ws.face())) if (shown(ws, g.chars).length > 0) g.name]}>{(group:Read<String>) -> {
+					var name = group();
+					var chars = memo(() -> {
+						var g = Lambda.find(Charset.of(ws.face()), g -> g.name == name);
+						return g == null ? [] : shown(ws, g.chars);
+					});
 					<view row-gap={6}>
 						<view slot="section-head" padding="0 2">
-							<text font-size={Theme.SMALL} grow={1}>{g.name}</text>
+							<text font-size={Theme.SMALL} grow={1}>{name}</text>
 							<text font-size={Theme.SMALL} color={c("fg3")} font-family={Theme.CODE}>{() -> {
-								var f = ws.face(), n = 0;
-								for (ch in g.chars)
+								var f = ws.face(), n = 0, all = chars();
+								for (ch in all)
 									if (Workshop.state(f, ch) != "empty") n++;
-								'$n/${g.chars.length}';
+								'$n/${all.length}';
 							}}</text>
 						</view>
-						<view display="grid" grid-template-columns="repeat(5, 1fr)" column-gap={4} row-gap={4} role="list" label={g.name}>
-							<For each={g.chars}>{(ch:Read<String>) -> cell(ws, ch())}</For>
+						<view display="grid" grid-template-columns="repeat(5, minmax(0, 1fr))" column-gap={4} row-gap={4} role="list" label={name}>
+							<For each={chars}>{(ch:Read<String>) -> cell(ws, ch())}</For>
 						</view>
 					</view>;
 				}}</For>
 			</scroll>
 		</view>;
 
+	// a group's glyphs the search finds: a character, its code (U+0142, 0142), a name's part
+	static function shown(ws:Workshop, chars:Array<String>):Array<String> {
+		var q = StringTools.trim(ws.search()).toLowerCase();
+		if (q == "") return chars;
+		var hex = StringTools.startsWith(q, "u+") ? q.substr(2) : q;
+		var cp = q.length > 2 ? Std.parseInt("0x" + hex) : null;
+		return chars.filter(c -> c == q || c.toLowerCase() == q || cp != null && Charset.code(c) == cp || Charset.unencoded(c) && c.toLowerCase().indexOf(q) >= 0);
+	}
+
+	// a glyph's label: its character, else its name
+	static function label(char:String):String
+		return Charset.unencoded(char) ? char.substr(1) : char;
+
 	static function cell(ws:Workshop, char:String):View {
 		var state = memo(() -> Workshop.state(ws.face(), char));
-		return <view:button tag={"glyph-" + Charset.code(char)} slot="cell" role="listitem" label={'$char, ${state()}'} focusable
+		return <view:button tag={"glyph-" + (Charset.unencoded(char) ? char.substr(1) : Std.string(Charset.code(char)))} slot="cell" role="listitem"
+			label={'${label(char)}, ${state()}'} focusable
 			data-on={ws.current() == char ? "true" : "false"} onPress={() -> ws.open(char)}>
 			<view grow={1} align-self="stretch" align-items="center" justify="center">
-				<Show when={state() != "empty"} fallback={<text font-size={20} color={c("fg3")} opacity={0.45}>{char}</text>}>
+				<Show when={state() != "empty"} fallback={<text font-size={20} color={c("fg3")} opacity={0.45}>{Charset.unencoded(char) ? "" : char}</text>}>
 					{thumb(ws, char)}
 				</Show>
 			</view>
 			{glimmer(ws, char)}
 			<view direction="row" align-items="center" column-gap={3} height={12}>
-				<text font-size={10} line-height="12px" color={c("fg3")}>{char}</text>
+				<text font-size={10} line-height="12px" color={c("fg3")} max-lines={1} text-overflow="ellipsis" max-width={44}>{label(char)}</text>
 				<Show when={state() == "borrowed"}><view width={4} height={4} radius={2} background={c("accent-ink")} label="Borrowed"/></Show>
 			</view>
 		</view:button>;
@@ -181,7 +206,7 @@ class Shell implements Markup {
 		return <view tag="header" direction="row" align-items="center" column-gap={8} drag-region height={Theme.HEADER} shrink={0} padding={'0 ${Theme.PAD}'}
 			border-width="0 0 1 0" border-color={c("line")}>
 			<view direction="row" align-items="baseline" column-gap={8} min-width={0} shrink={1}>
-				<text font-size={15} font-weight={Theme.MEDIUM}>{ws.current}</text>
+				<text font-size={15} font-weight={Theme.MEDIUM} max-lines={1}>{() -> label(ws.current())}</text>
 				<text color={c("fg3")} font-family={Theme.CODE} font-size={Theme.SMALL}>{() -> unicode(ws.current())}</text>
 			</view>
 			<view grow={1}/>
@@ -205,7 +230,7 @@ class Shell implements Markup {
 		</view>;
 
 	static function unicode(char:String):String
-		return "U+" + StringTools.hex(Charset.code(char), 4);
+		return Charset.unencoded(char) ? "no character" : "U+" + StringTools.hex(Charset.code(char), 4);
 
 	// under the header: what this letter is, what can be done with it; on
 	// the right, what an agent did, else how the tool is used
@@ -400,12 +425,43 @@ class Shell implements Markup {
 						<field tag="name" slot="field-input" font-family={Theme.UI} label="Font name" value={() -> ws.face().name} onInput={e -> ws.rename(e.text)}/>
 					</view>
 				</view>
+				{languages(ws)}
 				{pen(ws)}
 				{proportions(ws)}
 				{spacing(ws)}
 				{agents(ws)}
 			</scroll>
 		</view>;
+
+	// which languages the font sets, and what each still needs (a missing letter opens)
+	static function languages(ws:Workshop):View {
+		var all = memo(() -> Languages.of(ws.face()));
+		var open = signal(false);
+		return <view tag="languages" slot="section">
+			<view:button slot="section-head" role="button" label="Languages" focusable onPress={() -> open(!open.peek())}>
+				<text grow={1}>Languages</text>
+				<text color={c("fg3")} font-weight={400}>{() -> {
+					var ok = all().filter(l -> l.missing.length == 0).length;
+					'$ok of ${all().length}';
+				}}</text>
+				<image src={open() ? Icons.down : Icons.right} width={12} height={12} color={c("fg3")}/>
+			</view:button>
+			<Show when={open()}>
+				<For each={all} keyed={false}>{(l:Read<{name:String, missing:Array<String>}>) -> <view direction="row" align-items="center" column-gap={6}
+					min-height={20}>
+					<view width={6} height={6} radius={3} background={l().missing.length == 0 ? c("green") : c("sand")}/>
+					<text color={c("fg2")} grow={1} min-width={0}>{l().name}</text>
+					<view direction="row" column-gap={2} wrap="wrap" justify="end" max-width={130}>
+						<For each={() -> l().missing.slice(0, 8)} keyed={false}>{(m:Read<String>) -> <view:button slot="button" role="button"
+							label={"Open " + m()} focusable height={18} min-width={18} padding="0 3" onPress={() -> ws.open(m())}>
+							<text font-size={Theme.SMALL}>{m()}</text>
+						</view:button>}</For>
+						<Show when={l().missing.length > 8}><text font-size={Theme.SMALL} color={c("fg3")}>{() -> '+${l().missing.length - 8}'}</text></Show>
+					</view>
+				</view>}</For>
+			</Show>
+		</view>;
+	}
 
 	static function pen(ws:Workshop):View {
 		var p = () -> ws.face().pen;

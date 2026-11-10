@@ -12,7 +12,9 @@ class Tracing {
 	public static function path(char:String, face:Face, cx:Float, scale:Float, ox:Float, base:Float):Null<Path> {
 		var f = SystemFonts.get().match(Theme.UI);
 		if (f == null) return null;
-		var g = f.glyph(Charset.code(char));
+		var cp = Charset.code(char);
+		if (cp < 0) return null;
+		var g = f.glyph(cp);
 		if (g == 0) return null;
 		var caps = char.toUpperCase() == char && char.toLowerCase() != char || Charset.tall(char);
 		var ref = f.bounds(f.glyph(caps ? 72 : 120));

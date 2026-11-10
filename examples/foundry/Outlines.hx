@@ -2,14 +2,18 @@ import Model;
 import helder.text.FontFile;
 import helder.text.Outline;
 
-// A face from a font's own outlines, kept exact: each letter's contours as
+// A face from a font's own outlines, the whole font kept: every glyph in
+// its order (under its character, else "#" and its name), its contours as
 // the font has them (TrueType's quadratics raised to cubics, exactly; a
-// CFF font's cubics as they are), in units of 1000 to the em; its
-// metrics, and each letter's place and advance, the font's. Accented
-// letters are left to be made of their letter and accent, as Foundry
-// makes them. The pen is the strokes' width (as Trace measures it), for
-// lines drawn over the outlines.
+// CFF font's cubics as they are), in units of 1000 to the em (written back
+// in the font's own); its metrics, each glyph's place and advance (an
+// empty one's advance its own), and its layout tables (GSUB, GPOS, GDEF,
+// kern), kept to be written as they are. The pen is the strokes' width (as
+// Trace measures it), for lines drawn over the outlines.
 class Outlines {
+	// the tables kept as they are: what ligatures, alternates, figures' forms and kerning are
+	static final KEPT = ["GSUB", "GPOS", "GDEF", "kern"];
+
 	public static function face(font:FontFile, name:String):Face {
 		var fs = Model.EM / font.unitsPerEm;
 		function edge(cp:Int, top:Bool, fallback:Float):Float {
@@ -18,36 +22,60 @@ class Outlines {
 			var b = font.bounds(g);
 			return b[0] == b[2] ? fallback : (top ? b[3] : b[1]) * fs;
 		}
-		var face = Model.empty(name);
-		var traced = Trace.face(font, name);
-		var made = new Map<String, {outline:Array<Array<OPoint>>, x0:Float, x1:Float, advance:Float}>(), sides = [];
-		for (group in Charset.groups) {
-			if (group.name == "Accented") continue;
-			for (char in group.chars) {
-				var g = font.glyph(Charset.code(char));
-				if (g == 0) continue;
-				var c = new Collect(fs);
-				font.outline(g, c);
-				c.close();
-				var outline = [for (k in c.contours) if (k.length > 1) Ink.tidied(Ink.smoothed(k))];
-				if (outline.length == 0) continue;
-				var x0 = Math.POSITIVE_INFINITY, x1 = Math.NEGATIVE_INFINITY;
-				for (k in outline)
-					for (p in k) {
-						x0 = Math.min(x0, p.x);
-						x1 = Math.max(x1, p.x);
-					}
-				var advance = font.advance(g) * fs;
-				made.set(char, {outline: outline, x0: x0, x1: x1, advance: advance});
-				if (group.name == "Lowercase") {
-					sides.push(x0);
-					sides.push(advance - x1);
+		// (each glyph's characters, from the character map: the Basic Multilingual Plane's)
+		var codes = [for (_ in 0...font.numGlyphs) []];
+		for (cp in 1...0xFFFF) {
+			if (cp >= 0xD800 && cp <= 0xDFFF) continue;
+			var g = font.glyph(cp);
+			if (g > 0 && g < font.numGlyphs) codes[g].push(cp);
+		}
+		var names = postNames(font), traced = Trace.face(font, name);
+		var order = [], taken = new Map<String, Bool>(), made = new Map<String, Glyph>(), sides = [];
+		for (g in 0...font.numGlyphs) {
+			var key = codes[g].length > 0 ? String.fromCharCode(codes[g][0]) : "#" + (names[g] ?? "g" + g);
+			if (taken.exists(key)) key = key + "." + g;
+			if (!Charset.unencoded(key) && taken.exists(key)) key = "#g" + g;
+			taken.set(key, true);
+			order.push(key);
+			var c = new Collect(fs);
+			font.outline(g, c);
+			c.close();
+			var outline = [for (k in c.contours) if (k.length > 1) Ink.tidied(Ink.smoothed(k))];
+			var advance = font.advance(g) * fs, also = codes[g].length > 1 ? codes[g].slice(1) : null;
+			if (outline.length == 0) {
+				made.set(key, {lines: [], parts: [], outline: [], advance: advance, also: also});
+				continue;
+			}
+			var x0 = Math.POSITIVE_INFINITY, x1 = Math.NEGATIVE_INFINITY;
+			for (k in outline)
+				for (p in k) {
+					x0 = Math.min(x0, p.x);
+					x1 = Math.max(x1, p.x);
 				}
+			made.set(key, {lines: [], parts: [], outline: outline, left: x0, right: advance - x1, also: also});
+			if (Charset.groups[0].chars.indexOf(key) >= 0) {
+				sides.push(x0);
+				sides.push(advance - x1);
 			}
 		}
 		sides.sort((a, b) -> a < b ? -1 : a > b ? 1 : 0);
 		var spacing = sides.length == 0 ? Model.METRICS.spacing : Math.max(0, Math.round(sides[Std.int(sides.length / 2)]));
-		face = {
+		var tables:haxe.DynamicAccess<String> = {};
+		for (tag in KEPT) {
+			var b = font.table(tag);
+			if (b != null) tables.set(tag, haxe.crypto.Base64.encode(b));
+		}
+		var glyphs:haxe.DynamicAccess<Glyph> = {};
+		for (key => g in made)
+			glyphs.set(key, g.outline.length == 0 ? g : {
+				lines: [],
+				parts: [],
+				outline: g.outline,
+				left: Math.round(g.left - spacing),
+				right: Math.round(g.right - spacing),
+				also: g.also
+			});
+		return {
 			name: name,
 			pen: traced.pen,
 			metrics: {
@@ -57,17 +85,30 @@ class Outlines {
 				descender: Math.round(edge("p".code, false, -230)),
 				spacing: spacing
 			},
-			glyphs: {}
+			glyphs: glyphs,
+			source: {units: font.unitsPerEm, order: order, tables: tables}
 		};
-		for (char => m in made)
-			face = Model.with(face, char, {
-				lines: [],
-				parts: [],
-				outline: m.outline,
-				left: Math.round(m.x0 - spacing),
-				right: Math.round(m.advance - m.x1 - spacing)
-			});
-		return face;
+	}
+
+	// the glyphs' names from the post table (version 2: names past the
+	// Macintosh's standard 258 as strings; the standard ones left unnamed)
+	static function postNames(font:FontFile):Array<Null<String>> {
+		var names:Array<Null<String>> = [for (_ in 0...font.numGlyphs) null];
+		var post = font.table("post");
+		if (post == null || post.length < 34 || post.get(0) != 0 || post.get(1) != 2) return names;
+		var n = (post.get(32) << 8) | post.get(33), at = 34 + n * 2, strings = [];
+		while (at < post.length) {
+			var len = post.get(at);
+			if (at + 1 + len > post.length) break;
+			strings.push(post.getString(at + 1, len));
+			at += 1 + len;
+		}
+		for (g in 0...Std.int(Math.min(n, font.numGlyphs))) {
+			var i = (post.get(34 + g * 2) << 8) | post.get(35 + g * 2);
+			if (i >= 258 && i - 258 < strings.length) names[g] = strings[i - 258];
+			if (g == 0) names[g] = ".notdef";
+		}
+		return names;
 	}
 }
 

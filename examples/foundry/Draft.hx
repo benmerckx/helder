@@ -16,25 +16,48 @@ class Draft {
 	static var version = 1;
 
 	public static function encode(face:Face, ?family:String, ?postScriptName:String):Bytes {
-		var m = face.metrics, glyphs:Array<FontGlyph> = [{codes: [], advance: 500, contours: []}];
-		glyphs.push({codes: [32, 0xA0], advance: Math.round(Model.EM * 0.22 + face.pen.width * 0.5), contours: []});
-		for (char in Charset.all) {
-			var s = Ink.shape(face, char);
-			if (s.contours.length == 0) continue;
-			glyphs.push({codes: [Charset.code(char)], advance: s.advance, contours: s.contours});
+		var m = face.metrics, src = face.source;
+		// (a face from a font: written in its units and its glyphs' order, its layout tables as they were)
+		var k = src == null ? 1.0 : src.units / Model.EM;
+		var glyphs:Array<FontGlyph> = [], placed = new Map<String, Bool>();
+		function glyph(key:String, keep:Bool) {
+			placed.set(key, true);
+			var s = Ink.shape(face, key), g = Model.glyph(face, key), cp = Charset.code(key);
+			var codes = cp >= 0 ? [cp] : [];
+			if (g != null && g.also != null) codes = codes.concat(g.also);
+			if (s.contours.length == 0 && !keep) return;
+			glyphs.push({
+				codes: codes,
+				advance: (s.contours.length == 0 ? g?.advance ?? 0 : s.advance) * k,
+				contours: [for (c in s.contours) [for (p in c) {x: p.x * k, y: p.y * k, on: p.on}]]
+			});
 		}
+		if (src != null) {
+			for (key in src.order)
+				glyph(key, true);
+		} else {
+			glyphs.push({codes: [], advance: 500, contours: []});
+			glyphs.push({codes: [32, 0xA0], advance: Math.round(Model.EM * 0.22 + face.pen.width * 0.5), contours: []});
+		}
+		for (key in Charset.list(face))
+			if (!placed.exists(key)) glyph(key, false);
+		var tables = new Map<String, Bytes>();
+		if (src != null)
+			for (tag => b in src.tables)
+				tables.set(tag, haxe.crypto.Base64.decode(b));
 		var top = Math.max(m.ascender, m.capHeight) + face.pen.width * 0.3;
 		return FontEncoder.encode({
 			family: family ?? (StringTools.trim(face.name) == "" ? "Untitled" : StringTools.trim(face.name)),
-			unitsPerEm: Model.EM,
-			ascender: Math.round(top + 60),
-			descender: Math.round(m.descender - 80),
+			unitsPerEm: src == null ? Model.EM : src.units,
+			ascender: Math.round((top + 60) * k),
+			descender: Math.round((m.descender - 80) * k),
 			lineGap: 0,
-			xHeight: Math.round(m.xHeight),
-			capHeight: Math.round(m.capHeight),
+			xHeight: Math.round(m.xHeight * k),
+			capHeight: Math.round(m.capHeight * k),
 			weight: weight(face.pen),
 			postScriptName: postScriptName,
-			glyphs: glyphs
+			glyphs: glyphs,
+			tables: tables
 		});
 	}
 

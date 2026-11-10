@@ -21,7 +21,8 @@ typedef OPoint = {x:Float, y:Float, ?off:Bool, ?smooth:Bool};
 // pen lines of its own, an outline of its own (a font's letter kept
 // exact: its points edited as they are), parts; left and right widen (or
 // narrow) its spacing. Its ink is all of them.
-typedef Glyph = {lines:Array<Line>, parts:Array<Part>, ?outline:Array<Array<OPoint>>, ?left:Float, ?right:Float};
+// (advance: an empty glyph's own (a space's); also: other characters it is)
+typedef Glyph = {lines:Array<Line>, parts:Array<Part>, ?outline:Array<Array<OPoint>>, ?left:Float, ?right:Float, ?advance:Float, ?also:Array<Int>};
 
 // the nib: its width, how much thinner it draws across than along its
 // edge (0: a round marker, 1: a flat calligraphy nib), its edge's angle
@@ -30,8 +31,15 @@ typedef Pen = {width:Float, contrast:Float, angle:Float, cap:Cap};
 
 typedef Metrics = {xHeight:Float, capHeight:Float, ascender:Float, descender:Float, spacing:Float};
 
-// a glyph missing from glyphs takes Charset's suggestion (borrowed, or empty)
-typedef Face = {name:String, pen:Pen, metrics:Metrics, glyphs:DynamicAccess<Glyph>};
+// a glyph missing from glyphs takes Charset's suggestion (borrowed, or
+// empty). Keys are characters, or "#" and a name for a glyph without one
+// (an alternate, a ligature's). source: the font it was started from, kept
+// to write it again as a whole: its units to the em, its glyphs' order (by
+// key, from 0), its layout tables (GSUB, GPOS, GDEF: base64), which name
+// glyphs by their place in that order
+typedef Face = {name:String, pen:Pen, metrics:Metrics, glyphs:DynamicAccess<Glyph>, ?source:Source};
+
+typedef Source = {units:Int, order:Array<String>, tables:DynamicAccess<String>};
 
 enum abstract Cap(String) from String to String {
 	var Round = "round";
@@ -72,17 +80,17 @@ class Model {
 		for (k => v in face.glyphs)
 			if (k != char) glyphs.set(k, v);
 		if (g != null) glyphs.set(char, g);
-		return {name: face.name, pen: face.pen, metrics: face.metrics, glyphs: glyphs};
+		return {name: face.name, pen: face.pen, metrics: face.metrics, glyphs: glyphs, source: face.source};
 	}
 
 	public static function withPen(face:Face, pen:Pen):Face
-		return {name: face.name, pen: pen, metrics: face.metrics, glyphs: face.glyphs};
+		return {name: face.name, pen: pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source};
 
 	public static function withMetrics(face:Face, metrics:Metrics):Face
-		return {name: face.name, pen: face.pen, metrics: metrics, glyphs: face.glyphs};
+		return {name: face.name, pen: face.pen, metrics: metrics, glyphs: face.glyphs, source: face.source};
 
 	public static function named(face:Face, name:String):Face
-		return {name: name, pen: face.pen, metrics: face.metrics, glyphs: face.glyphs};
+		return {name: name, pen: face.pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source};
 
 	// whether char has ink of its own (pen lines, an outline)
 	public static function drawn(face:Face, char:String):Bool {
@@ -117,7 +125,12 @@ class Model {
 				descender: num(m.descender, METRICS.descender),
 				spacing: num(m.spacing, METRICS.spacing)
 			},
-			glyphs: glyphs
+			glyphs: glyphs,
+			source: d.source == null || !Std.isOfType(d.source.order, Array) ? null : {
+				units: Std.int(num(d.source.units, EM)),
+				order: [for (k in (d.source.order : Array<Dynamic>)) Std.string(k)],
+				tables: d.source.tables ?? {}
+			}
 		};
 	}
 
@@ -135,7 +148,15 @@ class Model {
 		for (p in rawParts)
 			if (p != null && p.of != null) parts.push({of: Std.string(p.of), how: p.how ?? Same, dx: num(p.dx, 0), dy: num(p.dy, 0)});
 		var outline = Std.isOfType(g.outline, Array) ? outlineOf(g.outline) : null;
-		return {lines: lines, parts: parts, outline: outline, left: num(g.left, 0), right: num(g.right, 0)};
+		return {
+			lines: lines,
+			parts: parts,
+			outline: outline,
+			left: num(g.left, 0),
+			right: num(g.right, 0),
+			advance: g.advance == null ? null : num(g.advance, 0),
+			also: Std.isOfType(g.also, Array) ? [for (c in (g.also : Array<Dynamic>)) Std.int(num(c, 0))] : null
+		};
 	}
 
 	// an outline from JSON: contours of points as {x, y, off, smooth} or [x, y] ([x, y, "off"], [x, y, "smooth"])

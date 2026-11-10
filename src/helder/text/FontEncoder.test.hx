@@ -55,6 +55,21 @@ function tests() {
 			equals(o.log.join(" "), "M300,0 Q50,0 50,250 Q50,500 300,500 Q550,500 550,250 Q550,0 300,0 Z");
 			equals(f.bounds(3), [50, 0, 550, 500]);
 		});
+		test("tables of its own kept as they are, the encoder's own its own", () -> {
+			var gsub = haxe.io.Bytes.ofString("not really a GSUB");
+			var made = FontEncoder.encode({
+				family: "Kept",
+				unitsPerEm: 1000,
+				ascender: 800,
+				descender: -200,
+				glyphs: [{codes: [], advance: 500, contours: []}, {codes: [65], advance: 600, contours: box}],
+				tables: ["GSUB" => gsub, "head" => haxe.io.Bytes.ofString("ignored")]
+			});
+			var k = FontFile.parse(made);
+			equals(k.table("GSUB").toString(), "not really a GSUB");
+			equals(k.unitsPerEm, 1000);
+			equals(k.table("nope"), null);
+		});
 	});
 }
 

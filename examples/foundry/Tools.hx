@@ -181,7 +181,7 @@ class Tools {
 						return mid + (x - mid) * sx + y * sy * k + dx;
 					var lines = [for (l in g.lines) {knots: [for (q in l.knots) {x: tx(q.x, q.y), y: q.y * sy + dy, corner: q.corner}], closed: l.closed}];
 					var outline = g.outline == null ? null : [for (c in g.outline) [for (q in c) {x: tx(q.x, q.y), y: q.y * sy + dy, off: q.off, smooth: q.smooth}]];
-					ws.setGlyph(char, {lines: lines, parts: g.parts, outline: outline, left: g.left, right: g.right}, "transform");
+					ws.setGlyph(char, {lines: lines, parts: g.parts, outline: outline, left: g.left, right: g.right, advance: g.advance, also: g.also}, "transform");
 					done.push(char);
 				}
 				if (done.length == 0) throw 'None of "$spec" has ink of its own to transform';
@@ -191,7 +191,7 @@ class Tools {
 			case "glyph.borrow":
 				var char = character(args), g = ws.glyph(char);
 				var parsed = Model.glyphOf({lines: [], parts: args.parts});
-				ws.setGlyph(char, {lines: g.lines, parts: parsed == null ? [] : parsed.parts, outline: g.outline, left: g.left, right: g.right});
+				ws.setGlyph(char, {lines: g.lines, parts: parsed == null ? [] : parsed.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also});
 				shown(char, 'made $char from others');
 				[text(Charset.describe(Charset.parts(ws.value(), char))), image(Picture.glyph(ws.value(), char))];
 			case "glyph.clear":
@@ -272,7 +272,7 @@ class Tools {
 
 	// a whole font changed by an agent: every cell glowing in turn
 	function everything(what:String) {
-		ws.byAgent(Charset.all.filter(c -> Model.drawn(ws.value(), c)));
+		ws.byAgent(Charset.list(ws.value()).filter(c -> Model.drawn(ws.value(), c)));
 		said("Agent " + what);
 	}
 
@@ -290,13 +290,15 @@ class Tools {
 	function font():Dynamic {
 		var f = ws.value();
 		var states:haxe.DynamicAccess<String> = {};
-		for (c in Charset.all)
+		for (c in Charset.list(f))
 			states.set(c, Workshop.state(f, c));
 		return {
 			name: f.name,
 			unitsPerEm: Model.EM,
 			pen: f.pen,
 			penHalf: Math.round(Ink.vertical(f.pen) * 10) / 10,
+			languages: [for (l in Languages.of(f)) {name: l.name, missing: l.missing.join("")}],
+			from: f.source == null ? null : {unitsPerEm: f.source.units, glyphs: f.source.order.length, tablesKept: [for (k in f.source.tables.keys()) k]},
 			metrics: f.metrics,
 			start: Charset.start,
 			glyphs: states
@@ -325,13 +327,14 @@ class Tools {
 		};
 	}
 
-	static function character(args:Dynamic):String {
+	function character(args:Dynamic):String {
 		var c:Null<String> = args.char;
-		if (c == null || c == "") throw "char: the character, as \"a\"";
-		var first = String.fromCharCode(Charset.code(c));
-		if (Charset.all.indexOf(first) < 0) throw 'Foundry does not make "$first" (font.read lists what it makes)';
-		return first;
+		if (c == null || c == "") throw "char: the character, as \"a\" (or a glyph without one: \"#a.alt\")";
+		var key = Charset.unencoded(c) ? c : String.fromCharCode(Charset.code(c));
+		if (Charset.list(ws.value()).indexOf(key) < 0 && Charset.all.indexOf(key) < 0) throw 'This font has no "$key" (font.read lists its glyphs)';
+		return key;
 	}
+
 
 	static function text(s:String):Dynamic
 		return {type: "text", text: s};

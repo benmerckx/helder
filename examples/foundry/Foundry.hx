@@ -91,7 +91,7 @@ class Foundry implements Markup {
 	}
 
 	static function step(ws:Workshop, by:Int) {
-		var all = Charset.all, i = all.indexOf(ws.current.peek());
+		var all = Charset.list(ws.value()), i = all.indexOf(ws.current.peek());
 		ws.open(all[(i + by + all.length) % all.length]);
 	}
 

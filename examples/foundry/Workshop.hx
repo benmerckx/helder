@@ -26,6 +26,8 @@ class Workshop {
 	public final layer = signal("pen");
 	public final points:Signal<Array<{c:Int, p:Int}>> = signal([]);
 	public final sample = signal("Hamburgefonstiv");
+	// the glyph grid's search
+	public final search = signal("");
 	public final size = signal(56.0);
 	// "system", "light", "dark"
 	public final appearance = signal("system");
@@ -146,7 +148,7 @@ class Workshop {
 
 	public function setOutline(char:String, outline:Array<Array<OPoint>>, ?group:String) {
 		var g = glyph(char);
-		setGlyph(char, {lines: g.lines, parts: g.parts, outline: outline, left: g.left, right: g.right}, group);
+		setGlyph(char, {lines: g.lines, parts: g.parts, outline: outline, left: g.left, right: g.right, advance: g.advance, also: g.also}, group);
 	}
 
 	// its pen lines made outline points (exactly the ink they leave), to edit point by point
@@ -199,20 +201,20 @@ class Workshop {
 
 	public function addLine(char:String, line:Line) {
 		var g = glyph(char);
-		setGlyph(char, {lines: g.lines.concat([line]), parts: g.parts, outline: g.outline, left: g.left, right: g.right});
+		setGlyph(char, {lines: g.lines.concat([line]), parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also});
 	}
 
 	public function removeLine(char:String, i:Int) {
 		var g = glyph(char);
 		if (i < 0 || i >= g.lines.length) return;
-		setGlyph(char, {lines: [for (k in 0...g.lines.length) if (k != i) g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right});
+		setGlyph(char, {lines: [for (k in 0...g.lines.length) if (k != i) g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also});
 		selected(null);
 	}
 
 	public function setLine(char:String, i:Int, line:Line, ?group:String) {
 		var g = glyph(char);
 		if (i < 0 || i >= g.lines.length) return;
-		setGlyph(char, {lines: [for (k in 0...g.lines.length) k == i ? line : g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right}, group);
+		setGlyph(char, {lines: [for (k in 0...g.lines.length) k == i ? line : g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also}, group);
 	}
 
 	public function moveKnot(char:String, line:Int, knot:Int, x:Float, y:Float, ?group:String) {
@@ -244,7 +246,7 @@ class Workshop {
 
 	public function setSpacing(char:String, left:Float, right:Float, ?group:String) {
 		var g = glyph(char);
-		setGlyph(char, {lines: g.lines, parts: g.parts, outline: g.outline, left: left, right: right}, group);
+		setGlyph(char, {lines: g.lines, parts: g.parts, outline: g.outline, left: left, right: right, advance: g.advance, also: g.also}, group);
 	}
 
 	// what it borrows made its own lines (to change them)
@@ -297,10 +299,12 @@ class Workshop {
 				parts: g.parts,
 				outline: g.outline == null ? null : [for (c in g.outline) [for (q in c) {x: q.x, y: remap(q.y, ofrom, oto), off: q.off, smooth: q.smooth}]],
 				left: g.left,
-				right: g.right
+				right: g.right,
+				advance: g.advance,
+				also: g.also
 			});
 		}
-		return {name: f.name, pen: pen, metrics: m, glyphs: glyphs};
+		return {name: f.name, pen: pen, metrics: m, glyphs: glyphs, source: f.source};
 	}
 
 	// a glyph's lines from another face made to stand on this one's guides
@@ -376,13 +380,14 @@ class Workshop {
 
 	public function progress():{drawn:Int, borrowed:Int, total:Int} {
 		var f = face(), drawn = 0, borrowed = 0;
-		for (c in Charset.all)
+		var all = Charset.list(f);
+		for (c in all)
 			switch state(f, c) {
 				case "drawn": drawn++;
 				case "borrowed": borrowed++;
 				case _:
 			}
-		return {drawn: drawn, borrowed: borrowed, total: Charset.all.length};
+		return {drawn: drawn, borrowed: borrowed, total: all.length};
 	}
 
 	// the face now, with every edit made so far (what an agent reads)
