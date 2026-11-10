@@ -9,10 +9,15 @@ package helder.ui;
 @:access(helder.ui.Ui)
 class Scrolling {
 	// the wheel's scroll from target: its nearest scroller that can move that way
-	static function wheel(ui:Ui, target:Node, deltaX:Float, deltaY:Float) {
+	static function wheel(ui:Ui, target:Node, deltaX:Float, deltaY:Float, eased = false) {
 		var n = target;
 		while (n != null) {
 			if (n.style.overflow == Scroll && (canScroll(n, deltaX, true) || canScroll(n, deltaY, false))) {
+				// (a mouse's notch: glided to, slowing, from where a glide is heading)
+				if (eased) {
+					scrollBy(ui, n, deltaX, deltaY, true);
+					return;
+				}
 				ui.scrolls.remove(n);
 				n.scrollX += deltaX;
 				n.scrollY += deltaY;
@@ -65,7 +70,7 @@ class Scrolling {
 	}
 
 	// scrolls by dx, dy eased over Ui.scrollDuration (a scroll easing already: from where it is, to its end moved on)
-	static function scrollBy(ui:Ui, n:Node, dx:Float, dy:Float) {
+	static function scrollBy(ui:Ui, n:Node, dx:Float, dy:Float, out = false) {
 		var a = ui.scrolls.get(n);
 		var tx = (a != null ? a[2] : n.scrollX) + dx, ty = (a != null ? a[3] : n.scrollY) + dy;
 		tx = clampTo(n, true, tx);
@@ -74,15 +79,17 @@ class Scrolling {
 			ui.scrollTo(n, tx, ty);
 			return;
 		}
-		ui.scrolls.set(n, [n.scrollX, n.scrollY, tx, ty, Clock.now]);
+		// (a wheel's notch: ScrollGlide's curve, from rest or from its speed; keys': in and out)
+		// (its start the first tick's: Clock.now is the last tick's, long ago when the window was idle)
+		ui.scrolls.set(n, [n.scrollX, n.scrollY, tx, ty, -1, out ? (a == null ? 2 : 1) : 0]);
 		ui.requestFrame();
 		if (a != null) return;
 		Clock.addTo(ui.context, t -> {
 			var a = ui.scrolls.get(n);
 			if (a == null) return false;
-			var k = Math.min(1, Math.max(0, (t - a[4]) / ui.scrollDuration));
-			// (ease in and out)
-			var e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+			if (a[4] < 0) a[4] = t;
+			var k = Math.min(1, Math.max(0, (t - a[4]) / (a[5] > 0 ? ScrollGlide.DURATION : ui.scrollDuration)));
+			var e = ScrollGlide.ease(k, a[5] != 1);
 			setScroll(ui, n, true, a[0] + (a[2] - a[0]) * e);
 			setScroll(ui, n, false, a[1] + (a[3] - a[1]) * e);
 			if (k < 1) return true;

@@ -11,8 +11,14 @@ import haxe.macro.Type;
 //   @:typescript("helder/view", "index.d.ts")          // the module, its declarations' file (beside the class)
 //   @:typescript.classes(helder.view.Render, ...)        // classes: their public members (those marked
 //                                                        // @:typescript when some are), @:noCompletion ones aside
+//   @:typescript.packages(helder.ui.widgets, ...)        // every public class of a package (its directory's
+//                                                        // modules, tests and stories aside): what is added to
+//                                                        // it is the program's too; @:typescript.hide on a
+//                                                        // class, or @:noCompletion, leaves it out
 //   @:typescript.functions(signal = helder.view.graph.Graph.signalValue, ...)
 //                                                        // a class's static as a function of the module
+//                                                        // (a declared class's capitalised statics, its
+//                                                        // components, are its module's by their names)
 //   @:typescript.types(helder.view.graph.Signal, ...)   // abstracts (interfaces, unions) and opaque classes
 //   @:typescript.imports("helder/view")                  // modules whose types it names
 //   @:typescript.references("imports.d.ts")              // files beside it it references (ambient modules)
@@ -47,6 +53,11 @@ class Modules {
 			var path = haxe.macro.ExprTools.toString(e);
 			mod.classes.push(api.add(path, Context.getType(path), null, mod));
 		}
+		for (e in metaParams(c, ":typescript.packages"))
+			for (path in packageClasses(haxe.macro.ExprTools.toString(e), e.pos)) {
+				var cls = api.add(path, Context.getType(path), null, mod);
+				if (mod.classes.indexOf(cls) < 0) mod.classes.push(cls);
+			}
 		for (e in metaParams(c, ":typescript.functions"))
 			switch e.expr {
 				case EBinop(OpAssign, {expr: EConst(CIdent(alias))}, target):
@@ -61,6 +72,17 @@ class Modules {
 				case _:
 					Context.error("helder.typescript: @:typescript.functions lists alias = pack.Class.member", e.pos);
 			}
+		// (a class's components, its capitalised statics: functions of the module
+		// too, as markup uses them (<Popover>, <WindowControls>), unless named already)
+		for (cls in mod.classes) {
+			if (cls.only != null) continue;
+			for (f in cls.statics) {
+				var first = f.name.charCodeAt(0);
+				if (first == null || first < "A".code || first > "Z".code || !f.kind.match(FMethod(_))) continue;
+				if (Lambda.exists(mod.functions, x -> x.alias == f.name)) continue;
+				mod.functions.push({alias: f.name, cls: cls, field: f.name});
+			}
+		}
 		for (e in metaParams(c, ":typescript.types")) {
 			var path = haxe.macro.ExprTools.toString(e);
 			var t = Context.getType(path);
@@ -78,6 +100,42 @@ class Modules {
 			mod.renderers.push(helder.view.HostMacro.resolve(e));
 		api.modules.push(mod);
 		return mod;
+	}
+
+	// a package's public classes, by their type paths: its directory's modules
+	// (the first class path that has it), in order, each one's classes that
+	// are public, neither private, extern nor macros', not hidden
+	static function packageClasses(pack:String, pos:Position):Array<String> {
+		var rel = pack.split(".").join("/");
+		for (cp in Context.getClassPath()) {
+			var dir = haxe.io.Path.join([cp == "" ? "." : cp, rel]);
+			if (!sys.FileSystem.exists(dir) || !sys.FileSystem.isDirectory(dir)) continue;
+			var files = sys.FileSystem.readDirectory(dir);
+			files.sort(Reflect.compare);
+			var out = [];
+			for (file in files) {
+				if (!StringTools.endsWith(file, ".hx") || StringTools.endsWith(file, ".test.hx") || StringTools.endsWith(file, ".story.hx")) continue;
+				var types = try Context.getModule(pack + "." + file.substr(0, file.length - 3)) catch (_:Dynamic) continue;
+				for (t in types)
+					switch t {
+						case TInst(_.get() => k, _) if (!k.isPrivate && !k.isExtern && k.kind.match(KNormal) && !k.meta.has(":noCompletion")
+							&& !k.meta.has(":typescript.hide") && !k.meta.has(":macro") && exposes(k)):
+							out.push(typePath(k));
+						case _:
+					}
+			}
+			return out;
+		}
+		Context.error('helder.typescript: no package $pack on the class path', pos);
+		return [];
+	}
+
+	// (a class with anything public to call: a constructor, a static or a member)
+	static function exposes(k:ClassType):Bool {
+		if (k.constructor != null && k.constructor.get().isPublic) return true;
+		for (f in k.statics.get().concat(k.fields.get()))
+			if (f.isPublic && !f.meta.has(":noCompletion")) return true;
+		return false;
 	}
 
 	static function metaParams(c:ClassType, name:String):Array<Expr> {

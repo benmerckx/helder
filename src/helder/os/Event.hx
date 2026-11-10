@@ -85,6 +85,10 @@ class Event {
 	// Scroll: pixels toward the right and the bottom
 	@:typescript public var deltaX = 0.0;
 	@:typescript public var deltaY = 0.0;
+	// a Scroll's deltas to glide to rather than jump to (helder.ui.ScrollGlide):
+	// a mouse wheel's notches where the platform's own views glide them, on
+	// macOS and in a browser; not on Windows and Linux, whose own apps jump
+	public var eased = false;
 	// keys, mouse buttons and scrolls: the modifiers held (Mods: Shift, Control, Alt, Meta: the Windows or Command key)
 	@:typescript public var mods = 0;
 	// TextInput: the characters; TextEditing: the composition

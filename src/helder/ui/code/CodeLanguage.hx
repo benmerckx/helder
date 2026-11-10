@@ -49,7 +49,7 @@ class SyntaxLanguage implements CodeLanguage {
 }
 
 // The languages by file extension: TypeScript (.ts, .mts, .cts, .js),
-// TSX (.tsx, .jsx), Haxe (.hx) and design files (.helder) built in;
+// TSX (.tsx, .jsx), Haxe (.hx), design files (.helder) and SQL (.sql) built in;
 // register adds more
 class CodeLanguages {
 	static final factories:Map<String, Void->CodeLanguage> = [
@@ -61,7 +61,8 @@ class CodeLanguages {
 		"tsx" => () -> new SyntaxLanguage(Tsx),
 		"jsx" => () -> new SyntaxLanguage(Tsx),
 		"hx" => () -> new SyntaxLanguage(Haxe),
-		"helder" => () -> new SyntaxLanguage(Markup)
+		"helder" => () -> new SyntaxLanguage(Markup),
+		"sql" => () -> new SqlLanguage()
 	];
 
 	// a language for files ending in .ext (made fresh for each editor: a language may keep state)

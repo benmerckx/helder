@@ -13,7 +13,10 @@ import helder.ui.widgets.TextField;
 // over the text's top right. The studio's hooks: revealRange,
 // setSelection, decorations (ranges drawn another way: "selected on the
 // canvas"), diagnostics (helder.compiler.service's), and onChange with
-// each edit's changes (helder.syntax's Change: a Transaction's).
+// each edit's changes (helder.syntax's Change: a Transaction's). complete
+// gives suggestions at the caret (CodeCompletion): asked as a word is
+// typed and on Control+Space, shown under the word, Up and Down to choose,
+// Enter or Tab to put one in, Escape (or moving away) to close them.
 //
 //   var editor = new CodeEditor(File.getContent(path), path);
 //   editor.onChange = changes -> doc = doc.apply(new Transaction(changes));
@@ -24,6 +27,11 @@ class CodeEditor extends Node {
 	public final model:CodeModel;
 	// each edit's changes (against the text before, in order: new Transaction(changes))
 	public var onChange:Null<Array<Change>->Void> = null;
+	// suggestions for the text at caret (null: none), the word they replace from where they say
+	public var complete:Null<(text:String, caret:Int) -> Null<CodeCompletion.Completions>> = null;
+	public final completion:CodeCompletion;
+	var completeFrom = -1;
+	var accepting = false;
 	// the file's path: its language by its extension (CodeLanguages)
 	public var path(default, set):Null<String> = null;
 
@@ -58,6 +66,31 @@ class CodeEditor extends Node {
 		model.onChange = changes -> {
 			if (findOpen) refreshMatches();
 			if (onChange != null) onChange(changes);
+			if (completion.open && !accepting) suggest(false);
+		};
+		completion = new CodeCompletion(this);
+		completion.onPick = _ -> accept();
+		append(completion);
+		var typed = view.onTextInput, keys = view.onKeyDown, press = view.onPointerDown, blur = view.onBlur;
+		view.onTextInput = e -> {
+			typed(e);
+			if (e.text != "" && complete != null) suggest(false);
+		};
+		view.onKeyDown = e -> {
+			if (completionKey(e)) {
+				e.preventDefault();
+				e.stop();
+				return;
+			}
+			keys(e);
+		};
+		view.onPointerDown = e -> {
+			completion.hide();
+			press(e);
+		};
+		view.onBlur = e -> {
+			completion.hide();
+			blur(e);
 		};
 		this.path = path;
 		on(CodeAction, act);
@@ -97,6 +130,62 @@ class CodeEditor extends Node {
 		};
 		gotoPanel = panel("code-goto", "Go to line");
 		gotoPanel.append(gotoField);
+	}
+
+	// ---- suggestions
+
+	// asked for the caret's word (force: also before a word starts, Control+Space)
+	public function suggest(force:Bool) {
+		var caret = model.primary.head;
+		var r = complete == null || !model.primary.empty() ? null : complete(text, caret);
+		if (r == null || r.items.length == 0 || !force && r.from == caret && !completion.open && !afterDot(caret)) {
+			completion.hide();
+			return;
+		}
+		completeFrom = r.from;
+		var p = view.pointOf(r.from);
+		completion.show(r.items, view.x + p.x - 8, view.y + p.y + view.lineHeight + 2);
+	}
+
+	inline function afterDot(caret:Int):Bool
+		return caret > 0 && StringTools.fastCodeAt(text, caret - 1) == ".".code;
+
+	// the chosen suggestion put in place of its word
+	public function accept() {
+		var it = completion.items[completion.chosen];
+		completion.hide();
+		if (it == null) return;
+		accepting = true;
+		model.select(completeFrom, model.primary.head);
+		model.insert(it.insert ?? it.label, CodeModel.TYPE);
+		accepting = false;
+		view.changed();
+	}
+
+	// (a key while suggestions show: theirs, or they close)
+	function completionKey(e:Event):Bool {
+		var ctrl = e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0;
+		if (e.key == Key.SPACE && e.mods & Key.MOD_CONTROL != 0 && complete != null) {
+			suggest(true);
+			return true;
+		}
+		if (!completion.open) return false;
+		switch e.key {
+			case Key.DOWN if (!ctrl):
+				completion.move(1);
+			case Key.UP if (!ctrl):
+				completion.move(-1);
+			case Key.ENTER | Key.TAB:
+				accept();
+			case Key.ESCAPE:
+				completion.hide();
+			case Key.LEFT | Key.RIGHT | Key.HOME | Key.END | Key.PAGE_UP | Key.PAGE_DOWN:
+				completion.hide();
+				return false;
+			case _:
+				return false;
+		}
+		return true;
 	}
 
 	function set_path(p:Null<String>):Null<String> {

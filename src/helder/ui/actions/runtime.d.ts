@@ -4,7 +4,7 @@
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
-import type {Menu, PlatformMenuItem} from "helder/ui";
+import type {Menu, Node, PlatformMenuItem} from "helder/ui";
 import type {View} from "helder/view";
 
 declare const __haxe: {Script: "helder.ui.actions.Script", __module: "helder.ui.actions.TypeScript"};
@@ -33,7 +33,7 @@ export declare class Script {
 	// (true) or lets it bubble (false), state what a menu shows it as
 	static handle(space: unknown, run: (arg0: any) => boolean, state?: (arg0: any) => number): unknown;
 	// a node's handler (Node.on: a ref's node), removed by the function returned
-	static on(node: unknown, space: unknown, run: (arg0: any) => boolean, state?: (arg0: any) => number): (() => void);
+	static on(node: Node, space: unknown, run: (arg0: any) => boolean, state?: (arg0: any) => number): (() => void);
 	// a window's handler (Ui.on), after its tree's
 	static onWindow(ui: unknown, space: unknown, run: (arg0: any) => boolean, state?: (arg0: any) => number): (() => void);
 	// the app's handler (Actions.on), after every window's
@@ -59,24 +59,24 @@ export declare class Script {
 	// on macOS secondary is Command (Keymap.mac, known at start)
 	static setMac(mac: boolean): void;
 	// the Ui a node is in (a ref's, once mounted: its window's), null: none
-	static uiOf(node: unknown): unknown | null;
+	static uiOf(node: Node): unknown | null;
 	// a Ui of no window (tests), its text helder's own (helder.story's, the same on every system)
 	static headless(width: number, height: number): unknown;
-	static root(ui: unknown): unknown;
+	static root(ui: unknown): Node;
 	// content rendered into its root and laid out (dispose removes it)
 	static mount(ui: unknown, content: View): (() => void);
 	static setKeymap(ui: unknown, keymap: unknown): void;
 	static layout(ui: unknown): void;
 	// the focus given to node
-	static focus(node: unknown): void;
+	static focus(node: Node): void;
 	// the node of a tag under node (the first, depth first), null: none
-	static find(node: unknown, tag: string): unknown | null;
+	static find(node: Node, tag: string): Node | null;
 	// each keystroke of keys typed ("ctrl-k ctrl-s"), through the keymap
 	static type(ui: unknown, keys: string): void;
 	// action dispatched from the focus (or from), true: a handler took it
-	static dispatch(ui: unknown, action: any, from?: unknown): boolean;
+	static dispatch(ui: unknown, action: any, from?: Node): boolean;
 	// what a menu shows action as from the focus (or from): ActionState
-	static state(ui: unknown, action: any, from?: unknown): number;
+	static state(ui: unknown, action: any, from?: Node): number;
 	static item(label: string, action: any): unknown;
 	static separator(): unknown;
 	static submenu(label: string, items: unknown[]): unknown;
@@ -85,9 +85,9 @@ export declare class Script {
 	// a menu of the bar (role "window": the window menu)
 	static menu(label: string, items: unknown[], role?: string): Menu;
 	// the items as the platform's menus take them: labels, shortcuts, states
-	static resolve(ui: unknown, items: unknown[], from?: unknown): PlatformMenuItem[];
+	static resolve(ui: unknown, items: unknown[], from?: Node): PlatformMenuItem[];
 	// a context menu at x, y for from (default: the focus)
-	static popup(ui: unknown, items: unknown[], x: number, y: number, from?: unknown): void;
+	static popup(ui: unknown, items: unknown[], x: number, y: number, from?: Node): void;
 	// the window's menu bar (the platform's, else drawn at the top of its root)
 	static menuBar(ui: unknown, menus: Menu[]): unknown;
 	static setMenus(bar: unknown, menus: Menu[]): void;

@@ -87,7 +87,7 @@ class UiWindow {
 	public static var idleWait = 0.1;
 	// whether the system's appearance is dark (App.prefersDark), asked again
 	// every second while the loop runs; each window's Ui.dark follows it
-	public static final dark:helder.view.graph.Signal<Bool> = Graph.signalOf(App.prefersDark(), {ownedWrite: true});
+	@:typescript public static final dark:helder.view.graph.Signal<Bool> = Graph.signalOf(App.prefersDark(), {ownedWrite: true});
 	static var darkAsked = 0.0;
 
 	static final open:Array<UiWindow> = [];
@@ -413,7 +413,7 @@ class UiWindow {
 					dx = dy;
 					dy = 0;
 				}
-				ui.wheel(e.x / k, e.y / k, dx / k, dy / k);
+				ui.wheel(e.x / k, e.y / k, dx / k, dy / k, e.eased);
 			case MouseDown:
 				ui.pointerDown(e.x / k, e.y / k, e.button);
 			case MouseUp:

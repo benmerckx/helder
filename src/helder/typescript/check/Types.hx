@@ -46,6 +46,7 @@ class Types {
 	final stringLike:Int;
 	final booleanLiteral:Int;
 	final union:Int;
+	final nullish:Int;
 	final intersection:Int;
 	final object:Int;
 	final typeParameter:Int;
@@ -71,6 +72,7 @@ class Types {
 		stringLike = tables.typeFlags.get("String") | tables.typeFlags.get("StringLiteral") | tables.typeFlags.get("TemplateLiteral") | tables.typeFlags.get("StringMapping");
 		booleanLiteral = tables.typeFlags.get("BooleanLiteral");
 		union = tables.typeFlags.get("Union");
+		nullish = tables.typeFlags.get("Null") | tables.typeFlags.get("Undefined") | tables.typeFlags.get("Void");
 		intersection = tables.typeFlags.get("Intersection");
 		object = tables.typeFlags.get("Object");
 		typeParameter = tables.typeFlags.get("TypeParameter");
@@ -183,6 +185,13 @@ class Types {
 		if (t.flags & object != 0 && t.objectFlags & (classFlag | reference) != 0) return t.symbol;
 		if (t.flags & typeParameter != 0 && t.isThis) return t.symbol;
 		return null;
+	}
+
+	// the type without null and undefined (T | null: T), where one is left
+	public function present(t:Null<TsType>):Null<TsType> {
+		if (t == null || t.members == null) return t;
+		final rest = t.members.filter(m -> m.flags & nullish == 0);
+		return rest.length == 1 ? rest[0] : t;
 	}
 
 	// whether every value of the type is an array

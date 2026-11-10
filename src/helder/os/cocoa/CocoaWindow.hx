@@ -141,14 +141,41 @@ class CocoaWindow {
 		#end
 		measure();
 		Msg.v(window, ObjC.sel("center"));
-		Msg.vPtr(window, ObjC.sel("makeKeyAndOrderFront:"), Ptr.nil());
-		Msg.vBool(app, ObjC.sel("activateIgnoringOtherApps:"), true);
+		// (shown with its first frame, not as an empty window before it; a
+		// program slow to draw, or drawing nothing, shown after half a second)
+		surface.onPresent = show;
+		haxe.Timer.delay(show, 500);
+	}
+
+	var shown = false;
+
+	function show() {
+		surface.onPresent = null;
+		if (shown || open.indexOf(this) < 0) return;
+		shown = true;
+		raise();
+		// (shown, AppKit lays its title bar out again: the buttons back where the app placed them)
+		layoutControls();
+	}
+
+	// (the app's icon in the Dock while it runs unbundled: HELDER_APP_ICON, a PNG
+	// helder dev and run make from the manifest; a bundle's is its own)
+	static function dockIcon() {
+		var path = Sys.getEnv("HELDER_APP_ICON");
+		if (path == null || path == "" || !sys.FileSystem.exists(path)) return;
+		var s = ObjC.str(path);
+		var img = Msg.idPtr(Msg.id(ObjC.cls("NSImage"), ObjC.sel("alloc")), ObjC.sel("initWithContentsOfFile:"), s);
+		ObjC.release(s);
+		if (img.isNull()) return;
+		Msg.vPtr(app, ObjC.sel("setApplicationIconImage:"), img);
+		ObjC.release(img);
 	}
 
 	static function start() {
 		// (loads AppKit: its classes are found by name, so nothing else imports from it)
 		AppKit.NSApplicationLoad();
 		app = Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication"));
+		dockIcon();
 		#if hxmc.dev_host
 		// (hxmc dev: the classes an earlier build made, their methods this build's; its delegate)
 		var made = Runtime.objc_getClass(Mem.cstr("HxmcWindowDelegate"));
@@ -707,12 +734,22 @@ class CocoaWindow {
 	// (as Electron's trafficLightPosition: the title bar's container made as
 	// tall as the buttons and twice the top margin, each button's origin set
 	// in it; AppKit lays them out again at a resize, so again after each)
+	// (asked at each frame: placed again when the place changed, or when
+	// AppKit laid its title bar out again and put them back where it keeps them)
 	function placeControls(x:Int, y:Int) {
 		var px = x / scale, py = y / scale;
-		if (px == controlsX && py == controlsY) return;
+		if (px == controlsX && py == controlsY && placed()) return;
 		controlsX = px;
 		controlsY = py;
 		layoutControls();
+	}
+
+	// (the close button where layoutControls put it, in the window: AppKit moves
+	// the title bar's container when it lays it out again, not the buttons in it)
+	function placed():Bool {
+		var c = controls();
+		if (c == null) return true;
+		return Math.abs(c.x / scale - controlsX) < 0.5 && Math.abs(c.y / scale - controlsY) < 0.5;
 	}
 
 	function layoutControls() {
@@ -815,6 +852,7 @@ class CocoaWindow {
 				var m = Msg.f(ev, ObjC.sel("magnification"));
 				if (m == 0 || m <= -1) return;
 				e.kind = Scroll;
+				e.eased = false;
 				e.mods = mods(ev) | Mods.CONTROL;
 				e.deltaX = 0;
 				e.deltaY = -180 * Math.log(1 + m);
@@ -823,8 +861,13 @@ class CocoaWindow {
 				if (dx == 0 && dy == 0) return;
 				// (a trackpad's points, exact; a wheel's lines, 40 pixels each; the
 				// content follows the fingers, so the view scrolls the other way)
-				var k = Msg.b(ev, ObjC.sel("hasPreciseScrollingDeltas")) ? scale : 40 * scale;
+				var precise = Msg.b(ev, ObjC.sel("hasPreciseScrollingDeltas"));
+				var k = precise ? scale : 40 * scale;
 				e.kind = Scroll;
+				// (a trackpad's scrolls come in a gesture, then its momentum: each has a
+				// phase; a mouse wheel's, precise or not (Logitech's are), have none:
+				// eased, as macOS's own views and browsers glide a notch)
+				e.eased = Msg.i(ev, ObjC.sel("phase")).toInt() == 0 && Msg.i(ev, ObjC.sel("momentumPhase")).toInt() == 0;
 				e.mods = mods(ev);
 				e.deltaX = -dx * k;
 				e.deltaY = -dy * k;

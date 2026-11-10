@@ -81,6 +81,12 @@ class MMember {
 	public final set:Null<String>;
 	public final mount:Bool;
 	public final readonly:Bool;
+	// (a coroutine's: the function that starts it as a task, called in its place)
+	public final via:Null<String>;
+	// (a property whose getter is inline: the wrapper reading it, called in the getter's place)
+	public final getVia:Null<String>;
+	// (the ident of the class declaring it: a subclass's inherited members are its superclass's functions)
+	public var owner = "";
 
 	public function new(name:String, d:Dynamic) {
 		this.name = name;
@@ -91,6 +97,8 @@ class MMember {
 		set = d.set;
 		mount = d.mount == true;
 		readonly = d.readonly == true;
+		via = d.via;
+		getVia = d.getVia;
 	}
 }
 
@@ -106,10 +114,13 @@ class MClass {
 	public final statics:Map<String, MMember> = [];
 	public final members:Map<String, MMember> = [];
 	public final ctor:Null<HType>;
+	// (its superclasses' paths, nearest first: the members of those the API declares inherited)
+	public final sups:Array<String>;
 
 	public function new(path:String, d:Dynamic) {
 		this.path = path;
 		ident = d.ident;
+		sups = d.sups == null ? [] : [for (x in (d.sups : Array<Dynamic>)) Std.string(x)];
 		type = d.type;
 		rendered = d.rendered;
 		isInterface = Reflect.field(d, "interface") == true;
@@ -119,6 +130,8 @@ class MClass {
 		} else only = null;
 		for (f in Reflect.fields(d.statics)) statics.set(f, new MMember(f, Reflect.field(d.statics, f)));
 		for (f in Reflect.fields(d.members)) members.set(f, new MMember(f, Reflect.field(d.members, f)));
+		for (m in statics) m.owner = ident;
+		for (m in members) m.owner = ident;
 		ctor = d.ctor == null ? null : HTypes.of(d.ctor);
 	}
 }
@@ -195,6 +208,12 @@ class Manifest {
 			for (p in Reflect.fields(d.renderers)) if (!renderers.exists(p)) renderers.set(p, new MRenderer(p, Reflect.field(d.renderers, p)));
 			if (d.neutralEvents != null) for (f in Reflect.fields(d.neutralEvents)) neutralEvents.set(f, HTypes.of(Reflect.field(d.neutralEvents, f)));
 		}
+		// (a subclass's members: its own, then its superclasses' it does not override)
+		for (c in classes)
+			for (p in c.sups) {
+				var s = classes.get(p);
+				if (s != null) for (name => m in s.members) if (!c.members.exists(name)) c.members.set(name, m);
+			}
 	}
 
 	public function cls(path:String):Null<MClass> return classes.exists(path) ? classes.get(path) : byType.get(path);

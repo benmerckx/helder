@@ -1126,21 +1126,23 @@ class Ui {
 	}
 
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
-	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float) {
-		wheelNow(x, y, deltaX, deltaY);
+	// (eased: a mouse's notches, the scroll gliding to them)
+	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float, eased = false) {
+		wheelNow(x, y, deltaX, deltaY, eased);
 		helder.view.graph.Graph.flush();
 	}
 
-	function wheelNow(x:Float, y:Float, deltaX:Float, deltaY:Float) {
+	function wheelNow(x:Float, y:Float, deltaX:Float, deltaY:Float, eased:Bool) {
 		var target = hit(x, y);
 		if (target == null) return;
 		var e = Event.of(Wheel, target, x, y);
 		e.mods = mods;
 		e.deltaX = deltaX;
 		e.deltaY = deltaY;
+		e.eased = eased;
 		bubble(e);
 		if (e.defaultPrevented) return;
-		Scrolling.wheel(this, target, deltaX, deltaY);
+		Scrolling.wheel(this, target, deltaX, deltaY, eased);
 	}
 
 	// whether a wheel at x, y by deltaX, deltaY would scroll something: a

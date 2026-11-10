@@ -33,6 +33,9 @@ class Surface {
 	// before the window goes (a Suspend event follows; the next frame after
 	// Resume renders to the new handle)
 	public var lost:Null<Void->Void> = null;
+	// a frame was handed to the screen (Metal: its drawable presented): a
+	// macOS window shows itself at its first, not empty before it
+	public var onPresent:Null<Void->Void> = null;
 	// the size in pixels
 	@:typescript public var width(default, null):Int;
 	@:typescript public var height(default, null):Int;

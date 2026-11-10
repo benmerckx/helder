@@ -76,6 +76,8 @@ export declare class Island<P> {
 	static Wasm(props: { src: string; imports?: string[]; args?: string[]; runner?: string; load?: Load; id?: string; width?: number; height?: number; fonts?: string[]; assets?: string; canvas?: boolean; stop?: Stop; children?: unknown }): View;
 }
 
+export declare const Wasm: typeof Island.Wasm;
+
 // helder.web's boundary tags, for a page's markup (the DOM renderer's, the
 // static renderer's): import helder.web.WebTags.*
 //

@@ -39,6 +39,9 @@
     "./async": {
       "types": "./src/helder/async/index.d.ts"
     },
+    "./os": {
+      "types": "./src/helder/os/index.d.ts"
+    },
     "./gfx": {
       "types": "./src/helder/gfx/index.ts"
     },

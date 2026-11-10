@@ -166,6 +166,12 @@ class Haxe {
 				ELocal(l);
 			case HAbstract(path, _, _, _) if (MATH.exists(path) && to.match(TStruct(_))):
 				ECast(to, mathToHaxe(e, MATH.get(path), where));
+			case HNull(x) if (to.match(TRef(_))):
+				// (null or undefined: null, the rest converted)
+				var v = b.temp(any(e));
+				var l = b.local("nullable", to);
+				b.out.push(SIf(nullish(v), b.block(() -> b.out.push(SSet(l, ENull(to)))), b.block(() -> b.out.push(SSet(l, b.coerce(toHaxe(v, x, to, where), to))))));
+				ELocal(l);
 			case HNull(x) | HAbstract(_, _, x, _):
 				toHaxe(e, x, to, where);
 			case HRead(_):
@@ -424,13 +430,14 @@ class Haxe {
 	// a static of class c called with the program's values (null: not given)
 	// (converted: the arguments are Haxe's values already)
 	public function callStatic(c:MClass, m:MMember, args:Array<Null<Ex>>, where:String, converted = false):Ex {
-		var fi = fn(c.ident + "_" + m.name);
+		var fi = fn(m.via ?? m.owner + "_" + m.name);
 		return invoke(fi, null, m.type, args, where, converted);
 	}
 
 	// a method of the instance obj (a Haxe value)
 	public function callMethod(c:MClass, m:MMember, obj:Ex, args:Array<Null<Ex>>, where:String):Ex {
-		var fi = fn(c.ident + "_" + m.name);
+		// (a coroutine's wrapper: a static, the instance its first argument)
+		var fi = fn(m.via ?? m.owner + "_" + m.name);
 		return invoke(fi, obj, m.type, args, where);
 	}
 
@@ -513,10 +520,10 @@ class Haxe {
 	public function getMember(c:MClass, m:MMember, obj:Null<Ex>, where:String):Ex {
 		if (m.kind == "const") return constant(m);
 		if (m.get != null) {
-			var g = fn(c.ident + "_" + m.get);
+			var g = fn(m.getVia ?? m.owner + "_" + m.get);
 			return toJs(obj == null ? call(g, []) : call(g, [instance(c, obj, where)]), m.type);
 		}
-		if (m.kind == "method") return call(interop("toJs"), [obj == null ? staticClosure(c.ident + "_" + m.name) : fail(where, "a method of helder's read as a value: call it")]);
+		if (m.kind == "method") return call(interop("toJs"), [obj == null ? staticClosure(m.via ?? m.owner + "_" + m.name) : fail(where, "a method of helder's read as a value: call it")]);
 		if (obj == null) {
 			var g = global(c.ident + "_" + m.name);
 			if (g == null) throw "TSHX004: helder's " + c.path + "." + m.name + " is not in the program";
@@ -534,7 +541,7 @@ class Haxe {
 	public function setMember(c:MClass, m:MMember, obj:Null<Ex>, v:Ex, where:String) {
 		if (m.kind != "var" || m.readonly) fail(where, c.path + "." + m.name + " is read only");
 		if (m.set != null) {
-			var s = fn(c.ident + "_" + m.set);
+			var s = fn(m.owner + "_" + m.set);
 			var to = s.args[s.args.length - (s.sret ? 2 : 1)].ty;
 			call(s, obj == null ? [toHaxe(v, m.type, to, where)] : [instance(c, obj, where), toHaxe(v, m.type, to, where)]);
 			return;

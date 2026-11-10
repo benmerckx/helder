@@ -2,6 +2,7 @@ import haxe.Exception;
 import haxe.io.Bytes;
 import helder.async.*;
 import helder.async.Async.TimeoutException;
+import helder.async.http.Client;
 import helder.async.http.Http;
 import helder.async.http.WebSocket;
 
@@ -334,11 +335,37 @@ class AsyncTest {
 			out.push(ws.receive());
 			ws.close();
 			eq(ws.receive(), null, "closed");
+			var url = 'http://127.0.0.1:${server.port}';
+			var posted = Client.request('$url/p', {method: "POST", body: Bytes.ofString("json")});
+			out.push(posted.status + " " + posted.text());
+			out.push("" + Client.request('$url/missing').status);
 			serving.cancel();
 			server.close();
 			out.join("|");
 		});
-		eq(got, "200 text/html; charset=utf-8 <h1>hi</h1>|200 text/javascript; charset=utf-8 x()|200 text/plain; charset=utf-8 posted abc|404|500|echo hello|70005|echo after ping", "HTTP and WebSocket");
+		eq(got, "200 text/html; charset=utf-8 <h1>hi</h1>|200 text/javascript; charset=utf-8 x()|200 text/plain; charset=utf-8 posted abc|404|500|echo hello|70005|echo after ping|200 posted json|404", "HTTP and WebSocket");
+		// (a chunked reply, then one that ends when the server closes)
+		var replies = Async.run(task -> {
+			var server = Server.listen("127.0.0.1", 0);
+			var serving = task.async(_ -> {
+				for (raw in [
+					"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n5\r\nhello\r\n7;x=1\r\n, world\r\n0\r\n\r\n",
+					"HTTP/1.1 201 Created\r\n\r\nuntil closed"
+				]) {
+					var s = server.accept();
+					var r = new Reader(s);
+					while (r.readLine() != "") {}
+					s.writeString(raw);
+					s.close();
+				}
+			});
+			var url = 'http://127.0.0.1:${server.port}/';
+			var a = Client.request(url), b = Client.request(url);
+			serving.await();
+			server.close();
+			a.text() + "|" + b.status + " " + b.text();
+		});
+		eq(replies, "hello, world|201 until closed", "Client: chunked, to the end");
 	}
 
 	@:coroutine static function readResponse(r:Reader):{status:Int, type:String, body:String} {

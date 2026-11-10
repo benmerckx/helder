@@ -71,18 +71,19 @@ class Manifest {
 		var keeps = [local.get().pack.concat([local.get().name]).join("_")];
 		var t = new Types();
 		for (c in api.classes) {
-			var own:Array<Expr> = [];
-			Reflect.setField(classes, c.path, describe(c, t, own));
+			var own:Array<Expr> = [], wrappers:Array<Field> = [];
 			// (one per class, none of its functions a macro's or not: the frontend names it by convention)
 			var name = keepName(local.get().name, c.type);
-			keeps.push(local.get().pack.concat([name]).join("_"));
+			var keepIdent = local.get().pack.concat([name]).join("_");
+			Reflect.setField(classes, c.path, describe(c, t, own, wrappers, keepIdent, local.get().pos));
+			keeps.push(keepIdent);
 			try Context.defineType({
 				pack: local.get().pack,
 				name: name,
 				pos: local.get().pos,
 				meta: [{name: ":noCompletion", pos: local.get().pos}, {name: ":keep", pos: local.get().pos}, {name: KEEP, pos: local.get().pos}],
 				kind: TDClass(),
-				fields: keepFields(own)
+				fields: keepFields(own).concat(wrappers)
 			}) catch (e:haxe.macro.Expr.Error) if (!StringTools.startsWith(e.message, "Cannot redefine module")) throw e;
 		}
 		var renderers:Dynamic = {};
@@ -136,31 +137,67 @@ class Manifest {
 		}).fields;
 
 	// a class's members, and the keep's expressions naming them
-	static function describe(c:ApiClass, t:Types, keep:Array<Expr>):Dynamic {
+	// (wrappers: the keep class's statics starting its coroutines, Coroutines;
+	// a coroutine's member names its wrapper, via: <keep class>_<wrapper>)
+	static function describe(c:ApiClass, t:Types, keep:Array<Expr>, wrappers:Array<Field>, keepIdent:String, pos:Position):Dynamic {
 		var cls = c.cls;
 		var tpath = c.type.split(".");
 		var statics:Dynamic = {}, members:Dynamic = {};
-		for (f in c.statics) {
-			var m = member(f, t);
-			if (m == null) continue;
-			defaults(f, m.type);
-			Reflect.setField(statics, f.name, m);
-			var n = f.name;
-			if (m.kind != "const" && m.mount != true) keep.push(named(macro @:privateAccess $p{tpath}.$n, f));
-			// (a static property's setter: written, never run)
-			if (m.set != null) keep.push(macro @:privateAccess $p{tpath}.$n = cast(null : Dynamic));
-		}
 		var self:ComplexType = TPath({
 			pack: cls.pack,
 			name: cls.module.split(".").pop(),
 			sub: cls.module.split(".").pop() == cls.name ? null : cls.name,
 			params: [for (_ in cls.params) TPType(macro :Dynamic)]
 		});
-		var any = false;
-		for (f in c.members) {
+		// (a coroutine: a method whose call starts it, its promise the program's)
+		function coroutine(f:ClassField, into:Dynamic, isStatic:Bool):Bool {
+			var promised = Coroutines.promised(f);
+			if (promised == null) return false;
+			var w = try Coroutines.wrapper(f, tpath, isStatic ? null : self, pos) catch (_:Dynamic) null;
+			if (w == null) return true;
+			wrappers.push(w);
+			var wn = w.name;
+			keep.push(macro keep.push($i{wn}));
+			var m:Dynamic = {kind: "method", type: t.of(promised), via: keepIdent + "_" + wn};
+			Reflect.setField(into, f.name, m);
+			return true;
+		}
+		// (a property whose getter is inline: hxmc makes no function of it, so a
+		// wrapper of the keep class reads it, getVia: <keep class>_<wrapper>)
+		function inlineGetter(f:ClassField, m:Dynamic, isStatic:Bool) {
+			if (m.get == null) return;
+			var getter = Lambda.find(isStatic ? cls.statics.get() : cls.fields.get(), g -> g.name == m.get);
+			if (getter == null || !getter.kind.match(FMethod(MethInline))) return;
+			var name = "__get_" + f.name, n = f.name;
+			var ret = try Context.toComplexType(f.type) catch (_:Dynamic) null;
+			var fun:Function = isStatic ? {args: [], ret: ret, expr: macro return @:privateAccess $p{tpath}.$n} : {
+				args: [{name: "self", type: self}],
+				ret: ret,
+				expr: macro return @:privateAccess self.$n
+			};
+			wrappers.push({name: name, access: [APublic, AStatic], kind: FFun(fun), pos: pos});
+			keep.push(macro keep.push($i{name}));
+			m.getVia = keepIdent + "_" + name;
+		}
+		for (f in c.statics) {
+			if (coroutine(f, statics, true)) continue;
 			var m = member(f, t);
 			if (m == null) continue;
 			defaults(f, m.type);
+			inlineGetter(f, m, true);
+			Reflect.setField(statics, f.name, m);
+			var n = f.name;
+			if (m.kind != "const" && m.mount != true) keep.push(named(macro @:privateAccess $p{tpath}.$n, f));
+			// (a static property's setter: written, never run)
+			if (m.set != null) keep.push(macro @:privateAccess $p{tpath}.$n = cast(null : Dynamic));
+		}
+		var any = false;
+		for (f in c.members) {
+			if (coroutine(f, members, false)) continue;
+			var m = member(f, t);
+			if (m == null) continue;
+			defaults(f, m.type);
+			inlineGetter(f, m, false);
 			Reflect.setField(members, f.name, m);
 			var n = f.name;
 			if (m.kind == "method" || m.get != null) {
@@ -203,6 +240,16 @@ class Manifest {
 				}
 			},
 			"interface": cls.isInterface,
+			// (its superclasses, nearest first: the lowering gives a subclass the members of those the API declares)
+			sups: {
+				var out = [], s = cls.superClass;
+				while (s != null) {
+					var k = s.t.get();
+					out.push(k.pack.concat([k.name]).join("."));
+					s = k.superClass;
+				}
+				out;
+			},
 			statics: statics,
 			members: members,
 			ctor: ctor

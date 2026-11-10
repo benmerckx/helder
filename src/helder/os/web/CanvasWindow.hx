@@ -144,6 +144,9 @@ class CanvasWindow {
 			if (e.kind == Scroll) {
 				e.deltaX = ev[2] / 256;
 				e.deltaY = ev[5] / 256;
+				// (a mouse's notch, as the page glides one: bit 16 of the modifiers)
+				e.eased = e.mods & (1 << 16) != 0;
+				e.mods &= ~(1 << 16);
 				e.key = 0;
 				e.button = 0;
 			}

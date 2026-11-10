@@ -564,7 +564,8 @@ class MetalBackend {
 	}
 
 	public function endFrame() {
-		if (!drawable.isNull() && frameTarget == 0) Msg.vPtr(cmd, S.presentDrawable, drawable);
+		var presented = !drawable.isNull() && frameTarget == 0;
+		if (presented) Msg.vPtr(cmd, S.presentDrawable, drawable);
 		Msg.v(cmd, S.commit);
 		// (a frame into a shared texture: complete before the other process is told)
 		if (frameTarget != 0 && shared.exists(frameTarget)) Msg.v(cmd, ObjC.sel("waitUntilCompleted"));
@@ -573,6 +574,7 @@ class MetalBackend {
 		texture = Ptr.nil();
 		Runtime.objc_autoreleasePoolPop(pool);
 		pool = Ptr.nil();
+		if (presented && surface.onPresent != null) surface.onPresent();
 	}
 
 	// the frame's passes so far, then a copy of the target into a shared

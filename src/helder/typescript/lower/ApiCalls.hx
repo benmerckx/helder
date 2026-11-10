@@ -50,6 +50,20 @@ abstract class ApiCalls extends ClassValues {
 						bridge.construct(m, apiArguments(n.arguments() ?? [], m.ctor), where());
 					case _: null;
 				}
+			// (the chain's top first made a chain: its loop, then this again)
+			case KindPropertyAccessExpression if (n.questionDotToken() != null && n.name().kind != KindPrivateIdentifier && !chainTop(n)):
+				// (a?.x: an instance's member, the chain ended where a is nullish)
+				var receiver = strip(n.expression());
+				var c = api.classOf(types.present(receiver.tsType));
+				if (c == null) null else {
+					var m = apiClass(c, n);
+					var member = apiMember(m, n.name().text, false, n);
+					if (member.kind == "method") null else {
+						var obj = b.temp(any(expr(receiver)));
+						chainCheck(n, obj);
+						bridge.getMember(m, member, obj, where());
+					}
+				}
 			case KindPropertyAccessExpression if (n.questionDotToken() == null && n.name().kind != KindPrivateIdentifier):
 				var receiver = strip(n.expression());
 				switch api.of(receiver) {
@@ -119,8 +133,19 @@ abstract class ApiCalls extends ClassValues {
 					case FClass(c): return fail(n, c.name + " is a class: construct it with new");
 					case null: return null;
 				}
-			case KindPropertyAccessExpression if (callee.questionDotToken() == null && n.questionDotToken() == null && callee.name().kind != KindPrivateIdentifier):
+			case KindPropertyAccessExpression if (n.questionDotToken() == null && callee.name().kind != KindPrivateIdentifier):
 				var receiver = strip(callee.expression());
+				// (a?.m(): an instance's method, the chain ended where a is nullish)
+				if (callee.questionDotToken() != null) {
+					if (chainTop(n)) return null;
+					var c = api.classOf(types.present(receiver.tsType));
+					if (c == null) return null;
+					var m = apiClass(c, n);
+					var member = apiMember(m, callee.name().text, false, n);
+					var obj = b.temp(any(expr(receiver)));
+					chainCheck(callee, obj);
+					return bridge.callMethod(m, member, bridge.instance(m, obj, where()), apiArguments(actual, member.type), where());
+				}
 				switch api.of(receiver) {
 					case FClass(c):
 						var m = apiClass(c, n);

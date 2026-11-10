@@ -54,7 +54,7 @@ class App {
 	// errors out of run's frames and events, and tasks' nobody hears of
 	// (helder.async.Errors): handled (true), the loop goes on; otherwise, or
 	// with none, the program fails as before
-	public static var onError(get, set):Null<(error:haxe.Exception, source:String) -> Bool>;
+	@:typescript public static var onError(get, set):Null<(error:haxe.Exception, source:String) -> Bool>;
 
 	static function get_onError()
 		return helder.async.Errors.handler;

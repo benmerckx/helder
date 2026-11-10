@@ -34,6 +34,9 @@ class Interop {
 		if (Std.isOfType(v, Array)) return Lib.array([for (x in (v : Array<Dynamic>)) toJs(x)]);
 		// (helder's async work, a task, an asset's load: a promise of its answer)
 		if (Std.isOfType(v, helder.async.Task)) return taskPromise(v);
+		// (an exception: what the program threw, or Haxe's as an Error)
+		if (Std.isOfType(v, haxe.ValueException)) return toJs((v : haxe.ValueException).value);
+		if (Std.isOfType(v, haxe.Exception)) return Builtins.makeError("Error", (v : haxe.Exception).message);
 		if (Std.isOfType(v, helder.view.graph.Awaitable)) return Promises.ofAwaitable(v);
 		// (helder's bytes: a Uint8Array sharing them)
 		if (Std.isOfType(v, haxe.io.Bytes)) return TypedArrays.ofBytes(v);

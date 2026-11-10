@@ -5,7 +5,7 @@
 // constant or bound to what its value reads, For, Show, holes and
 // attributes that read bound; examples/ts-todo's shape.
 import { signal, memo, For, Show, Render, Signal, Read } from "helder/view";
-import { Event, Key } from "helder/ui";
+import { CodeEditor, Event, Key, Node } from "helder/ui";
 import { UiProbe } from "./ui-probe";
 
 class Item {
@@ -90,3 +90,22 @@ UiProbe.insets(47, 0, 34, 0);
 console.log(UiProbe.padding("bar"), "|", UiProbe.padding("page"));
 UiProbe.insets(0, 47, 21, 47);
 console.log(UiProbe.padding("bar"), "|", UiProbe.padding("page"));
+// a ref held as Node | null: its members read and called through ?.
+let held: Node | null = null;
+const holder = (): Node | null => held;
+Render.render(<view tag="held" focusable ref={(n: Node) => (held = n)}/>, UiProbe.root(200, 100));
+console.log(holder()?.tag, holder()?.focused);
+holder()?.focus(false);
+console.log(holder()?.focused);
+held = null;
+console.log(holder()?.tag);
+// a hook of helder's answered null where it takes a structure or null
+const code = new CodeEditor("SELECT");
+let asked = 0;
+code.complete = (text, caret) => {
+	asked++;
+	return asked > 1 ? { from: 0, items: [{ label: text + caret }] } : null;
+};
+code.suggest(true);
+code.suggest(true);
+console.log(asked);

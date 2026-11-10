@@ -192,6 +192,9 @@ class BuildCommand {
 		Term.spin("building " + e.name);
 		var target = e.isWeb() ? "wasm32-wasi" : e.target, roots = e.classPaths.concat([e.root]);
 		var copied = prepare != null ? prepare() : null;
+		// (macOS kills a signed executable rewritten in place: its inode's
+		// signature is cached, so the build writes a new file)
+		try FileSystem.deleteFile(exe) catch (_:Dynamic) {}
 		var r = compile(words, server);
 		// (the files built in were not those the program uses: a reference
 		// added, or one left in dead code only; built again with them)

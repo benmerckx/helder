@@ -142,6 +142,13 @@ class CodeView extends Node {
 				dx = dy;
 				dy = 0;
 			}
+			if (e.eased) {
+				// (a mouse's notch, where the platform glides one)
+				var g = glider ??= new ScrollGlide(this, (x, y) -> scrollTo(x, y));
+				if (g.to(scrollLeft, scrollTop, g.heading(scrollLeft, scrollTop, dx, dy, maxLeft(), maxTop()))) e.preventDefault();
+				return;
+			}
+			if (glider != null) glider.stop();
 			if (scrollTo(scrollLeft + dx, scrollTop + dy)) e.preventDefault();
 		};
 		onFocus = e -> {
@@ -236,9 +243,18 @@ class CodeView extends Node {
 		else if (top + lineHeight > scrollTop + viewH) scrollTo(scrollLeft, top + lineHeight - viewH);
 	}
 
+	// (a mouse's notches glided to)
+	var glider:Null<ScrollGlide> = null;
+
+	inline function maxTop():Float
+		return Math.max(0, model.lineCount * lineHeight - viewH);
+
+	inline function maxLeft():Float
+		return Math.max(0, (maxCols + 2) * cw + PAD - textWidth());
+
 	// scrolled to (clamped): whether it moved
 	public function scrollTo(left:Float, top:Float):Bool {
-		var maxTop = Math.max(0, model.lineCount * lineHeight - viewH), maxLeft = Math.max(0, (maxCols + 2) * cw + PAD - textWidth());
+		var maxTop = maxTop(), maxLeft = maxLeft();
 		if (top > maxTop) top = maxTop;
 		if (top < 0) top = 0;
 		if (left > maxLeft) left = maxLeft;
@@ -447,6 +463,12 @@ class CodeView extends Node {
 		paintScrollbar(canvas, x, y, width, height);
 		paintHover(canvas, engine, x, y, width, height, tx, ty);
 		canvas.popClip();
+	}
+
+	// where offset pos is drawn, from the view's top left (pixels): x, its line's top
+	public function pointOf(pos:Int):{x:Float, y:Float} {
+		var l = model.lineOf(pos);
+		return {x: gutterW + PAD - scrollLeft + xOf(l, pos), y: l * lineHeight - scrollTop};
 	}
 
 	// (the x of offset pos on line l, from the text's origin)

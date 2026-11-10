@@ -98,6 +98,8 @@ class Builder {
 			case [TRef(RAny), TF64]: runtime("numeric", [e]);
 			case [TRef(_), TRef(_)]: ECast(t, e);
 			case [_, TRef(RAny)]: temp(EBox(from, e));
+			// (a scalar where a nullable one goes: an optional Int argument, Null<Int>, boxed)
+			case [_, TRef(RNull(inner))] if (Ir.isScalar(from) && Ir.isScalar(inner)): ECast(t, temp(EBox(inner, coerce(e, inner))));
 			case [TRef(_), _] if (Ir.isScalar(t)): EUnbox(t, e);
 			case _: throw "TSHX003: cannot convert " + from + " to " + t;
 		}

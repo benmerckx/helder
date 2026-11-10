@@ -62,7 +62,14 @@ class DefinitionEmitter {
 	// a class: its constructor, statics and members
 	public function emitClass(name:String, cl:ClassType, statics:Array<ClassField>, members:Array<ClassField>, ctor:Null<ClassField>) {
 		comment(Docs.of(cl.pos));
-		line('export declare ' + (cl.isInterface ? 'interface' : 'class') + ' ' + name + params(cl.params) + ' {');
+		// (its superclass, when declared: its members are the subclass's too)
+		var sup:Null<String> = null, s = cl.isInterface ? null : cl.superClass;
+		while (s != null && sup == null) {
+			sup = writer.declared(s.t.get());
+
+			s = s.t.get().superClass;
+		}
+		line('export declare ' + (cl.isInterface ? 'interface' : 'class') + ' ' + name + params(cl.params) + (sup == null ? '' : ' extends ' + sup) + ' {');
 		indent = "\t";
 		if (ctor != null)
 			switch ctor.type {
@@ -89,6 +96,13 @@ class DefinitionEmitter {
 					line(s + f.name + ': ' + t + ';');
 					return;
 				}
+				// (a coroutine: called, it starts; its result a promise: helder.typescript.api.Coroutines)
+				switch helder.typescript.api.Coroutines.promised(f) {
+					case TFun(args, ret):
+						line(s + f.name + params(f.params) + '(' + args_(args, argMetas(f)) + '): ' + given(ret) + ';');
+						return;
+					case _:
+				}
 				switch Context.follow(f.type) {
 					case TFun(args, ret):
 						var r = TypeEmitter.typeMeta(returnMeta(f));
@@ -99,8 +113,18 @@ class DefinitionEmitter {
 				comment(Docs.of(f.pos));
 				var readonly = write == AccNever || write == AccNo || write == AccCtor || read == AccInline || f.isFinal;
 				var t = TypeEmitter.typeMeta(f.meta);
-				line(s + (readonly ? 'readonly ' : '') + f.name + ': ' + (t != null ? t : given(f.type)) + ';');
+				line(s + (readonly ? 'readonly ' : '') + f.name + ': ' + (t != null ? t : given(unlazy(f.type))) + ';');
 		}
+	}
+
+	// (a field's type typed when asked for: a property's, a static's, until then TLazy)
+	static function unlazy(t:Type):Type {
+		for (_ in 0...8)
+			switch t {
+				case TLazy(f): t = f();
+				case _: return t;
+			}
+		return t;
 	}
 
 	function args_(args:Array<{name:String, opt:Bool, t:Type}>, metas:Array<Null<MetaAccess>>):String {

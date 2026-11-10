@@ -542,8 +542,10 @@ class DevCommand {
 		env.set("HXMC_DEV", '127.0.0.1:$appPort');
 		env.set("HXMC_DEV_PROTOCOL", Std.string(Devtools.PROTOCOL));
 		if (withSnapshot || hosted) env.set("HXMC_DEV_SNAPSHOT", snapshot) else env.remove("HXMC_DEV_SNAPSHOT");
+		var icon = appIcon();
+		if (icon != null) env.set("HELDER_APP_ICON", icon);
 		var options = {env: env};
-		var p = try hosted ? new Process(hostExe, [lib].concat(programArgs), options) : new Process(Path.isAbsolute(out) ? out : './$out', programArgs, options) catch (err:haxe.Exception) {
+		var p = try hosted ? new Process(namedHost(), [lib].concat(programArgs), options) : new Process(Path.isAbsolute(out) ? out : './$out', programArgs, options) catch (err:haxe.Exception) {
 			Term.err(Style.status("error", Fail, 'the program did not start: ${err.message}'));
 			null;
 		}
@@ -774,6 +776,45 @@ class DevCommand {
 	// a path as the system's loader takes it (Windows: backslashes)
 	static function native(p:String):String
 		return e.target.startsWith("windows-") ? p.split("/").join("\\") : p;
+
+	// (macOS: the host run under the app's name, what the Dock and the menu bar
+	// show (a hash otherwise), linked beside the build: bin/dev/<target>/<label>)
+	static function namedHost():String {
+		var host = hostExe;
+		if (host == null || !e.target.startsWith("macos-")) return host;
+		var dir = '${e.root}/bin/dev/${e.target}', named = '$dir/${App.ios(e.name, e.config).label}';
+		try {
+			TestCommand.mkdirs(dir);
+			if (FileSystem.exists(named) && FileSystem.stat(named).size == FileSystem.stat(host).size) return named;
+			if (FileSystem.exists(named)) FileSystem.deleteFile(named);
+			// (a link costs nothing; another disk: a copy)
+			if (Sys.command("ln", [host, named]) != 0 && Sys.command("cp", ["-p", host, named]) != 0) return host;
+			return named;
+		} catch (_:Dynamic)
+			return host;
+	}
+
+	// (the app's icon for the Dock while it runs unbundled: the manifest's, as a
+	// PNG beside the build, its path in HELDER_APP_ICON for helder.os; made once)
+	static var iconMade:Null<String> = null;
+
+	static function appIcon():Null<String> {
+		if (iconMade != null) return iconMade == "" ? null : iconMade;
+		iconMade = "";
+		var m:Manifest.AppConfig = e.config;
+		if (m == null || m.icons == null || !(e.target.startsWith("macos-"))) return null;
+		try {
+			var icons = new Icons(m, e.root);
+			if (!icons.has("any") && !icons.has("maskable")) return null;
+			var png = icons.png(["any", "maskable"], 512, 824 / 1024, null, "the Dock's icon");
+			if (png == null) return null;
+			var dir = '${e.root}/bin/dev/${e.target}';
+			TestCommand.mkdirs(dir);
+			File.saveBytes('$dir/icon.png', png);
+			iconMade = '$dir/icon.png';
+		} catch (_:Dynamic) {}
+		return iconMade == "" ? null : iconMade;
+	}
 
 	// the dev host's executable, built once (by its sources' hash and the compiler's)
 	@:coroutine static function buildHost() {

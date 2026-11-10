@@ -30,6 +30,11 @@ class Icons {
 
 	static var parsed:Null<Map<String, Svg>> = null;
 
+	// an icon of the program's own, from its SVG text (an <svg> with its
+	// viewBox; currentColor where it takes the text's colour)
+	public static function parse(text:String):Svg
+		return Svg.parse(text);
+
 	// an icon as ui draws it
 	public static function svg(name:String):Svg {
 		if (parsed == null) parsed = [];

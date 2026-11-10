@@ -653,6 +653,10 @@ export declare class Window {
 // (Android and iOS in the background) the loop still turns; in the browser
 // the page turns it between frames too, and while a hidden tab has none.
 export declare class App {
+	// errors out of run's frames and events, and tasks' nobody hears of
+	// (helder.async.Errors): handled (true), the loop goes on; otherwise, or
+	// with none, the program fails as before
+	static onError: ((error: unknown, source: string) => boolean) | null;
 	static run(onFrame: () => void, onEvent: (arg0: Event) => void): void;
 }
 

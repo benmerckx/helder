@@ -5,8 +5,7 @@ import helder.ui.Svg;
 
 // The studio's icons: Lucide's (apps/studio/icons, ISC: LICENSE), only
 // those used, embedded; 24 by 24, stroked in the text's colour, drawn at
-// 16 or 14 points (Theme.ICON), their strokes a little lighter than
-// Lucide's 2 (1.75: 1.2 points at 16)
+// 16 or 14 points (Theme.ICON), their strokes Lucide's 2
 class Icons {
 	public static final appWindow = load(Asset.embed("icons/app-window.svg"));
 	public static final audioLines = load(Asset.embed("icons/audio-lines.svg"));
@@ -39,5 +38,5 @@ class Icons {
 	public static final undo = load(Asset.embed("icons/undo-2.svg"));
 
 	static function load(b:haxe.io.Bytes):Svg
-		return Svg.parse(StringTools.replace(b.toString(), 'stroke-width="2"', 'stroke-width="1.75"'));
+		return Svg.parse(b.toString());
 }

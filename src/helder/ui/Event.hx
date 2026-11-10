@@ -69,6 +69,8 @@ class Event {
 	public var dropped = false;
 	public var deltaX = 0.0;
 	public var deltaY = 0.0;
+	// a wheel's deltas to ease rather than jump to (a mouse's notches on macOS)
+	public var eased = false;
 	public var stopped(default, null) = false;
 	// the default action (Tab moving the focus, the wheel scrolling) is not taken
 	public var defaultPrevented(default, null) = false;

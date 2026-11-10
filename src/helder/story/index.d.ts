@@ -29,6 +29,8 @@ export declare class Controls {
 	constructor(seed?: number);
 	readonly seed: number;
 	readonly list: Array<{ name: string; kind: string; value: any; options?: string[] }>;
+	// each control's signal by its name (an editor's change: the studio's Story.set)
+	readonly signals: unknown;
 	readonly settled: Signal<boolean>;
 	number(name: string, value: number): Signal<number>;
 	bool(name: string, value: boolean): Signal<boolean>;

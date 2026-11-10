@@ -283,7 +283,12 @@ export default function (host) {
 				wheeled = true;
 			}
 			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * pixelRatio() * 256;
-			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e)]);
+			// (a mouse wheel's notch, which a browser glides: in lines or pages, or
+			// Chrome's and Safari's wheelDelta in whole steps of 120; a trackpad's
+			// pixels are small and uneven. Bit 16 of the modifiers: Event.eased)
+			const w = e.wheelDeltaY || e.wheelDeltaX || 0;
+			const notch = !e.ctrlKey && (e.deltaMode !== 0 || (w !== 0 && w % 120 === 0 && Math.abs(e.deltaY || e.deltaX) >= 40));
+			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e) | (notch ? 1 << 16 : 0)]);
 		}, { passive: false });
 		// Safari's pinch: gesture events (scale since the gesture began), the
 		// page's zoom unless prevented; made the wheel with Control that

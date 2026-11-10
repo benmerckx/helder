@@ -28,7 +28,30 @@ function tests() {
 			ui.update();
 			ui.paint(new Nothing());
 		}
-		test("typed text and keys through the keymap: moves, secondary-D, undo", () -> {
+		test("suggestions: shown as a word is typed, chosen with Down, put in with Enter, closed by Escape", () -> {
+			editor.text = "";
+			editor.complete = (text, caret) -> {
+				var from = caret;
+				while (from > 0 && text.charAt(from - 1) != " ")
+					from--;
+				var word = text.substring(from, caret);
+				{from: from, items: [for (w in ["select", "set", "from"]) if (StringTools.startsWith(w, word)) {label: w}]};
+			};
+			key("s".code, 0, "s");
+			equals(editor.completion.open, true);
+			equals(editor.completion.items.length, 2);
+			key(Key.DOWN);
+			key(Key.ENTER);
+			equals(editor.text, "set");
+			equals(editor.completion.open, false);
+			key(" ".code, 0, " ");
+			key("f".code, 0, "f");
+			equals(editor.completion.items.map(i -> i.label), ["from"]);
+			key(Key.ESCAPE);
+			equals(editor.completion.open, false);
+			equals(editor.text, "set f");
+		});
+				test("typed text and keys through the keymap: moves, secondary-D, undo", () -> {
 			key(Key.END, Key.MOD_CONTROL);
 			equals(editor.model.primary.head, editor.model.length);
 			key(Key.HOME, Key.MOD_CONTROL);
