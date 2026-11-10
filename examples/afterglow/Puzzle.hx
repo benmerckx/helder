@@ -1,3 +1,4 @@
+import Ground;
 import Screens;
 
 // A screen's play, deterministic: stepped at a fixed rate from where the
@@ -13,7 +14,7 @@ import Screens;
 //
 // Distances to the moth are measured as seen: everything is brought along
 // the line of sight to the plane the moth flies in (flat).
-class Puzzle {
+class Puzzle implements Ground {
 	public static inline var STEP = 1 / 60;
 	// the plane the moth flies in, in front of all the stone
 	public static inline var FLY = -1.25;

@@ -43,6 +43,11 @@ const pending = [];
 const send = (m) => DEV && (ws && ws.readyState === 1 ? ws.send(JSON.stringify(m)) : pending.push(m));
 window.hxmcDev = { log: [], frames: 0, swaps: 0, gpu: null, canvas: null, instance: null };
 const out = (s) => { window.hxmcDev.log.push(s); console.log(s); send({ type: 'log', text: s }); };
+// the page's query as the program's arguments: ?level=2&fast gives
+// --level 2 --fast (gfx is the page's own)
+function pageArgs(search) {
+	return [...new URLSearchParams(search)].filter(([k]) => k !== 'gfx').flatMap(([k, v]) => (v ? ['--' + k, v] : ['--' + k]));
+}
 const IMPORTS = {{imports}};
 // (the files read before main: helder.asset's, fetched while the module loads)
 const ASSETS = {{assets}};
@@ -76,7 +81,7 @@ async function start(wasm, restoreBytes) {
 	window.hxmcDev.instance = state;
 	await run(wasm, { imports: [...IMPORTS, dev], fonts, stdout: out, stderr: (s) => out(s), track: DEV, canvas: canvases[0], gpu, assets: ASSETS ?? undefined,
 		// (?gfx=webgl2: WebGL2, even where WebGPU is)
-		gfx: new URLSearchParams(location.search).get('gfx') ?? undefined });
+		gfx: new URLSearchParams(location.search).get('gfx') ?? undefined, args: pageArgs(location.search) });
 	const g = state.host.gfx;
 	if (!gpu && g && g.device) gpu = window.hxmcDev.gpu = { adapter: g.adapter, device: g.device };
 	window.hxmcDev.canvas = state.host.os?.canvases?.[0] ?? document.querySelector('canvas');

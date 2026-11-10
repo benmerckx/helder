@@ -1,3 +1,4 @@
+import Ground;
 import Puzzle;
 
 // The moth's flight: it flies to where it is led (a finger held down
@@ -30,6 +31,8 @@ class Flight {
 	var slowX = 0.0;
 	var slowY = 0.0;
 	public var held = false;
+	// where it may be led (the old game's stage; a greybox's board)
+	public var bounds = {left: -3.4, bottom: 0.35, right: 3.2, top: 8.5};
 	var vx = 0.0;
 	var vy = 0.0;
 	var tx:Float;
@@ -46,14 +49,14 @@ class Flight {
 
 	// led to (x, y) on the moth's plane
 	public function lead(x:Float, y:Float) {
-		tx = clamp(x, -3.4, 3.2);
-		ty = clamp(y, 0.35, 8.5);
+		tx = clamp(x, bounds.left, bounds.right);
+		ty = clamp(y, bounds.bottom, bounds.top);
 		landing = null;
 		perched = false;
 		settled = 0;
 	}
 
-	public function step(dt:Float, puzzle:Puzzle) {
+	public function step(dt:Float, puzzle:Ground) {
 		phase += dt * (perched ? 0 : 8 + 13 * fly);
 		feel(dt);
 		if (perched) {

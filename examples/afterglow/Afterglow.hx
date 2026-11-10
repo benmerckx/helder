@@ -723,43 +723,34 @@ class Afterglow {
 		MothShader.params.view.write(w, mirror);
 	}
 
+	// the greybox prototypes first (Greybox: a title, A: Light, B: Way), the
+	// old game a choice of it; -- --proto a|b|game and --screen n start
+	// there (the web page: ?proto=a&screen=2)
 	static function main() {
-		// (on the web 0 x 0: the canvas fills the page, a phone's whole screen)
-		var det = Sys.args().indexOf("--detail");
-		if (det >= 0) DETAIL = Std.parseFloat(Sys.args()[det + 1]);
+		var args = Sys.args();
+		function arg(name:String):Null<String> {
+			var k = args.indexOf(name);
+			return k >= 0 && k + 1 < args.length ? args[k + 1] : null;
+		}
+		var det = arg("--detail");
+		if (det != null) DETAIL = Std.parseFloat(det);
 		var window = #if (hxmc.target == "wasm32-wasi") new Window("Afterglow", 0, 0) #else new Window("Afterglow", 405, 720) #end;
 		var device = Device.create(window.surface);
-		var t0 = Sys.time();
-		var glow = new Afterglow(device);
-		if (Sys.args().indexOf("--log") >= 0)
-			Sys.println('afterglow: built in ${Math.round((Sys.time() - t0) * 1000)} ms, ${Std.int(glow.ruins.mesh.count / 3)} triangles, screen 1 ${Std.int(glow.ruins.screen(0).mesh.count / 3)}');
-		glow.points = window.scale;
-		glow.game.log = Sys.args().indexOf("--log") >= 0;
-		glow.sheet = Sys.args().indexOf("--sheet") >= 0;
+		var shell = new Greybox(window, device);
+		shell.log = args.indexOf("--log") >= 0;
+		var proto = arg("--proto"), screen = arg("--screen");
+		if (proto != null) shell.choose(proto, screen == null ? 0 : (Std.parseInt(screen) ?? 1) - 1);
 		var start = -1.0;
 		App.run(() -> {
 			if (start < 0) start = App.frame.time;
-			var enc = device.beginFrame();
-			if (enc == null) return;
-			glow.draw(enc, App.frame.time - start);
-			device.endFrame();
+			shell.frame(App.frame.time - start);
 		}, e -> switch e.kind {
 			case Close: window.close();
-			case KeyDown if (e.key == 0xFF1B): window.close();
-			// (a screen by its number, for trying one)
-			case KeyDown if (e.key >= "1".code && e.key <= "3".code): glow.game.start(e.key - "1".code);
-			case PointerDown if (e.pointer.primary || e.pointer.buttons & 1 != 0):
-				var at = glow.aim(e.x, e.y - lift(e.pointer));
-				glow.game.press(at.x, at.y);
-			case PointerMove if (e.pointer.down):
-				var at = glow.aim(e.x, e.y - lift(e.pointer));
-				glow.game.drag(at.x, at.y);
-			case PointerUp | PointerCancel: glow.game.release();
-			case _:
+			case _: shell.event(e);
 		});
 	}
 
 	// (a finger hides what is under it: the moth goes a little above it)
-	static function lift(p:Pointer):Float
+	public static function lift(p:Pointer):Float
 		return p.type == Touch ? 36 * p.scale : 0;
 }

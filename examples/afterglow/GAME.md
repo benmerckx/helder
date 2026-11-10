@@ -11,6 +11,94 @@ hung in a niche of the stone and rebuilds the ruin under it. Once the
 caterpillar is in, the cocoon lights: one more of the lanterns that hang
 all through the ruins.
 
+## Restarting the puzzle: two greybox prototypes
+
+Played on desktop, flying the moth worked; three things did not: waking
+glyphs by hovering (slow, accidental, hard to repeat), not knowing what
+to do (what reacts, what it moves, what the goal is), and leading the
+caterpillar by the light (fiddly). The puzzle starts again as two
+greyboxes to play side by side: flat shapes on a 7 x 9 grid, the moth's
+flight as it was (Flight), no art. The game opens on a title: **A:
+Light**, **B: Way**, and **The old game** (what follows the prototypes
+here). `-- --proto a|b|game` and `-- --screen n` start there; on the web,
+`?proto=a&screen=2`.
+
+Both: **a tap is the act, never hovering**; a press anywhere else leads
+the moth (drag: it follows; tap: it flies there), as before. What can be
+touched has a shape of its own and a slow pulsing ring; what it will do
+shows before you touch it (a dotted beam where light would go, a
+crystal's point, coloured wires from a lever to its gates). Anything done
+is undone by doing it again; nothing fails. The bar: MENU, the screen,
+RESET (keys: 1-3 a screen, R again, Esc the title); a solved screen
+moves on after three seconds (or NEXT).
+
+### A: Light (route the light to the one dark thing)
+
+The goal is one dark, waiting thing (a cocoon, a dead lantern, a closed
+flower) with a pip for each light it needs; lit, it wakes and the screen
+is solved. The moth is the light: on a **perch** (a socket with an arrow)
+it shines the perch's way. Light is a beam traced cell by cell: stone
+stops it, a **crystal** sends it on the way its point faces (tap: a
+quarter turn clockwise), a **shutter** stops it (drag it along its
+groove, or tap it: to its other slot), a **lantern** catches it and stops
+it. Tap a dark lantern: the moth flies there and kindles it; it then
+shines its own way, without the moth (the relay: two lights at once).
+
+1. **One crystal** (3 moves). Fly to the perch: its beam goes up into
+   the crystal, which points left at the wall. Tap it twice (up, right):
+   the beam crosses to the cocoon.
+2. **Two crystals** (5 moves). The perch shines right into a crystal
+   pointing at the floor: tap it twice (left, up). Its beam stops at a
+   shutter: drag it aside into its alcove. The second crystal points up:
+   tap it once, at the dead lantern.
+3. **Two lights** (5 moves). The flower needs two. Tap the lantern: the
+   moth kindles it; its beam goes left into a crystal pointing at the
+   ceiling: tap it twice (right: back at the lantern, then down: the
+   flower's first light). Drag the shutter off the perch's column, fly to
+   the perch: the second.
+
+### B: Way (the moth alone opens its way to the exit)
+
+The moth must reach the screen's exit (an arch of pale light) through
+stone, shut **gates** (bars across the way) and **dark passages**
+(hatched black) it will not fly into. Tap a **lever** or a **lamp**: the
+moth flies to it, round what is in its way, and pulls it; out of reach,
+it flies as near as it can and the lever shakes. A lever flips every gate
+wired to it: a dashed wire in its colour and a dot of its colour on the
+gate (one lever may open a gate and shut another); a lamp lights its dark
+passage, or puts it out. A press anywhere else leads the moth there (or
+as near as it can get).
+
+1. **Lamp and lever** (3 moves). Tap the lamp: the passage up lights.
+   Tap the lever in the room above: the gate beside it lifts. Tap the
+   exit.
+2. **One lever, two gates** (3 moves). The upper gate is open, the lower
+   shut. The lever opens the lower and shuts the upper (both have its
+   amber dot). Through, the second lever (cyan) opens the upper again.
+   Tap the exit.
+3. **Three rooms** (4 moves). Each lever moves two gates: the first opens
+   the way up and shuts the exit's; the second, up there, opens the way
+   on and shuts the one behind; the third opens the exit's again (and
+   shuts the one behind). Each lever only moves its own room's doors, so
+   the moth is never shut in.
+
+### Playtests
+
+`play/greybox.mjs` holds each screen's moves in cells and writes them as
+headless scripts for a window (`node examples/afterglow/play/greybox.mjs
+390x844`: play/greybox/a1.json ... b3.json, marks `start` and `solved`):
+
+```sh
+bun run helder run --headless examples/afterglow --size 390x844 --scale 2 \
+  --script examples/afterglow/play/greybox/a3.json \
+  --snap a3.png --at mark:solved -- --proto a --screen 3 --log
+```
+
+`--log` prints what happens (`greybox: a3: kindled at 2 s`, `... solved
+at 6.5 s`).
+
+## The old game
+
 This is what is built (three screens). The first plan, and what came of
 each part of it, is at the end.
 

@@ -668,6 +668,7 @@ class Run {
 		expect(h, ["run", "bin/cli/project/src/app/Hello.hx"], new Map(), "hello from app.Hello, hello from the project");
 		run(h, ["build", "bin/cli/project", "--target", "wasm32-wasi"]);
 		wasi("bin/cli/project/bin/wasm32-wasi/cli-fixture.wasm");
+		run(NODE, ["tests/cli/page-args.mjs"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-native", "native"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-nohost", "native-nohost"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);

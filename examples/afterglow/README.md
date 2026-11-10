@@ -5,12 +5,18 @@ what lives there: a tiny white moth whose light wakes glyphs that move
 the stone, leading its young, a caterpillar, to its cocoon. GAME.md is
 the game as designed and built; this is the code.
 
+The game now opens on its greybox prototypes (Greybox, Light, Way,
+Board, Sketch: GAME.md, the two prototypes); the painted game below is
+the title's third choice, `-- --proto game`.
+
 ```sh
-bun run helder run examples/afterglow          # drag or tap to fly; 1, 2, 3: a screen
-bun run helder run --headless examples/afterglow --size 390x844 --scale 3 --snap out.png --at 3
+bun run helder run examples/afterglow          # the title: A: Light, B: Way, the old game
+bun run helder run examples/afterglow -- --proto a --screen 2
+bun run helder run examples/afterglow -- --proto game   # drag or tap to fly; 1, 2, 3: a screen
+bun run helder run --headless examples/afterglow --size 390x844 --scale 3 --snap out.png --at 3 -- --proto game
 bun run helder run --headless examples/afterglow --size 405x720 --scale 2 \
-  --script examples/afterglow/play/first.json --snap home.png --at mark:home -- --log
-bun run helder run --headless examples/afterglow --size 1920x1080 --snap sheet.png --at 2 -- --sheet
+  --script examples/afterglow/play/first.json --snap home.png --at mark:home -- --proto game --log
+bun run helder run --headless examples/afterglow --size 1920x1080 --snap sheet.png --at 2 -- --proto game --sheet
 ```
 
 `-- --log` prints what happens as it does (`afterglow: screen 1: home at
