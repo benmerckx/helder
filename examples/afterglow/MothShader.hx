@@ -10,14 +10,18 @@ import helder.gfx.shader.ShaderMath.*;
 // membrane for a wing, turning as it beats, cambered between its veins),
 // then lit once by the scene: the glows about it summed on the CPU into
 // six lights along the camera's axes and one key light (Afterglow.lights),
-// in two soft steps, with a rim from what glows beside and behind it, a
-// glint on what is hard, light through what is thin (wings, the
-// caterpillar's skin) and a shadow under what lies over something. No
-// outline, no flat fill: form through light.
+// in two hard steps, a glint on what is hard, light through what is thin
+// and a shadow under what lies over something. Bodies are kept dark so
+// that the rim shows: a crisp band of what glows beside and behind, in
+// its own colour (a lantern's pink, the moss's green, the moth's violet);
+// what is pale (the wings) takes a light's tint, never its flood. No
+// outline, no flat fill: form through light. Drawn once more into the
+// target's alpha alone (keyColor.w), where the finish leaves the frame be.
 //
 // The moth is the reference's: side on, pale wings swept back like a
-// cape, feathered antennae in a V, a small furred body, lit from within
-// (violet between its segments, through its wings). A wing is one plan
+// cape, feathered antennae in a V, a small dark body (fur combed back, a
+// pale collar, jointed legs), lit from within (violet between its
+// segments, through its wings). A wing is one plan
 // (root, apex, tornus) laid on the screen along the body and out from it
 // by how far it is raised: folded it lies back, beating it goes from over
 // the back through edge on to under the body, its tip late.
@@ -97,8 +101,9 @@ function plan(r:Vec2, sg:Float, k:Float, lag:Float):Vec3 {
 	var c1 = (r.x * WING_D.y - r.y * WING_D.x) / (-1.004 * WING), s1 = (WING_C.x * r.y - WING_C.y * r.x) / (-1.004 * WING);
 	var g = sg < 0 ? min(sg, -0.07) : max(sg, 0.07);
 	var s = clamp(s1 / g, -0.3, 1.4);
-	g = sg + lag * s * s;
-	g = g < 0 ? min(g, -0.07) : max(g, 0.07);
+	// (its tip late, but never through edge on before its root: no fold)
+	var late = sg + lag * min(s * s, 1);
+	g = sg < 0 ? min(late, -0.07) : max(late, 0.07);
 	s = s1 / g;
 	return vec3(c1 - s * k, s, g);
 }
@@ -161,11 +166,22 @@ function fern(q:Vec2, a:Vec2, b:Vec2, n:Float, wide:Float, bend:Float):Vec2 {
 	return vec2(d, h0);
 }
 
-// a leg: thigh and shin
-function leg(q:Vec2, hip:Vec2, knee:Vec2, foot:Vec2):Float {
-	var shin = segment(q, knee, foot);
-	return min(segment(q, hip, knee).x - 0.014, shin.x - 0.011 + 0.006 * shin.y);
+// a leg: thigh, shin and foot
+function leg(q:Vec2, hip:Vec2, knee:Vec2, ankle:Vec2, toe:Vec2):Float {
+	var shin = segment(q, knee, ankle);
+	return min(min(segment(q, hip, knee).x - 0.015, shin.x - 0.01 + 0.003 * shin.y), segment(q, ankle, toe).x - 0.006);
 }
+
+// a point over the ground (x along it, y above it, lift the ground's own
+// place) in the frame of a body leaning by an angle (lean: its cosine and sine)
+function stood(p:Vec2, lift:Vec2, lean:Vec2):Vec2 {
+	var d = p + lift - vec2(0.15, -0.2);
+	return vec2(0.15, -0.2) + vec2(d.x * lean.x + d.y * lean.y, d.y * lean.x - d.x * lean.y);
+}
+
+// along is the body's way (towards the head), across what is beside it
+final ALONG = vec2(0.25, 0.968);
+final ACROSS = vec2(0.968, -0.25);
 
 // the light from the camera's axes on what faces n
 function around(n:Vec3, x0:Vec4, x1:Vec4, y0:Vec4, y1:Vec4, z0:Vec4, z1:Vec4):Vec3 {
@@ -175,6 +191,8 @@ function around(n:Vec3, x0:Vec4, x1:Vec4, y0:Vec4, y1:Vec4, z0:Vec4, z1:Vec4):Ve
 
 final GLOWING = vec3(0.62, 0.3, 1.0);
 final EMBER = vec3(1.0, 0.5, 0.1);
+// the caterpillar's own light, paler than the moth's
+final LILAC = vec3(0.6, 0.36, 1.0);
 
 final MothShader = shader({
 	vertex: function(v:MothVertex, p:{view:MothView}):MothVaryings {
@@ -196,28 +214,31 @@ final MothShader = shader({
 		// off, and x how hard it glints, y how much light passes through,
 		// z how much rim it catches, w how open to the light it is)
 		var alb = vec3(0, 0, 0), nrm = vec3(0, 0, 1), emi = vec3(0, 0, 0), mat = vec4(0, 0, 1, 1);
-		var a = 0.0, theta = 0.0, gone = 0.0;
+		var a = 0.0, theta = 0.0, gone = 0.0, pale = 0.0;
 		if (p.view.moth.w < 1.5) {
 			var fl = smoothstep(0, 1, p.view.color.x), ph = p.view.color.y;
 			var trail = p.view.more.xy, settle = p.view.more.z, reach = p.view.more.w;
+			// (most of its quad is empty: nothing is worked out there)
+			if (q.x > 1.3 || q.x < -1.3 || (p.view.color.x + settle < 0.001 && abs(q.y - 0.025) > 0.925)) discard();
 			// (in flight the body leans forward and bobs against the stroke; landing it dips on its legs)
-			theta = p.view.color.z - mix(0.45, 0.62, fl) + 0.1 * settle * sin(settle * 7);
+			theta = p.view.color.z - mix(0.47, 0.55, fl) + 0.1 * settle * sin(settle * 7);
 			var dip = 0.07 * sin(settle * 3.14159) * settle + 0.03 * sin(clamp(p.view.color.x * 2, 0, 1) * 3.14159) * (1 - settle);
-			// (drawn a little larger about its feet; its body low over them)
+			// (drawn a little larger about its feet; standing, its body low over them)
 			q = (q - vec2(0, -0.6)) / 1.15 + vec2(0, -0.28 + dip - 0.035 * fl * cos(ph - 0.6));
-			var b = turn(q, vec2(0.15, -0.2), -theta);
+			var crouch = 0.05 * (1 - fl);
+			var b = turn(q + vec2(0, crouch), vec2(0.15, -0.2), -theta);
 			var root = vec2(0.15, 0.24);
 			// (the stroke: quick down, slower up; at rest the wings breathe and now and then fan)
 			var idle = 0.03 * (0.5 + 0.5 * sin(t * 1.4)) + 0.3 * pow(max(sin(t * 0.43), 0), 24) * (0.5 + 0.5 * sin(t * 9))
 				+ 0.45 * settle * abs(sin(settle * 10));
 			var vel = cos(ph + 0.45 * sin(ph));
-			var eye = b - vec2(0.268, 0.304);
+			var eye = b - vec2(0.262, 0.306);
 			for (far in 0...2) {
 				var near = far == 0 ? 0.0 : 1.0;
 				var el = 0.25 + 1.1 * sin(ph + 0.45 * sin(ph) + 0.35 * (1 - near));
 				var sg = mix((far == 0 ? 0.9 : 1.0) - idle, sin(el - 0.15), fl);
 				var sweep = 0.16 * cos(el) * fl;
-				var lag = -0.4 * vel * fl;
+				var lag = -0.2 * vel * fl;
 				var shade = far == 0 ? 0.55 : 1.0;
 				var at = root + vec2(0.04, 0.012) * (1 - near);
 				// (an antenna: behind it all on the far side, before it all on the near)
@@ -230,6 +251,7 @@ final MothShader = shader({
 					nrm = mix(nrm, vec3(0, 0.25, 0.8), ac);
 					emi = mix(emi, vec3(0.5, 0.42, 0.8) * (0.08 + 0.12 * an.y), ac);
 					mat = mix(mat, vec4(0.1, 0.6, 1.2, 0.6), ac);
+					pale = mix(pale, 1, ac);
 					a = a + ac * (1 - a);
 				}
 				// (the hindwing, only in flight, then the forewing over it)
@@ -260,29 +282,33 @@ final MothShader = shader({
 					nrm = mix(nrm, n, c);
 					emi = mix(emi, col * vec3(0.74, 0.68, 1.0) * ((0.32 + 0.85 * inner) * shade), c);
 					mat = mix(mat, vec4(0.12, 0.3, 0.9, shade), c);
+					pale = mix(pale, 1, c);
 					a = a + c * (1 - a);
 				}
 				if (far == 0) {
-					// (the body between the wings: legs, the abdomen's segments,
-					// violet light between them, the furred thorax, the head)
+					// (the body between the wings: jointed legs, the abdomen's
+					// segments, violet light between them, the thorax's fur combed
+					// back, a pale collar, the head)
 					var tuck = fl * (1 - reach);
-					var feet = vec2(0, -dip) - trail * (0.3 * fl);
-					var f0 = turn(vec2(0.5, -0.28) + feet, vec2(0.15, -0.2), -theta), f1 = turn(vec2(0.36, -0.28) + feet, vec2(0.15, -0.2), -theta),
-						f2 = turn(vec2(-0.1, -0.28) + feet, vec2(0.15, -0.2), -theta);
-					var l = min(leg(b, vec2(0.22, 0.03), mix(vec2(0.36, 0.1), vec2(0.36, 0.0), tuck), mix(f0, vec2(0.27, -0.2), tuck)),
-						min(leg(b, vec2(0.19, -0.02), mix(vec2(0.31, 0.0), vec2(0.3, -0.1), tuck), mix(f1, vec2(0.18, -0.3), tuck)),
-							leg(b, vec2(0.14, -0.06), mix(vec2(0.04, -0.02), vec2(0.2, -0.2), tuck), mix(f2, vec2(0.08, -0.38), tuck))));
+					var lift = vec2(0, -0.28 + dip + crouch) - trail * (0.3 * fl), lean = vec2(cos(theta), sin(theta));
+					var l = min(leg(b, vec2(0.22, 0.03), mix(stood(vec2(0.43, 0.18), lift, lean), vec2(0.34, 0.02), tuck),
+						mix(stood(vec2(0.475, 0.014), lift, lean), vec2(0.27, -0.1), tuck), mix(stood(vec2(0.525, 0), lift, lean), vec2(0.25, -0.15), tuck)),
+						min(leg(b, vec2(0.19, -0.02), mix(stood(vec2(0.36, 0.12), lift, lean), vec2(0.29, -0.08), tuck),
+							mix(stood(vec2(0.35, 0.014), lift, lean), vec2(0.2, -0.19), tuck), mix(stood(vec2(0.395, 0), lift, lean), vec2(0.18, -0.24), tuck)),
+							leg(b, vec2(0.14, -0.06), mix(stood(vec2(0.09, 0.13), lift, lean), vec2(0.21, -0.17), tuck),
+								mix(stood(vec2(0.03, 0.014), lift, lean), vec2(0.11, -0.29), tuck), mix(stood(vec2(0.075, 0), lift, lean), vec2(0.09, -0.34), tuck))));
 					var lc = cover(l, px);
-					alb = mix(alb, vec3(0.3, 0.25, 0.42), lc);
-					nrm = mix(nrm, vec3(0, 0, 1), lc);
+					alb = mix(alb, vec3(0.07, 0.05, 0.12), lc);
+					nrm = mix(nrm, vec3(0, 0.5, 0.6), lc);
 					emi = mix(emi, vec3(0, 0, 0), lc);
-					mat = mix(mat, vec4(0.5, 0, 1.6, 0.9), lc);
+					mat = mix(mat, vec4(0.5, 0, 1.2, 0.9), lc);
+					pale = mix(pale, 0, lc);
 					a = a + lc * (1 - a);
 					var best = vec4(0, 0, -1, 9), band = 0.0;
 					for (k in 0...5) {
 						var f = k / 4.0;
 						var c = mix(vec2(0.155, -0.03), vec2(0.1, -0.27), f) - trail * (0.2 * f * f);
-						var s = dome(b, c, vec2(0.1 - 0.05 * f, 0.075 - 0.02 * f), 0.12);
+						var s = dome(b, c, vec2(0.095 - 0.05 * f, 0.075 - 0.02 * f), 0.12);
 						best = vec4(best.xyz, min(best.w, s.w));
 						if (s.w < 0 && s.z > best.z) {
 							best = vec4(s.xyz, best.w);
@@ -290,73 +316,92 @@ final MothShader = shader({
 						}
 					}
 					var bc = cover(best.w, px);
-					var seam = smoothstep(0.55, 0.9, abs(band));
-					alb = mix(alb, mix(vec3(0.2, 0.15, 0.32), vec3(0.05, 0.03, 0.1), seam), bc);
+					var seam = smoothstep(0.6, 0.9, abs(band));
+					alb = mix(alb, mix(vec3(0.09, 0.07, 0.16) * (0.7 + 0.6 * noise2(b * 90)), vec3(0.02, 0.01, 0.05), seam), bc);
 					nrm = mix(nrm, best.xyz, bc);
-					emi = mix(emi, GLOWING * (seam * (0.55 + 0.25 * sin(t * 1.7 - b.y * 9))), bc);
-					mat = mix(mat, vec4(0.45, 0.1, 1.3, 1), bc);
+					emi = mix(emi, GLOWING * (seam * (0.6 + 0.3 * sin(t * 1.7 - b.y * 9))), bc);
+					mat = mix(mat, vec4(0.5, 0.05, 1.3, 1), bc);
+					pale = mix(pale, 0, bc);
 					a = a + bc * (1 - a);
-					var th = dome(b, vec2(0.17, 0.13), vec2(0.13, 0.18), -0.12);
-					var ang = atan2(b.y - 0.13, b.x - 0.17);
-					var fur = noise2(vec2(ang * 11, 1.3)) * 0.6 + noise2(vec2(ang * 31, 4.1)) * 0.4;
-					var tc = cover(th.w - 0.035 * (fur - 0.3), px);
+					var td = b - vec2(0.17, 0.13);
+					var along = dot(td, ALONG), across = dot(td, ACROSS);
+					var th = dome(b, vec2(0.17, 0.13), vec2(0.115, 0.17), -0.2);
+					// (strands lie along the body; tufts break its outline, most at its back)
+					var strand = noise2(vec2(across * 75, along * 11 + 3));
+					var tuft = noise2(vec2(across * 30 + 5, along * 6));
+					var tc = cover(th.w - 0.034 * (tuft - 0.3) * smoothstep(0.08, -0.12, along) - 0.012 * (strand - 0.5), px);
 					mat = vec4(mat.xyz, mat.w * (1 - 0.4 * smoothstep(0.06, 0.0, th.w) * (1 - tc)));
-					var strand = noise2(vec2(ang * 24, length(b - vec2(0.17, 0.13)) * 9));
-					alb = mix(alb, mix(vec3(0.16, 0.13, 0.26), vec3(0.8, 0.76, 0.9), strand * smoothstep(-0.5, 0.7, th.y + th.x * 0.5)), tc);
-					nrm = mix(nrm, vec3(th.xy + vec2(cos(ang), sin(ang)) * (strand - 0.5) * 0.5, th.z), tc);
-					emi = mix(emi, GLOWING * 0.03, tc);
-					mat = mix(mat, vec4(0.05, 0.12, 1.5, 1), tc);
+					alb = mix(alb, mix(vec3(0.05, 0.04, 0.1), vec3(0.62, 0.57, 0.8), smoothstep(0.45, 0.8, strand) * smoothstep(-0.7, 0.5, th.y + th.x * 0.4)), tc);
+					nrm = mix(nrm, vec3(th.xy + ACROSS * ((strand - 0.5) * 0.8), th.z), tc);
+					emi = mix(emi, vec3(0.34, 0.3, 0.52) * (smoothstep(0.45, 0.8, strand) * 0.4), tc);
+					mat = mix(mat, vec4(0.05, 0.08, 0.3 + 2.2 * noise2(vec2(along * 55, across * 9)), 1), tc);
+					pale = mix(pale, 0, tc);
 					a = a + tc * (1 - a);
-					var hd = dome(b, vec2(0.25, 0.3), vec2(0.078, 0.07), 0.3);
-					var hang = atan2(b.y - 0.3, b.x - 0.25);
-					var palp = segment(b, vec2(0.3, 0.28), vec2(0.325, 0.262)).x - 0.02;
-					var hc2 = cover(min(hd.w, palp) - 0.022 * (noise2(vec2(hang * 10, 2.2)) - 0.35), px);
+					var hd = dome(b, vec2(0.255, 0.31), vec2(0.066, 0.06), 0.3);
+					var hc2 = cover(hd.w - 0.014 * (noise2(b * 60) - 0.4), px);
 					mat = vec4(mat.xyz, mat.w * (1 - 0.4 * smoothstep(0.05, 0.0, hd.w) * (1 - hc2)));
-					alb = mix(alb, mix(vec3(0.1, 0.08, 0.18), vec3(0.42, 0.36, 0.58), smoothstep(-0.4, 0.8, hd.y) * (0.4 + 0.6 * noise2(b * 70))), hc2);
+					alb = mix(alb, vec3(0.05, 0.04, 0.1) + vec3(0.14, 0.12, 0.2) * (noise2(b * 80) * smoothstep(-0.2, 0.8, hd.y)), hc2);
 					nrm = mix(nrm, hd.xyz, hc2);
 					emi = mix(emi, vec3(0, 0, 0), hc2);
-					mat = mix(mat, vec4(0.05, 0.2, 1.4, 1), hc2);
+					mat = mix(mat, vec4(0.3, 0.05, 1.5 * smoothstep(-0.03, -0.005, hd.w), 1), hc2);
+					pale = mix(pale, 0, hc2);
 					a = a + hc2 * (1 - a);
+					// (the collar: a pale ruff where the head meets the thorax)
+					var cl = dome(b, vec2(0.212, 0.262), vec2(0.08, 0.026), -0.3);
+					var ruff = noise2(vec2(across * 60, 8.3));
+					var cc = cover(cl.w - 0.016 * (ruff - 0.4), px);
+					mat = vec4(mat.xyz, mat.w * (1 - 0.35 * smoothstep(0.04, 0.0, cl.w) * (1 - cc)));
+					alb = mix(alb, mix(vec3(0.3, 0.26, 0.45), vec3(0.8, 0.76, 0.92), ruff), cc);
+					nrm = mix(nrm, vec3(cl.xy + ACROSS * ((ruff - 0.5) * 0.6), cl.z), cc);
+					emi = mix(emi, vec3(0.4, 0.34, 0.6) * 0.12, cc);
+					mat = mix(mat, vec4(0.05, 0.1, 1.2, 1), cc);
+					pale = mix(pale, 0.6, cc);
+					a = a + cc * (1 - a);
 					// (a compound eye: a dark glossy dome, a violet spark deep in it)
-					var ey = dome(eye, vec2(0.02, -0.002), vec2(0.03, 0.034), 0.2);
+					var ey = dome(eye, vec2(0.02, -0.002), vec2(0.032, 0.036), 0.2);
 					var ec = cover(ey.w, px);
-					alb = mix(alb, vec3(0.03, 0.02, 0.07), ec);
+					alb = mix(alb, vec3(0.02, 0.015, 0.05), ec);
 					nrm = mix(nrm, ey.xyz, ec);
-					emi = mix(emi, vec3(0, 0, 0), ec);
-					mat = mix(mat, vec4(2.2, 0, 0.5, 1), ec);
+					emi = mix(emi, GLOWING * (0.9 * smoothstep(0.014, 0.004, length(eye - vec2(0.029, 0.01)))), ec);
+					mat = mix(mat, vec4(2.4, 0, 0.35, 1), ec);
+					pale = mix(pale, 0, ec);
 				} else {
-					// (fur over the wing's root; the near antenna)
-					var tg = dome(b, vec2(0.165, 0.215), vec2(0.07, 0.085), 0.5);
-					var ang = atan2(b.y - 0.215, b.x - 0.165);
-					var fur = noise2(vec2(ang * 9, 7.3));
-					var gc = cover(tg.w - 0.03 * (fur - 0.4), px);
-					alb = mix(alb, mix(vec3(0.2, 0.16, 0.3), vec3(0.85, 0.8, 0.94), fur * smoothstep(-0.5, 0.7, tg.y)), gc);
-					nrm = mix(nrm, tg.xyz, gc);
-					emi = mix(emi, GLOWING * 0.03, gc);
-					mat = mix(mat, vec4(0.05, 0.12, 1.5, 1), gc);
+					// (a shoulder of fur over the wing's root; the near antenna)
+					var sd = b - vec2(0.16, 0.2);
+					var tg = dome(b, vec2(0.16, 0.2), vec2(0.05, 0.095), 0.35);
+					var fur = noise2(vec2(dot(sd, ACROSS) * 80, dot(sd, ALONG) * 10 + 7.3));
+					var gc = cover(tg.w - 0.022 * (noise2(vec2(dot(sd, ACROSS) * 34, 2.1)) - 0.3) * smoothstep(0.05, -0.08, dot(sd, ALONG)), px);
+					alb = mix(alb, mix(vec3(0.06, 0.05, 0.11), vec3(0.66, 0.6, 0.84), smoothstep(0.45, 0.8, fur) * smoothstep(-0.6, 0.6, tg.y)), gc);
+					nrm = mix(nrm, vec3(tg.xy + ACROSS * ((fur - 0.5) * 0.8), tg.z), gc);
+					emi = mix(emi, vec3(0.34, 0.3, 0.52) * (smoothstep(0.45, 0.8, fur) * 0.45), gc);
+					mat = mix(mat, vec4(0.05, 0.08, 0.3 + 2.2 * noise2(vec2(dot(sd, ALONG) * 55, 4.4)), 1), gc);
+					pale = mix(pale, 0, gc);
 					a = a + gc * (1 - a);
 					alb = mix(alb, vec3(0.86, 0.8, 0.96), ac);
 					nrm = mix(nrm, vec3(0, 0.25, 0.9), ac);
 					emi = mix(emi, vec3(0.6, 0.52, 0.9) * (0.15 + 0.25 * an.y), ac);
 					mat = mix(mat, vec4(0.1, 0.6, 1.3, 1), ac);
+					pale = mix(pale, 1, ac);
 					a = a + ac * (1 - a);
 				}
 			}
 			// (its own light on its body)
-			emi += alb * vec3(0.17, 0.14, 0.3);
+			emi += alb * vec3(0.17, 0.14, 0.3) * (0.3 + 0.7 * pale);
 		} else {
-			// (the caterpillar: twelve segments from its tail to its head, laid
+			// (the caterpillar: fourteen segments from its tail to its head, laid
 			// along the ground, a hump running up them as it crawls, its
-			// front raised to the light; asleep wound into a ring)
+			// front raised to the light; asleep wound into a ring, its back out)
 			var out = smoothstep(0, 1, p.view.color.x), crawl = p.view.color.y, moving = p.view.more.x, look = p.view.more.y;
 			gone = p.view.color.z;
+			if (q.y > 0 || abs(q.x) > 0.95) discard();
 			var ground = -0.8;
 			var op = vec2(-0.6, ground), cp = vec2(-0.02, ground + 0.1);
-			var best = vec4(0, 0, -1, 9), local = vec2(0, 0), which = 0.0, radius = 0.1;
-			var legs = 9.0, hairs = 9.0, tail = vec2(0, 0);
+			var best = vec4(0, 0, -1, 9), local = vec2(0, 0), which = 0.0;
+			var legs = 9.0, hairs = vec2(9.0, 0), tail = vec2(0, 0);
 			for (k in 0...14) {
 				var f = k / 13.0;
-				var r = k == 13 ? 0.08 : 0.085 + 0.04 * sin(f * 2.5 + 0.35);
+				// (thickest behind its middle, the three by its head slighter)
+				var r = k == 13 ? 0.08 : 0.072 + 0.036 * sin(f * 2.6 + 0.3) - (k > 9 ? 0.012 : 0.0);
 				var wave = 0.5 + 0.5 * sin(crawl * 7.5 - f * 5.5);
 				var hump = moving * wave * wave * sin(f * 3.14159);
 				var front = smoothstep(0.55, 1.0, f);
@@ -364,28 +409,38 @@ final MothShader = shader({
 				var along = vec2(op.x, ground + r + hump * 0.085 + rise);
 				var curl = 0.3 + 0.48 * k;
 				var c = mix(cp, along, out);
-				var s = dome(q, c, vec2(r, r), 0);
+				// (each a dome shorter than it is tall, so they part at deep creases)
+				var ang = (curl + 3.14159) * (1 - out);
+				var s = dome(q, c, vec2(k == 13 ? r : 0.076, r), ang);
 				best = vec4(best.xyz, min(best.w, s.w));
 				if (s.w < 0 && s.z > best.z) {
+					var d = q - c, co = cos(ang), si = sin(ang);
 					best = vec4(s.xyz, best.w);
-					local = (q - c) / r;
+					local = vec2((d.x * co + d.y * si) / (k == 13 ? r : 0.076), (d.y * co - d.x * si) / r);
 					which = k;
-					radius = r;
 				}
 				if (k == 0) tail = c;
 				if (k > 0 && k < 13) {
-					// (a foot under it: short and thick behind, thin at the
-					// front three; fine hairs on its back, leaning with its way)
+					// (thin jointed legs under the three by its head, four pairs
+					// of thick feet under its middle, a clasper at its tail)
 					var step = 0.03 * sin(crawl * 7.5 - f * 5.5 + 1.2) * moving;
-					var foot = segment(q, c + vec2(0, -r * 0.6), vec2(c.x + step, ground - 0.005 + hump * 0.05 + rise * 0.7)).x - (k > 9 ? 0.01 : (k % 2 == 0 && k < 9 ? 0.022 : -1.0));
+					var foot = segment(q, c + vec2(0, -r * 0.6), vec2(c.x + step + (k > 9 ? 0.025 : 0.0), ground - 0.005 + hump * 0.05 + rise * 0.7)).x
+						- (k > 9 ? 0.009 : ((k >= 3 && k <= 6) || k == 1 ? 0.025 : -1.0));
 					legs = min(legs, foot + (1 - out) * 0.2);
-					var h1 = hash2(vec2(k, 3.7)), h2 = hash2(vec2(k, 9.1));
-					var lean = mix(curl + 1.57, 1.57, out);
+					// (two bristles on its back, fanned, tapering, leaning back as it goes)
 					for (j in 0...2) {
-						var ha = lean + (j == 0 ? 0.5 + 0.5 * h1 : -0.2 - 0.6 * h2) + 0.25 * sin(t * 1.3 + k);
+						var ha = ang + 1.5708 + (j - 0.5) * 0.7 + (hash2(vec2(k, j + 3.7)) - 0.5) * 0.5 + 0.18 * sin(t * 1.3 + k + j * 2.1) + 0.3 * moving;
 						var dir = vec2(cos(ha), sin(ha));
-						hairs = min(hairs, segment(q, c + dir * (r * 0.9), c + dir * (r + 0.07 + 0.06 * (j == 0 ? h2 : h1)) + vec2(-0.03 * moving, 0)).x - 0.004);
+						var hr = segment(q, c + dir * (r * 0.85), c + dir * (r + 0.03 + 0.08 * hash2(vec2(k + 0.5, j + 9.1))));
+						var hd = hr.x - 0.0055 * (1 - 0.8 * hr.y);
+						if (hd < hairs.x) hairs = vec2(hd, hr.y);
 					}
+				}
+				if (k == 13) {
+					// (two short feelers at its mouth)
+					var fd = min(segment(q, c + vec2(0.05, -0.03), c + vec2(0.115, -0.045)).x, segment(q, c + vec2(0.04, -0.045), c + vec2(0.1, -0.075)).x) - 0.005
+						+ (1 - out) * 0.2;
+					if (fd < hairs.x) hairs = vec2(fd, 0.5);
 				}
 				op = op + vec2(0.088 * (1 - 0.3 * hump) * (1 - 0.25 * rise), 0);
 				cp = cp + vec2(cos(curl), sin(curl)) * 0.1;
@@ -394,57 +449,81 @@ final MothShader = shader({
 			var hornTip = tail + mix(vec2(-0.06, 0.1), vec2(-0.12, 0.2), out);
 			var horn = segment(q, tail + vec2(-0.02, 0.05), hornTip);
 			var hornC = cover(min(horn.x - 0.02 * (1 - 0.75 * horn.y), length(q - hornTip) - 0.016), px);
-			alb = mix(alb, vec3(0.12, 0.08, 0.2), hornC);
+			alb = mix(alb, vec3(0.06, 0.04, 0.1), hornC);
+			nrm = mix(nrm, vec3(0.3, 0.8, 0.3), hornC);
 			emi = mix(emi, EMBER * (pow(horn.y, 4) * 3.0 * (0.75 + 0.25 * sin(t * 1.7))), hornC);
-			mat = mix(mat, vec4(0.4, 0, 1.4, 1), hornC);
+			mat = mix(mat, vec4(0.4, 0, 1.2, 1), hornC);
 			a = a + hornC * (1 - a);
-			var hairC = cover(hairs, px) * 0.75;
-			alb = mix(alb, vec3(0.6, 0.55, 0.8), hairC);
-			mat = mix(mat, vec4(0, 0.8, 2.2, 1), hairC);
+			var hairC = cover(hairs.x, px);
+			alb = mix(alb, vec3(0.3, 0.27, 0.45), hairC);
+			nrm = mix(nrm, vec3(0.3, 0.8, 0.3), hairC);
+			emi = mix(emi, LILAC * (0.06 + 0.3 * hairs.y * hairs.y), hairC);
+			mat = mix(mat, vec4(0, 0.4, 0.8, 1), hairC);
 			a = a + hairC * (1 - a);
 			var legC = cover(legs, px);
-			alb = mix(alb, vec3(0.1, 0.07, 0.17), legC);
+			alb = mix(alb, vec3(0.05, 0.04, 0.09), legC);
+			nrm = mix(nrm, vec3(0.3, 0.8, 0.3), legC);
 			emi = mix(emi, vec3(0, 0, 0), legC);
-			mat = mix(mat, vec4(0.3, 0, 1.2, 0.8), legC);
+			mat = mix(mat, vec4(0.3, 0, 0.3, 0.8), legC);
 			a = a + legC * (1 - a);
 			var bc = cover(best.w, px);
-			// (its skin: dusk on its back, darker at each segment's rear, a
-			// pale line along its side, and under it a light in each segment
-			// that runs up its length; its head a dark glossy capsule)
-			var head = which > 12.5 ? 1.0 : 0.0;
-			var skin = mix(vec3(0.5, 0.45, 0.68), vec3(0.2, 0.15, 0.36), smoothstep(0.2, 0.75, local.y));
-			skin = mix(skin, vec3(0.88, 0.84, 0.95), smoothstep(0.14, 0.04, abs(local.y + 0.12)) * 0.85);
-			skin = mix(skin, vec3(0.2, 0.16, 0.32), smoothstep(-0.25, -0.75, local.y) * 0.8);
-			skin = mix(skin, vec3(0.1, 0.07, 0.2), smoothstep(0.2, 0.75, abs(local.x)) * smoothstep(-0.1, 0.4, local.y) * 0.85);
-			skin *= (0.75 + 0.5 * noise2(q * 60)) * (1 - 0.45 * smoothstep(0.55, 0.95, abs(local.x)));
-			var spot = smoothstep(0.2, 0.06, length(local - vec2(0.05, -0.36))) * (0.5 + 0.5 * cos(which * 3.14159));
-			var pulse = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(t * 2.2 - which * 0.6), 2);
-			alb = mix(alb, mix(skin, mix(vec3(0.5, 0.32, 0.42), vec3(0.03, 0.02, 0.05), smoothstep(0.03, -0.03, length(local - vec2(0.5, 0.0)) - 0.12)), head), bc);
+			// (its hide: dark, a paler speckled plate on each segment's back, a
+			// wart where its bristles root, the belly darkest, the creases
+			// deep; behind the head a pale hard shield, the moth's collar)
+			var head = which > 12.5 ? 1.0 : 0.0, shield = which > 11.5 ? 1.0 - head : 0.0;
+			var grit = noise2(q * 70) * 0.6 + noise2(q * 190) * 0.4;
+			var crease = smoothstep(0.33, 0.58, abs(local.x));
+			var skin = mix(vec3(0.05, 0.04, 0.1), vec3(0.26, 0.22, 0.4), smoothstep(0.05, 0.6, local.y) * (1 - crease) * (0.2 + 1.0 * grit));
+			skin = mix(skin, vec3(0.5, 0.45, 0.7), smoothstep(0.17, 0.07, length(local - vec2(0.0, 0.66))) * 0.7);
+			skin = mix(skin, vec3(0.5, 0.46, 0.7) * (0.6 + 0.6 * grit), shield * smoothstep(-0.05, 0.3, local.y) * (1 - crease));
+			skin = mix(skin, vec3(0.02, 0.015, 0.04), smoothstep(-0.35, -0.8, local.y) * 0.8) * (1 - 0.6 * crease);
+			// (its own light: a spot on each segment's side, running from tail
+			// to head, violet deep in the creases of its back)
+			var spot = smoothstep(0.14, 0.07, length(local - vec2(0.0, -0.22)));
+						var pulse = 0.5 + 0.5 * pow(0.5 + 0.5 * sin(t * 2.2 - which * 0.6), 2);
+			var marks = LILAC * (spot * 3.2 * pulse) + GLOWING * (smoothstep(0.44, 0.58, abs(local.x)) * smoothstep(-0.1, 0.5, local.y) * (0.5 + 0.4 * pulse));
+			// (the head: a dark glossy capsule, a pale band over its crown,
+			// three small eyes in an arc)
+			var crown = smoothstep(0.08, 0.03, abs(length(local - vec2(-0.55, -0.25)) - 1.0)) * smoothstep(-0.5, 0.0, local.y);
+			var eyes = min(length(local - vec2(0.5, 0.1)), min(length(local - vec2(0.64, -0.12)), length(local - vec2(0.5, -0.34))));
+			var face = mix(vec3(0.06, 0.045, 0.11), vec3(0.55, 0.5, 0.72), crown * 0.8);
+			alb = mix(alb, mix(skin, face, head), bc);
 			nrm = mix(nrm, best.xyz, bc);
-			emi = mix(emi, GLOWING * (spot * pulse * (1 - head) * 1.2) + mix(skin * vec3(0.6, 0.5, 1.0) * 0.3, vec3(0.1, 0.06, 0.1), head), bc);
-			mat = mix(mat, mix(vec4(0.35, 0.18, 1.3, 1), vec4(0.9, 0, 1.4, 1), head), bc);
+			emi = mix(emi, mix(marks + skin * vec3(0.6, 0.5, 1.0) * 0.2, LILAC * (smoothstep(0.13, 0.06, eyes) * 1.4) + vec3(0.3, 0.26, 0.46) * (crown * 0.35), head), bc);
+			mat = mix(mat, mix(vec4(0.3, 0.06, 1.4, 1), vec4(1.3, 0, 1.6, 1), max(head, shield * 0.6)), bc);
 			a = a + bc * (1 - a);
 		}
 		if (a <= 0.004) discard();
-		// (the light: the six about it, the key in two soft steps, through
-		// what is thin, a rim from beside and behind, a glint)
+		a *= 1 - gone;
+		// (only where it is: the finish leaves it be)
+		if (p.view.keyColor.w > 0.5) return vec4(0, 0, 0, a);
+		// (the light: the six about it and the key in two hard steps; what
+		// is pale takes a light's tint, never its flood; through what is
+		// thin; a glint; and the rim, a crisp band of what glows beside and
+		// behind in its own colour, on bodies kept dark for it)
 		var n = normalize(nrm);
 		var co = cos(theta), si = sin(theta);
 		n = vec3((n.x * co - n.y * si) * facing, n.x * si + n.y * co, n.z);
 		var kd = p.view.key.xyz, kc = p.view.keyColor.xyz;
 		var ndl = dot(n, kd);
-		var ramp = smoothstep(-0.2, 0.05, ndl) * 0.5 + smoothstep(0.3, 0.5, ndl) * 0.5;
+		var ramp = smoothstep(-0.08, 0.06, ndl) * 0.45 + smoothstep(0.38, 0.5, ndl) * 0.55;
 		var ambient = vec3(0.02, 0.024, 0.06) * (0.7 + 0.3 * n.y);
-		var light = ambient + around(n, p.view.cube[0], p.view.cube[1], p.view.cube[2], p.view.cube[3], p.view.cube[4], p.view.cube[5]) * 0.5 + kc * ramp;
+		var lit = around(n, p.view.cube[0], p.view.cube[1], p.view.cube[2], p.view.cube[3], p.view.cube[4], p.view.cube[5]) * 0.5 + kc * ramp;
+		var grey = dot(lit, vec3(0.3, 0.5, 0.2));
+		lit = mix(lit, vec3(grey), 0.55 * pale) / (1 + grey * 1.6 * pale) * mix(0.6, 1.0, pale);
+		var light = ambient + lit;
 		var through = around(-n, p.view.cube[0], p.view.cube[1], p.view.cube[2], p.view.cube[3], p.view.cube[4], p.view.cube[5]) * 0.5 + kc * smoothstep(0.0, -0.6, ndl);
 		// (what comes through is paler than what it came from)
-		through = mix(through, vec3(dot(through, vec3(0.3, 0.5, 0.2))), 0.5);
-		var edge = pow(1 - clamp(n.z, 0, 1), 2.0);
-		var beside = normalize(vec3(n.xy, -0.55));
-		var rim = around(beside, p.view.cube[0], p.view.cube[1], p.view.cube[2], p.view.cube[3], p.view.cube[4], p.view.cube[5]) * 2.4 + kc * max(dot(beside, kd), 0) + vec3(0.03, 0.06, 0.13) * (0.5 + 0.5 * n.y);
+		grey = dot(through, vec3(0.3, 0.5, 0.2));
+		through = mix(through, vec3(grey), 0.6) / (1 + grey * 1.6 * pale);
+		var edge = mix(smoothstep(0.5, 0.66, 1 - clamp(n.z, 0, 1)), pow(1 - clamp(n.z, 0, 1), 2.0), pale);
+		var beside = normalize(vec3(n.xy, -0.45));
+		var glow = around(beside, p.view.cube[0], p.view.cube[1], p.view.cube[2], p.view.cube[3], p.view.cube[4], p.view.cube[5]) * 1.2 + kc * (smoothstep(0.15, 0.6, dot(beside, kd)) * 2.6);
+		grey = dot(glow, vec3(0.3, 0.5, 0.2));
+		glow = max(mix(vec3(grey), glow, mix(1.5, 0.5, pale)), vec3(0, 0, 0)) * mix(1.0, 0.6, pale) + vec3(0.03, 0.06, 0.14) * (0.5 + 0.5 * n.y);
 		var glint = pow(max(dot(n, normalize(kd + vec3(0, 0, 1))), 0), 48) * mat.x;
-		var color = alb * (light * mat.w + through * mat.y) + (alb * 0.6 + vec3(0.4)) * rim * (edge * mat.z) + (kc + vec3(0.05, 0.06, 0.1)) * glint + emi;
-		a *= 1 - gone;
+		var color = alb * (light * mat.w + through * mat.y) + mix(vec3(1, 1, 1), alb * 0.6 + vec3(0.4), pale) * glow * (edge * mat.z)
+			+ (kc + vec3(0.05, 0.06, 0.1)) * glint + emi;
 		return vec4(color * a, a);
 	}
 });

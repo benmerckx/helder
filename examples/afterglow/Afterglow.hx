@@ -47,6 +47,8 @@ class Afterglow {
 	// how much farther a glow reaches a character than the stone, and how much brighter
 	static inline var REACH = 1.8;
 	static inline var GAIN = 4.5;
+	// the moth drawn larger than it plays, about its feet: its detail on a phone
+	static inline var DRAW = 1.3;
 
 	final device:Device;
 	final renderer:Renderer;
@@ -67,6 +69,7 @@ class Afterglow {
 	// the characters alone, in their poses at a few sizes (-- --sheet)
 	public var sheet = false;
 	final sheetBytes:Array<Bytes> = [];
+	final sheetMask:Array<Bytes> = [];
 
 	final paint:Pipeline;
 	final mirrored:Pipeline;
@@ -74,6 +77,7 @@ class Afterglow {
 	final water:Pipeline;
 	final aura:Pipeline;
 	final moth:Pipeline;
+	final mask:Pipeline;
 	final motes:Pipeline;
 	final beams:Pipeline;
 	final glyphs:Pipeline;
@@ -110,6 +114,8 @@ class Afterglow {
 	final mothMirror = Bytes.alloc(MothShader.uniforms[0].size);
 	final larvaBytes = Bytes.alloc(MothShader.uniforms[0].size);
 	final larvaMirror = Bytes.alloc(MothShader.uniforms[0].size);
+	final mothMask = Bytes.alloc(MothShader.uniforms[0].size);
+	final larvaMask = Bytes.alloc(MothShader.uniforms[0].size);
 	final glyphBytes = Bytes.alloc(GlyphShader.uniforms[0].size);
 	final finishBytes = Bytes.alloc(FinishShader.uniforms[0].size);
 
@@ -163,7 +169,10 @@ class Afterglow {
 		var finish = post.add(FinishShader, finishBytes);
 		var grain = device.createTexture({width: 256, height: 256, data: noise()});
 		var tiled = device.createSampler({filter: Linear, wrap: Repeat});
-		finish.bind = enc -> enc.setTexture(FinishShader.textures[1].binding, grain, tiled);
+		finish.bind = enc -> {
+			enc.setTexture(FinishShader.textures[1].binding, grain, tiled);
+			enc.setTexture(FinishShader.textures[2].binding, resolved, linear);
+		};
 		eye = world.node("eye");
 		camera = Camera.attach(eye, Camera.perspective(1, 0.1, 200));
 		game = new Game(still(aspect));
@@ -175,6 +184,8 @@ class Afterglow {
 		water = renderer.createPipeline(WaterShader.pipeline({cull: Cull.None, depthCompare: Less, depthWrite: true}));
 		aura = renderer.createPipeline(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		moth = renderer.createPipeline(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
+		// (the characters once more, only into the target's alpha: where the finish leaves the frame be)
+		mask = renderer.createPipeline(MothShader.pipeline({blend: Additive, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		motes = renderer.createPipeline(MoteShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		beams = renderer.createPipeline(BeamShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		glyphs = renderer.createPipeline(GlyphShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
@@ -231,10 +242,12 @@ class Afterglow {
 		renderer.inject(AfterOpaque, (enc, frame) -> {
 			if (sheet) {
 				enc.setVertexBuffer(0, quad);
-				enc.setPipeline(aura);
-				for (b in sheetBytes) {
-					enc.setUniforms(MothShader.uniforms[0].binding, b);
-					enc.draw(6);
+				for (masked in [false, true]) {
+					enc.setPipeline(masked ? mask : aura);
+					for (b in (masked ? sheetMask : sheetBytes)) {
+						enc.setUniforms(MothShader.uniforms[0].binding, b);
+						enc.draw(6);
+					}
 				}
 				return;
 			}
@@ -255,6 +268,11 @@ class Afterglow {
 				enc.draw(glyphCount);
 			}
 			creatures(enc, aura, auraBytes, larvaBytes, mothBytes);
+			enc.setPipeline(mask);
+			enc.setUniforms(MothShader.uniforms[0].binding, larvaMask);
+			enc.draw(6);
+			enc.setUniforms(MothShader.uniforms[0].binding, mothMask);
+			enc.draw(6);
 			enc.setPipeline(motes);
 			enc.setUniforms(MoteShader.uniforms[0].binding, mothBytes);
 			enc.setVertexBuffer(0, moteVertices);
@@ -501,13 +519,15 @@ class Afterglow {
 		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 0);
 		w.color = VIOLET * 0.6;
 		both(w, viewProj, mirrorProj, auraBytes, auraMirror);
-		w.right = new Vec4(right.x, right.y, right.z, Ruins.MOTH * 1.5);
-		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 1);
+		var drawn = mothAt + up.xyz * (0.6 * Ruins.MOTH * (DRAW - 1));
+		w.right = new Vec4(right.x, right.y, right.z, Ruins.MOTH * 1.5 * DRAW);
+		w.moth = new Vec4(drawn.x, drawn.y, drawn.z, 1);
 		w.color = new Vec4(fly.fly, fly.phase, fly.tilt, fly.turn);
 		w.more = new Vec4(fly.trailX * fly.facing, fly.trailY, fly.settle, fly.reach);
 		lights(w, mothAt, right.xyz, up.xyz, back, null);
-		w.key = new Vec4(w.key.x, w.key.y, w.key.z, pixel * length(mothAt - from) / Ruins.MOTH);
+		w.key = new Vec4(w.key.x, w.key.y, w.key.z, pixel * length(drawn - from) / (Ruins.MOTH * DRAW));
 		both(w, viewProj, mirrorProj, mothBytes, mothMirror);
+		only(w, viewProj, mothMask);
 		var dt = clamp(t - before, 0, 0.1), ease = 1 - Math.exp(-dt * 9);
 		before = t;
 		if (fresh) ease = 1;
@@ -522,6 +542,7 @@ class Afterglow {
 		lights(w, larvaAt, right.xyz, up.xyz, back, mothAt);
 		w.key = new Vec4(w.key.x, w.key.y, w.key.z, pixel * length(larvaAt - from) / Ruins.LARVA);
 		both(w, viewProj, mirrorProj, larvaBytes, larvaMirror);
+		only(w, viewProj, larvaMask);
 
 		var g = glyphView;
 		g.viewProj = viewProj;
@@ -635,10 +656,10 @@ class Afterglow {
 		var x = -5.2;
 		for (k in [1.0, 0.6, 0.36]) {
 			var low = 0.15 - (m * 0.6 - l * 0.8) * k;
-			list.push([x, 0.15, m * k, 1, 0, 0, 0, 1, 0, 0, 0, 0]);
+			list.push([x, 0.15 + m * k * 0.6 * (DRAW - 1), m * k * DRAW, 1, 0, 0, 0, 1, 0, 0, 0, 0]);
 			list.push([x + 1.2 * k, low, l * k, 2, 1, 0.2, 0, 1, 1, 0, 0, 0]);
 			list.push([x + 2.3 * k, low, l * k, 2, 0, 0, 0, 1, 0, 0, 0, 0]);
-			list.push([x + 3.5 * k, 0.45, m * k, 1, 1, 0.9, 0.15, -1, 0.2, 0, 0, 0]);
+			list.push([x + 3.5 * k, 0.45, m * k * DRAW, 1, 1, 0.9, 0.15, -1, 0.2, 0, 0, 0]);
 			x += 4.6 * k + 0.5;
 		}
 		// (lit as under a lantern up behind them to the left, moss below, a blue cap to the right)
@@ -647,7 +668,10 @@ class Afterglow {
 		var from = camera.eye();
 		for (k in 0...list.length) {
 			var e = list[k];
-			if (k == sheetBytes.length) sheetBytes.push(Bytes.alloc(MothShader.uniforms[0].size));
+			if (k == sheetBytes.length) {
+				sheetBytes.push(Bytes.alloc(MothShader.uniforms[0].size));
+				sheetMask.push(Bytes.alloc(MothShader.uniforms[0].size));
+			}
 			mothView.viewProj = viewProj;
 			mothView.right = new Vec4(right.x, right.y, right.z, e[3] > 0.5 ? e[2] * 1.5 : e[2]);
 			mothView.up = up;
@@ -657,6 +681,9 @@ class Afterglow {
 			mothView.key = new Vec4(0, 0, 1, pixel * length(new Vec3(e[0], e[1], Puzzle.FLY) - from) / e[2]);
 			rig(mothView, cube, normalize(new Vec3(-0.6, 0.55, -0.58)), mg * 0.22);
 			MothShader.params.view.write(mothView, sheetBytes[k]);
+			// (the aura's quad is no character: nothing of it in the mask)
+			mothView.right = new Vec4(right.x, right.y, right.z, e[3] > 0.5 ? e[2] * 1.5 : 0);
+			only(mothView, viewProj, sheetMask[k]);
 		}
 	}
 
@@ -681,6 +708,13 @@ class Afterglow {
 	// a lantern's light: asleep, an ember breathing (something to wake); awake, full
 	static function ember(light:Float, t:Float):Float
 		return 0.06 + 0.05 * Math.sin(t * 1.6) + light;
+
+	// a character's block for the mask: its shapes, no light
+	static function only(w:MothView, viewProj:Mat4, into:Bytes) {
+		w.viewProj = viewProj;
+		w.keyColor = new Vec4(0, 0, 0, 1);
+		MothShader.params.view.write(w, into);
+	}
 
 	static function both(w:MothView, viewProj:Mat4, mirrorProj:Mat4, into:Bytes, mirror:Bytes) {
 		w.viewProj = viewProj;

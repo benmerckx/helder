@@ -26,7 +26,8 @@ final FinishShader = shader({
 	vertex: function(v:FinishVertex):FinishVaryings
 		return {clip: position(vec4(v.pos, 0, 1))},
 	// noise: Afterglow's (it tiles): r, g two smooth noises, b a cloudier one, a a fine one
-	fragment: function(i:FinishVaryings, p:{view:FinishView, frame:Texture2D, noise:Texture2D}):Vec4 {
+	// mask: the scene before the chain, its alpha over 1 where a character is
+	fragment: function(i:FinishVaryings, p:{view:FinishView, frame:Texture2D, noise:Texture2D, mask:Texture2D}):Vec4 {
 		var k = p.view.size.z;
 		var pt = i.clip.xy / k;
 		// (a hand's edge: where the frame is read wanders)
@@ -49,6 +50,10 @@ final FinishShader = shader({
 		// (the brush's dabs, short strokes across; the paper's tooth)
 		var tooth = sample(p.noise, pt / 256).w * 0.6 + quick.w * 0.4;
 		c *= 1 + ((broad.z - 0.5) * 0.5 + (tooth - 0.5)) * p.view.look.w * (1 - 0.6 * smoothstep(0.3, 0.9, lum));
+		// (the characters are left as drawn: crisp against the paint)
+		var here = i.clip.xy / p.view.size.xy;
+		var keep = clamp(max(sample(p.mask, here).w, sample(p.mask, at / p.view.size.xy).w) - 1, 0, 1);
+		c = mix(c, sample(p.frame, here).xyz, keep);
 		lum = dot(c, vec3(0.3, 0.5, 0.2));
 		c += vec3(0.07, 0.05, 0.17) * (pow(1 - clamp(lum, 0, 1), 4) * p.view.look.z);
 		c = mix(c, p.view.fade.xyz, p.view.fade.w);

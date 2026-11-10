@@ -109,27 +109,45 @@ the scene at that share of the screen's pixels each way (a slow device).
   catches. Then it is lit once: every glow in reach is summed on the CPU
   (Afterglow.lights, some 150 of them, nothing a pixel) into six lights
   along the camera's axes, so nothing pops as a character moves, and one
-  key light, where most of it comes from. The key falls in two soft
-  steps; what glows beside and behind gives the rim; a wing and the
-  caterpillar's skin let light through; what lies over something shades
-  it. Close by a lantern the sum is held to about its colour.
+  key light, where most of it comes from. The key falls in two hard
+  steps; a wing lets light through; what lies over something shades it.
+  Bodies are dark, so that the rim shows: a crisp band of what glows
+  beside and behind, in its own colour and more (a lantern's pink, the
+  cocoon's amber, the moss's green, the moth's violet). What is pale
+  (the wings, the antennae) takes a light's tint and never its flood: by
+  a lantern the moth is still a pale moth, with a pink rim on its body.
+  They are left out of the finish: drawn once more into the target's
+  alpha alone (the same shader, its shapes and no light: 1 everywhere
+  else, over 1 where a character is), which the finish reads to leave
+  those pixels as drawn, crisp against the paint. Where a quad is empty
+  nothing is worked out.
   - *The moth* is the reference's: side on, pale wings swept back like a
-    cape, feathered antennae in a V, a small furred body, a dark eye that
-    only glints; it is lit from within (violet between its abdomen's
-    segments, through its wings, most by the body). A wing is one plan
+    cape, feathered antennae in a V, a small dark body (fur combed back
+    along it, seen by its paler strands; a pale collar behind the head;
+    short jointed legs, the body low over them), a dark eye that only
+    glints; it is lit from within (violet between its abdomen's
+    segments, through its wings, most by the body). It is drawn 1.3 times
+    the size it plays at, about its feet (Afterglow.DRAW: some 190 pixels
+    with its antennae on a phone). A wing is one plan
     (root, apex, tornus: veins from the root, two wavering lines, a
     ringed spot, a scalloped hem with a fringe) laid on the screen along
     the body and out from it by how far it is raised: folded it lies
     back; beating it goes from over the back through edge on to under
     the body, quick down and slower up, its tip late, the hindwing after
-    the forewing, the far pair a little ahead, the body bobbing against
-    the stroke. At rest the wings breathe and now and then fan; taking
+    the forewing, the far pair a little ahead (its tip never through
+    edge on before its root: no fold), the body bobbing against the
+    stroke. At rest the wings breathe and now and then fan; taking
     off it dips first; landing it reaches down, dips on its legs and its
     wings flutter shut; turning it swings through edge on.
-  - *The caterpillar*: fourteen segments, a pale line and a light along
-    its side that runs from tail to head, dark saddles, fine hairs on its
-    back, short feet, a horn on its tail with an amber ember (its
-    cocoon's colour). It crawls as a hump running up its length, its
+  - *The caterpillar*: fourteen segments, each a dome shorter than it
+    is tall, so they part at deep creases; a dark hide with a paler
+    gritty plate on each back and a wart where two bristles root; thin
+    legs under the three by its head, four pairs of thick feet, a
+    clasper; a dark glossy head with three small eyes and a pale shield
+    behind it (the moth's collar); a horn on its tail with an amber ember
+    (its cocoon's colour). Its own light keeps it seen in the dark: a
+    spot on each segment's side, running from tail to head, and violet
+    deep in the creases of its back (the moth's abdomen). It crawls as a hump running up its length, its
     front raised to the light when it waits; asleep it is wound into a
     ring.
 - **Water**: the scene drawn mirrored into a target a third the size,
@@ -154,7 +172,7 @@ the scene at that share of the screen's pixels each way (a slow device).
   wide window more of the ruin beside it; the roots in front (a stage's
   wings) change with it.
 
-A frame is 15 passes and 34 draws over about 300,000 triangles (the
+A frame is 15 passes and 36 draws over about 300,000 triangles (the
 ruins 205,000, a screen about 95,000; 400,000 before faces looking away
 were left out). Meshing the ruins takes about 1.1 s at start; the first frame, which
 meshes the first screen and makes the pipelines, 1.3 s more (later
@@ -171,10 +189,13 @@ frame was 2.9 s when the far ruins were meshes. Headless on an M-series Mac
 | 5120 x 2880 | 40 ms | 33 ms |
 
 The characters (two quads whose every pixel lays down some forty
-shapes and is lit once) and their lights' sums add about 0.5 ms to a
-phone's frame (alternating runs of this and the pass before, the same
-script: 9.1 against 8.5 ms at 1170 x 2532, 7.3 against 6.8 at 1080 x
-1920; the table's figures are an earlier day's).
+shapes and is lit once) and their lights' sums added about 0.5 ms to a
+phone's frame (alternating runs, the same script: 9.1 against 8.5 ms at
+1170 x 2532; the table's figures are an earlier day's). The larger
+moth, their second draw into the alpha and the finish reading it add
+about 0.9 ms more (three alternating pairs at 1170 x 2532: 8.7, 9.1 and
+10.2 against 7.8, 8.2 and 8.5 ms; of it the second draw 0.2, the
+finish 0.15).
 
 The second column is the same run with the scene drawn at a tenth each
 way: the harness's reading back, the play and the finish; the difference
