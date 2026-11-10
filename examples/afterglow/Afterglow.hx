@@ -1,7 +1,8 @@
 // title: Afterglow
-// summary: Look development for a point-and-click: a tiny moth in overgrown ruins over still water, lit only by what lives there; a painted 2.5D diorama in helder.scene's HDR renderer, drawn small and finished in big dithered pixels
+// summary: Look development for a point-and-click: a tiny moth in overgrown ruins over still water, lit only by what lives there; a painted 2.5D diorama in helder.scene's HDR renderer, drawn at half size and finished in dithered, painted pixels
 // tags: 3d, shaders, post-processing
 // demo: canvas 360x640
+import BeamShader;
 import FinishShader;
 import MothShader;
 import PaintShader;
@@ -20,10 +21,10 @@ import helder.scene.render.*;
 // The frame: the ruins (Ruins, PaintShader) drawn upside down into a
 // small target for the water's mirror, then into the renderer's HDR
 // target (its BeforeOpaque and AfterOpaque injection points: the ruins,
-// then the water, the moth's aura, the moth and the motes), bloomed and
-// tone mapped by helder's PostProcess, all of it at a third of the
-// screen's size or so (a pixel scale: the shorter side about 360), and
-// shown in big pixels, dithered (FinishShader).
+// then the water, the shafts of light, the moth's aura, the moth and the
+// motes), bloomed and tone mapped by helder's PostProcess, all of it at
+// half the screen's size or so (a pixel scale: the shorter side about
+// 540), and shown in 2 x 2 pixels, dithered (FinishShader).
 //
 //   bun run helder run examples/afterglow
 //   bun run helder run --headless examples/afterglow --size 1080x1920 --snap out.png --at 4
@@ -42,6 +43,7 @@ class Afterglow {
 	final aura:Pipeline;
 	final moth:Pipeline;
 	final motes:Pipeline;
+	final beams:Pipeline;
 	final finish:Pipeline;
 
 	final ruinsVertices:Buffer;
@@ -51,6 +53,8 @@ class Afterglow {
 	final quad:Buffer;
 	final moteVertices:Buffer;
 	final moteCount:Int;
+	final beamVertices:Buffer;
+	final beamCount:Int;
 	final triangle:Buffer;
 	final lights:Texture;
 	final lightData = Bytes.alloc(32 * 16);
@@ -91,7 +95,7 @@ class Afterglow {
 	var time = 0.0;
 	var mothAt = new Vec3(0, 0, 0);
 
-	static inline var DENSITY = 0.028;
+	static inline var DENSITY = 0.04;
 
 	public function new(device:Device) {
 		this.device = device;
@@ -113,6 +117,7 @@ class Afterglow {
 		aura = renderer.createPipeline(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		moth = renderer.createPipeline(MothShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		motes = renderer.createPipeline(MoteShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
+		beams = renderer.createPipeline(BeamShader.pipeline({blend: Premultiplied, cull: Cull.None, depthCompare: Less, depthWrite: false}));
 		finish = device.createPipeline(FinishShader.pipeline({}));
 
 		var m = ruins.mesh;
@@ -137,6 +142,13 @@ class Afterglow {
 			for (c in corners)
 				drift.push(({corner: new Vec2(c[0], c[1]), seed: at} : MoteVertex));
 		}
+		var shafts:Array<BeamVertex> = [];
+		for (b in ruins.beams)
+			for (c in corners)
+				shafts.push(({corner: new Vec2(c[0], c[1]), at: b.at, shape: b.shape} : BeamVertex));
+		var bb = BeamShader.vertexBytes(shafts);
+		beamVertices = device.createBuffer({size: bb.length, usage: Vertex, data: bb});
+		beamCount = shafts.length;
 		var mb = MoteShader.vertexBytes(drift);
 		moteVertices = device.createBuffer({size: mb.length, usage: Vertex, data: mb});
 		moteCount = drift.length;
@@ -156,6 +168,10 @@ class Afterglow {
 			enc.setTexture(WaterShader.textures[0].binding, mirror, linear);
 			enc.setVertexBuffer(0, waterVertices);
 			enc.draw(6);
+			enc.setPipeline(beams);
+			enc.setUniforms(BeamShader.uniforms[0].binding, mothBytes);
+			enc.setVertexBuffer(0, beamVertices);
+			enc.draw(beamCount);
 			enc.setPipeline(aura);
 			enc.setUniforms(MothShader.uniforms[0].binding, auraBytes);
 			enc.setVertexBuffer(0, quad);
@@ -170,12 +186,13 @@ class Afterglow {
 		});
 	}
 
-	function ruinsDraw(enc:Encoder, view:Bytes) {
+	// (into the mirror: all but the far planes)
+	function ruinsDraw(enc:Encoder, view:Bytes, mirror = false) {
 		enc.setUniforms(PaintShader.uniforms[0].binding, view);
 		enc.setTexture(PaintShader.textures[0].binding, lights, nearest);
 		enc.setVertexBuffer(0, ruinsVertices);
 		enc.setIndexBuffer(ruinsIndices, UInt32);
-		enc.drawIndexed(ruins.common);
+		enc.drawIndexed(mirror ? ruins.mirrored : ruins.common);
 		if (wide) enc.drawIndexed(ruins.mesh.count - ruins.tall, 1, ruins.tall);
 		else enc.drawIndexed(ruins.tall - ruins.common, 1, ruins.common);
 	}
@@ -187,12 +204,13 @@ class Afterglow {
 			if (t != null) device.destroyTexture(t);
 		width = w;
 		height = h;
-		scale = Std.int(Math.max(1, Math.round(Math.min(w, h) / 360)));
+		scale = Std.int(Math.max(1, Math.round(Math.min(w, h) / 540)));
 		var sw = smallWidth(), sh = smallHeight();
 		color = device.createTexture({width: sw, height: sh, format: RGBA16F, renderTarget: true});
 		depth = device.createTexture({width: sw, height: sh, format: Depth32F, renderTarget: true});
-		mirror = device.createTexture({width: sw, height: sh, format: RGBA16F, renderTarget: true});
-		mirrorDepth = device.createTexture({width: sw, height: sh, format: Depth32F, renderTarget: true});
+		// (the mirror at half size: the water blurs it anyway)
+		mirror = device.createTexture({width: sw >> 1, height: sh >> 1, format: RGBA16F, renderTarget: true});
+		mirrorDepth = device.createTexture({width: sw >> 1, height: sh >> 1, format: Depth32F, renderTarget: true});
 		small = device.createTexture({width: sw, height: sh, format: RGBA8, renderTarget: true});
 	}
 
@@ -222,8 +240,9 @@ class Afterglow {
 		frame(aspect);
 		var viewProj = camera.viewProjection(aspect);
 		var from = camera.eye();
-		var bob = new Vec3(Math.sin(t * 0.9) * 0.04, Math.sin(t * 1.7) * 0.05 + Math.sin(t * 0.6) * 0.03, 0);
-		mothAt = ruins.moth + bob;
+		// (it stands on the ledge, facing into the room)
+		var facing = 1;
+		mothAt = ruins.moth;
 		lightCount = ruins.lightBytes(t, lightData);
 		device.writeTexture(lights, lightData);
 		var violet = new Vec4(0.62, 0.3, 1.0, 0);
@@ -254,9 +273,9 @@ class Afterglow {
 		MothShader.params.view.write(w, auraBytes);
 		w.viewProj = mirrorProj;
 		MothShader.params.view.write(w, auraMirror);
-		w.right = new Vec4(m.c0.x, m.c1.x, m.c2.x, 0.4);
-		w.moth = new Vec4(mothAt.x, mothAt.y + 0.06, mothAt.z, 1);
-		w.color = violet;
+		w.right = new Vec4(m.c0.x, m.c1.x, m.c2.x, Ruins.MOTH);
+		w.moth = new Vec4(mothAt.x, mothAt.y, mothAt.z, 1);
+		w.color = new Vec4(violet.x, violet.y, violet.z, facing);
 		MothShader.params.view.write(w, mothMirror);
 		w.viewProj = viewProj;
 		MothShader.params.view.write(w, mothBytes);
@@ -266,7 +285,7 @@ class Afterglow {
 		mirrorPass.depth.texture = mirrorDepth;
 		enc.beginPass(mirrorPass);
 		enc.setPipeline(mirrored);
-		ruinsDraw(enc, mirrorBytes);
+		ruinsDraw(enc, mirrorBytes, true);
 		enc.setVertexBuffer(0, quad);
 		enc.setPipeline(aura);
 		enc.setUniforms(MothShader.uniforms[0].binding, auraMirror);

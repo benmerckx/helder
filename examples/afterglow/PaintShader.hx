@@ -95,7 +95,9 @@ function glow(lights:Texture2D, count:Float, p:Vec3, n:Vec3):Vec3 {
 // stone blocks on a face: (albedo's shade, mortar's 0 to 1)
 function blocks(world:Vec3, n:Vec3, seed:Float):Vec2 {
 	var an = abs(n);
-	var uv = an.y > 0.7 ? world.xz : (an.x > an.z ? world.zy : world.xy);
+	var flat = an.y > 0.7 ? world.xz : (an.x > an.z ? world.zy : world.xy);
+	// (courses drawn by hand: wavering, blocks of uneven size)
+	var uv = flat + vec2(noise2(flat * 0.9 + vec2(seed)) - 0.5, noise2(flat * 1.3 + vec2(4.1, seed)) - 0.5) * 0.14;
 	var rowH = 0.3;
 	var row = floor(uv.y / rowH);
 	var w = 0.42 + 0.3 * hash2(vec2(row, seed + 5));
@@ -104,7 +106,7 @@ function blocks(world:Vec3, n:Vec3, seed:Float):Vec2 {
 	var f = vec2(fract(u / w) * w, fract(uv.y / rowH) * rowH);
 	var edge = min(min(f.x, w - f.x), min(f.y, rowH - f.y));
 	var chip = noise2(uv * 11) * 0.04;
-	var mortar = 1 - smoothstep(0.012, 0.035 + chip, edge);
+	var mortar = (1 - smoothstep(0.012, 0.035 + chip, edge)) * smoothstep(0.25, 0.5, noise2(uv * 2.7 + vec2(seed * 3)));
 	var lip = an.y > 0.7 ? 0 : smoothstep(0.06, 0.0, rowH - f.y) * (1 - mortar);
 	var shade = 0.6 + 0.6 * hash2(vec2(col, row) + vec2(seed * 7.1, 3));
 	return vec2(shade * (0.75 + 0.5 * fbm2(uv * 2.3)) + lip * 0.5, mortar);
@@ -112,7 +114,7 @@ function blocks(world:Vec3, n:Vec3, seed:Float):Vec2 {
 
 // the mist darkening as one looks up, the same on the ruins as behind them
 function high(d:Vec3):Float
-	return mix(1.0, 0.22, smoothstep(0.12, 0.6, d.y));
+	return mix(1.0, 0.45, smoothstep(0.3, 0.85, d.y));
 
 // the mist's colour as painted: mottled, slanted beams falling through it,
 // darker upwards, and glowing low in the deep distance (far at depth)
@@ -140,32 +142,36 @@ final PaintShader = shader({
 		var t = p.view.eye.w, seed = i.kind.z;
 		var albedo = vec3(0.1, 0.09, 0.16);
 		var emit = vec3(0, 0, 0);
+		var open = 1.0;
 		var detail = smoothstep(34, 10, dist);
 		if (kind == STONE) {
 			var b = blocks(i.world, n, seed);
 			var tone = mix(0.85, b.x, detail);
-			albedo = mix(vec3(0.05, 0.045, 0.1), vec3(0.13, 0.11, 0.22), clamp(tone - 0.35, 0, 1)) * (1 - b.y * 0.65 * detail);
+			albedo = mix(vec3(0.05, 0.045, 0.1), vec3(0.13, 0.11, 0.22), clamp(tone - 0.35, 0, 1)) * (1 - b.y * 0.45 * detail);
 			albedo *= 0.55 + 0.45 * smoothstep(-0.5, 3.5, i.world.y) * (0.7 + 0.6 * noise2(i.world.xy * 0.35 + vec2(seed)));
-			// (moss: on what faces up, and dripping from the solid's top down its faces)
-			var top = i.kind.y;
-			var cover = 0.0;
-			if (n.y > 0.55) cover = smoothstep(0.45, 0.62, fbm2(i.world.xz * 1.1 + vec2(seed * 5, 0)));
-			else {
-				var along = abs(n.x) > abs(n.z) ? i.world.z : i.world.x;
-				var strand = floor(along * 14);
-				var len = (0.03 + 0.9 * pow(hash2(vec2(strand, seed)), 5)) * smoothstep(0.35, 0.7, noise2(vec2(along * 0.9, seed * 3)));
-				var below = top - i.world.y;
-				cover = (below < len && below > -0.02) ? 1 : 0;
-				var tip = smoothstep(len - 0.12, len, below) * cover;
-				
-			}
-			var moss = mix(vec3(0.04, 0.08, 0.02), vec3(0.12, 0.24, 0.03), fbm2(i.world.xz * 6 + i.world.yy * 3));
+			// (moss: the mesh's share of it, its edge broken up; glowing specks in it)
+			var share = i.uv.y + (fbm2(i.world.xz * 4.5 + i.world.yy * 2.5 + vec2(seed)) - 0.5) * 0.6;
+			var cover = smoothstep(0.42, 0.56, share);
+			// (hanging from the top above, in strands of uneven length, in clumps; their tips glow)
+			var below = i.kind.y;
+			var along = abs(n.x) > abs(n.z) ? i.world.z : i.world.x;
+			var strand = floor(along * 26);
+			var clump = smoothstep(0.25, 0.7, noise2(vec2(along * 2.3, seed * 3)));
+			var len = (0.03 + 0.85 * pow(hash2(vec2(strand, seed)), 4)) * clump + 0.04;
+			var hang = (below < len && below > 0.03 && n.y < 0.35) ? 1 : 0;
+			var tip = smoothstep(len - 0.12, len, below) * hang;
+			cover = max(cover, hang);
+			var moss = mix(vec3(0.035, 0.07, 0.02), vec3(0.12, 0.24, 0.035), fbm2(i.world.xz * 6 + i.world.yy * 3));
 			albedo = mix(albedo, moss, cover);
-			var speck = step(0.985, hash2(floor(i.world.xz * 14) + vec2(floor(i.world.y * 14), seed)));
-			emit += acid() * (cover * (0.01 + speck * 1.2 * detail) * (0.75 + 0.25 * sin(t * 1.3 + seed * 9)));
+			var cell = i.world * 18;
+			var spot = length(fract(cell) - vec3(0.5));
+			var speck = step(0.93, hash2(floor(cell.xz) + floor(cell.yy) * 7.1 + vec2(seed))) * smoothstep(0.42, 0.15, spot);
+			var fringe = smoothstep(0.3, 0.45, share) * (1 - smoothstep(0.45, 0.6, share));
+			emit += acid() * ((cover * 0.012 + speck * cover * 0.9 * detail + fringe * 0.05 + tip * 0.35 * detail) * (0.75 + 0.25 * sin(t * 1.3 + seed * 9)));
+			open = i.uv.x;
 			// (the glyph: carved in a wall facing the eye, shown where the aura reaches it)
 			var g = i.world - p.view.glyph.xyz;
-			if (n.z > 0.7 && abs(g.z) < 0.08) {
+			if (n.z > 0.7 && abs(g.z) < 0.15) {
 				var q = g.xy / p.view.glyph.w;
 				var ring = abs(length(q - vec2(0, 0.1)) - 0.62);
 				var crescent = max(ring, -(length(q - vec2(0.28, 0.32)) - 0.5));
@@ -175,11 +181,13 @@ final PaintShader = shader({
 				var dots = min(length(q - vec2(0, 0.95)), min(length(q - vec2(-0.32, 0.86)), length(q - vec2(0.32, 0.86)))) - 0.06;
 				var sigil = min(min(min(crescent, stem), min(arm1, arm2)), dots);
 				var line = 1 - smoothstep(0.02, 0.05, sigil);
-				var near = length(i.world - p.view.moth.xyz) / p.view.moth.w;
-				var reveal = smoothstep(1.0, 0.45, near);
-				albedo *= 1 - line * 0.25;
-				emit += violet() * (line * reveal * 1.2 * (0.85 + 0.15 * sin(t * 2.1)));
-				emit += violet() * (line * 0.02);
+				// (a hairline in the stone until the moth comes near; then lit
+				// from its side first, a glow spilling about the line)
+				var near = length(i.world - p.view.moth.xyz);
+				var reveal = smoothstep(1.85, 1.05, near);
+				var halo = 1 - smoothstep(0.02, 0.16, sigil);
+				albedo *= 1 - line * 0.07;
+				emit += violet() * ((line * 1.6 + halo * 0.12) * reveal * reveal * (0.85 + 0.15 * sin(t * 2.1)));
 			}
 		} else if (kind == ROOT) {
 			// (bark: long fibres, knots, and a violet sheen only where the fibres catch it)
@@ -238,7 +246,10 @@ final PaintShader = shader({
 			var shafts = pow(noise2(vec2(x * 0.11 + y * 0.015, 0.5)), 3) * smoothstep(-5, 50, y) * smoothstep(110, 40, y);
 			var clouds = fbm2(vec2(x * 0.03, y * 0.06));
 			var deep = exp(-(x * x) / 2000) * exp(-max(y - 2, 0) / 22);
-			var c = fog(dir, 1) * (0.92 + clouds * 0.3 + shafts * 3 + deep * 2.5);
+			// (high up, a violet veil and the ghosts of taller ruins, upright streaks in the mist)
+			var ghosts = smoothstep(0.55, 0.8, noise2(vec2(x * 0.09, 0.2))) * smoothstep(20, 60, y) * smoothstep(100, 60, y);
+			var veil = exp(-((x - 10) * (x - 10)) / 900) * smoothstep(25, 70, y);
+			var c = fog(dir, 1) * (0.92 + clouds * 0.35 + shafts * 3 + deep * 2.5 - ghosts * 0.35) + vec3(0.03, 0.012, 0.06) * veil;
 			return vec4(c, 1);
 		}
 		// (light: a cool glow from the mist behind and above, the sky's ambient, the glows, the moth's aura)
@@ -246,11 +257,12 @@ final PaintShader = shader({
 		var rim = pow(1 - max(dot(n, -dir), 0), 3) * max(dot(n, back) * 0.5 + 0.5, 0);
 		var ambient = mix(vec3(0.03, 0.03, 0.07), vec3(0.12, 0.1, 0.26), n.y * 0.5 + 0.5) * 0.22;
 		var light = ambient + vec3(0.08, 0.16, 0.34) * (max(dot(n, back), 0) * 0.25 + rim * 0.9);
-		light += glow(p.lights, p.view.flags.y, i.world, n);
+		// (no glow reaches the far planes)
+		if (i.world.z > -20) light += glow(p.lights, p.view.flags.y, i.world, n);
 		var m = p.view.moth.xyz - i.world, md = length(m);
 		var auraFall = clamp(1 - md / p.view.moth.w, 0, 1);
 		light += p.view.aura.xyz * (auraFall * auraFall * (dot(n, m / max(md, 0.001)) * 0.5 + 0.5));
-		var color = albedo * light + emit;
+		var color = albedo * light * (0.2 + 0.8 * open) + emit;
 		var fogged = mix(color, fog(dir, smoothstep(14, 45, dist)) * 0.85, haze(dist, i.world.y, p.view.flags.z));
 		return vec4(fogged, 1);
 	}
