@@ -9,8 +9,9 @@ import helder.gfx.shader.ShaderMath.*;
 // The moth: a paper cutout seen side on, drawn from shapes as the
 // reference's moth is (its wings folded down and back like a cape, fern
 // antennae in a V, a round head with a dark eye, thin legs), breathing
-// where it stands; and its aura, a soft violet light about it (additive). Both are
-// a quad about the moth, spanned by the camera's right and up.
+// where it stands, its wings beating about the shoulder in flight; its
+// aura, a soft violet light about it (additive); and the snail. Each is a
+// quad about it, spanned by the camera's right and up.
 @:structInit @:publicFields class MothVertex {
 	var corner:Vec2;
 }
@@ -24,8 +25,11 @@ import helder.gfx.shader.ShaderMath.*;
 	var viewProj:Mat4;
 	var right:Vec4; // the camera's right, w: the quad's half size
 	var up:Vec4; // the camera's up, w: seconds
-	var moth:Vec4; // xyz: the moth, w: 0 its aura, 1 the moth
-	var color:Vec4; // rgb: the aura's colour, w: which way the moth faces (1: right, -1: left)
+	var moth:Vec4; // xyz: the moth, w: 0 its aura, 1 the moth, 2 the snail
+	// the aura: rgb its colour; the moth: x flying (0 standing, 1 in
+	// flight), y its wings' angle, z its lean; the snail: x how far out of
+	// its shell, y its crawl's phase, z gone home; w: which way it faces (1: right, -1: left)
+	var color:Vec4;
 }
 
 // an ellipse's distance (approximate) at q, radii r, turned by a
@@ -67,14 +71,19 @@ final MothShader = shader({
 			var a = exp(-r * r * 3.5) * 0.45 + exp(-r * r * 16) * 0.45;
 			return vec4(p.view.color.xyz * a, 0);
 		}
+		if (p.view.moth.w > 1.5) return snail(q, p.view.color, t);
 		// (side on, facing color.w: +1 right, -1 left; standing on its feet
-		// at the quad's foot, the wings folded down and back like a cape)
+		// at the quad's foot, the wings folded down and back like a cape;
+		// in flight leaning and its wings turning about the shoulder)
 		q = vec2(q.x * p.view.color.w, q.y);
+		var fly = p.view.color.x;
+		q = turn(q, vec2(0.15, -0.05), -p.view.color.z);
 		var shoulder = vec2(0.14, 0.2);
-		var breathe = 1 + 0.025 * sin(t * 1.4);
-		var wq = shoulder + (q - shoulder) / breathe;
+		var breathe = 1 + 0.025 * sin(t * 1.4) * (1 - fly);
+		var wq = shoulder + turn(q - shoulder, vec2(0, 0), -p.view.color.y) / breathe;
+		var fq = shoulder + turn(q - shoulder, vec2(0, 0), -p.view.color.y * 0.8) / breathe;
 		var near = nearWing(wq);
-		var far = farWing(wq);
+		var far = farWing(fq);
 		var body = ellipse(q, vec2(0.15, -0.1), vec2(0.075, 0.27), -0.08);
 		var head = length(q - vec2(0.27, 0.27)) - 0.105;
 		var eye = length(q - vec2(0.31, 0.275)) - 0.04;
@@ -84,8 +93,10 @@ final MothShader = shader({
 		var front = frond(q, vec2(0.3, 0.36), vec2(0.75 + sway, 0.78));
 		var fronds = min(back, front);
 		// (thin dark legs to the ground)
-		var legs = min(min(segment(q, vec2(0.08, -0.36), vec2(-0.16, -0.6)).x, segment(q, vec2(0.12, -0.38), vec2(0.0, -0.61)).x),
-			segment(q, vec2(0.18, -0.38), vec2(0.2, -0.6)).x) - 0.014;
+		// (tucked up in flight)
+		var tuck = vec2(-0.16, 0.12) * fly;
+		var legs = min(min(segment(q, vec2(0.08, -0.36), vec2(-0.16, -0.6) + tuck).x, segment(q, vec2(0.12, -0.38), vec2(0.0, -0.61) + tuck).x),
+			segment(q, vec2(0.18, -0.38), vec2(0.2, -0.6) + tuck).x) - 0.014;
 		var shape = min(min(min(near, far), min(body, head)), min(fronds, legs));
 		var edge = 0.012;
 		var a = 1 - smoothstep(-edge, edge, shape);
@@ -126,6 +137,51 @@ final MothShader = shader({
 		return vec4(c * 0.95 * a, a);
 	}
 });
+
+// q turned by a about c
+function turn(q:Vec2, c:Vec2, a:Float):Vec2 {
+	var d = q - c, co = cos(a), si = sin(a);
+	return c + vec2(d.x * co - d.y * si, d.x * si + d.y * co);
+}
+
+// the snail, side on, facing c.w: a spiral shell with a faint glowing
+// line (it reads in the dark), its soft body out of it by c.x, rippling
+// as it crawls (c.y), its eye stalks; fading as it goes home (c.z)
+function snail(p:Vec2, c:Vec4, t:Float):Vec4 {
+	var q = vec2(p.x * c.w, p.y);
+	var out = c.x, phase = c.y;
+	var ripple = sin(q.x * 14 - phase * 7) * 0.012 * out;
+	var tail = mix(-0.15, -0.78, out), head = mix(0.05, 0.6, out);
+	var body = segment(q, vec2(tail, -0.72 + ripple), vec2(head, -0.68)).x - mix(0.04, 0.1, out);
+	var hc = vec2(head + 0.02, -0.6);
+	var face = length(q - hc) - 0.13 * out;
+	var sway = sin(t * 1.3 + phase) * 0.04;
+	var tip1 = hc + vec2(0.16 + sway, 0.36) * out, tip2 = hc + vec2(0.04 + sway * 0.5, 0.33) * out;
+	var stalks = min(segment(q, hc, tip1).x, segment(q, hc, tip2).x) - 0.022 * out;
+	var eyes = min(length(q - tip1), length(q - tip2)) - 0.045 * out;
+	var soft = min(min(body, face), min(stalks, eyes));
+	var sc = vec2(-0.12, mix(-0.36, -0.3, out));
+	var r = 0.44;
+	var shell = length(q - sc) - r;
+	var shape = min(soft, shell);
+	var a = 1 - smoothstep(-0.015, 0.015, shape);
+	if (a <= 0.01) discard();
+	var col = vec3(0.5, 0.46, 0.62) * mix(0.8, 1.05, smoothstep(-0.8, -0.55, q.y));
+	if (eyes < 0) col = vec3(0.08, 0.05, 0.14);
+	var glow = vec3(0, 0, 0);
+	if (shell < 0) {
+		var d = (q - sc) / r;
+		var rho = length(d), th = atan2(d.y, d.x);
+		var v = fract(rho * 2.4 - th / 6.2832);
+		var line = 1 - smoothstep(0.05, 0.14, abs(v - 0.5));
+		col = mix(vec3(0.82, 0.64, 0.42), vec3(0.45, 0.28, 0.2), smoothstep(0.2, 1.0, rho)) * (0.85 + 0.15 * d.y);
+		col = mix(col, vec3(0.3, 0.17, 0.12), line * 0.7);
+		glow = vec3(0.2, 0.85, 0.75) * (line * smoothstep(1.0, 0.3, rho) * 0.5 * (0.8 + 0.2 * sin(t * 1.7)));
+		col *= 0.9 + 0.1 * smoothstep(-0.6, 0.4, d.x + d.y);
+	}
+	a *= 1 - c.z;
+	return vec4((col * 0.9 + glow) * a, a);
+}
 
 // the near wing, swept back and down from the shoulder to a long tip, its
 // hem scalloped

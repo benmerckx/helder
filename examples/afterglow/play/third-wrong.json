@@ -1,0 +1,18 @@
+{"events": [
+  {"t": 0.2, "type": "key", "name": "3"},
+  {"t": 1.6, "type": "tap", "x": 153, "y": 272},
+  {"t": 4.0, "type": "tap", "x": 365, "y": 481},
+  {"t": 5.4, "type": "tap", "x": 330, "y": 380},
+  {"t": 6.6, "type": "tap", "x": 365, "y": 481},
+  {"t": 7.4, "type": "mark", "name": "early"},
+  {"t": 10.0, "type": "mark", "name": "waiting"},
+  {"t": 10.2, "type": "tap", "x": 330, "y": 380},
+  {"t": 11.4, "type": "tap", "x": 365, "y": 481},
+  {"t": 15.5, "type": "mark", "name": "aboard"},
+  {"t": 16.0, "type": "tap", "x": 330, "y": 380},
+  {"t": 17.2, "type": "tap", "x": 365, "y": 481},
+  {"t": 20.5, "type": "mark", "name": "carried"},
+  {"t": 21.0, "type": "tap", "x": 52, "y": 320},
+  {"t": 25.0, "type": "mark", "name": "home"},
+  {"t": 26.0, "type": "mark", "name": "end"}
+]}

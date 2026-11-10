@@ -9,7 +9,8 @@ import helder.gfx.shader.ShaderMath.*;
 // The painted finish: the frame drawn small (Afterglow's pixel scale) is
 // shown in big pixels, its darks pulled towards indigo, its colours
 // posterized with an ordered dither (a pixel painter's grain) and a
-// slow, faint grain on top.
+// slow, faint grain on top; between screens, faded into the mist. The
+// last stage of PostProcess's chain (Afterglow: post.add).
 @:structInit @:publicFields class FinishVertex {
 	var pos:Vec2;
 }
@@ -21,6 +22,7 @@ import helder.gfx.shader.ShaderMath.*;
 @:structInit @:publicFields class FinishView {
 	var size:Vec4; // xy: the small frame's pixels, z: pixels a small pixel, w: seconds
 	var look:Vec4; // x: levels, y: the dither's strength, z: the indigo's share, w: grain
+	var fade:Vec4; // rgb: the mist faded into between screens, w: how far
 }
 
 function bayer2(a:Vec2):Float
@@ -41,6 +43,7 @@ final FinishShader = shader({
 		var lum = dot(c, vec3(0.3, 0.5, 0.2));
 		var indigo = vec3(0.07, 0.05, 0.17);
 		c = c + indigo * (pow(1 - lum, 4) * p.view.look.z);
+		c = mix(c, p.view.fade.xyz, p.view.fade.w);
 		var grain = (hash2(px + vec2(floor(p.view.size.w * 6) * 13.7, 0)) - 0.5) * p.view.look.w;
 		var levels = p.view.look.x;
 		var d = (bayer4(px) - 0.5) * p.view.look.y;

@@ -1,4 +1,5 @@
 import Builder;
+import Screens;
 import PaintShader.sway;
 import Sdf;
 import Stones;
@@ -8,11 +9,11 @@ import helder.gfx.shader.Vec4;
 
 // The diorama: overgrown ruins over still water, built once in code
 // (Stones' fields meshed by Builder) and painted by PaintShader. Near:
-// roots framing the view, the moth's ledge and the wall with its glyph, a
-// cliff of ledges stepping up and back; a great arch whose veins glow and
-// from which lanterns hang; behind it, aqueducts in planes receding into
-// the mist, each paler than the one before. The glows that light their
-// surroundings are lights.
+// roots framing the view, and each screen's stone and pieces (Screens);
+// a cliff of ledges stepping up and back; a great arch whose veins glow
+// and from which lanterns hang; behind it, aqueducts in planes receding
+// into the mist, each paler than the one before. The glows that light
+// their surroundings are lights.
 typedef Glow = {
 	var pos:Vec3;
 	var radius:Float;
@@ -22,45 +23,63 @@ typedef Glow = {
 	var ?seed:Float;
 }
 
+typedef Range = {first:Int, count:Int};
+
+// a screen as built: its stone, each piece's (as built: posed when
+// drawn), and its glows
+typedef Built = {mesh:Builder, stone:Range, pieces:Array<Range>, lights:Array<Glow>};
+
 class Ruins {
 	public static inline var MAX_LIGHTS = 32;
 	// the moth's half size (its quad's): it stands 1.2 of it tall
 	public static inline var MOTH = 0.45;
+	public static inline var SNAIL = 0.36;
 
-	public final mesh = new Builder();
+	// (the mesh being built: the common one, or a screen's while it is)
+	public var mesh(default, null) = new Builder();
 	public final lights:Array<Glow> = [];
 	public final beams:Array<{at:Vec4, shape:Vec4}> = [];
-	public final moth:Vec3;
-	public final glyph = new Vec4(-2.25, 1.85, -3.7, 0.42);
 	var state = 7;
 
-	// the index ranges: what the water mirrors, the far planes, then the
-	// roots of a phone's view, then a wide one's
-	public final mirrored:Int;
-	public final common:Int;
-	public final tall:Int;
+	// the index ranges: what the water mirrors (all but the far planes),
+	// the far planes, the roots of a phone's view, a wide one's, and each screen's
+	public final back:Range;
+	public final far:Range;
+	public final tall:Range;
+	public final wide:Range;
+	final screens:Array<Null<Built>> = [for (_ in Screens.all) null];
 
-	// (the near stone, the arch and the bridge: kept to set things on them)
-	var near:Field;
+	// (the cliff, the arch and the bridge: kept to set things on them)
 	var cliff:Field;
 	var arch:Field;
 	var bridge:Field;
 
 	public function new() {
 		stone();
-		// (standing on the ledge: its feet at the quad's 0.6 below its middle)
-		moth = new Vec3(-1.3, ground(near, -1.3, -2.6, 2) + 0.6 * MOTH + 0.03, -2.6);
 		great();
 		growth();
 		water();
 		sky();
 		shafts();
-		mirrored = mesh.count;
-		far();
-		common = mesh.count;
-		roots(false);
-		tall = mesh.count;
-		roots(true);
+		back = {first: 0, count: mesh.count};
+		distant();
+		far = {first: back.count, count: mesh.count - back.count};
+		tall = roots(false);
+		wide = roots(true);
+	}
+
+	// a screen as built: meshed the first time it is asked for (when it
+	// is about to be shown, under the mist between screens), into a mesh
+	// of its own, its randomness its own
+	public function screen(k:Int):Built {
+		if (screens[k] != null) return screens[k];
+		var common = mesh, kept = state;
+		mesh = new Builder();
+		state = 101 + k * 977;
+		var built = build(Screens.all[k], k);
+		mesh = common;
+		state = kept;
+		return screens[k] = built;
 	}
 
 	function rand():Float {
@@ -74,19 +93,10 @@ class Ruins {
 	function stone() {
 		var b = mesh;
 		b.kind = PaintShader.STONE;
-		// the moth's ledge (its lip over the water), the wall with the
-		// glyph, the ledge over it; stones fallen into the water
-		var calm = [glyph.x, glyph.y, glyph.z, glyph.w * 1.5];
+		// stones fallen into the water before the ledges
 		var fallen = [for (k in 0...7) rock(range(-3.4, 0.9), range(-0.35, -0.05), range(-1.8, -0.9), range(0.3, 0.7), range(0, 3), k)];
-		near = union([
-			slab(-5.6, -1.2, -4.1, 0.15, 0.8, -1.9, 1),
-			slab(-5.6, 0.55, -4.1, 0.45, 1.0, -1.5, 2, 0.7, null, 0.15),
-			slab(-7, -1.2, -6.5, -1.9, 4.35, -3.7, 3, 1, calm),
-			slab(-7.5, 4.2, -6.8, -1.4, 4.85, -3.3, 4),
-			union(fallen, 0.05)
-		], 0.1);
 		b.seed = 1;
-		b.field(near, -7.8, -1.0, -7.0, 1.6, 5.4, -0.4, 0.075, [1.0, 4.85], moss(1));
+		b.field(union(fallen, 0.05), -4.2, -0.9, -2.6, 1.6, 0.6, -0.2, 0.075, null, moss(1));
 		// the cliff stepping up and back, under the arch's left foot
 		cliff = union([
 			slab(-10, -1.2, -10, -3.4, 8.3, -6.6, 5, 1.3),
@@ -105,8 +115,100 @@ class Ruins {
 			20, 8.2, -14.4, 0.15, [6.8], moss(8));
 	}
 
+	// a screen's stone, its pieces and its growth: the faces where
+	// something is carved kept flat, moss over the tops and hanging from
+	// the edges, caps, sprouts and shelves where it says
+	function build(screen:Screen, index:Int):Built {
+		var b = mesh, first = mesh.count, glows:Array<Glow> = [];
+		var calm:Array<Float> = [];
+		for (g in screen.glyphs)
+			calm = calm.concat([g.at[0], g.at[1], g.at[2], 0.65]);
+		calm = calm.concat([screen.home[0], screen.home[1] + 0.45, screen.home[2], 0.6]);
+		var seed = index * 10 + 1;
+		var f = union([for (k in 0...screen.stones.length) slabOf(screen.stones[k], seed + k, calm)], 0.1);
+		var box = bounds(screen.stones);
+		b.kind = PaintShader.STONE;
+		b.seed = seed;
+		b.field(f, box[0], Math.max(box[1], -1.0), box[2], box[3], box[4], box[5], 0.075, [for (s in screen.stones) s.box[4]], moss(seed));
+		for (s in screen.stones) {
+			var x = s.box;
+			edge(f, x[0], x[5], x[3], x[5], x[4]);
+			edge(f, x[3], x[5], x[3], x[2], x[4], 0.6);
+		}
+		if (screen.caps != null)
+			for (c in screen.caps) {
+				caps(f, c[0], c[2], c[1], c[3], Std.int(c[4]), c[5], c[6] > 0.5);
+				var color = c[6] > 0.5 ? PaintShader.acid() : PaintShader.cyan();
+				glows.push({pos: new Vec3(c[0], c[1] + 0.4, c[2] + 0.1), radius: 2.6, color: color, power: 1.5});
+			}
+		if (screen.shelves != null) {
+			var at = new Vec3(0, 0, 0);
+			for (s in screen.shelves) {
+				var z = face(f, s[0], s[1], -1.0, -6.0);
+				mushroom(new Vec3(s[0], s[1], z - 0.05), 0.25, range(0.28, 0.42), true, 0.3);
+				at = at + new Vec3(s[0] + 0.4, s[1] + 0.3, z + 0.7) * (1 / screen.shelves.length);
+			}
+			glows.push({pos: at, radius: 2.8, color: PaintShader.acid(), power: 1.4});
+		}
+		if (screen.sprouts != null)
+			for (s in screen.sprouts)
+				glows.push(sprouts(f, new Vec3(s[0], s[1], s[2]), s[3], Std.int(s[4])));
+		var stone = {first: first, count: mesh.count - first};
+		var pieces:Array<Range> = [];
+		for (p in screen.pieces) {
+			var at = mesh.count;
+			if (p.stones != null) {
+				var g = union([for (k in 0...p.stones.length) slabOf(p.stones[k], seed + 5 + k, null)], 0.05);
+				var x = bounds(p.stones);
+				b.kind = PaintShader.STONE;
+				b.seed = seed + 5;
+				b.field(g, x[0], x[1], x[2], x[3], x[4], x[5], 0.06, [for (s in p.stones) s.box[4]], moss(seed + 5));
+			}
+			if (p.lantern != null) {
+				var l = p.lantern, hook = p.hang == null ? new Vec3(l[0], l[1] + 0.55, l[2]) : new Vec3(p.hang.at[0], p.hang.at[1], l[2]);
+				b.anchor = new Vec3(0, 0, 0);
+				b.sway = 0;
+				b.seed = 0.3;
+				b.kind = PaintShader.ROOT;
+				b.tube([hook, new Vec3(l[0], l[1] + 0.55, l[2])], 0.02, 0.02, 2, 4);
+				b.kind = PaintShader.CAGE;
+				b.lathe(new Vec3(l[0], l[1], l[2]), [0.0, 0.62, 0.08, 0.55, 0.22, 0.32, 0.27, 0.0, 0.22, -0.3, 0.08, -0.55, 0.0, -0.66], 14, true);
+				b.kind = PaintShader.CORE;
+				b.lathe(new Vec3(l[0], l[1], l[2]), [0.0, 0.14, 0.07, 0.11, 0.1, 0.0, 0.07, -0.11, 0.0, -0.14], 8);
+			}
+			pieces.push({first: at, count: mesh.count - at});
+		}
+		return {mesh: mesh, stone: stone, pieces: pieces, lights: glows};
+	}
+
+	static function slabOf(s:Stone, seed:Float, calm:Null<Array<Float>>):Field {
+		var x = s.box;
+		// (only the spots on this stone's faces)
+		var mine = calm == null ? null : [];
+		if (calm != null) {
+			var k = 0;
+			while (k < calm.length) {
+				if (calm[k] > x[0] - 0.7 && calm[k] < x[3] + 0.7 && calm[k + 1] > x[1] - 0.7 && calm[k + 1] < x[4] + 0.7 && calm[k + 2] > x[2] - 0.3
+					&& calm[k + 2] < x[5] + 0.3) mine = mine.concat(calm.slice(k, k + 4));
+				k += 4;
+			}
+		}
+		return slab(x[0], x[1], x[2], x[3], x[4], x[5], seed, s.wear ?? 1.0, mine, s.fallen ?? 1.0);
+	}
+
+	// the box about stones, with room for their wear
+	static function bounds(stones:Array<Stone>):Array<Float> {
+		var o = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+		for (s in stones)
+			for (k in 0...3) {
+				o[k] = Math.min(o[k], s.box[k] - 0.4);
+				o[k + 3] = Math.max(o[k + 3], s.box[k + 3] + 0.4);
+			}
+		return o;
+	}
+
 	// the planes far off (not in the water's mirror: the mist there hides them)
-	function far() {
+	function distant() {
 		var b = mesh;
 		b.kind = PaintShader.STONE;
 		b.seed = 9;
@@ -158,8 +260,8 @@ class Ruins {
 
 	// the roots in front: a phone's view and a wide one are framed by
 	// different roots (as a stage's wings), drawn after the rest (wide: its index range)
-	function roots(wide:Bool) {
-		var b = mesh;
+	function roots(wide:Bool):Range {
+		var b = mesh, first = mesh.count;
 		b.kind = PaintShader.ROOT;
 		b.seed = 20;
 		if (!wide) {
@@ -168,12 +270,13 @@ class Ruins {
 			root([new Vec3(3.1, -1.2, 0.8), new Vec3(2.3, 0.8, 0.4), new Vec3(2.55, 2.6, 0.0), new Vec3(3.4, 4.6, -0.4)], 0.3, 3);
 			root([new Vec3(-2.8, 6.9, 0.3), new Vec3(-1.2, 6.4, 0.0), new Vec3(0.6, 6.8, -0.2), new Vec3(2.9, 6.3, 0.1)], 0.18, 2);
 			b.tube([new Vec3(-1.2, 6.4, 0.0), new Vec3(-0.9, 5.8, 0.05), new Vec3(-1.0, 5.2, 0.0)], 0.06, 0.015, 6, 5, 0.3);
-			return;
+			return {first: first, count: mesh.count - first};
 		}
 		root([new Vec3(-5.6, -1.5, 3), new Vec3(-3.7, 1, 2), new Vec3(-3.5, 3.8, 1.2), new Vec3(-4.7, 6.5, 0.2), new Vec3(-4.3, 10, -1)], 0.5, 3);
 		root([new Vec3(-5, 0.2, 2.6), new Vec3(-2.3, -0.2, 2.4), new Vec3(0.1, -0.7, 2.8), new Vec3(2.1, -1.3, 2.4)], 0.28, 2);
 		root([new Vec3(6.6, -1.2, 2.0), new Vec3(5.1, 1.4, 1.4), new Vec3(5.5, 3.8, 0.8), new Vec3(4.7, 6.8, 0.2)], 0.4, 3);
 		root([new Vec3(6.6, 0.6, 2.2), new Vec3(4.7, 0.9, 1.8), new Vec3(3.3, 0.0, 2.2), new Vec3(2.3, -0.8, 2.4)], 0.2, 2);
+		return {first: first, count: mesh.count - first};
 	}
 
 	// a root: strands twisting about a path, gnarled, thinning upwards
@@ -338,7 +441,7 @@ class Ruins {
 		}
 	}
 
-	function sprouts(f:Field, c:Vec3, spread:Float, count:Int) {
+	function sprouts(f:Field, c:Vec3, spread:Float, count:Int):Glow {
 		var b = mesh;
 		for (k in 0...count) {
 			var x = c.x + range(-spread, spread), z = c.z + range(-spread, spread) * 0.6;
@@ -354,41 +457,24 @@ class Ruins {
 			var r = range(0.018, 0.035);
 			b.lathe(tip, [0.0, r, r, 0.0, 0.0, -r], 6);
 		}
-		lights.push({pos: new Vec3(c.x, c.y + 0.25, c.z), radius: 1.3, color: PaintShader.magenta(), power: 0.5});
+		return {pos: new Vec3(c.x, c.y + 0.25, c.z), radius: 1.3, color: PaintShader.magenta(), power: 0.5};
 	}
 
 	function growth() {
-		edge(near, -5.5, -1.5, 0.4, -1.5, 1.0);
-		edge(near, 0.4, -1.5, 0.4, -4.0, 1.0, 0.7);
-		edge(near, -7.5, -3.3, -1.4, -3.3, 4.85);
-		edge(near, -1.4, -3.3, -1.4, -6.8, 4.85, 0.6);
 		edge(cliff, -10.6, -6.1, -2.6, -6.1, 8.85);
 		edge(cliff, -12, -5.0, -6.5, -5.0, 5.6, 0.6);
 		edge(bridge, 0.75, -7.6, 9.65, -7.6, 4.66, 0.8);
-		// (cyan caps by the moth, on the ledge's far side)
-		caps(near, -3.9, -2.5, 1.0, 0.5, 7, 0.13, false);
-		lights.push({pos: new Vec3(-3.9, 1.4, -2.4), radius: 2.6, color: PaintShader.cyan(), power: 1.6});
-		// (acid shelves out of the wall above it)
-		for (s in [new Vec3(-2.3, 3.2, 0), new Vec3(-2.0, 3.7, 0), new Vec3(-2.6, 2.7, 0)]) {
-			var z = face(near, s.x - 0.3, s.y - 0.25, -2.5, -4.5);
-			mushroom(new Vec3(s.x - 0.3, s.y - 0.25, z - 0.05), 0.25, range(0.28, 0.42), true, 0.3);
-		}
-		lights.push({pos: new Vec3(-1.9, 3.5, -3.0), radius: 2.8, color: PaintShader.acid(), power: 1.4});
 		// (cyan on the bridge to the right, on the arcade behind)
 		caps(bridge, 3.9, -9.0, 4.66, 1.3, 8, 0.16, false);
 		lights.push({pos: new Vec3(3.9, 5.1, -8.8), radius: 3.2, color: PaintShader.cyan(), power: 1.5});
 		caps(cliff, -4.6, -7.0, 8.85, 1.3, 5, 0.2, true);
 		lights.push({pos: new Vec3(-4.6, 9.2, -6.6), radius: 3.5, color: PaintShader.acid(), power: 1.1});
 		// (magenta sprouts)
-		sprouts(near, new Vec3(-2.0, 1.0, -2.0), 0.45, 9);
-		sprouts(near, new Vec3(-4.6, 4.85, -3.6), 0.5, 8);
-		sprouts(bridge, new Vec3(6.6, 4.66, -8.6), 0.6, 9);
-		sprouts(cliff, new Vec3(-5.6, 8.85, -6.4), 0.6, 7);
+		lights.push(sprouts(bridge, new Vec3(6.6, 4.66, -8.6), 0.6, 9));
+		lights.push(sprouts(cliff, new Vec3(-5.6, 8.85, -6.4), 0.6, 7));
 		// (on the rubble by the bridge's foot, over the water)
 		caps(bridge, 2.3, -7.0, 0.3, 0.5, 5, 0.1, false);
 		lights.push({pos: new Vec3(2.3, 0.6, -7.0), radius: 2.2, color: PaintShader.cyan(), power: 1.2});
-		// (moss's glow along the ledge's edge)
-		lights.push({pos: new Vec3(-1.5, 0.8, -1.3), radius: 1.8, color: PaintShader.acid(), power: 0.6});
 		lights.push({pos: new Vec3(4.5, 4.0, -7.6), radius: 2.2, color: PaintShader.acid(), power: 0.5});
 	}
 
@@ -420,22 +506,24 @@ class Ruins {
 	}
 
 	// the lights' texture: two RGBA16F texels a light (position and
-	// radius, colour and power), the lanterns' swaying with them
-	public function lightBytes(t:Float, into:Bytes):Int {
-		var n = Std.int(Math.min(lights.length, MAX_LIGHTS));
-		for (k in 0...n) {
-			var l = lights[k];
-			var p = l.anchor == null ? l.pos : sway(l.pos, l.anchor, t, l.seed);
-			var o = k * 16;
-			half(into, o, p.x);
-			half(into, o + 2, p.y);
-			half(into, o + 4, p.z);
-			half(into, o + 6, l.radius);
-			half(into, o + 8, l.color.x);
-			half(into, o + 10, l.color.y);
-			half(into, o + 12, l.color.z);
-			half(into, o + 14, l.power);
-		}
+	// radius, colour and power), the lanterns' swaying with them: the
+	// common ones, a screen's, then those of the moment (extra)
+	public function lightBytes(t:Float, screen:Int, extra:Array<Glow>, into:Bytes):Int {
+		var n = 0;
+		for (list in [lights, this.screen(screen).lights, extra])
+			for (l in list) {
+				if (n == MAX_LIGHTS) return n;
+				var p = l.anchor == null ? l.pos : sway(l.pos, l.anchor, t, l.seed);
+				var o = n++ * 16;
+				half(into, o, p.x);
+				half(into, o + 2, p.y);
+				half(into, o + 4, p.z);
+				half(into, o + 6, l.radius);
+				half(into, o + 8, l.color.x);
+				half(into, o + 10, l.color.y);
+				half(into, o + 12, l.color.z);
+				half(into, o + 14, l.power);
+			}
 		return n;
 	}
 

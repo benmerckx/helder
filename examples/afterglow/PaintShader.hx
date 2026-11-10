@@ -12,7 +12,8 @@ import helder.gfx.shader.ShaderMath.*;
 // down the faces, roots are near black; what glows (moss's tips, veins,
 // mushrooms, sprouts, the lanterns) is emissive and lights what is near
 // it through the lights' texture (Ruins.lights: two RGBA16F texels a
-// light). The moth's violet aura lights too and reveals the glyph.
+// light). The moth's violet aura lights too. A piece that moves is drawn
+// as built, posed (moved and turned) by the view's pose.
 @:structInit @:publicFields class PaintVertex {
 	var pos:Vec3;
 	var normal:Vec3;
@@ -34,7 +35,8 @@ import helder.gfx.shader.ShaderMath.*;
 	var eye:Vec4; // w: seconds
 	var moth:Vec4; // xyz: the moth, w: its aura's radius
 	var aura:Vec4; // rgb: the aura's light
-	var glyph:Vec4; // xyz: the glyph's centre (on a wall facing +z), w: its size
+	var pose:Vec4; // a piece's: x, y moved, z turned (radians) about pivot
+	var pivot:Vec4; // xy: the pivot, z: a lantern's light (0 dark), w: how much the moth's light hints at it
 	var flags:Vec4; // x: 1 into the reflection, y: the lights' count, z: the mist's density
 }
 
@@ -129,6 +131,9 @@ final PaintShader = shader({
 	vertex: function(v:PaintVertex, p:{view:PaintView}):PaintVaryings {
 		var w = sway(v.pos, v.anchor, p.view.eye.w, v.kind.z);
 		var n = v.anchor.w > 0 ? normalize(sway(v.pos + v.normal, v.anchor, p.view.eye.w, v.kind.z) - w) : v.normal;
+		var c = cos(p.view.pose.z), s = sin(p.view.pose.z), r = w.xy - p.view.pivot.xy;
+		w = vec3(p.view.pivot.x + r.x * c - r.y * s + p.view.pose.x, p.view.pivot.y + r.x * s + r.y * c + p.view.pose.y, w.z);
+		n = vec3(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
 		return {clip: position(p.view.viewProj * vec4(w, 1)), world: w, normal: n, uv: v.uv, kind: v.kind};
 	},
 	fragment: function(i:PaintVaryings, p:{view:PaintView, lights:Texture2D}):Vec4 {
@@ -169,26 +174,6 @@ final PaintShader = shader({
 			var fringe = smoothstep(0.3, 0.45, share) * (1 - smoothstep(0.45, 0.6, share));
 			emit += acid() * ((cover * 0.012 + speck * cover * 0.9 * detail + fringe * 0.05 + tip * 0.35 * detail) * (0.75 + 0.25 * sin(t * 1.3 + seed * 9)));
 			open = i.uv.x;
-			// (the glyph: carved in a wall facing the eye, shown where the aura reaches it)
-			var g = i.world - p.view.glyph.xyz;
-			if (n.z > 0.7 && abs(g.z) < 0.15) {
-				var q = g.xy / p.view.glyph.w;
-				var ring = abs(length(q - vec2(0, 0.1)) - 0.62);
-				var crescent = max(ring, -(length(q - vec2(0.28, 0.32)) - 0.5));
-				var stem = max(abs(q.x + sin(q.y * 4) * 0.06), abs(q.y + 0.15) - 0.75);
-				var arm1 = max(abs((q.y + 0.1) - (q.x * 0.9)) * 0.75, abs(q.x - 0.22) - 0.22);
-				var arm2 = max(abs((q.y + 0.35) + (q.x * 0.9)) * 0.75, abs(q.x + 0.22) - 0.22);
-				var dots = min(length(q - vec2(0, 0.95)), min(length(q - vec2(-0.32, 0.86)), length(q - vec2(0.32, 0.86)))) - 0.06;
-				var sigil = min(min(min(crescent, stem), min(arm1, arm2)), dots);
-				var line = 1 - smoothstep(0.02, 0.05, sigil);
-				// (a hairline in the stone until the moth comes near; then lit
-				// from its side first, a glow spilling about the line)
-				var near = length(i.world - p.view.moth.xyz);
-				var reveal = smoothstep(1.85, 1.05, near);
-				var halo = 1 - smoothstep(0.02, 0.16, sigil);
-				albedo *= 1 - line * 0.07;
-				emit += violet() * ((line * 1.6 + halo * 0.12) * reveal * reveal * (0.85 + 0.15 * sin(t * 2.1)));
-			}
 		} else if (kind == ROOT) {
 			// (bark: long fibres, knots, and a violet sheen only where the fibres catch it)
 			var fibre = noise2(vec2(i.uv.x * 3, i.uv.y * 40)) * 0.55 + noise2(vec2(i.uv.x * 11, i.uv.y * 120)) * 0.45;
@@ -224,7 +209,7 @@ final PaintShader = shader({
 			if (min(min(a, b), ring * 1.4) > 0.09 && i.uv.y > 0.06 && i.uv.y < 0.94) discard();
 			albedo = vec3(0.05, 0.035, 0.06);
 		} else if (kind == CORE) {
-			emit = magenta() * (9 * (0.85 + 0.15 * sin(t * 1.9 + seed * 5)));
+			emit = magenta() * (9 * p.view.pivot.z * (0.85 + 0.15 * sin(t * 1.9 + seed * 5)));
 			albedo = vec3(0, 0, 0);
 		} else if (kind == VEIN) {
 			var pulse = 0.65 + 0.35 * sin(i.uv.y * 9 - t * 0.8 + seed * 4);
@@ -262,7 +247,9 @@ final PaintShader = shader({
 		var m = p.view.moth.xyz - i.world, md = length(m);
 		var auraFall = clamp(1 - md / p.view.moth.w, 0, 1);
 		light += p.view.aura.xyz * (auraFall * auraFall * (dot(n, m / max(md, 0.001)) * 0.5 + 0.5));
-		var color = albedo * light * (0.2 + 0.8 * open) + emit;
+		// (a piece the moth's light is about to move: a violet edge)
+		var hint = p.view.pivot.w * (0.03 + pow(1 - abs(dot(n, dir)), 3) * 0.8);
+		var color = albedo * light * (0.2 + 0.8 * open) + emit + violet() * (hint * 0.22);
 		var fogged = mix(color, fog(dir, smoothstep(14, 45, dist)) * 0.85, haze(dist, i.world.y, p.view.flags.z));
 		return vec4(fogged, 1);
 	}

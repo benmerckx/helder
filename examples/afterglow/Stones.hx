@@ -83,7 +83,7 @@ function arcade(a:Arcade):Field {
 
 // a worn block of masonry between two corners: its top courses fallen
 // here and there, its edges eroded, a cushion of moss over its top's
-// edge; calm (x, y, z, radius) keeps a face flat where something is carved,
+// edge; calm (x, y, z, radius, for each spot) keeps a face flat where something is carved,
 // fallen how much of its top has come down
 function slab(x0:Float, y0:Float, z0:Float, x1:Float, y1:Float, z1:Float, seed:Float, wear = 1.0, ?calm:Array<Float>, fallen = 1.0):Field {
 	var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2;
@@ -92,8 +92,12 @@ function slab(x0:Float, y0:Float, z0:Float, x1:Float, y1:Float, z1:Float, seed:F
 	return (x, y, z) -> {
 		var still = 1.0;
 		if (calm != null) {
-			var gx = x - calm[0], gy = y - calm[1], gz = z - calm[2];
-			still = 0.12 + 0.88 * smooth(calm[3], calm[3] * 2.5, Math.sqrt(gx * gx + gy * gy + gz * gz));
+			var k = 0;
+			while (k < calm.length) {
+				var gx = x - calm[k], gy = y - calm[k + 1], gz = z - calm[k + 2];
+				still = Math.min(still, 0.12 + 0.88 * smooth(calm[k + 3], calm[k + 3] * 2.5, Math.sqrt(gx * gx + gy * gy + gz * gz)));
+				k += 4;
+			}
 		}
 		// (its outline seen from above ragged: faces wander in and out)
 		var ox = (noise1(z * 0.9, seed + 1) - 0.5) * 0.5 * wear * still, oz = (noise1(x * 0.9, seed) - 0.5) * 0.5 * wear * still;
