@@ -1,5 +1,6 @@
 import Light;
 import Play;
+import Shadow;
 import Sketch.*;
 import Way;
 import helder.canvas.Painter;
@@ -7,8 +8,8 @@ import helder.canvas.gpu.GpuCanvas;
 import helder.gfx.Device;
 import helder.os.*;
 
-// The greybox prototypes' shell: a title (A: Light, B: Way, and the old
-// game), the screens of the chosen one in turn, a bar (menu, the screen,
+// The greybox prototypes' shell: a title (A: Light, B: Way, C: Shadow,
+// and the old game), the screens of the chosen one in turn, a bar (menu, the screen,
 // reset), the fixed steps, a fade between screens. Laid out in points;
 // the board fitted between the bar and the hint, whatever the window.
 // (play/greybox.mjs has the same numbers: the scripts' taps.)
@@ -23,7 +24,7 @@ class Greybox {
 	final device:Device;
 	var canvas:Null<GpuCanvas> = null;
 	public var log = false;
-	// "": the title; "a", "b": a prototype; "game": the old game
+	// "": the title; "a", "b", "c": a prototype; "game": the old game
 	var proto = "";
 	var index = 0;
 	var play:Null<Play> = null;
@@ -43,12 +44,12 @@ class Greybox {
 	}
 
 	function screens():Int
-		return proto == "a" ? Light.screens.length : Way.screens.length;
+		return proto == "a" ? Light.screens.length : proto == "b" ? Way.screens.length : Shadow.screens.length;
 
 	public function choose(p:String, k = 0) {
 		proto = p;
 		play = null;
-		if (p == "a" || p == "b") start(Std.int(Math.max(0, Math.min(k, screens() - 1))));
+		if (p == "a" || p == "b" || p == "c") start(Std.int(Math.max(0, Math.min(k, screens() - 1))));
 		if (p == "game" && old == null) {
 			old = new Afterglow(device);
 			old.points = window.scale;
@@ -59,7 +60,7 @@ class Greybox {
 
 	function start(k:Int) {
 		index = k;
-		play = proto == "a" ? new Light(k) : new Way(k);
+		play = proto == "a" ? new Light(k) : proto == "b" ? new Way(k) : new Shadow(k);
 		solvedAt = -1;
 		leaving = false;
 		say('start');
@@ -69,10 +70,10 @@ class Greybox {
 		if (log) Sys.println('greybox: $proto${index + 1}: $what at ${Math.round(clock * 10) / 10} s');
 
 	function name():String
-		return proto == "a" ? Light.screens[index].name : Way.screens[index].name;
+		return proto == "a" ? Light.screens[index].name : proto == "b" ? Way.screens[index].name : Shadow.screens[index].name;
 
 	function hint():String
-		return proto == "a" ? Light.screens[index].hint : Way.screens[index].hint;
+		return proto == "a" ? Light.screens[index].hint : proto == "b" ? Way.screens[index].hint : Shadow.screens[index].hint;
 
 	// ---- the frame
 
@@ -124,10 +125,11 @@ class Greybox {
 		var x = w / 2, y = h * 0.24;
 		text(c, "AFTERGLOW", x, y, 30, INK);
 		text(c, "GREYBOX PROTOTYPES", x, y + 34, 11, alpha(INK, 0.55));
-		var bw = Math.min(300, w - 40), top = h * 0.42;
+		var bw = Math.min(300, w - 40), top = h * 0.36;
 		button(c, x - bw / 2, top, bw, 86, "A  LIGHT", "ROUTE THE MOTH'S LIGHT", 0xFFFFE9B0, () -> choose("a"));
 		button(c, x - bw / 2, top + 104, bw, 86, "B  WAY", "OPEN THE MOTH'S WAY", 0xFF9FCBE0, () -> choose("b"));
-		button(c, x - 80, top + 226, 160, 38, "THE OLD GAME", "", alpha(INK, 0.5), () -> choose("game"));
+		button(c, x - bw / 2, top + 208, bw, 86, "C  SHADOW", "WHERE THE MOTH IS, LIGHT AND SHADE", 0xFFFF8FB8, () -> choose("c"));
+		button(c, x - 80, top + 330, 160, 38, "THE OLD GAME", "", alpha(INK, 0.5), () -> choose("game"));
 	}
 
 	function button(c:Painter, x:Float, y:Float, w:Float, h:Float, label:String, sub:String, color:Int, act:() -> Void) {
@@ -210,7 +212,7 @@ class Greybox {
 					proto = "";
 					play = null;
 				}
-			case KeyDown if (play == null && (e.key == "a".code || e.key == "b".code)): choose(String.fromCharCode(e.key));
+			case KeyDown if (play == null && (e.key == "a".code || e.key == "b".code || e.key == "c".code)): choose(String.fromCharCode(e.key));
 			case KeyDown if (play != null && e.key >= "1".code && e.key <= "9".code && e.key - "1".code < screens()): start(e.key - "1".code);
 			case KeyDown if (play != null && e.key == "r".code): start(index);
 			case PointerDown if (e.pointer.primary || e.pointer.buttons & 1 != 0):

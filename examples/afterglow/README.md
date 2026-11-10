@@ -6,11 +6,36 @@ the stone, leading its young, a caterpillar, to its cocoon. GAME.md is
 the game as designed and built; this is the code.
 
 The game now opens on its greybox prototypes (Greybox, Light, Way,
-Board, Sketch: GAME.md, the two prototypes); the painted game below is
-the title's third choice, `-- --proto game`.
+Shadow, Board, Route, Shadows, Sketch: GAME.md, the greybox
+prototypes); the painted game below is the title's last choice,
+`-- --proto game`.
+
+- **Shadow** (C): the moth as the only light. Shadows (a point light's
+  sight in 2D) holds the segments that cast shadows (each step: the
+  stone's edges merged into runs, shut gates, posts, open blooms' pads)
+  and answers whether a point is lit and the polygon it lights: rays to
+  every endpoint within reach and just either side, and 72 round the
+  reach, so the polygon ends at its circle. The floor's light is that
+  polygon under a radial gradient, once from the moth and four times
+  faintly from points 0.07 about it (a soft edge only where a shadow is
+  far from what casts it); the stone's faces the light sees are edged by
+  it (in four strengths, a path each). Each thing tests a point or a few
+  (a glyph: its slot dark, its sides lit) each step; the caterpillar
+  plans its way (breadth first, as if all were open) and takes a step
+  when it is lit and the step is there.
+- **Route**: the moth's way over a board, round what it cannot fly
+  through (B's and C's).
+
+At 1170 x 2532 headless (the same machine and harness as below), C's
+frame is about 35 ms median against B's 29 and A's 30; a near empty
+frame (the board and the moth) is 17. GpuCanvas's cost is in its
+draws, not in working out the shadows: the light's five filled
+polygons cost about 4 ms (one alone, 1.5), drawing the stone a cell at a time cost 12 ms,
+one path for all of it and four for its edges, under 1.
 
 ```sh
-bun run helder run examples/afterglow          # the title: A: Light, B: Way, the old game
+bun run helder run examples/afterglow          # the title: A: Light, B: Way, C: Shadow, the old game
+bun run helder run examples/afterglow -- --proto c --screen 3
 bun run helder run examples/afterglow -- --proto a --screen 2
 bun run helder run examples/afterglow -- --proto game   # drag or tap to fly; 1, 2, 3: a screen
 bun run helder run --headless examples/afterglow --size 390x844 --scale 3 --snap out.png --at 3 -- --proto game

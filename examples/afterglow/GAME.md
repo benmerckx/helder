@@ -11,16 +11,16 @@ hung in a niche of the stone and rebuilds the ruin under it. Once the
 caterpillar is in, the cocoon lights: one more of the lanterns that hang
 all through the ruins.
 
-## Restarting the puzzle: two greybox prototypes
+## Restarting the puzzle: three greybox prototypes
 
 Played on desktop, flying the moth worked; three things did not: waking
 glyphs by hovering (slow, accidental, hard to repeat), not knowing what
 to do (what reacts, what it moves, what the goal is), and leading the
-caterpillar by the light (fiddly). The puzzle starts again as two
+caterpillar by the light (fiddly). The puzzle starts again as
 greyboxes to play side by side: flat shapes on a 7 x 9 grid, the moth's
 flight as it was (Flight), no art. The game opens on a title: **A:
-Light**, **B: Way**, and **The old game** (what follows the prototypes
-here). `-- --proto a|b|game` and `-- --screen n` start there; on the web,
+Light**, **B: Way**, **C: Shadow** and **The old game** (what follows the
+prototypes here). `-- --proto a|b|c|game` and `-- --screen n` start there; on the web,
 `?proto=a&screen=2`.
 
 Both: **a tap is the act, never hovering**; a press anywhere else leads
@@ -29,7 +29,7 @@ touched has a shape of its own and a slow pulsing ring; what it will do
 shows before you touch it (a dotted beam where light would go, a
 crystal's point, coloured wires from a lever to its gates). Anything done
 is undone by doing it again; nothing fails. The bar: MENU, the screen,
-RESET (keys: 1-3 a screen, R again, Esc the title); a solved screen
+RESET (keys: 1-5 a screen, R again, Esc the title); a solved screen
 moves on after three seconds (or NEXT).
 
 ### A: Light (route the light to the one dark thing)
@@ -82,11 +82,78 @@ as near as it can get).
    shuts the one behind). Each lever only moves its own room's doors, so
    the moth is never shut in.
 
+### C: Shadow (where the moth is, light and shade)
+
+Played, A and B left the moth mostly useless: a parked light in A, a
+cursor that walks itself in B. In C where the moth is *is* the puzzle.
+It is the only light (a reach of 4.2 cells, fading out), and every
+stone, post and open bloom casts a crisp shadow from it, live: fly it
+and every shadow swings and stretches. The only input is flying (a tap:
+it flies there round the stone, hovers a moment and lands on what is
+below: a ledge, a peg, an open bloom; held, it hovers). Nothing is
+tapped, nothing is hovered to charge.
+
+What answers to it, continuously:
+
+- **Bloom** (a pink bud on a stem): opens in the light into a flat pad,
+  a step (and a shadow of its own); closes in the dark.
+- **Moss** (green tufts at a gap's edges): grows across the gap in
+  shadow or darkness, a bridge; recedes in the light.
+- **Shy creature** (a dark spiny thing with big eyes, out of a hole):
+  blocks the way; hides from the light, creeps back when it leaves.
+- **Glyph** (a carved slot between two diamonds): completes when a
+  shadow falls on it exactly, its slot dark and both diamonds lit (they
+  show it, lit or not), held for 0.7 s; then it stays, and its gates
+  (wired to it, dashed) sink into the floor.
+
+Why a caterpillar: whatever the light opens, the moth opens just by
+coming near, and whatever shade opens it can never cross itself (it is
+the light), so someone else must cross. The caterpillar crawls home to
+its cocoon **by itself**, along the one way it knows (faint dots: as if
+every bloom were open, all moss grown, no creature, the gates open),
+**only while it is in the light**; in the dark it curls up and sleeps,
+and at a step it cannot take it waits. It is never steered (the follower
+of the old game didn't work). So one light has to do two things at once:
+light the caterpillar and light, or shade, what is next on its way.
+Every position is a trade-off.
+
+What latches: whatever the caterpillar stands on or is stepping onto
+(and a creature's hole it is in) stays as it is, so it never falls and
+nothing closes on it; a completed glyph. Nothing else: fly on and the
+rest goes back. Deterministic, no failure (a wrong spot only leaves it
+waiting).
+
+1. **A bloom** (1 move). The bud makes a step up to the cocoon. Fly down
+   beside it: the caterpillar wakes, the bloom opens, it climbs.
+2. **Moss** (2 moves). A roof with a hole over the caterpillar's ledge;
+   the gap beyond is under the roof. Fly down into the room and the
+   light recedes the moss. Land on the peg above the hole instead: light
+   falls through onto the caterpillar, the roof shades the gap, the moss
+   grows, it crawls onto the bridge, into the roof's shadow, and sleeps.
+   Fly down to it: the moss under it holds; home.
+3. **A bloom's shade** (2 moves). A bloom hangs over the moss gap. On the
+   peg right above it, the moth opens it and its pad's shadow falls on
+   the gap (but not on the caterpillar beside it): the bridge grows.
+   From anywhere else the moss is lit. Then fly down to light the
+   caterpillar on across.
+4. **Shy** (1 move; a near miss). A low tunnel: the caterpillar, a
+   creature hanging from the roof over a mossy gap, then a bloom step up
+   to the cocoon. Flown into the tunnel, landing just beside the gap
+   lights into it (the moss recedes); one cell further back, low, the
+   gap's lip shades the moss while the creature, the caterpillar and the
+   bloom are all lit: it crosses and climbs home.
+5. **The glyph** (2 moves). A post hangs over a glyph; a gate bars the
+   floor. Land on the peg straight above the post: its shadow fits the
+   slot (both diamonds lit): the gate sinks. Then light the caterpillar
+   from low on the left (the gap's lip shades the moss past the gate);
+   from the right the light falls into the gap.
+
 ### Playtests
 
 `play/greybox.mjs` holds each screen's moves in cells and writes them as
 headless scripts for a window (`node examples/afterglow/play/greybox.mjs
-390x844`: play/greybox/a1.json ... b3.json, marks `start` and `solved`):
+390x844`: play/greybox/a1.json ... c5.json, marks `start` and `solved`;
+C's also `mid`, the trade-off half done):
 
 ```sh
 bun run helder run --headless examples/afterglow --size 390x844 --scale 2 \

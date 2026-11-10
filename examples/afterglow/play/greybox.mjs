@@ -29,7 +29,13 @@ export const screens = {
     tap(5.2, 3.5, 1.5), mark(9, 'solved')],
   b1: [mark(0.4, 'start'), tap(0.5, 4.5, 1.5), tap(2.5, 2.5, 6.5), tap(5.5, 5.5, 7.5), mark(9, 'solved')],
   b2: [mark(0.4, 'start'), tap(0.5, 4.5, 3.5), tap(3.5, 5.5, 5.5), tap(6.5, 2.5, 7.5), mark(10, 'solved')],
-  b3: [mark(0.4, 'start'), tap(0.5, 5.5, 2.5), tap(3, 1.5, 5.5), tap(6, 5.5, 7.5), tap(9, 1.5, 7.5), mark(12, 'solved')]
+  b3: [mark(0.4, 'start'), tap(0.5, 5.5, 2.5), tap(3, 1.5, 5.5), tap(6, 5.5, 7.5), tap(9, 1.5, 7.5), mark(12, 'solved')],
+  // (C: where the moth lands is the move; mid: the trade-off, half done)
+  c1: [mark(0.4, 'start'), tap(0.5, 3.5, 1.5), mark(2.4, 'mid'), mark(8, 'solved')],
+  c2: [mark(0.4, 'start'), tap(0.5, 2.5, 7.5), mark(6.5, 'mid'), tap(7, 4.5, 4.5), mark(12, 'solved')],
+  c3: [mark(0.4, 'start'), tap(0.5, 3.5, 5.5), mark(6, 'mid'), tap(6.5, 4.5, 2.5), mark(11, 'solved')],
+  c4: [mark(0.4, 'start'), tap(0.5, 3.5, 1.5), mark(4.5, 'mid'), tap(5, 4.5, 1.5), mark(12, 'solved')],
+  c5: [mark(0.4, 'start'), tap(0.5, 3.5, 7.5), mark(4.5, 'mid'), tap(5, 1.5, 2.5), mark(12, 'solved')]
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

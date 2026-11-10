@@ -723,8 +723,8 @@ class Afterglow {
 		MothShader.params.view.write(w, mirror);
 	}
 
-	// the greybox prototypes first (Greybox: a title, A: Light, B: Way), the
-	// old game a choice of it; -- --proto a|b|game and --screen n start
+	// the greybox prototypes first (Greybox: a title, A: Light, B: Way, C: Shadow), the
+	// old game a choice of it; -- --proto a|b|c|game and --screen n start
 	// there (the web page: ?proto=a&screen=2)
 	static function main() {
 		var args = Sys.args();

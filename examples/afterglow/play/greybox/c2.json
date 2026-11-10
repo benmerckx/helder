@@ -1,0 +1,7 @@
+{"events": [
+  {"t": 0.4, "type": "mark", "name": "start"},
+  {"t": 0.5, "type": "tap", "wx": 2.5, "wy": 7.5, "x": 143, "y": 273},
+  {"t": 6.5, "type": "mark", "name": "mid"},
+  {"t": 7, "type": "tap", "wx": 4.5, "wy": 4.5, "x": 247, "y": 428},
+  {"t": 12, "type": "mark", "name": "solved"}
+]}
