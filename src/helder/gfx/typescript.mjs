@@ -120,11 +120,13 @@ function each(f: (...xs: number[]) => number, xs: Flat[]): any {
 `);
 const unary = [['abs', 'Math.abs(x)'], ['sign', 'x > 0 ? 1 : x < 0 ? -1 : 0'], ['floor', 'Math.floor(x)'], ['ceil', 'Math.ceil(x)'],
 	['fract', 'x - Math.floor(x)'], ['sqrt', 'Math.sqrt(x)'], ['inversesqrt', '1 / Math.sqrt(x)'], ['sin', 'Math.sin(x)'], ['cos', 'Math.cos(x)'],
-	['tan', 'Math.tan(x)'], ['exp', 'Math.exp(x)'], ['log', 'Math.log(x)']];
+	['tan', 'Math.tan(x)'], ['asin', 'Math.asin(x)'], ['acos', 'Math.acos(x)'], ['atan', 'Math.atan(x)'], ['exp', 'Math.exp(x)'], ['log', 'Math.log(x)']];
 for (const [name, body] of unary)
 	w(`export function ${name}<T extends Flat>(x: T): T {\n\treturn each((x) => ${body}, [x]);\n}`);
 for (const [name, body] of [['min', 'Math.min(x, y)'], ['max', 'Math.max(x, y)'], ['pow', 'Math.pow(x, y)']])
 	w(`export function ${name}<T extends Flat>(x: T, y: T | number): T {\n\treturn each((x, y) => ${body}, [x, y]);\n}`);
+// (the angle of (x, y), y first: GLSL's atan of two)
+w(`export function atan2<T extends Flat>(y: T, x: T | number): T {\n\treturn each((y, x) => Math.atan2(y, x), [y, x]);\n}`);
 w(`export function step<T extends Flat>(edge: T | number, x: T): T {
 	return each((edge, x) => x < edge ? 0 : 1, [edge, x]);
 }

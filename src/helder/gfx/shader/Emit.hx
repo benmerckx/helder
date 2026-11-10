@@ -44,9 +44,13 @@ class Emit {
 	function struct(s:SStruct) {
 		line('struct ${s.name} {');
 		for (f in s.fields)
-			line('\t${type(f.type)} ${f.name};');
+			line('\t${decl(f.type, f.name)};');
 		line("};");
 	}
+
+	// a name of a type declared (HLSL: an array's length after the name)
+	function decl(t:SType, name:String):String
+		return type(t) + " " + name;
 
 	function func(f:SFunction) {
 		line(type(f.ret) + " " + f.name + "(" + [for (p in f.params) param(p)].join(", ") + ") {");
@@ -115,6 +119,7 @@ class Emit {
 			case EField(x, n): operand(x) + "." + n;
 			case ESwizzle(x, c): operand(x) + "." + c;
 			case EColumn(x, i): operand(x) + "[" + i + "]";
+			case EIndex(x, i): operand(x) + "[" + expr(i) + "]";
 			case EUnop(op, x): (op == Neg ? "-" : op == Not ? "!" : "~") + operand(x);
 			case EBinop(op, a, b): binary(op, a, b);
 			case ECond(c, a, b): cond(c, a, b);

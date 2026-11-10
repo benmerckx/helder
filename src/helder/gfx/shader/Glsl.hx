@@ -67,6 +67,7 @@ class Glsl extends Emit {
 			case TMat4: "mat4";
 			case TTexture: "sampler2D";
 			case TStruct(s): s.name;
+			case TArray(t, n): type(t) + "[" + n + "]";
 		}
 
 	override function builtin(name:String, args:Array<SExpr>, t:SType):String
@@ -74,6 +75,8 @@ class Glsl extends Emit {
 			case "sample" if (fragment): super.builtin("texture", args, t);
 			case "sample": "textureLod(" + expr(args[0]) + ", " + expr(args[1]) + ", 0.0)";
 			case "sampleLevel": super.builtin("textureLod", args, t);
+			// (GLSL's two-argument atan)
+			case "atan2": super.builtin("atan", args, t);
 			case _: super.builtin(name, args, t);
 		}
 

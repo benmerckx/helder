@@ -214,6 +214,25 @@ SpriteShader.params.tint.write({color: vec4(1)}, uniformBytes);   // std140
 enc.setTexture(SpriteShader.params.image.binding, texture, sampler);
 ```
 
+Constants: a static or module-level `final` of literals, or of the
+constructors and builtins over literals (`final GLOW = vec3(0.2, 0.3,
+0.9)`, `mat4(1)`), is printed where shader code reads it. Arrays: a
+uniform block's field of Vec4s or Mat4s with its length (std140 pads the
+other types to 16 bytes: pack them into Vec4s), read by an index known or
+not when compiling; the writer takes the elements given, zeros after:
+
+```haxe
+@:structInit @:publicFields class Lights {
+	var count:Float;
+	@:length(8) var positions:Array<Vec4>;   // xyz, w: the range
+	@:length(8) var colors:Array<Vec4>;
+}
+// for (k in 0...8) if (k < Std.int(p.lights.count)) ... p.lights.positions[k] ...
+```
+
+(`tests/gfx/PaletteShader.hx` has both, and `atan2(y, x)`, GLSL's `atan`
+of two.)
+
 A stage takes its input and, optionally, one object of parameters (an
 anonymous structure, written out or a typedef): its fields, in order, are
 the stage's uniform blocks and textures, read as `p.tint`; a field both

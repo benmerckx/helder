@@ -7,6 +7,7 @@ import InstancesShader;
 import SlotsShader;
 import TexturedShader;
 import TriangleShader;
+import PaletteShader;
 
 // The shader definition's tests, on Eval (npm test -- gfx-shader):
 //
@@ -125,6 +126,12 @@ class ShaderTest {
 		var j:LitVaryings = {normal: vec3(0, 0, 1), clip: vec4(0), uv: vec2(0.7, 0.75), shade: 0.5};
 		nearVec("LitShader.fragment, right half", LitShader.fragment(j, {m: {tint: vec4(1, 0.5, 0.25, 1), steps: 0}}),
 			[0.25 * 0.6 * 0.5, 0.5 * 0.6 * 0.5, 0.6 * 0.5, 1]);
+		// (a vector constant, atan2, arrays: Palette)
+		var pal:PaletteBlock = {scale: vec4(1), colors: COLORS, turns: [mat4(0), mat4(1)]};
+		var pv = PaletteShader.vertex({pos: vec2(0.5, -0.5), index: 2}, {palette: pal});
+		nearVec("PaletteShader.vertex", pv.pos, [0.5, -0.5, 0, 1]);
+		nearVec("PaletteShader.fragment", PaletteShader.fragment(pv, {palette: pal}), [0, 0, 0.25, 1]);
+		near("atan2", atan2(1, 0), Math.PI / 2);
 		// (a translation by pos.xyz, then halved)
 		var b = BuiltinShader.vertex({pos: vec4(1, 2, 3, 1)});
 		nearVec("BuiltinShader.vertex", b.pos, [1, 2, 3, 0.5]);
@@ -167,6 +174,14 @@ class ShaderTest {
 		check("LitShader.params.cam.write", [for (i in 0...20) bytes.getFloat(16 + 4 * i)].join(",") == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-1,-2,-3,7");
 		LitShader.params.m.write({tint: vec4(0.5), steps: 3}, bytes);
 		check("LitShader.params.m.write", bytes.getFloat(12) == 0.5 && bytes.getInt32(16) == 3);
+		// (arrays: 16 bytes a Vec4, 64 a Mat4; the elements given, zeros after)
+		var pu = PaletteShader.uniforms[0];
+		check("PaletteShader.uniforms", pu.size == 16 + 64 + 128, Std.string(pu.size));
+		var pb = Bytes.alloc(pu.size);
+		pb.fill(0, pu.size, 7);
+		PaletteShader.params.palette.write({scale: vec4(2), colors: [vec4(1, 2, 3, 4)], turns: [mat4(1)]}, pb);
+		check("PaletteShader.params.palette.write", [for (i in 0...8) pb.getFloat(16 + 4 * i)].join(",") == "1,2,3,4,0,0,0,0" && pb.getFloat(80) == 1
+			&& pb.getFloat(100) == 1 && pb.getFloat(144) == 0 && pb.get(pu.size - 1) == 0);
 		var t = TexturedShader.textures, tu = TexturedShader.uniforms;
 		check("TexturedShader.textures", t.length == 2 && t[0].name == "height" && t[0].binding == 0 && t[1].name == "albedo" && t[1].binding == 2
 			&& tu.length == 1 && tu[0].binding == 1, Std.string(t) + " " + Std.string(tu));
@@ -205,7 +220,9 @@ class ShaderTest {
 			{name: "SlotsTinted.vert", code: SlotsTinted.vertexCode},
 			{name: "SlotsTinted.frag", code: SlotsTinted.fragmentCode},
 			{name: "SlotsTextured.vert", code: SlotsTextured.vertexCode},
-			{name: "SlotsTextured.frag", code: SlotsTextured.fragmentCode}
+			{name: "SlotsTextured.frag", code: SlotsTextured.fragmentCode},
+			{name: "PaletteShader.vert", code: PaletteShader.vertexCode},
+			{name: "PaletteShader.frag", code: PaletteShader.fragmentCode}
 		];
 		for (c in codes)
 			for (l in ["glsl", "wgsl", "msl", "hlsl"]) {

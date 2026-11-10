@@ -3,7 +3,7 @@ import helder.gfx.*;
 // The tests' scenes (GfxTest, WebTest): the triangle example, the cube
 // example turned by ANGLE radians, or the instances, targets (msaa: its
 // target multisampled), mips and
-// formats examples at TIME seconds, or the blend modes (Blending)
+// formats examples at TIME seconds, the blend modes (Blending) or the shaders' arrays (Palette)
 class Scene {
 	public static inline var ANGLE = 0.6;
 	public static inline var TIME = 0.4;
@@ -33,6 +33,10 @@ class Scene {
 		if (name == "blend") {
 			var blending = new Blending(device);
 			return enc -> blending.draw(enc);
+		}
+		if (name == "palette") {
+			var palette = new Palette(device);
+			return enc -> palette.draw(enc);
 		}
 		var triangle = new Triangle(device);
 		return enc -> triangle.draw(enc);

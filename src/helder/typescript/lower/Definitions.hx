@@ -1026,7 +1026,7 @@ class TsAdapter implements ShaderAdapter {
 		return t.match(TVec(_) | TMat4);
 
 	static final BUILTINS = [
-		"abs", "sign", "floor", "ceil", "fract", "sqrt", "inversesqrt", "sin", "cos", "tan", "exp", "log", "min", "max", "pow", "step", "mix", "clamp",
+		"abs", "sign", "floor", "ceil", "fract", "sqrt", "inversesqrt", "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "exp", "log", "min", "max", "pow", "step", "mix", "clamp",
 		"smoothstep", "dot", "length", "distance", "normalize", "reflect", "cross", "sample", "sampleLevel", "discard"
 	];
 

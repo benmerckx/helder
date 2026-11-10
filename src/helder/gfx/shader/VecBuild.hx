@@ -87,13 +87,14 @@ class VecBuild {
 		for (f in [
 			["abs", "Math.abs(x)"], ["sign", "x > 0 ? 1.0 : x < 0 ? -1.0 : 0.0"], ["floor", "Math.ffloor(x)"], ["ceil", "Math.fceil(x)"],
 			["fract", "x - Math.ffloor(x)"], ["sqrt", "Math.sqrt(x)"], ["inversesqrt", "1 / Math.sqrt(x)"], ["sin", "Math.sin(x)"], ["cos", "Math.cos(x)"],
-			["tan", "Math.tan(x)"], ["exp", "Math.exp(x)"], ["log", "Math.log(x)"]
+			["tan", "Math.tan(x)"], ["asin", "Math.asin(x)"], ["acos", "Math.acos(x)"], ["atan", "Math.atan(x)"], ["exp", "Math.exp(x)"], ["log", "Math.log(x)"]
 		])
 			generic(f[0], [["x", "T"]], f[1]);
 		for (f in [
 			["min", "Math.min(x, y)"], ["max", "Math.max(x, y)"], ["pow", "Math.pow(x, y)"]
 		])
 			generic(f[0], [["x", "T"], ["y", "T"]], f[1]);
+		generic("atan2", [["y", "T"], ["x", "T"]], "Math.atan2(y, x)");
 		generic("step", [["edge", "T"], ["x", "T"]], "x < edge ? 0.0 : 1.0");
 		generic("mix", [["x", "T"], ["y", "T"], ["a", "T"]], "x + (y - x) * a");
 		generic("clamp", [["x", "T"], ["lo", "T"], ["hi", "T"]], "Math.min(Math.max(x, lo), hi)");

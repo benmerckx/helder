@@ -20,21 +20,36 @@ class Sources {
 	static final cache = new Map<String, TypedExpr>();
 
 	public static function typed(c:ClassType, cf:ClassField):Null<TypedExpr> {
+		if (cf.kind.match(FVar(_, _))) return null;
+		return parsed(c, cf, "\\bfunction\\s+" + cf.name + "\\b", "function");
+	}
+
+	// a static final's value (vec3(0.2, 0.3, 0.9): a vector constant),
+	// typed again from its source as a function is
+	public static function value(c:ClassType, cf:ClassField):Null<TypedExpr> {
+		if (!cf.kind.match(FVar(_, AccNever | AccCtor))) return null;
+		return parsed(c, cf, "\\b" + cf.name + "\\s*(:[^=]*)?=", "");
+	}
+
+	// the field's source from the end of a match of head (prefix and the rest)
+	static function parsed(c:ClassType, cf:ClassField, head:String, prefix:String):Null<TypedExpr> {
 		var key = c.module + ":" + c.name + "." + cf.name;
 		var t = cache.get(key);
 		if (t != null) return t;
-		if (c.isExtern || cf.kind.match(FVar(_, _))) return null;
+		if (c.isExtern) return null;
 		var info = Context.getPosInfos(cf.pos);
 		var file = info.file;
 		if (!sys.FileSystem.exists(file)) return null;
 		// (positions are bytes)
 		var bytes = Bytes.ofString(sys.io.File.getContent(file));
 		var field = bytes.getString(info.min, info.max - info.min);
-		var r = new EReg("\\bfunction\\s+" + cf.name + "\\b", "");
+		var r = new EReg(head, "");
 		if (!r.match(field)) return null;
 		var at = info.min + Bytes.ofString(field.substr(0, r.matchedPos().pos + r.matchedPos().len)).length;
+		var rest = bytes.getString(at, info.max - at);
+		if (prefix == "") rest = ~/;\s*$/.replace(rest, "");
 		// (`function` and the rest: an anonymous function where its name was)
-		var fe = Context.parseInlineString("function" + bytes.getString(at, info.max - at), Context.makePosition({min: at - 8, max: info.max, file: file}));
+		var fe = Context.parseInlineString(prefix + rest, Context.makePosition({min: at - prefix.length, max: info.max, file: file}));
 		var imports = [], usings = [];
 		var line = ~/^\s*(import|using)\s+([^;]+);/;
 		for (l in bytes.toString().split("\n"))

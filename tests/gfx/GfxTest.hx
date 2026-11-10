@@ -40,8 +40,8 @@ class GfxTest {
 
 	static function main() {
 		var args = Sys.args();
-		if (args.length < 4 || !["triangle", "cube", "instances", "targets", "msaa", "mips", "formats", "blend"].contains(args[1])) {
-			Sys.println("usage: GfxTest headless|window triangle|cube|instances|targets|msaa|mips|formats|blend <golden.png> <out.png> [--bless | frames]");
+		if (args.length < 4 || !["triangle", "cube", "instances", "targets", "msaa", "mips", "formats", "blend", "palette"].contains(args[1])) {
+			Sys.println("usage: GfxTest headless|window triangle|cube|instances|targets|msaa|mips|formats|blend|palette <golden.png> <out.png> [--bless | frames]");
 			Sys.exit(2);
 		}
 		var name = args[1], golden = args[2], out = args[3];
@@ -77,6 +77,11 @@ class GfxTest {
 		if (name == "blend") {
 			var wrong = Blending.check(pixels, WIDTH, HEIGHT);
 			Sys.println("GfxTest: blend: " + (wrong == null ? "the modes' pixels as expected" : "FAIL: " + wrong));
+			if (wrong != null) return false;
+		}
+		if (name == "palette") {
+			var wrong = Palette.check(pixels, WIDTH, HEIGHT);
+			Sys.println("GfxTest: palette: " + (wrong == null ? "the colours as expected" : "FAIL: " + wrong));
 			if (wrong != null) return false;
 		}
 		if (bless) {

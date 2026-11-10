@@ -1612,6 +1612,15 @@ export function cos<T extends Flat>(x: T): T {
 export function tan<T extends Flat>(x: T): T {
 	return each((x) => Math.tan(x), [x]);
 }
+export function asin<T extends Flat>(x: T): T {
+	return each((x) => Math.asin(x), [x]);
+}
+export function acos<T extends Flat>(x: T): T {
+	return each((x) => Math.acos(x), [x]);
+}
+export function atan<T extends Flat>(x: T): T {
+	return each((x) => Math.atan(x), [x]);
+}
 export function exp<T extends Flat>(x: T): T {
 	return each((x) => Math.exp(x), [x]);
 }
@@ -1626,6 +1635,9 @@ export function max<T extends Flat>(x: T, y: T | number): T {
 }
 export function pow<T extends Flat>(x: T, y: T | number): T {
 	return each((x, y) => Math.pow(x, y), [x, y]);
+}
+export function atan2<T extends Flat>(y: T, x: T | number): T {
+	return each((y, x) => Math.atan2(y, x), [y, x]);
 }
 export function step<T extends Flat>(edge: T | number, x: T): T {
 	return each((edge, x) => x < edge ? 0 : 1, [edge, x]);

@@ -19,6 +19,8 @@ enum SType {
 	TMat4; // 4 columns of vec4
 	TTexture; // a Texture2D: a texture and its sampler (parameters only)
 	TStruct(s:SStruct);
+	// n of them: a uniform block's field (Vec4s or Mat4s: std140's stride is theirs), read by index
+	TArray(t:SType, n:Int);
 }
 
 class SStruct {
@@ -68,6 +70,7 @@ enum SExprDef {
 	EField(e:SExpr, name:String); // of a struct
 	ESwizzle(e:SExpr, comps:String); // of a vector: x, y, z, w
 	EColumn(e:SExpr, i:Int); // of a matrix
+	EIndex(e:SExpr, i:SExpr); // of an array, an Int
 	EUnop(op:SUnop, e:SExpr);
 	EBinop(op:SBinop, a:SExpr, b:SExpr); // scalars, componentwise, matrix products
 	ECond(c:SExpr, a:SExpr, b:SExpr);

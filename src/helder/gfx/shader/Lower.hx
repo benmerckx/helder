@@ -62,6 +62,8 @@ class Lower implements ShaderAdapter {
 	public final uniformRefs:Array<{field:String, expr:Expr, type:ComplexType}> = [];
 	final slotFunctions = new Map<String, SFunction>();
 	final constants = new Map<Int, SExpr>();
+	// the static finals of vectors and the like read (valueOf: null, not one)
+	final values = new Map<String, Null<SExpr>>();
 	// the module scopes a slot object's functions are typed in (its own module's imports: Scopes)
 	public final scopes = new Map<Expr, Scopes.Scope>();
 
@@ -274,6 +276,8 @@ class Lower implements ShaderAdapter {
 					case ["", "Null"]: error('${t.toString()}: a nullable type is not a shader type', pos);
 					case _: error('${t.toString()} is not a shader type (Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 and structs of them)', pos);
 				}
+			case TInst(_.get() => {pack: [], name: "Array"}, [_]):
+				error('${t.toString()}: an array is a uniform block\'s field (@:length(8) var lights:Array<Vec4>), read by index there', pos);
 			case TInst(c, []):
 				// (the math types' representations, as `this` of their methods)
 				var c = c.get();
@@ -366,7 +370,7 @@ class Lower implements ShaderAdapter {
 			fields.push({
 				name: Names.unique(Names.sanitize(f.name), n -> !Lambda.exists(fields, g -> g.name == n)),
 				field: f.name,
-				type: type(optional ? unNull(f.type) : f.type, f.pos),
+				type: fieldType(key, f, optional ? unNull(f.type) : f.type),
 				position: false,
 				optional: optional
 			});
@@ -377,6 +381,23 @@ class Lower implements ShaderAdapter {
 		var s = new SStruct(names.global(name), key, fields);
 		structs.set(key, s);
 		return s;
+	}
+
+	// a field's type: an Array<Vec4> or Array<Mat4> of @:length(n) an array
+	function fieldType(key:String, f:ClassField, t:Type):SType {
+		var element = switch t.follow() {
+			case TInst(_.get() => {pack: [], name: "Array"}, [e]): e;
+			case _: return type(t, f.pos);
+		}
+		var m = f.meta.extract(":length");
+		var n = m.length == 1 && m[0].params.length == 1 ? switch m[0].params[0].expr {
+			case EConst(CInt(s)): Std.parseInt(s);
+			case _: 0;
+		} : 0;
+		if (n < 1) error('$key.${f.name}: an array field has a length, @:length(n) (a literal above 0)', f.pos);
+		var e = type(element, f.pos);
+		if (e != TMat4 && !e.match(TVec(4))) error('$key.${f.name}: an array is of Vec4 or Mat4 (std140 pads the others to 16 bytes: pack them in Vec4s)', f.pos);
+		return TArray(e, n);
 	}
 
 	// a struct's value from its fields' (position(x): that field is the clip-space position)
@@ -663,7 +684,14 @@ class Lower implements ShaderAdapter {
 				];
 				if (fs.length != args.filter(x -> x != null).length) error('${s.path} is built with all its fields, no others', e.pos);
 				build(s, args, out);
-			case TArrayDecl(_) | TArray(_, _): error("arrays are not supported in a shader (yet)", e.pos);
+			case TArray(a, i):
+				var o = expr(a, out), k = coerce(expr(i, out), TInt, i.pos);
+				switch [o.t, k.e] {
+					case [TArray(_, n), EInt(j)] if (j < 0 || j >= n): error('$j is outside the array (0 to ${n - 1})', i.pos);
+					case [TArray(t, _), _]: {e: EIndex(o, k), t: t};
+					case _: error('a ${Names.typeName(o.t)} is not indexed in a shader', e.pos);
+				}
+			case TArrayDecl(_): error("arrays are not supported in a shader but as a uniform block's field (@:length(n) var lights:Array<Vec4>)", e.pos);
 			case TFunction(_): error("a closure is not supported in a shader", e.pos);
 			case TSwitch(_, _, _): error("switch is not supported in a shader (yet)", e.pos);
 			case TTry(_, _) | TThrow(_): error("exceptions are not supported in a shader", e.pos);
@@ -720,15 +748,14 @@ class Lower implements ShaderAdapter {
 		}
 
 	function field(x:TypedExpr, c:ClassType, cf:ClassField, e:TypedExpr, out:Array<SStmt>):SExpr {
-		var t = type(e.t, e.pos);
 		var o = expr(x, out);
 		return switch o.t {
-			case TVec(_): {e: ESwizzle(o, cf.name), t: t};
-			case TMat4: {e: EColumn(o, Std.parseInt(cf.name.substr(1))), t: t};
+			case TVec(_): {e: ESwizzle(o, cf.name), t: type(e.t, e.pos)};
+			case TMat4: {e: EColumn(o, Std.parseInt(cf.name.substr(1))), t: type(e.t, e.pos)};
 			case TStruct(s):
 				var f = Lambda.find(s.fields, f -> f.field == cf.name);
 				if (f == null) error('${s.path} has no field ${cf.name}', e.pos);
-				{e: EField(o, f.name), t: t};
+				{e: EField(o, f.name), t: f.type};
 			case _: error('the field ${cf.name} of ${c == null ? Names.typeName(o.t) : c.name} is not a shader value', e.pos);
 		}
 	}
@@ -752,9 +779,37 @@ class Lower implements ShaderAdapter {
 			case TConst(TBool(b)): {e: EBool(b), t: TBool};
 			case TUnop(OpNeg, false, {expr: TConst(TInt(i))}): coerce({e: EInt(-i), t: TInt}, t, e.pos);
 			case TUnop(OpNeg, false, {expr: TConst(TFloat(s))}): {e: EFloat(-Std.parseFloat(s)), t: TFloat};
-			case _: error('${path(c)}.${cf.name} is not a constant (shader code reads static constants only: a final or inline var of a literal)', e.pos);
+			case _:
+				var x = valueOf(c, cf);
+				if (x == null || !Names.same(x.t, t))
+					error('${path(c)}.${cf.name} is not a constant (shader code reads static constants only: a final or inline var of a literal, or of vec3(...) and the like of literals)', e.pos);
+				x;
 		}
 	}
+
+	// a static final of literals through builtins and operators (vec3(0.2,
+	// 0.3, 0.9), mat4(1)): its value, printed where it is read
+	function valueOf(c:ClassType, cf:ClassField):Null<SExpr> {
+		var key = path(c) + "." + cf.name;
+		if (values.exists(key)) return values.get(key);
+		var te = Sources.value(c, cf);
+		var scratch = [];
+		var x = te == null ? null : expr(te, scratch);
+		if (x != null && (scratch.length > 0 || !literal(x))) x = null;
+		values.set(key, x);
+		return x;
+	}
+
+	static function literal(x:SExpr):Bool
+		return switch x.e {
+			case EFloat(_) | EInt(_) | EBool(_): true;
+			case ENew(xs): Lambda.foreach(xs, literal);
+			case EBuiltin(name, xs): name != "sample" && name != "sampleLevel" && name != "discard" && Lambda.foreach(xs, literal);
+			case EUnop(_, a) | ESwizzle(a, _) | EColumn(a, _) | EConvert(a): literal(a);
+			case EBinop(_, a, b): literal(a) && literal(b);
+			case ECond(c, a, b): literal(c) && literal(a) && literal(b);
+			case _: false;
+		}
 
 	function call(f:TypedExpr, args:Array<TypedExpr>, e:TypedExpr, out:Array<SStmt>):SExpr {
 		var t = type(e.t, e.pos);
@@ -825,7 +880,7 @@ class Lower implements ShaderAdapter {
 		if (p == "Math") {
 			var xs = lowered();
 			return switch cf.name {
-				case "sqrt" | "sin" | "cos" | "tan" | "exp" | "log" | "abs" | "pow" | "min" | "max": {e: EBuiltin(cf.name, xs), t: t};
+				case "sqrt" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2" | "exp" | "log" | "abs" | "pow" | "min" | "max": {e: EBuiltin(cf.name, xs), t: t};
 				case "ffloor": {e: EBuiltin("floor", xs), t: t};
 				case "fceil": {e: EBuiltin("ceil", xs), t: t};
 				case "floor" | "ceil": {e: EConvert({e: EBuiltin(cf.name, xs), t: TFloat}), t: TInt};

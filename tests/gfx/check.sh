@@ -1,6 +1,6 @@
 #!/bin/sh
 # The examples (examples: Triangle.hx, Cube.hx, Instances.hx,
-# Targets.hx, Mips.hx, Formats.hx; the blend modes: Blending.hx) against <scene>.png (GfxTest.hx),
+# Targets.hx, Mips.hx, Formats.hx; the blend modes: Blending.hx; arrays: Palette.hx) against <scene>.png (GfxTest.hx),
 # headless, then in a window. Linux: on Mesa's llvmpipe, an EGL pbuffer, then an X11 window under Xvfb (needs
 # libEGL, Mesa's drivers, Xvfb and xvfb-run). macOS: Metal, an offscreen
 # texture (skipped without a Metal device: GfxTest exits with 3), then a
@@ -22,14 +22,14 @@ if [ -f "$bin/GfxTest.exe" ]; then
 		run() { sh "$here/../xvfb-run.sh" -a -s "-screen 0 640x480x24" "${WINE:-/usr/lib/wine/wine64}" "$@"; }
 		;;
 	esac
-	for s in triangle cube instances targets msaa mips formats blend; do
+	for s in triangle cube instances targets msaa mips formats blend palette; do
 		run "$bin/GfxTest.exe" headless $s "$here/$s.png" "$out/$s-headless.png"
 		run "$bin/GfxTest.exe" window $s "$here/$s.png" "$out/$s-window.png" 5
 	done
 	exit 0
 fi
 if [ "$(uname -s)" = Darwin ]; then
-	for s in triangle cube instances targets msaa mips formats blend; do
+	for s in triangle cube instances targets msaa mips formats blend palette; do
 		code=0
 		"$bin/GfxTest" headless $s "$here/$s.png" "$out/$s-headless.png" || code=$?
 		[ $code = 3 ] && exit 0
@@ -39,13 +39,13 @@ if [ "$(uname -s)" = Darwin ]; then
 		echo "check.sh: not a GUI session (launchctl managername: $(launchctl managername 2>/dev/null)): no window test"
 		exit 0
 	fi
-	for s in triangle cube instances targets msaa mips formats blend; do
+	for s in triangle cube instances targets msaa mips formats blend palette; do
 		"$bin/GfxTest" window $s "$here/$s.png" "$out/$s-window.png" 5
 	done
 	exit 0
 fi
 export LIBGL_ALWAYS_SOFTWARE=1
-for s in triangle cube instances targets msaa mips formats blend; do
+for s in triangle cube instances targets msaa mips formats blend palette; do
 	env -u DISPLAY "$bin/GfxTest" headless $s "$here/$s.png" "$out/$s-headless.png"
 	sh "$here/../xvfb-run.sh" -a -s "-screen 0 640x480x24" "$bin/GfxTest" window $s "$here/$s.png" "$out/$s-window.png" 5
 done

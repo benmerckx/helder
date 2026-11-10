@@ -1,0 +1,28 @@
+#include <metal_stdlib>
+using namespace metal;
+struct PaletteVaryings {
+	float4 pos;
+	float index;
+};
+struct PaletteBlock {
+	float4 scale;
+	array<float4, 4> colors;
+	array<float4x4, 2> turns;
+};
+float4 fs(PaletteVaryings i, PaletteBlock palette) {
+	int k = int(i.index + 0.5);
+	float quarter = (atan2(1.0, 0.0) * 2.0) / 3.14159265358979312;
+	return float4((palette.colors[k].xyz * float3(0.5, 1.0, 0.25)) * (quarter * palette.scale.x), 1.0);
+}
+struct PaletteBlock_buffer {
+	float4 scale;
+	array<float4, 4> colors;
+	array<float4x4, 2> turns;
+};
+struct StageOut {
+	float4 pos [[position]];
+	float index [[user(locn0)]];
+};
+fragment float4 main0(StageOut i [[stage_in]], constant PaletteBlock_buffer& u_0 [[buffer(0)]]) {
+	return fs(PaletteVaryings{i.pos, i.index}, PaletteBlock{u_0.scale, u_0.colors, u_0.turns});
+}

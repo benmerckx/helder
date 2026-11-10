@@ -23,11 +23,18 @@ class Hlsl extends Emit {
 			case TMat4: "float4x4";
 			case TTexture: "Texture2D";
 			case TStruct(s): s.name;
+			case TArray(t, _): type(t);
+		}
+
+	override function decl(t:SType, name:String):String
+		return switch t {
+			case TArray(e, n): type(e) + " " + name + "[" + n + "]";
+			case _: super.decl(t, name);
 		}
 
 	override function struct(s:SStruct) {
 		super.struct(s);
-		line('${s.name} make_${s.name}(' + [for (i in 0...s.fields.length) type(s.fields[i].type) + " f" + i].join(", ") + ") {");
+		line('${s.name} make_${s.name}(' + [for (i in 0...s.fields.length) decl(s.fields[i].type, "f" + i)].join(", ") + ") {");
 		line('\t${s.name} s;');
 		for (i in 0...s.fields.length)
 			line('\ts.${s.fields[i].name} = f$i;');
@@ -74,7 +81,7 @@ class Hlsl extends Emit {
 			line('cbuffer ${u.struct.name}_block : register(b${u.binding}) {');
 			for (i in 0...u.struct.fields.length) {
 				var f = u.struct.fields[i], o = u.offsets[i];
-				line('\t' + (f.type == TMat4 ? "row_major " : "") + type(f.type) + ' u_${u.binding}_${f.name} : packoffset(c${o >> 4}' + (o & 15 == 0 ? "" : "." + "xyzw".charAt((o & 15) >> 2)) + ");");
+				line('\t' + (f.type.match(TMat4 | TArray(TMat4, _)) ? "row_major " : "") + decl(f.type, 'u_${u.binding}_${f.name}') + ' : packoffset(c${o >> 4}' + (o & 15 == 0 ? "" : "." + "xyzw".charAt((o & 15) >> 2)) + ");");
 			}
 			line("};");
 		}

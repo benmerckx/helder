@@ -104,6 +104,27 @@ class ShaderMacro {
 				var n = f.field;
 				var v = macro u.$n;
 				switch f.type {
+					case TArray(t, len):
+						// (its elements, as many as it has up to its length; zeros after)
+						var size = t == TMat4 ? 64 : 16;
+						var each = t == TMat4 ? [
+							for (c in 0...4) for (k in 0...4) {
+								var col = "c" + c, comp = "xyzw".charAt(k);
+								macro b.setFloat(at + $v{16 * c + 4 * k}, x.$col.$comp);
+							}
+						] : [for (k in 0...4) {
+							var comp = "xyzw".charAt(k);
+							macro b.setFloat(at + $v{4 * k}, x.$comp);
+						}];
+						stores.push(macro {
+							var a = $v, m = 0;
+							if (a != null) m = a.length < $v{len} ? a.length : $v{len};
+							for (j in 0...m) {
+								var x = a[j], at = o + $v{off} + $v{size} * j;
+								$b{each};
+							}
+							b.fill(o + $v{off} + $v{size} * m, $v{size} * ($v{len} - m), 0);
+						});
 					case TInt: stores.push(macro b.setInt32(o + $v{off}, $v));
 					case TMat4:
 						for (c in 0...4)

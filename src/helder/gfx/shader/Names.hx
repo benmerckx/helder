@@ -53,6 +53,7 @@ class Names {
 		return switch [a, b] {
 			case [TVec(n), TVec(m)]: n == m;
 			case [TStruct(s), TStruct(r)]: s == r;
+			case [TArray(t, n), TArray(u, m)]: n == m && same(t, u);
 			case _: a == b;
 		}
 
@@ -79,6 +80,7 @@ class Names {
 			case TMat4: "Mat4";
 			case TTexture: "Texture2D";
 			case TStruct(s): s.path;
+			case TArray(t, n): 'Array<${typeName(t)}> of $n';
 		}
 
 	static final ENTRY = ~/^(main|main0|i|r|o|s|StageIn|StageOut|(in|v|out|u|make|tex|smp)_.*)$/;
@@ -102,7 +104,7 @@ class Names {
 				+ "cbuffer tbuffer row_major column_major packoffset nointerpolation linear point line triangle lineadj triangleadj vector matrix string "
 				+ "technique pass compile dword min16float min16int SV_Position SV_Target TEXCOORD bool2 bool3 bool4 float1 groupshared "
 				+ "abs sign floor ceil fract frac sqrt inversesqrt inverseSqrt rsqrt sin cos tan exp log min max pow step mix lerp clamp smoothstep dot "
-				+ "length distance normalize reflect cross mul saturate mod atan atan2 any all transpose determinant").split(" "))
+				+ "length distance normalize reflect cross mul saturate mod asin acos atan atan2 any all transpose determinant").split(" "))
 				RESERVED.set(w, true);
 		}
 		return RESERVED.exists(n) || StringTools.startsWith(n, "gl_");

@@ -124,6 +124,9 @@ class Prune {
 			f(x);
 			switch x.e {
 				case EField(a, _) | ESwizzle(a, _) | EColumn(a, _) | EUnop(_, a) | EConvert(a): e(a);
+				case EIndex(a, i):
+					e(a);
+					e(i);
 				case EBinop(_, a, b):
 					e(a);
 					e(b);

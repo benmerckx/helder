@@ -26,6 +26,8 @@ class Msl extends Emit {
 			case TMat4: "float4x4";
 			case TTexture: "texture2d<float>";
 			case TStruct(s): s.name;
+			// (metal::array: copied from the constant buffer as a value)
+			case TArray(t, n): 'array<${type(t)}, $n>';
 		}
 
 	override function param(v:SVar):String
@@ -60,6 +62,7 @@ class Msl extends Emit {
 				off = u.offsets[i] + switch f.type {
 					case TVec(n): 4 * n;
 					case TMat4: 64;
+					case TArray(t, n): (t == TMat4 ? 64 : 16) * n;
 					case _: 4;
 				}
 			}

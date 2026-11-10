@@ -1,0 +1,35 @@
+#include <metal_stdlib>
+using namespace metal;
+struct PaletteVertex {
+	float2 pos;
+	float index;
+};
+struct PaletteBlock {
+	float4 scale;
+	array<float4, 4> colors;
+	array<float4x4, 2> turns;
+};
+struct PaletteVaryings {
+	float4 pos;
+	float index;
+};
+PaletteVaryings vs(PaletteVertex v, PaletteBlock palette) {
+	return PaletteVaryings{palette.turns[1] * float4(v.pos, 0.0, 1.0), v.index};
+}
+struct PaletteBlock_buffer {
+	float4 scale;
+	array<float4, 4> colors;
+	array<float4x4, 2> turns;
+};
+struct StageIn {
+	float2 pos [[attribute(0)]];
+	float index [[attribute(1)]];
+};
+struct StageOut {
+	float4 pos [[position]];
+	float index [[user(locn0)]];
+};
+vertex StageOut main0(StageIn i [[stage_in]], constant PaletteBlock_buffer& u_0 [[buffer(0)]]) {
+	PaletteVaryings r = vs(PaletteVertex{i.pos, i.index}, PaletteBlock{u_0.scale, u_0.colors, u_0.turns});
+	return StageOut{r.pos, r.index};
+}

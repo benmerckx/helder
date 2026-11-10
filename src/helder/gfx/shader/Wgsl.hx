@@ -21,6 +21,7 @@ class Wgsl extends Emit {
 			case TMat4: "mat4x4f";
 			case TTexture: "texture_2d<f32>";
 			case TStruct(s): s.name;
+			case TArray(t, n): 'array<${type(t)}, $n>';
 		}
 
 	override function struct(s:SStruct) {

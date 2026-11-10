@@ -200,6 +200,9 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 				ty(x.t);
 				switch x.e {
 					case EField(a, _) | ESwizzle(a, _) | EColumn(a, _) | EUnop(_, a) | EConvert(a): e(a);
+					case EIndex(a, i):
+						e(a);
+						e(i);
 					case EBinop(_, a, b):
 						e(a);
 						e(b);
@@ -261,7 +264,10 @@ class ShaderDefinition implements Definition<ShaderAdapter, ShaderOutput> {
 				case TMat4:
 					size = 64;
 					align = 16;
-				case t: a.error('the uniform ${s.path}.${f.field} is a ${Names.typeName(t)}: uniforms are Float, Int, vectors and Mat4', pos);
+				case TArray(t, n):
+					size = (t == TMat4 ? 64 : 16) * n;
+					align = 16;
+				case t: a.error('the uniform ${s.path}.${f.field} is a ${Names.typeName(t)}: uniforms are Float, Int, vectors, Mat4 and arrays of Vec4 or Mat4', pos);
 			}
 			off = (off + align - 1) & ~(align - 1);
 			offsets.push(off);
