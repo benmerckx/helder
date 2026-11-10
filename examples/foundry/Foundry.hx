@@ -42,7 +42,7 @@ class Foundry implements Markup {
 		#end
 		UiWindow.run(<Surface title="Foundry" width={1280} height={800} titlebar="inset" theme={Shell.sheet} background={Theme.c("canvas")}
 			dark={ws.dark()}>
-			<view grow={1} min-height={0} actions={[Actions.handle(FoundryAction, a -> {
+			<view grow={1} min-height={0} onKeyDown={e -> space(ws, e, true)} onKeyUp={e -> space(ws, e, false)} actions={[Actions.handle(FoundryAction, a -> {
 				switch a {
 					case Undo: ws.undo();
 					case Redo: ws.redo();
@@ -78,6 +78,16 @@ class Foundry implements Markup {
 				{Shell.view(ws)}
 			</view>
 		</Surface>);
+	}
+
+	// Space over the board pans it wherever the focus is (a glyph's cell, the
+	// panel), but not in a text field, where it is a space
+	static function space(ws:Workshop, e:helder.ui.Event, down:Bool) {
+		var b = ws.board;
+		if (e.key != helder.ui.Key.SPACE || b == null) return;
+		if (down && (!b.hovered || e.target.editable())) return;
+		b.hand(down);
+		if (down) e.preventDefault();
 	}
 
 	static function step(ws:Workshop, by:Int) {

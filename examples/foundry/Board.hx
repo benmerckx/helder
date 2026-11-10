@@ -59,13 +59,14 @@ class Board extends Node {
 		};
 		onKeyDown = key;
 		onKeyUp = e -> {
-			if (e.key == Key.SPACE) spaceDown = false;
+			if (e.key == Key.SPACE) hand(false);
 			if (e.mods & Key.MOD_ALT == 0) measure(null);
 		};
 		onWheel = e -> {
 			var p = local(e);
 			// (Control or Command and the wheel, or a trackpad's pinch (a wheel with Control): zoom; else pan)
-			if (e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) zoomAt(Math.exp(-e.deltaY * 0.004), p.x, p.y) else pan(-e.deltaX, -e.deltaY);
+			// (a pinch's deltas are -180 ln(its scale): followed a little ahead of the fingers)
+			if (e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) zoomAt(Math.exp(-e.deltaY * 0.0068), p.x, p.y) else pan(-e.deltaX, -e.deltaY);
 			e.preventDefault();
 		};
 		ws.board = this;
@@ -124,6 +125,13 @@ class Board extends Node {
 		base = height / 2 + (y0 + y1) / 2 * scale;
 		fitted = false;
 		changed();
+	}
+
+	// Space held over the board: an open hand, a drag pans
+	public function hand(on:Bool) {
+		if (spaceDown == on) return;
+		spaceDown = on;
+		style.cursor = on ? Grab : Auto;
 	}
 
 	public function pan(dx:Float, dy:Float) {
@@ -502,6 +510,7 @@ class Board extends Node {
 		// (Space held, or the middle button: the view moved)
 		if (spaceDown || e.button == 2) {
 			panFrom = p;
+			style.cursor = Grabbing;
 			return;
 		}
 		frame(width, height);
@@ -650,6 +659,7 @@ class Board extends Node {
 		}
 		drag = null;
 		dragFrom = null;
+		if (panFrom != null) style.cursor = spaceDown ? Grab : Auto;
 		panFrom = null;
 		snapX = snapY = null;
 		releaseCapture();
@@ -665,7 +675,7 @@ class Board extends Node {
 
 	function key(e:Event) {
 		if (e.key == Key.SPACE) {
-			spaceDown = true;
+			hand(true);
 			return e.preventDefault();
 		}
 		if (ws.layer.peek() == "outline") return keyOutline(e);
