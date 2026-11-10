@@ -65,7 +65,7 @@ export function seconds(t: string): number | null {
 	const doy = Math.floor((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5) + d - 1;
 	const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
 	const days = era * 146097 + doe - 719468;
-	return days * 86400 + Number(r[4] ?? 0) * 3600 + Number(r[5] ?? 0) * 60 + Number(r[6] ?? 0);
+	return days * 86400 + Number(r[4] ?? "0") * 3600 + Number(r[5] ?? "0") * 60 + Number(r[6] ?? "0");
 }
 
 // a count with thousands' commas

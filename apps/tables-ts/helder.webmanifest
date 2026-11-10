@@ -1,9 +1,0 @@
-{
-  "name": "Tables",
-  "short_name": "Tables",
-  "description": "A table browser for Drizzle: drizzle-kit studio's server in a native window",
-  "background_color": "#141416",
-  "theme_color": "#141416",
-  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}],
-  "helder": {"id": "org.helder.tables", "version": "0.1.0", "build": 1}
-}

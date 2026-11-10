@@ -1,11 +1,10 @@
 {
   "name": "tables",
   "private": true,
-  "description": "A table browser for Drizzle: drizzle-kit studio's server, its tables in a native window",
+  "description": "A table browser for Drizzle: drizzle-kit studio's server in a native window, in TypeScript",
   "license": "MIT",
   "author": "Ben Merckx",
-  "homepage": "https://github.com/benmerckx/helder/tree/main/apps/tables",
-  "helder": {
-    "main": "Main"
+  "dependencies": {
+    "helder": "link:../.."
   }
 }
