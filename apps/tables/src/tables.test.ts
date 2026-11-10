@@ -76,3 +76,9 @@ describe("complete", () => {
 		equals(labels("-- from "), []);
 	});
 });
+
+describe("complete, a table named without an alias", () => {
+	test("its columns", () => {
+		equals(complete("SELECT na FROM people", 9, sample(), new Sql("sqlite"))?.items.map(i => i.label), ["name"]);
+	});
+});

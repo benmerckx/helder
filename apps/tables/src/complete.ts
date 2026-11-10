@@ -70,7 +70,7 @@ function mentioned(text: string, tables: Table[]): Map<string, Table> {
 		const t = tables.find(t => t.name.toLowerCase() === name);
 		if (t === undefined) continue;
 		out.set(name, t);
-		const alias = m[2];
+		const alias: string | undefined = m[2];
 		if (alias !== undefined && !/^(where|join|left|right|inner|on|set|values|order|group|limit)$/i.test(alias)) out.set(alias.toLowerCase(), t);
 	}
 	return out;
