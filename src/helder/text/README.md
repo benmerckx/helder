@@ -18,6 +18,13 @@ text with, usable on its own.
   Colour glyphs: CBDT/CBLC and sbix bitmaps (Noto Color Emoji, Apple
   Color Emoji: their PNG files, a font of bitmaps only loads too) and COLR
   version 0 layers with CPAL's palette (Segoe UI Emoji).
+- `FontEncoder`: a TrueType font (.ttf) written from glyphs of quadratic
+  contours (`FontSource`: the family, metrics, each glyph's characters,
+  advance and contours, kerning pairs): the tables an installed font and
+  a browser's @font-face need (head, hhea, maxp, OS/2, hmtx, cmap format
+  4, name, post 3, loca, glyf) and the kern table; no hinting, the Basic
+  Multilingual Plane. `FontFile.parse` reads it back (FontEncoder.test.hx),
+  as do CoreText and fontTools. examples/foundry makes its fonts with it.
 - `Rasterizer`: anti-aliased coverage of outlines, after Raph Levien's
   font-rs (exact area per pixel, quadratic and cubic curves flattened
   within a third of a pixel); `reset` for the next bitmap, its buffer kept.

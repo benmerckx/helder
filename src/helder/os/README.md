@@ -386,6 +386,15 @@ reads the dev server's messages (`App.run`'s turns; an idle loop wakes
 every 50 ms) and reports the first frame. Without `-D hxmc.dev` every call
 compiles to nothing.
 
+## Downloads
+
+`Downloads.save(name, bytes, type)`: a file handed to the user where a
+browser puts what it downloads: in the browser the page's own download
+(a Blob's URL on a link clicked), on macOS, Linux and Windows the user's
+Downloads folder under a name not taken yet ("Font 2.ttf"); it answers
+the path (the name in a browser), null on phones or when it could not be
+written. A save dialog is for later.
+
 ## Store
 
 `Store.open(name)`: a small key-value store of strings kept between runs

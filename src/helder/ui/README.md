@@ -338,8 +338,14 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   (lines: wrapping, Up and Down, scrolling), both on `EditableText`, with
   an input method's composition shown at the caret (markup's `<field/>`
   and `<field:textarea/>`); `Icons`, lucide's icons by name (markup's
-  `<icon/>`). Other controls (buttons, checkboxes, menus) are views with a
-  role, `focusable` and `onPress`, as in the examples and `GUIDE.md`. A
+  `<icon/>`); `Theme`, the studio's look for any app (its sheet's
+  parts by slot: panels, sections, buttons, fields, menus; light and dark
+  from the same tokens, `Theme.c` for a colour given inline); `Controls`,
+  two controls styled by it: `Slider` (a number as a field filled up to
+  it, set by a press, a drag or the keys) and `Segmented` (one of a few
+  options, a radio group). Other controls (buttons, checkboxes, menus)
+  are views with a role, `focusable` and `onPress`, as in the examples
+  and `GUIDE.md`. A
   `UiWindow`'s `Ui.dark` follows the system's appearance
   (`helder.os.App.prefersDark`: the browser's colour scheme, macOS's,
   Windows', GTK's settings).

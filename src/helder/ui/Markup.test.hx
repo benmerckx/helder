@@ -7,7 +7,7 @@ import helder.view.graph.Signal;
 
 // ui's markup attributes at run time: a transform from a string built
 // then, pointer-events inherited by what a transform moves, onResize told
-// a node's laid-out size
+// a node's laid-out size, line-height in pixels or as a multiple
 function tests() {
 	describe("Markup", () -> {
 		test("a transform bound to a runtime string", () -> {
@@ -47,6 +47,15 @@ function tests() {
 			equals(sizes, ["50x20", "80x20"]);
 			dispose();
 		});
+		test("line-height in pixels or as a multiple", () -> {
+			var ui = new Ui(null, 200, 200);
+			var dispose = Render.render(Fixture.leading(), ui.root);
+			equals(ui.root.find("px").style.lineHeightPx, 22.0);
+			equals(ui.root.find("px").style.lineHeight, null);
+			equals(ui.root.find("times").style.lineHeight, 1.5);
+			equals(ui.root.find("times").style.lineHeightPx, null);
+			dispose();
+		});
 	});
 }
 
@@ -63,6 +72,12 @@ private class Fixture implements helder.view.Markup {
 	public static function sized(w:Signal<Float>, sizes:Array<String>)
 		return <view>
 			<view width={w()} height={20} onResize={e -> sizes.push(e.target.width + "x" + e.target.height)}/>
+		</view>;
+
+	public static function leading()
+		return <view>
+			<text tag="px" line-height="22px">a</text>
+			<text tag="times" line-height={1.5}>b</text>
 		</view>;
 
 	public static function overlay()

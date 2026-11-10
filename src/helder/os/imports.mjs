@@ -599,6 +599,15 @@ export default function (host) {
 				navigator.vibrate?.(ms);
 			} catch {}
 		},
+		download(name, p, n, type) {
+			if (typeof document == 'undefined') return;
+			const url = URL.createObjectURL(new Blob([new Uint8Array(host.memory().buffer, p, n).slice()], { type: host.string(type) }));
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = host.string(name);
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(url), 10000);
+		},
 		clipboard_write(p) {
 			const s = host.string(p);
 			navigator.clipboard?.writeText(s).catch(() => {});

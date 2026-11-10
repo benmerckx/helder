@@ -74,6 +74,18 @@ class StyleAttrs {
 		style.outlineColor = color;
 	}
 
+	// a multiple of the font size (1.5, "1.5"), or pixels as CSS writes
+	// them ("22px": lineHeightPx); "normal": the font's own
+	static function lineHeight(style:Style, v:Dynamic) {
+		if (Std.isOfType(v, String) && StringTools.endsWith(StringTools.trim(v), "px")) {
+			style.lineHeight = null;
+			style.lineHeightPx = float(v);
+		} else {
+			style.lineHeightPx = null;
+			style.lineHeight = v == null || v == "normal" ? null : float(v);
+		}
+	}
+
 	static function letterSpacing(style:Style, v:Dynamic)
 		style.letterSpacing = v == "normal" ? 0 : float(v);
 

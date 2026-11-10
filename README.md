@@ -120,7 +120,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | --- | --- |
 | `os` | windows, input, the app loop and audio: X11, Wayland, Cocoa, Win32, Android, UIKit, the browser |
 | `gfx` | a portable GPU API: GL/GLES, Metal, D3D11, WebGPU, WebGL2; shaders written in Haxe |
-| `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas |
+| `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas; TrueType fonts written |
 | `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames; PNG and JPEG encoded |
 | `pdf` | PDF read (xref, recovery, filters, RC4 and AES) and rendered on `canvas`: its fonts as outlines, images, shadings, patterns (src/helder/pdf/README.md) |
 | `canvas` | 2D drawing on the CPU: paths, fills, strokes, gradients, patterns, clips, layers, blend modes, images, text, analytic antialiasing; `canvas.dom`, the browser's Canvas 2D on it for Haxe and TypeScript (src/helder/canvas/README.md) |

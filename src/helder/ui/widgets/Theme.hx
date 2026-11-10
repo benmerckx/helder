@@ -201,6 +201,13 @@ class Theme {
 			{slot: "grid-editor", style: {background: t("bg"), color: t("fg"), radius: 1, fontFamily: CODE,
 				fontSize: BODY}},
 			{slot: "grid-editor", when: ["selection"], style: {background: t("sel-soft")}},
+			// Controls' slider: a field filled up to its value, the label inside
+			{slot: "slider", style: {direction: Row, alignItems: Center, columnGap: 6, grow: 1, minWidth: 0, height: FIELD, padding: [0, 8], radius: RADIUS,
+				background: t("well"), overflow: Hidden, cursor: ResizeEW}},
+			{slot: "slider", when: ["hover"], style: {background: t("hover")}},
+			{slot: "slider", when: ["focus-visible"], style: {outlineWidth: 1, outlineOffset: 0, outlineColor: t("focus")}},
+			{slot: "slider-fill", style: {background: t("accent-soft")}},
+			{slot: "slider-value", style: {shrink: 0, color: t("fg"), fontFamily: CODE, fontSize: SMALL}},
 		],
 		light: light,
 		dark: dark,
