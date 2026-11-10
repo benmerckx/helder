@@ -136,6 +136,8 @@ class Board extends Node {
 		// the ink, or an agent's lines being written out
 		var s = Ink.shape(f, char), own = Model.drawn(f, char), g = ws.glyph(char);
 		var a = ws.agentStroke.peek();
+		// (a stroke not drawn yet: written out from now)
+		if (a != null && a.at < 0) ws.agentStroke(a = {char: a.char, at: Clock.now});
 		if (a != null && a.char == char && Clock.now - a.at < AFTER + duration(g)) {
 			writeOut(c, x, y, g, f, s, Clock.now - a.at);
 			repaint();

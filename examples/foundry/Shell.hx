@@ -34,7 +34,7 @@ class Shell implements Markup {
 	public static final sheet:StyleSheet = {
 		rules: Theme.sheet.rules.concat([
 			{slot: "cell", style: {height: 56, radius: Theme.RADIUS_M, background: t("well"), borderWidth: 1, borderColor: Color.TRANSPARENT, cursor: Pointer,
-				alignItems: Center, padding: [4, 2, 3, 2], overflow: Hidden}},
+				alignItems: Center, padding: [4, 2, 3, 2]}},
 			{slot: "cell", when: ["hover"], style: {background: t("hover")}},
 			{slot: "cell", when: ["data-on=true"], style: {background: t("on"), borderColor: t("accent")}},
 			{slot: "cell", when: ["focus-visible"], style: {outlineWidth: 1, outlineOffset: 1, outlineColor: t("focus")}},
@@ -116,14 +116,18 @@ class Shell implements Markup {
 					{thumb(ws, char)}
 				</Show>
 			</view>
-			<Show when={ws.agentGlyphs().indexOf(char) >= 0}>
-				<image position="absolute" top={4} right={4} src={Icons.sparkles} width={10} height={10} color={c("violet")} label="Drawn by an agent"/>
-			</Show>
+			{glimmer(ws, char)}
 			<view direction="row" align-items="center" column-gap={3} height={12}>
 				<text font-size={10} line-height="12px" color={c("fg3")}>{char}</text>
 				<Show when={state() == "borrowed"}><view width={4} height={4} radius={2} background={c("accent-ink")} label="Borrowed"/></Show>
 			</view>
 		</view:button>;
+	}
+
+	static function glimmer(ws:Workshop, char:String):Node {
+		var g = new Glimmer(ws, char);
+		renderEffect(() -> ws.touched().get(char), _ -> g.wake());
+		return g;
 	}
 
 	static function thumb(ws:Workshop, char:String):Node {
@@ -303,6 +307,8 @@ class Shell implements Markup {
 
 	static final SAMPLES = ["Hamburgefonstiv", "The quick brown fox jumps over the lazy dog", "Sphinx of black quartz, judge my vow!", "Über café, ¿sí? Ça va."];
 
+	static var sampleField:Null<Node> = null;
+
 	static function preview(ws:Workshop):View
 		return <view tag="preview" shrink={0} border-width="1 0 0 0" border-color={c("line")} padding={'10 ${Theme.PAD} 12'} row-gap={8}>
 			<view direction="row" align-items="center" column-gap={8}>
@@ -310,7 +316,14 @@ class Shell implements Markup {
 				<view direction="row" column-gap={2}>
 					<For each={SAMPLES}>{(s:Read<String>) -> {
 						var text = s();
-						<view:button slot="button" role="button" label={text} focusable data-on={ws.sample() == text ? "true" : "false"} onPress={() -> ws.sample(text)}>
+						<view:button slot="button" role="button" label={text} focusable data-on={ws.sample() == text ? "true" : "false"} onPress={() -> {
+							ws.sample(text);
+							// (shown from its start: the field keeps its caret, at the end of what it had)
+							helder.ui.Clock.add(_ -> {
+								sampleField?.select(0, 0);
+								return false;
+							});
+						}}>
 							<text font-size={Theme.SMALL}>{text.substr(0, 3)}</text>
 						</view:button>;
 					}}</For>
@@ -322,6 +335,7 @@ class Shell implements Markup {
 				]}/>
 			</view>
 			<field tag="sample" slot="input" font-family={Draft.FAMILY} font-size={ws.size} label="Preview text" value={ws.sample} placeholder="Type here"
+				ref={(n:Node) -> sampleField = n}
 				onInput={e -> ws.sample(e.text)}/>
 			<text font-family={Draft.FAMILY} font-size={15} line-height="22px" color={c("fg2")} max-lines={1} text-overflow="ellipsis">
 				Brave little letters, jumping quickly over 1,234 dozen boxes. ÀÉÎÕÜ àéîõü ç ñ ¿? ¡!
@@ -369,7 +383,7 @@ class Shell implements Markup {
 				</view:button>
 			</view>
 			<scroll grow={1} min-height={0}>
-				<view slot="section" border-width={0}>
+				<view slot="section" border-width="0 0 0 0">
 					<view slot="section-head"><text>Font</text></view>
 					<view slot="field">
 						<text slot="field-label">Name</text>

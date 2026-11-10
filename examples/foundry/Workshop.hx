@@ -36,7 +36,10 @@ class Workshop {
 	// (marked in the grid until a person edits them), and its last glyph
 	// drawn: which, and when (Clock.now), for the board to write it out
 	public final agent = signal("");
-	public final agentGlyphs:Signal<Array<String>> = signal([]);
+	// (each glyph an agent changed: which change (a count) and how long after
+	// the first its cell glows, in a wave; the cell starts it when next drawn)
+	public final touched:Signal<Map<String, {change:Int, delay:Float}>> = signal(new Map());
+	var changes = 0;
 	public final agentStroke:Signal<Null<{char:String, at:Float}>> = signal(null);
 	// the start screen shown (a first run, File, New Font)
 	public final starting = signal(false);
@@ -61,8 +64,27 @@ class Workshop {
 		dark = memo(() -> appearance() == "dark" || appearance() == "system" && helder.ui.draw.UiWindow.dark());
 		// (saved a moment after the last change: a drag saves once)
 		var timer:Null<haxe.Timer> = null;
+		// (the draft font at most ten times a second while a drag edits, and at its end)
+		var shownAt = -1.0, pending = false;
+		function show() {
+			var now = helder.ui.Clock.now;
+			if (now - shownAt >= 0.1) {
+				shownAt = now;
+				Draft.show(latest);
+				return;
+			}
+			if (pending) return;
+			pending = true;
+			helder.ui.Clock.add(t -> {
+				if (t - shownAt < 0.1) return true;
+				pending = false;
+				shownAt = t;
+				Draft.show(latest);
+				return false;
+			});
+		}
 		effect(() -> face(), f -> {
-			Draft.show(f);
+			show();
 			if (timer != null) timer.stop();
 			timer = haxe.Timer.delay(() -> store.set("face", Model.save(latest)), 400);
 		});
@@ -106,8 +128,8 @@ class Workshop {
 		canRedo(future.length > 0);
 	}
 
-	public function open(char:String) {
-		if (char == current.peek()) return;
+	public function open(char:String, again = false) {
+		if (char == current.peek() && !again) return;
 		current(char);
 		selected(null);
 		points([]);
@@ -155,20 +177,20 @@ class Workshop {
 	}
 
 	public function setGlyph(char:String, g:Glyph, ?group:String) {
-		forget(char);
 		edit(Model.with(latest, char, g), group);
 	}
 
-	// an agent's edit of char: marked, written out on the board
-	public function byAgent(char:String) {
-		var marked = agentGlyphs.peek();
-		if (marked.indexOf(char) < 0) agentGlyphs(marked.concat([char]));
-		agentStroke({char: char, at: helder.ui.Clock.now});
-	}
-
-	function forget(char:String) {
-		var marked = agentGlyphs.peek();
-		if (marked.indexOf(char) >= 0) agentGlyphs(marked.filter(c -> c != char));
+	// an agent's edit of chars: their cells glow a moment (one after the
+	// other when there are many), the one on the board is written out
+	public function byAgent(chars:Array<String>) {
+		var map = new Map<String, {change:Int, delay:Float}>(), i = 0, change = ++changes;
+		for (k => v in touched.peek())
+			map.set(k, v);
+		for (c in chars)
+			map.set(c, {change: change, delay: Math.min(i++ * 0.025, 1.2)});
+		touched(map);
+		// (the board's clock starts it when it next draws: -1)
+		if (chars.indexOf(current.peek()) >= 0) agentStroke({char: current.peek(), at: -1});
 	}
 
 	public function addLine(char:String, line:Line) {
@@ -235,7 +257,6 @@ class Workshop {
 
 	// back to empty, or to what it would borrow
 	public function clear(char:String) {
-		forget(char);
 		edit(Model.with(latest, char, null));
 		selected(null);
 	}
@@ -339,10 +360,8 @@ class Workshop {
 	// a face to start from (the start screen's): undoable, the first letter opened
 	public function begin(f:Face) {
 		edit(f);
-		agentGlyphs([]);
 		starting(false);
-		current("");
-		open(Charset.start[0]);
+		open(Charset.start[0], true);
 	}
 
 	// ---- reading

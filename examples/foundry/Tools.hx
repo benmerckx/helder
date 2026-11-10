@@ -182,11 +182,11 @@ class Tools {
 					var lines = [for (l in g.lines) {knots: [for (q in l.knots) {x: tx(q.x, q.y), y: q.y * sy + dy, corner: q.corner}], closed: l.closed}];
 					var outline = g.outline == null ? null : [for (c in g.outline) [for (q in c) {x: tx(q.x, q.y), y: q.y * sy + dy, off: q.off, smooth: q.smooth}]];
 					ws.setGlyph(char, {lines: lines, parts: g.parts, outline: outline, left: g.left, right: g.right}, "transform");
-					ws.byAgent(char);
 					done.push(char);
 				}
 				if (done.length == 0) throw 'None of "$spec" has ink of its own to transform';
-				ws.agent('Agent transformed ${done.length} letters');
+				ws.byAgent(done);
+				said('Agent transformed ${done.length} letters');
 				[text('transformed ${done.join("")}'), image(Picture.text(ws.value(), done.slice(0, 24).join(""), 72))];
 			case "glyph.borrow":
 				var char = character(args), g = ws.glyph(char);
@@ -212,7 +212,7 @@ class Tools {
 					angle: args.angle ?? p.angle,
 					cap: args.cap == "flat" ? Flat : args.cap == "round" ? Round : p.cap
 				});
-				ws.agent("Changed the pen");
+				everything("changed the pen");
 				[text(Json.stringify(ws.value().pen))];
 			case "metrics.set":
 				var m = ws.value().metrics;
@@ -223,7 +223,7 @@ class Tools {
 					descender: args.descender ?? m.descender,
 					spacing: args.spacing ?? m.spacing
 				});
-				ws.agent("Changed the proportions");
+				everything("changed the proportions");
 				[text(Json.stringify(ws.value().metrics))];
 			case "sources.list":
 				[text(Sources.names().join("\n"))];
@@ -270,19 +270,21 @@ class Tools {
 
 	static inline var SAMPLE = "Hamburgefonstiv HOXA 0123";
 
-	// a whole font changed by an agent: every letter marked, the one on the board written out
+	// a whole font changed by an agent: every cell glowing in turn
 	function everything(what:String) {
-		ws.agentGlyphs([for (k in ws.value().glyphs.keys()) k]);
-		ws.agentStroke({char: ws.current.peek(), at: helder.ui.Clock.now});
-		ws.agent("Agent " + what);
-		haxe.Timer.delay(() -> if (ws.agent.peek() == "Agent " + what) ws.agent(""), 5000);
+		ws.byAgent(Charset.all.filter(c -> Model.drawn(ws.value(), c)));
+		said("Agent " + what);
 	}
 
+	// an agent's change of one glyph: its cell glows, the board stays where the person is
 	function shown(char:String, what:String) {
-		ws.open(char);
-		if (what.indexOf("drew") == 0 || what.indexOf("made") == 0) ws.byAgent(char);
-		ws.agent("Agent " + what);
-		haxe.Timer.delay(() -> if (ws.agent.peek() == "Agent " + what) ws.agent(""), 4000);
+		ws.byAgent([char]);
+		said("Agent " + what);
+	}
+
+	function said(text:String) {
+		ws.agent(text);
+		haxe.Timer.delay(() -> if (ws.agent.peek() == text) ws.agent(""), 4000);
 	}
 
 	function font():Dynamic {

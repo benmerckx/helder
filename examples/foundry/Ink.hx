@@ -144,18 +144,38 @@ class Ink {
 		// glyph whose ink, pen and spacing are the same as the last face's keeps its shape too)
 		var hit = shapes.get(char);
 		if (hit != null && hit.face == face) return hit.shape;
-		var r = resolve(face, char, 0), g = Model.glyph(face, char);
-		var key = haxe.Json.stringify({l: r.lines, o: r.outline, p: face.pen, s: face.metrics.spacing, a: g?.left, b: g?.right});
-		if (hit != null && hit.key == key) {
+		// (what it is made of, by identity: an edit makes new values only where it changes)
+		var key:Array<Dynamic> = [face.pen, face.metrics];
+		depends(face, char, 0, key);
+		if (hit != null && same(hit.key, key)) {
 			shapes.set(char, {face: face, key: key, shape: hit.shape});
 			return hit.shape;
 		}
+		var r = resolve(face, char, 0);
 		var s = make(face, char, [for (c in r.outline) quads(c)].concat(contours(r.lines, face.pen)));
 		shapes.set(char, {face: face, key: key, shape: s});
 		return s;
 	}
 
-	static final shapes = new Map<String, {face:Face, key:String, shape:Shape}>();
+	static final shapes = new Map<String, {face:Face, key:Array<Dynamic>, shape:Shape}>();
+
+	// the glyph and every glyph it borrows from, and how
+	static function depends(face:Face, char:String, depth:Int, out:Array<Dynamic>) {
+		out.push(Model.glyph(face, char));
+		if (depth > 4) return;
+		for (p in Charset.parts(face, char)) {
+			out.push(p.of);
+			out.push(p.how);
+			depends(face, p.of, depth + 1, out);
+		}
+	}
+
+	static function same(a:Array<Dynamic>, b:Array<Dynamic>):Bool {
+		if (a.length != b.length) return false;
+		for (i in 0...a.length)
+			if (a[i] != b[i]) return false;
+		return true;
+	}
 
 	static function make(face:Face, char:String, contours:Array<Array<FontPoint>>):Shape {
 		var x0 = Math.POSITIVE_INFINITY, y0 = Math.POSITIVE_INFINITY, x1 = Math.NEGATIVE_INFINITY, y1 = Math.NEGATIVE_INFINITY;
