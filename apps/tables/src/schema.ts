@@ -15,7 +15,11 @@ export async function load(db: Drizzle, setup: Setup, sql: Sql): Promise<Table[]
 	modes(tables, setup.files);
 	await counts(db, sql, tables);
 	// (the default schema's first: public, main)
-	return [...tables].sort((a, b) => rank(a) - rank(b));
+	return [...tables].sort((a, b) => rank(a) - rank(b) || compare(a.schema, b.schema) || compare(a.name, b.name));
+}
+
+function compare(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function rank(t: Table): number {
@@ -66,7 +70,12 @@ async function postgres(db: Drizzle): Promise<Table[]> {
 		+ `FROM information_schema.columns c JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name `
 		+ `WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema', 'drizzle') AND c.table_schema NOT LIKE 'pg_toast%' `
 		+ `ORDER BY c.table_schema, c.table_name, c.ordinal_position`);
-	return group(rows, r => {
+	// (materialized views: not in information_schema, read as views from the catalog)
+	const made = await db.rows(`SELECT n.nspname AS s, c.relname AS t, 'VIEW' AS k, a.attname AS c, format_type(a.atttypid, a.atttypmod) AS ty, `
+		+ `CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS nl, NULL AS df, y.typname AS u FROM pg_class c `
+		+ `JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped `
+		+ `JOIN pg_type y ON y.oid = a.atttypid WHERE c.relkind = 'm' ORDER BY n.nspname, c.relname, a.attnum`);
+	return group([...rows, ...made], r => {
 		const c = new Column(r[3], pgType(r[4], r[7]), r[5] === "YES", primary.has(`${r[0]}.${r[1]}.${r[3]}`), r[6]);
 		if (labels.has(r[7])) c.values = labels.get(r[7])!;
 		return { schema: r[0], table: r[1], view: r[2] === "VIEW", column: c };

@@ -292,6 +292,7 @@ export class Tables {
 		this.count(r.count);
 		this.changes(r.changes());
 		this.showStructure(t);
+		this.describe();
 		this.bump();
 		if (this.mode.peek() !== "sql") grid.focus(false);
 	}
