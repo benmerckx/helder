@@ -213,6 +213,7 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 		shown = frame.exposure.y > 0.5 ? filter : encode(filter);
 		alpha = 1;
 	}
+	if (material.uvV.w > 0) shown = shown.mul(alpha);
 	return vec4(shown, alpha);
 }
 

@@ -396,7 +396,7 @@ class MetalBackend {
 		if (blend != Opaque) {
 			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
 			var multiply = blend == Multiply;
-			Msg.vInt(color, ObjC.sel("setSourceRGBBlendFactor:"), multiply ? MTL.BlendFactorDestinationColor : blend == Premultiplied ? MTL.BlendFactorOne : MTL.BlendFactorSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setSourceRGBBlendFactor:"), multiply ? MTL.BlendFactorDestinationColor : blend == Premultiplied || blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorSourceAlpha);
 			Msg.vInt(color, ObjC.sel("setDestinationRGBBlendFactor:"), multiply ? MTL.BlendFactorZero : blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
 			Msg.vInt(color, ObjC.sel("setRgbBlendOperation:"), MTL.BlendOperationAdd);
 			Msg.vInt(color, ObjC.sel("setSourceAlphaBlendFactor:"), multiply ? MTL.BlendFactorZero : MTL.BlendFactorOne);

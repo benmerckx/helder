@@ -264,7 +264,8 @@ export declare class Material {
 	// drawn after the opaque surfaces, farthest first, without writing depth
 	blend: boolean;
 	// how, when blend is on: by the base colour's alpha (Alpha), added to
-	// what is behind (Additive: glows, holograms, beams), or premultiplied
+	// what is behind (Additive: glows, holograms, beams; faded by its
+	// alpha), or premultiplied
 	blending: number;
 	// whether it casts a shadow (Shadows: its primitives drawn into the map,
 	// their meshes inside the map's bounds); off for glows and glass

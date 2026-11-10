@@ -25,7 +25,7 @@ device.writeTexture(tex, texels);                     // all of it, or a region:
 device.destroyTexture(tex);                           // (and destroyBuffer)
 var smp = device.createSampler({filter: Linear, wrap: Repeat});
 var pipeline = device.createPipeline(CubeShader.pipeline({
-	cull: Back, depthCompare: Less, depthWrite: true, blend: Opaque // or Alpha, Additive, Premultiplied, Multiply (dst * src: a tint)
+	cull: Back, depthCompare: Less, depthWrite: true, blend: Opaque // or Alpha, Additive (src + dst), Premultiplied, Multiply (dst * src: a tint)
 }));
 
 var enc = device.beginFrame();                        // null: no frame now (a hidden window)

@@ -7,7 +7,9 @@ enum abstract Blend(Int) {
 	var Opaque;
 	// src * a + dst * (1 - a); the target's alpha a + dst.a * (1 - a)
 	var Alpha;
-	// src * a + dst; the target's alpha a + dst.a
+	// src + dst, alpha ignored (Unreal's Additive, Bevy's AlphaMode::Add):
+	// light added, fading it the shader's to do (src * a: three.js' and
+	// Godot's); the target's alpha a + dst.a
 	var Additive;
 	// src + dst * (1 - a): colours already multiplied by their alpha
 	var Premultiplied;

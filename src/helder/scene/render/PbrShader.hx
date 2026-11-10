@@ -159,7 +159,8 @@ typedef Pbr = {
 	var ground:Vec4; // x: Material.ground, y: the air's strength (Material.air's w), z: Material.crystal
 	var air:Vec4; // rgb: the air's colour (Material.air)
 	// the textures' uv transform (Material.uvOffset, uvRotation, uvScale):
-	// u = dot(uvU.xy, uv) + uvU.z, v likewise by uvV
+	// u = dot(uvU.xy, uv) + uvU.z, v likewise by uvV; uvV.w 1: added
+	// (Material.blending Additive), its colour times its alpha
 	var uvU:Vec4;
 	var uvV:Vec4;
 	// x: Material.clearcoat, y: its roughness, z: Material.transmission, w: Material.alphaCutoff
@@ -176,7 +177,7 @@ function materialOf(m:Material):PbrMaterial {
 		ground: new Vec4(m.ground, m.air.w, m.crystal, 0),
 		air: m.air,
 		uvU: new Vec4(c * m.uvScale.x, s * m.uvScale.y, m.uvOffset.x, 0),
-		uvV: new Vec4(-s * m.uvScale.x, c * m.uvScale.y, m.uvOffset.y, 0),
+		uvV: new Vec4(-s * m.uvScale.x, c * m.uvScale.y, m.uvOffset.y, m.blend && m.blending == Additive ? 1 : 0),
 		layers: new Vec4(m.clearcoat, m.clearcoatRoughness, m.transmission, m.alphaCutoff)
 	};
 }
@@ -359,6 +360,9 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 		shown = frame.exposure.y > 0.5 ? filter : encode(filter);
 		alpha = 1;
 	}
+	// (added to what is behind (Material.blending Additive): faded by its
+	// alpha here, the blend adds as it is)
+	if (material.uvV.w > 0) shown = shown * alpha;
 	return vec4(shown, alpha);
 }
 
