@@ -14,7 +14,7 @@ import type {Asset} from "helder/asset";
 import type {Mat4, Quat, Vec2, Vec3, Vec4} from "helder/gfx";
 import type {Node} from "helder/scene";
 
-declare const __haxe: {Mesh: "helder.scene.render.Mesh", Encoder: "helder.gfx.Encoder", World: "helder.scene.World", Camera: "helder.scene.Camera", Light: "helder.scene.render.Light", Renderer: "helder.scene.render.Renderer", Material: "helder.scene.render.Material", MeshRenderer: "helder.scene.render.MeshRenderer", Shapes: "helder.scene.render.Shapes", Model: "helder.scene.render.Model", MaterialShader: "helder.scene.render.MaterialShader", InputMap: "helder.scene.input.InputMap", Bindings: "helder.scene.input.Bindings", FixedStep: "helder.scene.FixedStep", Device: "helder.gfx.Device", Surface: "helder.os.Surface", Window: "helder.os.Window", App: "helder.os.App", Event: "helder.os.Event", Script: "helder.scene.Script", __module: "helder.scene.TypeScript"};
+declare const __haxe: {Mesh: "helder.scene.render.Mesh", Encoder: "helder.gfx.Encoder", World: "helder.scene.World", Camera: "helder.scene.Camera", Light: "helder.scene.render.Light", Renderer: "helder.scene.render.Renderer", Fog: "helder.scene.render.Fog", Material: "helder.scene.render.Material", MeshRenderer: "helder.scene.render.MeshRenderer", Shapes: "helder.scene.render.Shapes", Model: "helder.scene.render.Model", MaterialShader: "helder.scene.render.MaterialShader", InputMap: "helder.scene.input.InputMap", Bindings: "helder.scene.input.Bindings", FixedStep: "helder.scene.FixedStep", Device: "helder.gfx.Device", Surface: "helder.os.Surface", Window: "helder.os.Window", App: "helder.os.App", Event: "helder.os.Event", Script: "helder.scene.Script", __module: "helder.scene.TypeScript"};
 
 // What a node draws (node.mesh): primitives, each a vertex buffer in the
 // renderer's layout (PbrVertex: position, normal, uv; 32 bytes a vertex),
@@ -184,6 +184,10 @@ export declare class Renderer {
 	// none) and how tight to the silhouette it stays (the falloff's power)
 	rim: Vec3;
 	rimPower: number;
+	// fog over the scene (Fog: colour, density, start, height falloff;
+	// null: none), taken by the standard material, Sky, Environment and
+	// GpuParticles; a material opts out with Material.fog
+	fog: Fog | null;
 	clearColor: unknown;
 	// the last draw's draws and primitives culled (statistics)
 	readonly draws: number;
@@ -233,6 +237,36 @@ export declare class Renderer {
 	dispose(): void;
 }
 
+// Fog over a scene (Renderer.fog; null: none). A surface's light is mixed
+// towards color (linear, times the exposure) by the fog between it and
+// the eye: 1 - e^(-density * the distance past start), at most max. With
+// falloff, the fog thins upwards: density at height, times
+// e^(-falloff * (y - height)), summed along the view, so valleys fill and
+// what is high, the sky above among it, clears. In linear light before
+// tone mapping, so an HDR frame blooms and grades it as the rest. The
+// standard material (Material.fog: on by default), Sky and Environment's
+// background (to the camera's far plane) and GpuParticles (faded, as they
+// add light) take it; a program's own shaders read it through FrameInfo.fog
+// (color and shape, as PbrShader.fogAmount takes them).
+export declare class Fog {
+	constructor(color: Vec3, density: number);
+	// as shaders take it: rgb its colour, w the density (none: 0)
+	static colorOf(f: Fog | null): Vec4;
+	// x the start, y the falloff, z the height, w the most
+	static shapeOf(f: Fog | null): Vec4;
+	color: Vec3;
+	// per metre (0.02: half gone at 35 m)
+	density: number;
+	// metres from the eye before it begins
+	start: number;
+	// how fast it thins upwards (per metre; 0: as thick at any height) and
+	// the height where it is density
+	falloff: number;
+	height: number;
+	// the most it hides (below 1: the far hills and the sky show through)
+	max: number;
+}
+
 // A surface of glTF's metallic-roughness model: base colour (linear,
 // times the texture's sRGB colour when there is one), metallic and
 // roughness from 0 to 1, emitted light (linear); double-sided ones are
@@ -270,6 +304,9 @@ export declare class Material {
 	// whether it casts a shadow (Shadows: its primitives drawn into the map,
 	// their meshes inside the map's bounds); off for glows and glass
 	castShadows: boolean;
+	// whether the renderer's fog (Renderer.fog) covers it (off: a glow or
+	// a sign that cuts through it)
+	fog: boolean;
 	// how much of its light it emits only on its night side (0: all of it
 	// everywhere, 1: none where the sun shines; city lights on a planet),
 	// faded across the terminator
@@ -565,7 +602,7 @@ export declare class Surface {
 // same); on Linux with WAYLAND_DISPLAY set, Wayland's
 // (helder.os.wayland.WaylandWindow; X11 where it cannot connect, or HELDER_X11=1).
 export declare class Window {
-	constructor(title: string, width: number, height: number);
+	constructor(title: string, width: number, height: number, titlebar?: "standard" | "inset");
 	readonly surface: Surface;
 	// its title bar's text (the browser: the page's title)
 	title: string;

@@ -46,7 +46,9 @@ class Sky implements RenderFeature {
 			horizon: new Vec4(horizon.x, horizon.y, horizon.z, 0),
 			ground: new Vec4(ground.x, ground.y, ground.z, 0),
 			sun: new Vec4(l.x, l.y, l.z, renderer.exposure),
-			sunColor: new Vec4(sunColor.x, sunColor.y, sunColor.z, frame.hdr ? 1 : 0)
+			sunColor: new Vec4(sunColor.x, sunColor.y, sunColor.z, frame.hdr ? 1 : 0),
+			fog: Fog.colorOf(frame.fog),
+			fogShape: Fog.shapeOf(frame.fog)
 		}, bytes);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(0, bytes);

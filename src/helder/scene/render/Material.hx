@@ -44,6 +44,9 @@ class Material {
 	// whether it casts a shadow (Shadows: its primitives drawn into the map,
 	// their meshes inside the map's bounds); off for glows and glass
 	public var castShadows = true;
+	// whether the renderer's fog (Renderer.fog) covers it (off: a glow or
+	// a sign that cuts through it)
+	public var fog = true;
 	// how much of its light it emits only on its night side (0: all of it
 	// everywhere, 1: none where the sun shines; city lights on a planet),
 	// faded across the terminator

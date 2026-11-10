@@ -142,6 +142,10 @@ typedef Pbr = {
 	// a rim light (Renderer.rim): rgb its colour times intensity, w the
 	// falloff's power; the silhouette's edge lit from the light's side
 	var rim:Vec4;
+	// the fog (Renderer.fog, Fog.colorOf and shapeOf): rgb its colour, w its
+	// density (0: none); x its start, y its falloff, z its height, w the most
+	var fog:Vec4;
+	var fogShape:Vec4;
 }
 
 // per draw: the node's matrices
@@ -156,7 +160,7 @@ typedef Pbr = {
 	var baseColor:Vec4;
 	var params:Vec4; // x: metallic, y: roughness, z: the normal map's scale, w: 1 double-sided
 	var emissive:Vec4; // rgb; w: its share emitted on the night side only (Material.emissiveNight)
-	var ground:Vec4; // x: Material.ground, y: the air's strength (Material.air's w), z: Material.crystal
+	var ground:Vec4; // x: Material.ground, y: the air's strength (Material.air's w), z: Material.crystal, w: 1 fogged (Material.fog)
 	var air:Vec4; // rgb: the air's colour (Material.air)
 	// the textures' uv transform (Material.uvOffset, uvRotation, uvScale):
 	// u = dot(uvU.xy, uv) + uvU.z, v likewise by uvV; uvV.w 1: added
@@ -174,7 +178,7 @@ function materialOf(m:Material):PbrMaterial {
 		baseColor: m.baseColor,
 		params: new Vec4(m.metallic, m.roughness, m.normalScale, m.doubleSided ? 1 : 0),
 		emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight),
-		ground: new Vec4(m.ground, m.air.w, m.crystal, 0),
+		ground: new Vec4(m.ground, m.air.w, m.crystal, m.fog ? 1 : 0),
 		air: m.air,
 		uvU: new Vec4(c * m.uvScale.x, s * m.uvScale.y, m.uvOffset.x, 0),
 		uvV: new Vec4(-s * m.uvScale.x, c * m.uvScale.y, m.uvOffset.y, m.blend && m.blending == Additive ? 1 : 0),
@@ -341,6 +345,9 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 	var limb = 1 - max(dot(up, v), 0);
 	var haze = material.ground.y * limb * limb;
 	color = mix(color, material.air.xyz * (0.12 + 0.88 * smoothstep(-0.2, 0.35, sunUp)) * frame.exposure.x, haze);
+	// (the fog: light added (Additive) fades rather than turning its colour)
+	var mist = fogAmount(frame.fog, frame.fogShape, frame.eye.xyz, world) * material.ground.w;
+	color = mix(color, material.uvV.w > 0 ? vec3(0) : frame.fog.xyz * frame.exposure.x, mist);
 	var shown = output(color, frame.exposure.y);
 	// (alphaMode MASK: below the cutoff dropped, else opaque)
 	if (material.layers.w > 0) {
@@ -356,7 +363,7 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 		// is behind times its colour, where the light goes through; an
 		// 8-bit target's colours encoded)
 		var through = -material.layers.z * (1 - metallic) * alpha;
-		var filter = mix(vec3(1), base, through);
+		var filter = mix(vec3(1), base, through * (1 - mist));
 		shown = frame.exposure.y > 0.5 ? filter : encode(filter);
 		alpha = 1;
 	}
@@ -472,6 +479,22 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float
 // 1 where the map's depth at uv + (dx, dy) is not nearer than depth
 function tap(map:Texture2D, uv:Vec2, depth:Float, dx:Float, dy:Float):Float
 	return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
+
+// how much of the fog (Fog: colour and density, shape) lies between the
+// eye and a point, 0 to its most: 1 - e^(-the density summed along the
+// view past its start), the density e^(-falloff (y - height)) times its
+// own (the sum's closed form: the density where the fog begins times the
+// mean of the exponential over the climb)
+function fogAmount(fog:Vec4, shape:Vec4, eye:Vec3, at:Vec3):Float {
+	var d = at - eye;
+	var dist = max(length(d), 0.0001);
+	var through = max(dist - shape.x, 0);
+	var y = eye.y + d.y * min(shape.x / dist, 1);
+	var k = clamp(shape.y * d.y / dist * through, -30, 30);
+	var mean = abs(k) > 0.0001 ? (1 - exp(-k)) / k : 1 - 0.5 * k;
+	var depth = fog.w * exp(clamp(shape.y * (shape.z - y), -30, 30)) * through * mean;
+	return min(1 - exp(-depth), shape.w);
+}
 
 // a colour in linear light as the target takes it: as it is into an HDR
 // target (hdr 1: a half-float one, tone mapped by a PostProcess), else

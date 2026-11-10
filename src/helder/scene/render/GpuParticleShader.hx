@@ -3,6 +3,7 @@ package helder.scene.render;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.scene.render.PbrShader.output;
+import helder.scene.render.PbrShader.fogAmount;
 
 // GPU particles (GpuParticles): each particle written once, when it is
 // emitted (where, how fast, when, for how long, its colour and sizes),
@@ -35,6 +36,10 @@ import helder.scene.render.PbrShader.output;
 	var up:Vec4; // its up, w: the time (seconds)
 	var forward:Vec4; // the way it looks, w: drag (per second)
 	var gravity:Vec4;
+	// the fog (Fog.colorOf, shapeOf) and the eye: light added, faded by it
+	var fog:Vec4;
+	var fogShape:Vec4;
+	var eye:Vec4;
 }
 
 final GpuParticleShader = shader({
@@ -61,6 +66,7 @@ final GpuParticleShader = shader({
 		var q = p - axis * (len * 0.5 * (1.0 - v.corner.x)) + axis * (v.corner.x * size) + side * (v.corner.y * size);
 		var fade = (1.0 - t) * min(1.0, t * 12.0 + 0.2);
 		var hot = 1.0 + v.shape.w * (1.0 - t) * (1.0 - t) * 3.0;
+		fade *= 1.0 - fogAmount(params.view.fog, params.view.fogShape, params.view.eye.xyz, p);
 		return {clip: position(params.view.viewProj * vec4(q, 1)), corner: v.corner, color: vec4(v.color.xyz * hot, v.color.w * fade * alive)};
 	},
 	fragment: function(i:GpuParticleVaryings, p:{view:GpuParticleView}):Vec4 {

@@ -64,6 +64,10 @@ class Renderer {
 	// none) and how tight to the silhouette it stays (the falloff's power)
 	public var rim = new Vec3(0, 0, 0);
 	public var rimPower = 4.0;
+	// fog over the scene (Fog: colour, density, start, height falloff;
+	// null: none), taken by the standard material, Sky, Environment and
+	// GpuParticles; a material opts out with Material.fog
+	public var fog:Null<Fog> = null;
 	public var clearColor = new Color(0.07, 0.08, 0.1);
 	// the last draw's draws and primitives culled (statistics)
 	public var draws(default, null) = 0;
@@ -220,6 +224,8 @@ class Renderer {
 		frame.eye = camera.eye();
 		frame.toLight = toLight;
 		frame.hdr = hdr;
+		frame.fog = fog;
+		frame.exposure = exposure;
 		if (shadowSource != null) {
 			shadowSource.render(enc, world, toLight, skinSource, frame);
 			writeFrame(world, camera, viewProj, true);
@@ -369,7 +375,9 @@ class Renderer {
 			lightViewProjFar: lightViewProjFar,
 			shadowFar: shadowFar,
 			environment: environment != null ? new Vec4(environment.intensity, environment.levels, environment.rows, @:privateAccess environment.edge) : new Vec4(0, 0, 0, 0),
-			rim: new Vec4(rim.x, rim.y, rim.z, rimPower)
+			rim: new Vec4(rim.x, rim.y, rim.z, rimPower),
+			fog: Fog.colorOf(fog),
+			fogShape: Fog.shapeOf(fog)
 		}, frameBytes);
 		return l;
 	}
@@ -689,6 +697,10 @@ class FrameInfo {
 	// whether the target is the renderer's HDR one (linear light, RGBA16F:
 	// output)
 	public var hdr = false;
+	// the renderer's fog (null: none) and exposure, for what a program
+	// draws itself (Fog.colorOf, shapeOf; PbrShader.fogAmount)
+	public var fog:Null<Fog> = null;
+	public var exposure = 1.0;
 
 	public function new() {}
 }

@@ -56,8 +56,12 @@ import helder.scene.render.*;
 //   instancedmesh 400 cubes of one InstancedMesh in a spiral, each turned,
 //          scaled and coloured from flat arrays: one instanced draw,
 //          casting shadows on a floor; another set out of view, culled
+//   fog    two rows of pillars into a dusk's fog (Renderer.fog: a start,
+//          thinner upwards) under a sky it fogs to the far plane, drawn in
+//          HDR through a PostProcess; a glowing sign far off that it does
+//          not cover (Material.fog off)
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene", "fog"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -538,6 +542,52 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 0.8, 5);
 				eye.lookAt(new Vec3(0, 0.2, 0));
+				var w = device.width, h = device.height;
+				var light = device.createTexture({width: w, height: h, format: RGBA16F, renderTarget: true});
+				var depth = device.createTexture({width: w, height: h, format: Depth32F});
+				enc -> {
+					r.drawInto(enc, world, camera, light, depth, w, h);
+					post.run(enc, light, null, w, h);
+				};
+			case "fog":
+				var r = new Renderer(device, true, 1, true);
+				renderer = r;
+				r.sunDirection = new Vec3(1, 0.25, -0.4);
+				r.sunColor = new Vec3(0.9, 0.7, 0.5);
+				r.sky = new Vec3(0.05, 0.06, 0.1);
+				r.ground = new Vec3(0.02, 0.02, 0.02);
+				var fog = new Fog(new Vec3(0.012, 0.03, 0.07), 0.09);
+				fog.start = 2;
+				fog.falloff = 0.35;
+				r.fog = fog;
+				var sky = new Sky(device);
+				sky.zenith = new Vec3(0.004, 0.008, 0.03);
+				sky.horizon = new Vec3(0.03, 0.018, 0.014);
+				sky.ground = new Vec3(0.01, 0.01, 0.01);
+				sky.sunColor = new Vec3(0.5, 0.35, 0.2);
+				r.use(sky);
+				var post = new PostProcess(device, RGBA8, true);
+				post.bloom = 0.04;
+				var world = new World();
+				var floor = world.node("floor");
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new helder.gfx.shader.Vec4(0.3, 0.3, 0.3, 1), 0, 0.8), 120));
+				var stone = new Material("stone", new helder.gfx.shader.Vec4(0.6, 0.55, 0.5, 1), 0, 0.7);
+				var pillar = Shapes.box(device, stone, 0.6, 4, 0.6);
+				for (k in 0...12)
+					for (side in [-1, 1]) {
+						var n = world.node("pillar");
+						n.position = new Vec3(side * 2.5, 2, -k * 5);
+						MeshRenderer.attach(n, pillar);
+					}
+				var glow = new Material("sign", new helder.gfx.shader.Vec4(0, 0, 0, 1), 0, 1, new Vec3(6, 2, 0.5));
+				glow.fog = false;
+				var sign = world.node("sign");
+				sign.position = new Vec3(0, 1.5, -45);
+				MeshRenderer.attach(sign, Shapes.box(device, glow, 3, 0.4, 0.2));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.9, 0.1, 80));
+				eye.position = new Vec3(0, 1.7, 6);
+				eye.lookAt(new Vec3(0, 2, -20));
 				var w = device.width, h = device.height;
 				var light = device.createTexture({width: w, height: h, format: RGBA16F, renderTarget: true});
 				var depth = device.createTexture({width: w, height: h, format: Depth32F});

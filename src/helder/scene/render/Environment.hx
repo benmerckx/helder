@@ -101,7 +101,9 @@ class Environment implements RenderFeature {
 		EnvironmentShader.params.env.write({
 			invViewProj: MathTools.inverse(frame.viewProj),
 			eye: new Vec4(e.x, e.y, e.z, 1),
-			params: new Vec4(intensity * renderer.exposure, frame.hdr ? 1 : 0, rows, edge)
+			params: new Vec4(intensity * renderer.exposure, frame.hdr ? 1 : 0, rows, edge),
+			fog: Fog.colorOf(frame.fog) * renderer.exposure,
+			fogShape: Fog.shapeOf(frame.fog)
 		}, bytes);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(0, bytes);

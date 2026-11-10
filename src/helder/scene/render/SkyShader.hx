@@ -4,11 +4,13 @@ import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 import helder.scene.render.PbrShader.aces;
 import helder.scene.render.PbrShader.output;
+import helder.scene.render.PbrShader.fogAmount;
 
 // The sky (Sky): a quad over the whole target behind everything (no depth
 // written), each pixel's colour from its view direction (the inverse view
 // projection's ray): the ground below the horizon, a glow at it, the
-// zenith above, a sun's disc and halo; tone mapped and encoded as the
+// zenith above, a sun's disc and halo; the fog to the far plane (Fog);
+// tone mapped and encoded as the
 // standard material is (aces, encode).
 @:structInit @:publicFields class SkyVertex {
 	var pos:Vec2; // clip space
@@ -27,6 +29,8 @@ import helder.scene.render.PbrShader.output;
 	var ground:Vec4;
 	var sun:Vec4; // xyz: towards the sun; w: exposure
 	var sunColor:Vec4; // w: 1 into an HDR target (output)
+	var fog:Vec4; // the renderer's (Fog.colorOf, shapeOf)
+	var fogShape:Vec4;
 }
 
 final SkyShader = shader({
@@ -41,6 +45,8 @@ final SkyShader = shader({
 		var color = up > 0 ? above : below;
 		var s = max(dot(d, p.sky.sun.xyz), 0);
 		color += p.sky.sunColor.xyz * (pow(s, 600) * 8 + pow(s, 12) * 0.25);
+		// (the fog to the far plane: the sky as far as the scene is drawn)
+		color = mix(color, p.sky.fog.xyz, fogAmount(p.sky.fog, p.sky.fogShape, p.sky.eye.xyz, far.xyz / far.w));
 		return vec4(output(color * p.sky.sun.w, p.sky.sunColor.w), 1);
 	}
 });

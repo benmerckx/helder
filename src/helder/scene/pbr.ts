@@ -8,7 +8,7 @@
 // PbrShader.hx: what one changes the other does.
 import {
 	slots, position, vec2, vec3, vec4, mat4, sample, sampleLevel, dot, cross, normalize, reflect, mix, clamp, smoothstep, pow, min, max, abs,
-	sqrt, floor, step, discard, type Vec2, type Vec3, type Vec4, type Mat4, type Texture2D,
+	sqrt, floor, step, discard, length, exp, type Vec2, type Vec3, type Vec4, type Mat4, type Texture2D,
 } from "helder/gfx";
 
 // the combined vertex: a variant's attributes those it reads, in this order
@@ -24,6 +24,7 @@ export type PbrFrame = {
 	viewProj: Mat4, eye: Vec4, lightDir: Vec4, lightColor: Vec4, sky: Vec4, ground: Vec4, exposure: Vec4, lightViewProj: Mat4, shadow: Vec4,
 	point0: Vec4, point1: Vec4, point2: Vec4, point3: Vec4, pointColor0: Vec4, pointColor1: Vec4, pointColor2: Vec4, pointColor3: Vec4,
 	spot0: Vec4, spot1: Vec4, spot2: Vec4, spot3: Vec4, lightViewProjFar: Mat4, shadowFar: Vec4, environment: Vec4, rim: Vec4,
+	fog: Vec4, fogShape: Vec4,
 };
 
 // per draw: the node's matrices
@@ -198,6 +199,8 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 	const limb = 1 - max(dot(up, v), 0);
 	const haze = material.ground.y * limb * limb;
 	color = mix(color, material.air.xyz.mul(0.12 + 0.88 * smoothstep(-0.2, 0.35, sunUp)).mul(frame.exposure.x), haze);
+	const mist = fogAmount(frame.fog, frame.fogShape, frame.eye.xyz, world) * material.ground.w;
+	color = mix(color, material.uvV.w > 0 ? vec3(0) : frame.fog.xyz.mul(frame.exposure.x), mist);
 	let shown = output(color, frame.exposure.y);
 	if (material.layers.w > 0) {
 		if (alpha < material.layers.w) discard();
@@ -209,7 +212,7 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 	}
 	if (material.layers.z < 0) {
 		const through = -material.layers.z * (1 - metallic) * alpha;
-		const filter = mix(vec3(1), base, through);
+		const filter = mix(vec3(1), base, through * (1 - mist));
 		shown = frame.exposure.y > 0.5 ? filter : encode(filter);
 		alpha = 1;
 	}
@@ -311,6 +314,18 @@ function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: 
 // 1 where the map's depth at uv + (dx, dy) is not nearer than depth
 function tap(map: Texture2D, uv: Vec2, depth: number, dx: number, dy: number): number {
 	return step(depth, sampleLevel(map, uv.add(vec2(dx, dy)), 0).x);
+}
+
+// how much of the fog lies between the eye and a point (PbrShader.hx's fogAmount)
+function fogAmount(fog: Vec4, shape: Vec4, eye: Vec3, at: Vec3): number {
+	const d = at.sub(eye);
+	const dist = max(length(d), 0.0001);
+	const through = max(dist - shape.x, 0);
+	const y = eye.y + d.y * min(shape.x / dist, 1);
+	const k = clamp(shape.y * d.y / dist * through, -30, 30);
+	const mean = abs(k) > 0.0001 ? (1 - exp(-k)) / k : 1 - 0.5 * k;
+	const depth = fog.w * exp(clamp(shape.y * (shape.z - y), -30, 30)) * through * mean;
+	return min(1 - exp(-depth), shape.w);
 }
 
 // a colour in linear light as the target takes it

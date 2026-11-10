@@ -158,7 +158,10 @@ class GpuParticles implements RenderFeature {
 			right: new Vec4(right.x, right.y, right.z, frame.hdr ? 1 : 0),
 			up: new Vec4(up.x, up.y, up.z, time),
 			forward: new Vec4(forward.x, forward.y, forward.z, drag),
-			gravity: new Vec4(gravity.x, gravity.y, gravity.z, 0)
+			gravity: new Vec4(gravity.x, gravity.y, gravity.z, 0),
+			fog: Fog.colorOf(frame.fog),
+			fogShape: Fog.shapeOf(frame.fog),
+			eye: new Vec4(frame.eye.x, frame.eye.y, frame.eye.z, 1)
 		}, viewBytes);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(GpuParticleShader.uniforms[0].binding, viewBytes);

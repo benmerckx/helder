@@ -11,6 +11,7 @@ import helder.test.Test;
 import helder.scene.render.PbrShader.materialOf;
 import helder.scene.render.PbrShader.shadeAt;
 import helder.scene.render.PbrShader.uvOf;
+import helder.scene.render.PbrShader.fogAmount;
 
 // The standard shader's material options run on the CPU (shadeAt
 // as the GPU runs it, its textures white): Material.ground's sunset with
@@ -24,21 +25,21 @@ function tests() {
 	describe("Material options in PbrShader", () -> {
 		final white = new Texture2D(1, 1, Bytes.ofHex("ffffffff"));
 		// a frame lit by a sun along l (no shadows, no environment), the eye at eye
-		function frame(l:Vec3, eye:Vec3):PbrFrame {
+		function frame(l:Vec3, eye:Vec3, ?fog:Fog):PbrFrame {
 			var zero = new Vec4(0, 0, 0, 0);
 			return {
 				viewProj: Mat4.identity(), eye: new Vec4(eye.x, eye.y, eye.z, 1), lightDir: new Vec4(l.x, l.y, l.z, 0), lightColor: new Vec4(3, 3, 3, 0),
 				sky: new Vec4(0.1, 0.1, 0.1, 0), ground: new Vec4(0.1, 0.1, 0.1, 0), exposure: new Vec4(1, 1, 0, 0), lightViewProj: Mat4.identity(),
 				shadow: zero, point0: zero, point1: zero, point2: zero, point3: zero, pointColor0: zero, pointColor1: zero, pointColor2: zero,
 				pointColor3: zero, spot0: new Vec4(0, 0, 0, -2), spot1: new Vec4(0, 0, 0, -2), spot2: new Vec4(0, 0, 0, -2), spot3: new Vec4(0, 0, 0, -2),
-				lightViewProjFar: Mat4.identity(), shadowFar: zero, environment: zero, rim: zero
+				lightViewProjFar: Mat4.identity(), shadowFar: zero, environment: zero, rim: zero, fog: Fog.colorOf(fog), fogShape: Fog.shapeOf(fog)
 			};
 		}
 		function material(m:Material):PbrMaterial
 			return materialOf(m);
 		// the colour at the origin, its normal n, the node's up, tinted
-		function shade(m:Material, n:Vec3, up:Vec3, l:Vec3, eye:Vec3, ?tint:Vec3):Vec4
-			return shadeAt(n, new Vec3(0, 0, 0), new Vec2(0, 0), up, tint ?? new Vec3(1, 1, 1), frame(l, eye), material(m), white, white, white,
+		function shade(m:Material, n:Vec3, up:Vec3, l:Vec3, eye:Vec3, ?tint:Vec3, ?fog:Fog):Vec4
+			return shadeAt(n, new Vec3(0, 0, 0), new Vec2(0, 0), up, tint ?? new Vec3(1, 1, 1), frame(l, eye, fog), material(m), white, white, white,
 				white, white, white, white);
 		function sum(c:Vec4):Float
 			return c.x + c.y + c.z;
@@ -61,6 +62,42 @@ function tests() {
 			// (at the terminator: between)
 			var dusk = shade(m, sunny(), new Vec3(0.9976, 0.0698, 0), sunny(), above());
 			assert(sum(dusk) > sum(dark) && sum(dusk) < sum(day), "faded across the terminator");
+		});
+
+		test("fog: the surface towards its colour by the distance past its start", () -> {
+			var m = new Material("wall", new Vec4(0.5, 0.5, 0.5, 1), 0, 0.6), n = new Vec3(0, 0, 1), eye = new Vec3(0, 0, 10);
+			var fog = new Fog(new Vec3(1, 0, 0), 0.1);
+			var clear = shade(m, n, sunny(), sunny(), eye), misty = shade(m, n, sunny(), sunny(), eye, null, fog);
+			var k = 1 - Math.exp(-1);
+			approx(misty.x, clear.x + (1 - clear.x) * k, 1e-6, "red: 1 - e^(-density * distance) of it");
+			approx(misty.y, clear.y * (1 - k), 1e-6, "green: what is left of the surface's");
+			fog.max = 0.5;
+			approx(shade(m, n, sunny(), sunny(), eye, null, fog).y, clear.y * 0.5, 1e-6, "at most max");
+			fog.max = 1;
+			fog.start = 10;
+			approx(sum(shade(m, n, sunny(), sunny(), eye, null, fog)), sum(clear), 1e-6, "none before its start");
+			fog.start = 0;
+			m.fog = false;
+			approx(sum(shade(m, n, sunny(), sunny(), eye, null, fog)), sum(clear), 1e-6, "a material without it");
+			m.fog = true;
+			m.blend = true;
+			m.blending = Additive;
+			approx(shade(m, n, sunny(), sunny(), eye, null, fog).x, clear.x * (1 - k), 1e-6, "light added fades, not reddened");
+		});
+
+		test("fog: thinner upwards, its height falloff summed along the view", () -> {
+			var fog = new Fog(new Vec3(1, 1, 1), 0.1);
+			fog.falloff = 1;
+			// (straight down 10 m from y 10: the density 0.1 e^(-y) summed is 0.1 (1 - e^(-10)))
+			var down = fogAmount(Fog.colorOf(fog), Fog.shapeOf(fog), new Vec3(0, 10, 0), new Vec3(0, 0, 0));
+			approx(down, 1 - Math.exp(-0.1 * (1 - Math.exp(-10))), 1e-6, "looking down");
+			var up = fogAmount(Fog.colorOf(fog), Fog.shapeOf(fog), new Vec3(0, 0, 0), new Vec3(0, 10, 0));
+			approx(up, down, 1e-6, "the same up as down");
+			// (level at its height: the density as it is)
+			var level = fogAmount(Fog.colorOf(fog), Fog.shapeOf(fog), new Vec3(0, 0, 0), new Vec3(10, 0, 0));
+			approx(level, 1 - Math.exp(-1), 1e-6, "level, at its height");
+			var high = fogAmount(Fog.colorOf(fog), Fog.shapeOf(fog), new Vec3(0, 5, 0), new Vec3(10, 5, 0));
+			approx(high, 1 - Math.exp(-Math.exp(-5)), 1e-6, "level, 5 m above it");
 		});
 
 		test("air: towards the limb, its colour", () -> {
