@@ -119,7 +119,8 @@ class Modules {
 				for (t in types)
 					switch t {
 						case TInst(_.get() => k, _) if (!k.isPrivate && !k.isExtern && k.kind.match(KNormal) && !k.meta.has(":noCompletion")
-							&& !k.meta.has(":typescript.hide") && !k.meta.has(":macro") && exposes(k)):
+							&& !k.meta.has(":typescript.hide") && !k.meta.has(":macro") && !k.meta.has(":compilerGenerated")
+							&& !StringTools.startsWith(k.name, "HxCoro_") && exposes(k)):
 							out.push(typePath(k));
 						case _:
 					}

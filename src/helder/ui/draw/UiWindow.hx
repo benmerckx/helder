@@ -458,7 +458,7 @@ class UiWindow {
 	}
 
 	// (once: a <Surface>'s owner closes it too)
-	public function close() {
+	@:typescript public function close() {
 		if (open.indexOf(this) < 0) return;
 		#if hxmc.dev_host
 		if (handedOver) return;

@@ -5,7 +5,7 @@
 import type {Image} from "helder/asset";
 import type {Read, RootView, Signal, View} from "helder/view";
 
-declare const __haxe: {Svg: "helder.canvas.Svg", UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", Clock: "helder.ui.Clock", WebViewEvent: "helder.ui.platform.WebViewEvent", WebContent: "helder.ui.platform.WebContent", WebResponse: "helder.ui.platform.WebResponse", Node: "helder.ui.Node", TextNode: "helder.ui.TextNode", UiFlow: "helder.ui.view.UiFlow", SafeArea: "helder.ui.SafeArea", DataGrid: "helder.ui.widgets.DataGrid", EditableText: "helder.ui.widgets.EditableText", GridColumn: "helder.ui.widgets.GridColumn", GridTheme: "helder.ui.widgets.GridTheme", Icons: "helder.ui.widgets.Icons", Pager: "helder.ui.widgets.Pager", TextArea: "helder.ui.widgets.TextArea", TextField: "helder.ui.widgets.TextField", Theme: "helder.ui.widgets.Theme", WindowButtons: "helder.ui.widgets.WindowButtons", CodeActions: "helder.ui.code.CodeAction.CodeActions", CodeCompletion: "helder.ui.code.CodeCompletion", CodeEditor: "helder.ui.code.CodeEditor", CodeLanguage: "helder.ui.code.CodeLanguage", SyntaxLanguage: "helder.ui.code.CodeLanguage.SyntaxLanguage", CodeLanguages: "helder.ui.code.CodeLanguage.CodeLanguages", Sel: "helder.ui.code.CodeModel.Sel", Decoration: "helder.ui.code.CodeModel.Decoration", CodeDiagnostic: "helder.ui.code.CodeModel.CodeDiagnostic", ShapedLine: "helder.ui.code.CodeModel.ShapedLine", CodeModel: "helder.ui.code.CodeModel", CodeTheme: "helder.ui.code.CodeTheme", CodeView: "helder.ui.code.CodeView", Rope: "helder.ui.code.Rope", SqlLanguage: "helder.ui.code.SqlLanguage", __module: "helder.ui.TypeScript"};
+declare const __haxe: {Svg: "helder.canvas.Svg", UiWindow: "helder.ui.draw.UiWindow", Event: "helder.ui.Event", Key: "helder.ui.Key", VirtualScroll: "helder.ui.VirtualScroll", Clock: "helder.ui.Clock", WebViewEvent: "helder.ui.platform.WebViewEvent", WebContent: "helder.ui.platform.WebContent", WebResponse: "helder.ui.platform.WebResponse", Node: "helder.ui.Node", TextNode: "helder.ui.TextNode", UiFlow: "helder.ui.view.UiFlow", SafeArea: "helder.ui.SafeArea", Controls: "helder.ui.widgets.Controls", DataGrid: "helder.ui.widgets.DataGrid", EditableText: "helder.ui.widgets.EditableText", GridColumn: "helder.ui.widgets.GridColumn", GridTheme: "helder.ui.widgets.GridTheme", Icons: "helder.ui.widgets.Icons", Pager: "helder.ui.widgets.Pager", TextArea: "helder.ui.widgets.TextArea", TextField: "helder.ui.widgets.TextField", Theme: "helder.ui.widgets.Theme", WindowButtons: "helder.ui.widgets.WindowButtons", CodeActions: "helder.ui.code.CodeAction.CodeActions", CodeCompletion: "helder.ui.code.CodeCompletion", CodeEditor: "helder.ui.code.CodeEditor", CodeLanguage: "helder.ui.code.CodeLanguage", SyntaxLanguage: "helder.ui.code.CodeLanguage.SyntaxLanguage", CodeLanguages: "helder.ui.code.CodeLanguage.CodeLanguages", Sel: "helder.ui.code.CodeModel.Sel", Decoration: "helder.ui.code.CodeModel.Decoration", CodeDiagnostic: "helder.ui.code.CodeModel.CodeDiagnostic", ShapedLine: "helder.ui.code.CodeModel.ShapedLine", CodeModel: "helder.ui.code.CodeModel", CodeTheme: "helder.ui.code.CodeTheme", CodeView: "helder.ui.code.CodeView", Rope: "helder.ui.code.Rope", SqlLanguage: "helder.ui.code.SqlLanguage", __module: "helder.ui.TypeScript"};
 
 // An SVG document for icons and drawings: parsed once (Svg.parse), drawn
 // into an Image at any size (the Image's drawing: this, for a writer's vectors; render: the viewBox fitted as
@@ -119,6 +119,8 @@ export declare class UiWindow {
 	static run(content?: RootView): void;
 	// <Surface>: a window (a canvas on the web), its children rendered into its ui's root; closed with its owner
 	static Surface(props: SurfaceProps): View;
+	// (once: a <Surface>'s owner closes it too)
+	close(): void;
 }
 
 export declare const Surface: typeof UiWindow.Surface;
@@ -462,6 +464,9 @@ export declare class Node {
 	onDragEnd: ((arg0: Event) => void) | null;
 	// takes the keyboard focus when clicked or tabbed to
 	focusable: boolean;
+	// takes the focus when it comes into a window (a dialog's first button, a
+	// menu's first item: as the DOM's autofocus, wherever it is inserted)
+	autofocus: boolean;
 	// what it is to assistive technology (helder.ui.access.AccessTree)
 	semantics: unknown | null;
 	// the pointer is over it (or a descendant), the button is down on it, it has the focus
@@ -754,6 +759,27 @@ export declare class SafeArea {
 	// and min() of pixels folded
 	static resolve(value: string, e: unknown, t?: unknown): string;
 }
+
+// Small controls with their look by slot (Theme's): a slider and a
+// segmented choice.
+//
+//   <Slider label="Weight" value={weight} min={20} max={200} step={1} onChange={weight}/>
+//   <Segmented label="Tool" value={tool} options={[{value: "draw", label: "Draw"}, ...]} onChange={tool}/>
+export declare class Controls {
+	// A number between min and max, shown as a field (its label inside on
+	// the left, its value on the right, the part up to it filled): a press
+	// or a drag anywhere sets it, the arrow keys step it (Shift: ten steps),
+	// Home and End go to the ends. step 0: any value. Slots: "slider",
+	// "slider-fill", "field-label", "slider-value".
+	static Slider(props: { label: string; value: Read<number>; min: number; max: number; step?: number; digits?: number; unit?: string; onChange: (arg0: number) => void; tag?: string }): View;
+	// One of a few options side by side, the chosen one marked (data-on):
+	// a press chooses, the arrow keys move between them. Slots: "seg",
+	// "seg-item" (an icon follows its colour).
+	static Segmented(props: { label: string; value: Read<string>; options: Array<{ value: string; label: string; icon?: Svg; hint?: string }>; onChange: (arg0: string) => void; tag?: string; compact?: boolean }): View;
+}
+
+export declare const Slider: typeof Controls.Slider;
+export declare const Segmented: typeof Controls.Segmented;
 
 // A grid of many rows, drawn (a table browser's, a spreadsheet's): only
 // the cells in view are laid out and drawn, their text cut with an
