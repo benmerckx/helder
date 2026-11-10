@@ -35,6 +35,12 @@ export class Sql {
 		return this.literal(JSON.stringify(v));
 	}
 
+	// a pattern matched without regard to case (Postgres' LIKE has it, and
+	// takes text only)
+	like(expr: string, pattern: string): string {
+		return this.postgres ? `CAST(${expr} AS TEXT) ILIKE ${this.literal(pattern)}` : `${expr} LIKE ${this.literal(pattern)}`;
+	}
+
 	// a row picked out by its key's values: "a" = 1 AND "b" = 'x'
 	match(t: Table, values: unknown[]): string {
 		return t.key.map((c, k) => this.name(t.columns[c].name) + (values[k] === null ? " IS NULL" : " = " + this.literal(values[k]))).join(" AND ");

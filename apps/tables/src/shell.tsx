@@ -4,12 +4,13 @@
 // actions, the grid and the row panel beside it, the changes' bar
 // (Discard, Save), the status bar; while there is no server, how to start
 // one; a menu over everything
-import { For, Match, Read, Show, Switch, signal } from "helder/view";
+import { For, Match, Read, Repeat, Show, Switch, signal } from "helder/view";
 import { DataGrid, Key, Node, SafeArea, Svg, TextField, Theme, WindowControls } from "helder/ui";
 import * as format from "./format";
 import * as icons from "./icons";
 import { Table } from "./table";
 import { Entry, Link, Tables, primary } from "./tables";
+import * as filters from "./filters";
 
 export const SIDEBAR = 240;
 export const PANEL = 320;
@@ -172,7 +173,8 @@ function rowsText(app: Tables): string {
 	const n = app.count(), t = app.current();
 	if (t === null || n < 0) return "";
 	const text = n === 1 ? "1 row" : `${format.count(n)} rows`;
-	return app.applied() !== "" && t.count >= 0 ? `${text} of ${format.count(t.count)}` : text;
+	const narrowed = app.applied() !== "" || app.quick() !== "" || app.conditions().length > 0;
+	return narrowed && t.count >= 0 ? `${text} of ${format.count(t.count)}` : text;
 }
 
 function Seg(props: { app: Tables; mode: string; label: string; src: Svg }) {
@@ -191,6 +193,7 @@ function Seg(props: { app: Tables; mode: string; label: string; src: Svg }) {
 // ---- the rows
 
 let filterField: Node | null = null;
+let quickField: Node | null = null;
 
 // the filter field focused (end: the caret after its text)
 export function focusFilter(end = false) {
@@ -208,6 +211,17 @@ function Data(props: { app: Tables }) {
 	return <view grow={1} min-height={0}>
 		<view tag="toolbar" direction="row" align-items="center" column-gap={6} height={40} padding={`0 ${Theme.PAD}`} shrink={0} border-width="0 0 1 0"
 			border-color={c("line")}>
+			<view slot="field" width={200} shrink={0} onClick={() => quickField?.focus(true)}>
+				<Icon src={icons.search} color={c("fg3")} size={14}/>
+				<field tag="search-rows" slot="field-input" label="Search rows" placeholder="Search rows" value={app.quick} ref={(n: Node) => (quickField = n)}
+					onInput={(e) => app.searchRows(e.text)} onKeyDown={(e) => {
+						if (e.key === Key.ESCAPE) {
+							if (app.quick.peek() !== "") app.searchRows("");
+							else app.grid.focus(true);
+						}
+						if (e.key === Key.ENTER || e.key === Key.DOWN) app.grid.focus(true);
+					}}/>
+			</view>
 			<view slot="field" grow={1} max-width={640} data-error={app.filterFailed() ? "true" : "false"} onClick={() => filterField?.focus(true)}>
 				<text slot="field-label" font-family={Theme.CODE}>WHERE</text>
 				<field tag="filter" slot="field-input" label="Filter" placeholder={example(app)} value={app.filter} ref={(n: Node) => (filterField = n)}
@@ -225,6 +239,9 @@ function Data(props: { app: Tables }) {
 				</Show>
 			</view>
 			<Show when={app.filter() !== app.applied()}><text color={c("fg3")} font-size={Theme.SMALL}>Enter to apply</text></Show>
+			<view:button tag="add-condition" slot="button" role="button" label="Add a filter on a column" focusable onPress={(e) => app.pickColumn(-1, below(e.target))}>
+				<Icon src={icons.filter} color={c("fg2")}/><text>Filter</text>
+			</view:button>
 			<view grow={1}/>
 			<Show when={!(app.current()?.readOnly ?? true)} fallback={<text color={c("fg3")} font-size={Theme.SMALL}>{readOnlyText(app)}</text>}>
 				<view:button tag="add-row" slot="button" role="button" label="Add row" focusable onPress={() => app.addRow()}>
@@ -239,6 +256,15 @@ function Data(props: { app: Tables }) {
 				<Icon src={icons.panel} color={app.panel() ? c("accent-ink") : c("fg2")}/>
 			</view:button>
 		</view>
+		<Show when={app.conditions().length > 0}>
+			<view tag="conditions" direction="row" wrap align-items="center" column-gap={6} row-gap={6} padding={`6 ${Theme.PAD}`} shrink={0} border-width="0 0 1 0"
+				border-color={c("line")}>
+				<Repeat count={app.conditions().length}>{(i: number) => <Chip app={app} index={i}/>}</Repeat>
+				<view:button tag="clear-conditions" slot="button" role="button" label="Remove every filter" focusable onPress={() => app.clearConditions()}>
+					<text color={c("fg3")}>Clear</text>
+				</view:button>
+			</view>
+		</Show>
 		<view direction="row" grow={1} min-height={0}>
 			<view grow={1} min-width={0} font-family={Theme.CODE} font-size={Theme.BODY}>{app.grid}</view>
 			<Show when={app.panel()}><RowPanel app={app}/></Show>
@@ -292,6 +318,38 @@ function Review(props: { app: Tables }) {
 				</view:button>
 			</view>
 		</view>
+	</view>;
+}
+
+// (where a menu opens: under node)
+function below(n: Node): { x: number; y: number } {
+	return { x: n.absX, y: n.absY + n.height + 4 };
+}
+
+// a condition: its column and its operator (each a menu), its value, a way to remove it
+function Chip(props: { app: Tables; index: number }) {
+	const app = props.app, i = props.index;
+	const cond = () => app.conditions()[i];
+	const column = () => app.current()?.columns[cond()?.col ?? -1];
+	return <view tag={"condition-" + i} direction="row" align-items="center" height={26} radius={Theme.RADIUS} border-width={1} border-color={c("line")}
+		background={c("bg")} overflow="hidden">
+		<view:button slot="button" role="button" label="Column" focusable height={24} radius={0} onPress={(e) => app.pickColumn(i, below(e.target))}>
+			<text font-weight={Theme.MEDIUM}>{column()?.name ?? ""}</text>
+		</view:button>
+		<view:button slot="button" role="button" label="Operator" focusable height={24} radius={0} onPress={(e) => app.pickOp(i, below(e.target))}>
+			<text color={c("fg2")}>{filters.label(cond()?.op ?? "=")}</text>
+		</view:button>
+		<Show when={filters.valued(cond()?.op ?? "=")}>
+			<field tag={"condition-value-" + i} label="Value" placeholder="value" width={140} height={24} padding="0 6" font-family={Theme.CODE}
+				background={c("canvas")} value={cond()?.value ?? ""} autofocus={(cond()?.value ?? "") === ""}
+				onInput={(e) => app.setCondition(i, { value: e.text }, 300)} onKeyDown={(e) => {
+					if (e.key === Key.ENTER) app.grid.focus(true);
+					if (e.key === Key.ESCAPE) app.grid.focus(true);
+				}}/>
+		</Show>
+		<view:button slot="button" role="button" label="Remove this filter" focusable width={24} height={24} padding={0} radius={0} onPress={() => app.removeCondition(i)}>
+			<Icon src={icons.close} color={c("fg3")} size={12}/>
+		</view:button>
 	</view>;
 }
 

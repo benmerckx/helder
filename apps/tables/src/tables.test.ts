@@ -5,6 +5,7 @@ import { Column, Table } from "./table";
 import { Sql } from "./sql";
 import * as format from "./format";
 import { complete } from "./complete";
+import * as filters from "./filters";
 
 function sample(): Table[] {
 	const people = new Table("main", "people", false);
@@ -80,5 +81,33 @@ describe("complete", () => {
 describe("complete, a table named without an alias", () => {
 	test("its columns", () => {
 		equals(complete("SELECT na FROM people", 9, sample(), new Sql("sqlite"))?.items.map(i => i.label), ["name"]);
+	});
+});
+
+describe("filters", () => {
+	const sql = new Sql("sqlite");
+	const issues = sample()[1];
+
+	test("a condition as SQL, by its operator", () => {
+		equals(filters.condition(issues, { col: 1, op: "contains", value: "it's" }, sql), `"title" LIKE '%it''s%'`);
+		equals(filters.condition(issues, { col: 2, op: ">=", value: "3" }, sql), `"assignee" >= 3`);
+		equals(filters.condition(issues, { col: 2, op: "null", value: "" }, sql), `"assignee" IS NULL`);
+		equals(filters.condition(issues, { col: 1, op: "=", value: "" }, sql), "");
+	});
+
+	test("Postgres matches text without regard to case", () => {
+		equals(filters.condition(issues, { col: 1, op: "starts", value: "Fix" }, new Sql("postgresql")), `CAST("title" AS TEXT) ILIKE 'Fix%'`);
+	});
+
+	test("a search: text containing it, numbers equal to it", () => {
+		equals(filters.search(issues, "7", sql), `"id" = 7 OR "title" LIKE '%7%' OR "assignee" = 7 OR "Due Date" = 7`);
+		equals(filters.search(issues, "fix", sql), `"title" LIKE '%fix%'`);
+		equals(filters.search(issues, "  ", sql), "");
+	});
+
+	test("the parts joined, each in parentheses when there are several", () => {
+		equals(filters.joined(["", "a = 1", ""]), "a = 1");
+		equals(filters.joined(["a = 1 OR b = 2", "c = 3"]), "(a = 1 OR b = 2) AND (c = 3)");
+		equals(filters.joined([]), "");
 	});
 });

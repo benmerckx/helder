@@ -14,6 +14,8 @@ import * as icons from "./icons";
 import { Rows } from "./rows";
 import { load as loadSchema } from "./schema";
 import { Sql } from "./sql";
+import * as filters from "./filters";
+import { Condition } from "./filters";
 import { Column, Relation, Table } from "./table";
 
 // (TextAlign's values: helder's enum abstracts are numbers to TypeScript)
@@ -40,6 +42,9 @@ export class Tables {
 	readonly filter = signal("");
 	readonly applied = signal("");
 	readonly filterFailed = signal(false);
+	// the rows searched for a text, and narrowed by conditions (filters.ts)
+	readonly quick = signal("");
+	readonly conditions: Signal<Condition[]> = signal<Condition[]>([]);
 	// the open table's rows matching, its changes, the last query's time
 	readonly count = signal(-1);
 	readonly changes = signal(0);
@@ -82,6 +87,9 @@ export class Tables {
 	// (the grid's columns: the table's they show)
 	private cols: number[] = [];
 	private opened = new Map<string, Rows>();
+	// (the search's and the conditions' SQL the rows were last fetched with)
+	private narrowed = "";
+	private narrowTimer = 0;
 	private history: { table: string; where: string }[] = [];
 	private resultRows: Record<string, unknown>[] = [];
 	private resultKeys: string[] = [];
@@ -185,6 +193,11 @@ export class Tables {
 	// before it; a table not seen yet (or another filter) shown once its rows are in
 	open(t: Table, where: string | null = null, remember = true) {
 		this.menu(null);
+		// (a table opened afresh: no search, no conditions)
+		clearTimeout(this.narrowTimer);
+		this.narrowed = "";
+		this.quick("");
+		this.conditions([]);
 		let r = this.opened.get(t.id);
 		if (r === undefined) this.opened.set(t.id, r = new Rows(t, this.db, this.sql));
 		const rows = r, w = where ?? r.where;
@@ -273,7 +286,7 @@ export class Tables {
 		const r = this.rows;
 		if (r === null) return;
 		const s = this.sorting();
-		r.reload(where, s.col, s.down, top).then(() => {
+		r.reload(filters.joined([this.narrowed, where]), s.col, s.down, top).then(() => {
 			if (this.rows === r) this.filterFailed(false);
 		}, e => {
 			if (this.rows !== r) return;
@@ -297,6 +310,73 @@ export class Tables {
 	clearFilter() {
 		this.filter("");
 		this.applyFilter("");
+	}
+
+	// ---- the search and the conditions (applied as they are typed, a moment after)
+
+	searchRows(text: string) {
+		this.quick(text);
+		this.narrow(text, this.conditions.peek(), 250);
+	}
+
+	addCondition(col: number) {
+		const t = this.current.peek();
+		if (t === null || t.columns[col] === undefined) return;
+		const list = [...this.conditions.peek(), { col, op: filters.first(t.columns[col]), value: "" }];
+		this.conditions(list);
+		this.narrow(this.quick.peek(), list, 0);
+	}
+
+	setCondition(i: number, patch: Partial<Condition>, wait = 0) {
+		const list = this.conditions.peek().map((c, k) => (k === i ? { ...c, ...patch } : c));
+		this.conditions(list);
+		this.narrow(this.quick.peek(), list, wait);
+	}
+
+	removeCondition(i: number) {
+		const list = this.conditions.peek().filter((_, k) => k !== i);
+		this.conditions(list);
+		this.narrow(this.quick.peek(), list, 0);
+	}
+
+	clearConditions() {
+		this.conditions([]);
+		this.narrow(this.quick.peek(), [], 0);
+	}
+
+	// a column for condition i (-1: a new one), from a menu under node at
+	pickColumn(i: number, at: { x: number; y: number }) {
+		const t = this.current.peek();
+		if (t === null) return;
+		const now = i < 0 ? -1 : this.conditions.peek()[i]?.col ?? -1;
+		this.menu({
+			x: at.x, y: at.y,
+			items: t.columns.map((c, k) => ({
+				label: c.name, detail: c.detail(), on: k === now,
+				run: () => (i < 0 ? this.addCondition(k) : this.setCondition(i, { col: k, op: filters.first(c) }))
+			}))
+		});
+	}
+
+	pickOp(i: number, at: { x: number; y: number }) {
+		const c = this.conditions.peek()[i];
+		if (c === undefined) return;
+		this.menu({ x: at.x, y: at.y, items: filters.OPS.map(o => ({ label: o.label, detail: o.op.length <= 2 ? o.op : "", on: o.op === c.op, run: () => this.setCondition(i, { op: o.op }) })) });
+	}
+
+	// (the rows fetched again when the search's and the conditions' SQL changed)
+	private narrow(quick: string, list: Condition[], wait: number) {
+		const t = this.current.peek();
+		if (t === null) return;
+		const next = filters.joined([filters.search(t, quick, this.sql), ...list.map(c => filters.condition(t, c, this.sql))]);
+		clearTimeout(this.narrowTimer);
+		if (next === this.narrowed) return;
+		const go = () => {
+			this.narrowed = next;
+			this.load(true);
+		};
+		if (wait > 0) this.narrowTimer = setTimeout(go, wait);
+		else go();
 	}
 
 	// a filter set and applied
@@ -324,7 +404,7 @@ export class Tables {
 		if (r === null) return;
 		this.grid.sortColumn = this.cols.indexOf(col);
 		this.grid.sortDown = down;
-		r.reload(this.applied.peek(), col, down, true).catch(e => this.say(message(e), true));
+		r.reload(filters.joined([this.narrowed, this.applied.peek()]), col, down, true).catch(e => this.say(message(e), true));
 	}
 
 	back() {
