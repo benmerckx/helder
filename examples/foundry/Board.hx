@@ -300,6 +300,13 @@ class Board extends Node {
 		}
 		// the outline's points (the outline layer), the lines and knots (adjusting), the line being drawn
 		if (ws.layer.peek() == "outline") paintOutline(c, x, y, g) else if (ws.tool.peek() == "adjust") paintLines(c, x, y, g, f);
+		// the anchors marks go on (a drawn letter's or a mark's): rose rings
+		if (Model.drawn(f, char))
+			for (name in Ink.anchorNames(char)) {
+				var a = Ink.anchor(f, char, name), ax = x + px(a.x), ay = y + py(a.y);
+				var on = drag != null && drag.kind == "anchor" && anchorName == name;
+				c.rect(ax - 5, ay - 5, 10, 10, 5, on ? Theme.c("rose") : alpha(Theme.c("bg"), 0.9), 2, Theme.c("rose"));
+			}
 		// what a dragged point snapped to, what Alt measures
 		var sx = snapX, sy = snapY;
 		if (sx != null) c.rect(x + Math.round(px(sx)), y, 1, h, 0, alpha(Theme.c("rose"), 0.9), 0, 0);
@@ -603,6 +610,16 @@ class Board extends Node {
 		frame(width, height);
 		var sp = span(f, char), g = ws.glyph(char);
 		var seq = sequence(f, char);
+		// (an anchor pressed: dragged)
+		if (Model.drawn(f, char))
+			for (name in Ink.anchorNames(char)) {
+				var a = Ink.anchor(f, char, name);
+				if (Math.abs(px(a.x) - p.x) < 8 && Math.abs(py(a.y) - p.y) < 8) {
+					anchorName = name;
+					drag = {kind: "anchor", x: gx(p.x) - a.x, y: gy(p.y) - a.y, left: 0, right: 0};
+					return repaint();
+				}
+			}
 		for (side in ["left", "right"]) {
 			var sx = px(side == "left" ? sp.start : sp.end);
 			if (Math.abs(p.x - sx) < 10 && p.y > handleY() - 6 && p.y < handleY() + 28) {
@@ -715,6 +732,8 @@ class Board extends Node {
 						}
 					}
 					ws.setOutline(char, OutlineEdit.moved(from, chosen, Math.round(sx), Math.round(sy)), "drag");
+				case "anchor" if (anchorName != null):
+					ws.setAnchor(char, anchorName, Math.round(gx(p.x) - d.x), Math.round(gy(p.y) - d.y), "anchor");
 				case "kern-left" if (kernPair != null): ws.kern(kernPair.left, kernPair.right, Math.round(d.left - dx), "kern");
 				case "kern-right" if (kernPair != null): ws.kern(kernPair.left, kernPair.right, Math.round(d.left + dx), "kern");
 				case "left": ws.setSpacing(char, Math.round(d.left - dx), d.right, "space");
@@ -881,6 +900,7 @@ class Board extends Node {
 
 	var dragFrom:Null<Array<Array<OPoint>>> = null;
 	var kernPair:Null<{left:String, right:String}> = null;
+	var anchorName:Null<String> = null;
 
 	function downOutline(e:Event, p:{x:Float, y:Float}, g:Glyph) {
 		var outline = g.outline ?? [], char = ws.current.peek(), r = 9 / scale;

@@ -78,7 +78,7 @@ are dragged.
   (Glyphs). Kerning groups (A, À, Á kern alike), written to GPOS. A
   list of the pairs, worst first, for agents and people to check.
 
-## 4. Anchors and composites
+## 4. Anchors and composites (done but GPOS mark positioning)
 
 Accented letters are a base and a mark. Glyphs places the mark by
 anchors: a letter has a "top" point, the acute an "_top" point, and

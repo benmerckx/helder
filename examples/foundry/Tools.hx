@@ -119,6 +119,11 @@ class Tools {
 			}
 		},
 		{
+			name: "glyph.anchor",
+			description: "Where marks go on a letter (top, bottom, ogonek) or where a mark goes onto its letter (_top, _bottom, _ogonek), in font units: every accented letter made of the two follows (é from e and ´, ą from a and ˛). glyph.read gives a glyph's anchors as they are.",
+			inputSchema: {type: "object", properties: {char: {type: "string"}, name: {type: "string"}, x: {type: "number"}, y: {type: "number"}}, required: ["char", "name", "x", "y"]}
+		},
+		{
 			name: "kern.set",
 			description: "The space between two glyphs where they meet (font units: negative closer, positive apart; 0 none), as text.snap then shows it. A font started from another keeps that font's own kerning (its GPOS) as it is: there this says so and changes nothing.",
 			inputSchema: {type: "object", properties: {left: {type: "string"}, right: {type: "string"}, value: {type: "number"}}, required: ["left", "right", "value"]}
@@ -191,7 +196,7 @@ class Tools {
 						return mid + (x - mid) * sx + y * sy * k + dx;
 					var lines = [for (l in g.lines) {knots: [for (q in l.knots) {x: tx(q.x, q.y), y: q.y * sy + dy, corner: q.corner}], closed: l.closed}];
 					var outline = g.outline == null ? null : [for (c in g.outline) [for (q in c) {x: tx(q.x, q.y), y: q.y * sy + dy, off: q.off, smooth: q.smooth}]];
-					ws.setGlyph(char, {lines: lines, parts: g.parts, outline: outline, left: g.left, right: g.right, advance: g.advance, also: g.also}, "transform");
+					ws.setGlyph(char, {lines: lines, parts: g.parts, outline: outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: g.anchors}, "transform");
 					done.push(char);
 				}
 				if (done.length == 0) throw 'None of "$spec" has ink of its own to transform';
@@ -201,7 +206,7 @@ class Tools {
 			case "glyph.borrow":
 				var char = character(args), g = ws.glyph(char);
 				var parsed = Model.glyphOf({lines: [], parts: args.parts});
-				ws.setGlyph(char, {lines: g.lines, parts: parsed == null ? [] : parsed.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also});
+				ws.setGlyph(char, {lines: g.lines, parts: parsed == null ? [] : parsed.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: g.anchors});
 				shown(char, 'made $char from others');
 				[text(Charset.describe(Charset.parts(ws.value(), char))), image(Picture.glyph(ws.value(), char))];
 			case "glyph.clear":
@@ -259,6 +264,11 @@ class Tools {
 				ws.setGlyph(char, {lines: lines, parts: [], left: g.left, right: g.right});
 				shown(char, 'drew $char');
 				[text('$char: ${lines.length} lines'), image(Picture.glyph(ws.value(), char))];
+			case "glyph.anchor":
+				var char = character(args);
+				ws.setAnchor(char, Std.string(args.name), args.x, args.y);
+				shown(char, 'moved $char\'s anchor');
+				[text('$char ${args.name}: ${args.x}, ${args.y}'), image(Picture.glyph(ws.value(), char))];
 			case "kern.set":
 				var l = character({char: args.left}), r = character({char: args.right});
 				if (!Model.kernable(ws.value())) throw "This font's kerning is its source's (GPOS), kept as it is: it cannot be changed yet";
@@ -341,6 +351,7 @@ class Tools {
 			borrowed: Charset.describe(Charset.parts(f, char)),
 			left: g.left ?? 0,
 			right: g.right ?? 0,
+			anchors: [for (name in Ink.anchorNames(char)) name => Ink.anchor(f, char, name)],
 			knotBox: b,
 			advance: Math.round(s.advance)
 		};

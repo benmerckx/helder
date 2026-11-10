@@ -30,12 +30,15 @@ class Ink {
 		if (depth > 4) return {lines: [], outline: []};
 		var g = Model.glyph(face, char);
 		var out:Inks = {lines: g == null ? [] : g.lines.copy(), outline: g == null || g.outline == null ? [] : g.outline.copy()};
-		var base:Null<Box> = null;
+		var base:Null<Box> = null, baseKey:Null<String> = null;
 		for (p in Charset.parts(face, char)) {
 			var src = resolve(face, p.of, depth + 1);
 			if (src.lines.length == 0 && src.outline.length == 0) continue;
-			var moved = move(src, p, face, base);
-			if (base == null) base = inkBox(moved, face.pen);
+			var moved = move(src, p, face, base, baseKey);
+			if (base == null) {
+				base = inkBox(moved, face.pen);
+				baseKey = p.of;
+			}
 			for (l in moved.lines)
 				out.lines.push(l);
 			for (c in moved.outline)
@@ -46,7 +49,7 @@ class Ink {
 
 	// a part's ink where its turn puts it (the pen's lines and the outline
 	// moved alike, about the box their ink covers)
-	static function move(src:Inks, p:Part, face:Face, base:Null<Box>):Inks {
+	static function move(src:Inks, p:Part, face:Face, base:Null<Box>, baseKey:Null<String>):Inks {
 		var m = face.metrics, hv = vertical(face.pen);
 		if (p.how == Dotless)
 			src = {
@@ -74,9 +77,11 @@ class Ink {
 				var k = m.capHeight / top;
 				a = d = k;
 				e = b.x0 - b.x0 * k;
-			case Mark if (base != null):
-				e = (base.x0 + base.x1) / 2 - (b.x0 + b.x1) / 2;
-				if (b.y0 > m.xHeight - 50) f = Math.max(0, base.y1 - m.xHeight);
+			case Mark if (base != null && baseKey != null):
+				// (the mark's own anchor put on its letter's of that name)
+				var name = Charset.anchorOf(p.of), at = anchor(face, baseKey, name), own = anchor(face, p.of, "_" + name);
+				e = at.x - own.x;
+				f = at.y - own.y;
 			case Top:
 				f = m.xHeight - b.y1;
 			case Beside:
@@ -103,6 +108,31 @@ class Ink {
 		var out = c.copy();
 		out.reverse();
 		return out;
+	}
+
+	// a glyph's anchor: where it was put, else where its ink says (top: over
+	// its middle at its top; bottom: under it on the baseline; ogonek: under
+	// its right foot; a mark's "_top" a little under its ink, "_bottom" and
+	// "_ogonek" a little into its top)
+	public static function anchor(face:Face, key:String, name:String):{x:Float, y:Float} {
+		var set = Model.glyph(face, key)?.anchors?.get(name);
+		if (set != null) return set;
+		var b = bounds(face, key), cx = (b.x0 + b.x1) / 2;
+		return switch name {
+			case "top": {x: cx, y: b.y1};
+			case "bottom": {x: cx, y: 0};
+			case "ogonek": {x: b.x1 - (b.x1 - b.x0) * 0.18, y: 0};
+			case "_top": {x: cx, y: b.y0 - 50};
+			case "_bottom" | "_ogonek": {x: cx, y: b.y1 - 30};
+			case _: {x: cx, y: b.y1};
+		}
+	}
+
+	// the anchors a glyph shows: a mark's own, else a letter's
+	public static function anchorNames(key:String):Array<String> {
+		var marks = Charset.groups[4].chars;
+		if (marks.indexOf(key) >= 0 && key != "ı" && key != "ȷ") return ["_" + Charset.anchorOf(key)];
+		return "aeiuAEIU".indexOf(key) >= 0 ? ["top", "bottom", "ogonek"] : ["top", "bottom"];
 	}
 
 	// the box a glyph's ink covers, in its own space

@@ -21,8 +21,19 @@ typedef OPoint = {x:Float, y:Float, ?off:Bool, ?smooth:Bool};
 // pen lines of its own, an outline of its own (a font's letter kept
 // exact: its points edited as they are), parts; left and right widen (or
 // narrow) its spacing. Its ink is all of them.
-// (advance: an empty glyph's own (a space's); also: other characters it is)
-typedef Glyph = {lines:Array<Line>, parts:Array<Part>, ?outline:Array<Array<OPoint>>, ?left:Float, ?right:Float, ?advance:Float, ?also:Array<Int>};
+// (advance: an empty glyph's own (a space's); also: other characters it is;
+// anchors: where marks go on it ("top", "bottom", "ogonek") or where a mark
+// goes onto its letter ("_top"...), where they are not where its ink says)
+typedef Glyph = {
+	lines:Array<Line>,
+	parts:Array<Part>,
+	?outline:Array<Array<OPoint>>,
+	?left:Float,
+	?right:Float,
+	?advance:Float,
+	?also:Array<Int>,
+	?anchors:DynamicAccess<{x:Float, y:Float}>
+};
 
 // the nib: its width, how much thinner it draws across than along its
 // edge (0: a round marker, 1: a flat calligraphy nib), its edge's angle
@@ -174,7 +185,8 @@ class Model {
 			left: num(g.left, 0),
 			right: num(g.right, 0),
 			advance: g.advance == null ? null : num(g.advance, 0),
-			also: Std.isOfType(g.also, Array) ? [for (c in (g.also : Array<Dynamic>)) Std.int(num(c, 0))] : null
+			also: Std.isOfType(g.also, Array) ? [for (c in (g.also : Array<Dynamic>)) Std.int(num(c, 0))] : null,
+			anchors: g.anchors
 		};
 	}
 

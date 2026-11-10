@@ -152,7 +152,7 @@ class Workshop {
 
 	public function setOutline(char:String, outline:Array<Array<OPoint>>, ?group:String) {
 		var g = glyph(char);
-		setGlyph(char, {lines: g.lines, parts: g.parts, outline: outline, left: g.left, right: g.right, advance: g.advance, also: g.also}, group);
+		setGlyph(char, {lines: g.lines, parts: g.parts, outline: outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: g.anchors}, group);
 	}
 
 	// its pen lines made outline points (exactly the ink they leave), to edit point by point
@@ -205,20 +205,20 @@ class Workshop {
 
 	public function addLine(char:String, line:Line) {
 		var g = glyph(char);
-		setGlyph(char, {lines: g.lines.concat([line]), parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also});
+		setGlyph(char, {lines: g.lines.concat([line]), parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: g.anchors});
 	}
 
 	public function removeLine(char:String, i:Int) {
 		var g = glyph(char);
 		if (i < 0 || i >= g.lines.length) return;
-		setGlyph(char, {lines: [for (k in 0...g.lines.length) if (k != i) g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also});
+		setGlyph(char, {lines: [for (k in 0...g.lines.length) if (k != i) g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: g.anchors});
 		selected(null);
 	}
 
 	public function setLine(char:String, i:Int, line:Line, ?group:String) {
 		var g = glyph(char);
 		if (i < 0 || i >= g.lines.length) return;
-		setGlyph(char, {lines: [for (k in 0...g.lines.length) k == i ? line : g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also}, group);
+		setGlyph(char, {lines: [for (k in 0...g.lines.length) k == i ? line : g.lines[k]], parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: g.anchors}, group);
 	}
 
 	public function moveKnot(char:String, line:Int, knot:Int, x:Float, y:Float, ?group:String) {
@@ -248,12 +248,22 @@ class Workshop {
 		selected(null);
 	}
 
+	// an anchor of char put at (x, y)
+	public function setAnchor(char:String, name:String, x:Float, y:Float, ?group:String) {
+		var g = glyph(char), anchors:haxe.DynamicAccess<{x:Float, y:Float}> = {};
+		if (g.anchors != null)
+			for (k => v in g.anchors)
+				anchors.set(k, v);
+		anchors.set(name, {x: x, y: y});
+		setGlyph(char, {lines: g.lines, parts: g.parts, outline: g.outline, left: g.left, right: g.right, advance: g.advance, also: g.also, anchors: anchors}, group);
+	}
+
 	public function kern(left:String, right:String, value:Float, ?group:String)
 		edit(Model.kerned(latest, left, right, value), group);
 
 	public function setSpacing(char:String, left:Float, right:Float, ?group:String) {
 		var g = glyph(char);
-		setGlyph(char, {lines: g.lines, parts: g.parts, outline: g.outline, left: left, right: right, advance: g.advance, also: g.also}, group);
+		setGlyph(char, {lines: g.lines, parts: g.parts, outline: g.outline, left: left, right: right, advance: g.advance, also: g.also, anchors: g.anchors}, group);
 	}
 
 	// what it borrows made its own lines (to change them)
@@ -308,7 +318,8 @@ class Workshop {
 				left: g.left,
 				right: g.right,
 				advance: g.advance,
-				also: g.also
+				also: g.also,
+				anchors: g.anchors == null ? null : moved(g.anchors, ofrom, oto)
 			});
 		}
 		return {name: f.name, pen: pen, metrics: m, glyphs: glyphs, source: f.source, kerning: f.kerning};
@@ -325,6 +336,13 @@ class Workshop {
 			b.pop();
 		}
 		return [for (l in lines) {knots: [for (k in l.knots) {x: k.x, y: remap(k.y, a, b), corner: k.corner}], closed: l.closed}];
+	}
+
+	static function moved(anchors:haxe.DynamicAccess<{x:Float, y:Float}>, from:Array<Float>, to:Array<Float>):haxe.DynamicAccess<{x:Float, y:Float}> {
+		var out:haxe.DynamicAccess<{x:Float, y:Float}> = {};
+		for (k => a in anchors)
+			out.set(k, {x: a.x, y: remap(a.y, from, to)});
+		return out;
 	}
 
 	// y moved piecewise between anchors (outside them, with the nearest)

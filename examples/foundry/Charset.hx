@@ -6,13 +6,18 @@ import Model;
 // share (o to O, s to S), punctuation from punctuation, and every accented
 // letter from its letter and its accent.
 class Charset {
+	// Unicode's decompositions of Latin-1's and Latin Extended-A's letters into a
+	// letter and a mark (the mark as its spacing form; i and j without their dots)
+	static final DECOMPOSED = "ÀA`|ÁA´|ÂAˆ|ÃA˜|ÄA¨|ÅA˚|ÇC¸|ÈE`|ÉE´|ÊEˆ|ËE¨|ÌI`|ÍI´|ÎIˆ|ÏI¨|ÑN˜|ÒO`|ÓO´|ÔOˆ|ÕO˜|ÖO¨|ÙU`|ÚU´|ÛUˆ|ÜU¨|ÝY´|àa`|áa´|âaˆ|ãa˜|äa¨|åa˚|çc¸|èe`|ée´|êeˆ|ëe¨|ìı`|íı´|îıˆ|ïı¨|ñn˜|òo`|óo´|ôoˆ|õo˜|öo¨|ùu`|úu´|ûuˆ|üu¨|ýy´|ÿy¨|ĀA¯|āa¯|ĂA˘|ăa˘|ĄA˛|ąa˛|ĆC´|ćc´|ĈCˆ|ĉcˆ|ĊC˙|ċc˙|ČCˇ|čcˇ|ĎDˇ|ďdˇ|ĒE¯|ēe¯|ĔE˘|ĕe˘|ĖE˙|ėe˙|ĘE˛|ęe˛|ĚEˇ|ěeˇ|ĜGˆ|ĝgˆ|ĞG˘|ğg˘|ĠG˙|ġg˙|ĢG¸|ģg¸|ĤHˆ|ĥhˆ|ĨI˜|ĩı˜|ĪI¯|īı¯|ĬI˘|ĭı˘|ĮI˛|įı˛|İI˙|ĴJˆ|ĵȷˆ|ĶK¸|ķk¸|ĹL´|ĺl´|ĻL¸|ļl¸|ĽLˇ|ľlˇ|ŃN´|ńn´|ŅN¸|ņn¸|ŇNˇ|ňnˇ|ŌO¯|ōo¯|ŎO˘|ŏo˘|ŐO˝|őo˝|ŔR´|ŕr´|ŖR¸|ŗr¸|ŘRˇ|řrˇ|ŚS´|śs´|ŜSˆ|ŝsˆ|ŞS¸|şs¸|ŠSˇ|šsˇ|ŢT¸|ţt¸|ŤTˇ|ťtˇ|ŨU˜|ũu˜|ŪU¯|ūu¯|ŬU˘|ŭu˘|ŮU˚|ůu˚|ŰU˝|űu˝|ŲU˛|ųu˛|ŴWˆ|ŵwˆ|ŶYˆ|ŷyˆ|ŸY¨|ŹZ´|źz´|ŻZ˙|żz˙|ŽZˇ|žzˇ|ȘȘ|șș|ȚȚ|țț";
+
 	public static final groups:Array<{name:String, chars:Array<String>}> = [
 		{name: "Lowercase", chars: split("abcdefghijklmnopqrstuvwxyz")},
 		{name: "Uppercase", chars: split("ABCDEFGHIJKLMNOPQRSTUVWXYZ")},
 		{name: "Figures", chars: split("0123456789")},
-		{name: "Punctuation", chars: split(".,:;!?'\"-()/&@")},
-		{name: "Accents", chars: ["´", "`", "ˆ", "¨", "˜", "¸", "ı"]},
-		{name: "Accented", chars: split("áàâäéèêëíìîïóòôöúùûüñçÁÀÂÄÉÈÊËÍÌÎÏÓÒÔÖÚÙÛÜÑÇ")}
+		{name: "Punctuation", chars: split(".,:;!?'\"-()/&@¡¿")},
+		{name: "Accents", chars: ["´", "`", "ˆ", "¨", "˜", "¯", "˘", "˙", "˚", "˝", "ˇ", "¸", "˛", "\u0326", "ı", "ȷ"]},
+		{name: "Special letters", chars: split("æœøßłđħþðÆŒØŁĐĦÞÐ")},
+		{name: "Accented", chars: [for (e in DECOMPOSED.split("|")) firstOf(e)]}
 	];
 
 	public static final all:Array<String> = [for (g in groups) for (c in g.chars) c];
@@ -33,12 +38,14 @@ class Charset {
 		"s" => "The hardest curve. Take your time."
 	];
 
-	static final ACCENTS:Map<String, String> = [
-		"á" => "a´", "à" => "a`", "â" => "aˆ", "ä" => "a¨", "é" => "e´", "è" => "e`", "ê" => "eˆ", "ë" => "e¨", "í" => "ı´", "ì" => "ı`", "î" => "ıˆ",
-		"ï" => "ı¨", "ó" => "o´", "ò" => "o`", "ô" => "oˆ", "ö" => "o¨", "ú" => "u´", "ù" => "u`", "û" => "uˆ", "ü" => "u¨", "ñ" => "n˜", "ç" => "c¸",
-		"Á" => "A´", "À" => "A`", "Â" => "Aˆ", "Ä" => "A¨", "É" => "E´", "È" => "E`", "Ê" => "Eˆ", "Ë" => "E¨", "Í" => "I´", "Ì" => "I`", "Î" => "Iˆ",
-		"Ï" => "I¨", "Ó" => "O´", "Ò" => "O`", "Ô" => "Oˆ", "Ö" => "O¨", "Ú" => "U´", "Ù" => "U`", "Û" => "Uˆ", "Ü" => "U¨", "Ñ" => "N˜", "Ç" => "C¸"
-	];
+	static final ACCENTS:Map<String, String> = [for (e in DECOMPOSED.split("|")) firstOf(e) => e.substr(firstOf(e).length)];
+
+	static function firstOf(e:String):String
+		return String.fromCharCode(new haxe.iterators.StringIteratorUnicode(e).next());
+
+	// the marks that hang under their letter, and the anchor each takes
+	public static function anchorOf(mark:String):String
+		return mark == "˛" ? "ogonek" : mark == "¸" || mark == "\u0326" ? "bottom" : "top";
 
 	// a glyph's suggestions, the first whose source is drawn wins
 	static final BORROW:Map<String, Array<Array<Part>>> = [
@@ -68,14 +75,18 @@ class Charset {
 		":" => [[{of: ".", how: Same}, {of: ".", how: Top}]],
 		";" => [[{of: ",", how: Same}, {of: ".", how: Top}]],
 		"\"" => [[{of: "'", how: Same}, {of: "'", how: Beside}]],
-		"ı" => [[{of: "i", how: Dotless}]]
+		"ı" => [[{of: "i", how: Dotless}]],
+		"ȷ" => [[{of: "j", how: Dotless}]],
+		"¡" => [[{of: "!", how: Half}]],
+		"¿" => [[{of: "?", how: Half}]],
+		"\u0326" => [[{of: ",", how: Same}]]
 	];
 
 	// what char borrows while it is not drawn: [] when nothing it could borrow from is drawn
 	public static function borrow(face:Face, char:String):Array<Part> {
 		var accent = ACCENTS.get(char);
 		if (accent != null) {
-			var base = accent.charAt(0), mark = accent.substr(1);
+			var base = firstOf(accent), mark = accent.substr(base.length);
 			return [{of: base, how: Same}, {of: mark, how: Mark}];
 		}
 		var options = BORROW.get(char);

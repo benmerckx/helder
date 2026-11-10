@@ -72,6 +72,21 @@ preview and the export have it (a kern table). A font started from
 another keeps that font's kerning (its GPOS) as it is: Foundry's own
 cannot change it yet, and says so.
 
+## Accents and anchors
+
+Accented letters are made of their letter and a mark, as Unicode
+decomposes them: Latin-1's and Latin Extended-A's, 165 letters from 13
+marks (´ ` ˆ ¨ ˜ ¯ ˘ ˙ ˚ ˝ ˇ ¸ ˛ and the comma below), i and j without
+their dots under theirs. A mark is put where its letter's anchor is:
+"top" over the letter's middle at its top, "bottom" on the baseline under
+it, "ogonek" under its right foot; the mark's own "_top" (or "_bottom",
+"_ogonek") goes onto it. Anchors start where the ink says and are rose
+rings on the board, dragged to where they belong (an ogonek under a
+narrower foot, a caron beside a tall stem); every letter made of the two
+follows. Letters no decomposition makes (æ œ ø ß ł đ ħ þ ð and their
+capitals) are drawn, as Pebble draws most of them, and ¡ ¿ are ! ? turned.
+Pebble sets 14 of the 16 languages in the panel without a letter more.
+
 ## Pen and Outline
 
 The board has two tabs. **Pen** draws and edits pen lines (below).
@@ -182,6 +197,7 @@ judge its strokes and correct them as a person does at the board.
 | `font.start {from, pen?}` | the font started again from a source: its outlines, or traced into pen lines |
 | `font.blend {a, b, t}` | the whole font between two sources |
 | `glyph.blend {char, a, b?, t}` | one letter between two sources (or one's alone), fitted to this font |
+| `glyph.anchor {char, name, x, y}` | where marks go on a letter, or onto it: every accented letter made of the two follows |
 | `kern.set {left, right, value}`, `kern.list` | the space between two glyphs; the font's pairs |
 | `font.export`, `font.rename`, `board.open` | the .ttf; its name; a glyph shown on the board |
 
