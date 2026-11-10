@@ -73,7 +73,10 @@ class Board implements Markup {
 			height={r().h} data-on={studio.focused() == s.info.name ? "true" : "false"} data-frame={s.frames()}>
 			<image src={s.image()} width={r().w} height={r().h}/>
 			<Show when={s.crashedSignal()}>
-				<text tag="crashed" position="absolute" left={8} top={8} color={c("fg2")} font-size={Theme.SMALL}>stopped</text>
+				<view tag="crashed" position="absolute" left={8} top={8} right={8} row-gap={2}>
+					<text color={c("fg2")} font-size={Theme.SMALL}>stopped</text>
+					<text color={c("fg3")} font-size={Theme.SMALL} max-lines={8} text-overflow="ellipsis">{s.report()}</text>
+				</view>
 			</Show>
 			<Show when={s.frames() == 0 && !s.crashedSignal()}>
 				<view position="absolute" inset={0} align-items="center" justify="center">

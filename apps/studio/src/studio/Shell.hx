@@ -39,8 +39,17 @@ class Shell implements Markup {
 		}));
 		return <view tag="studio" grow={1} ref={(n:Node) -> n.theme = Theme.sheet} background={c("canvas")} color={c("fg")} font-family={Theme.UI}
 			font-size={Theme.BODY}>
-			<Show when={studio.compact()} fallback={desktop(studio)}>{compact(studio)}</Show>
-			<Show when={studio.commandOpen()}>{Command.view(studio)}</Show>
+			<For each={[studio.made()]}>{_ ->
+				<Errored fallback={(e, _) -> {
+					// (said after the making that threw: no signal written inside it)
+					haxe.Timer.delay(() -> studio.crashed(e), 0);
+					return <view grow={1}/>;
+				}}>
+					<Show when={studio.compact()} fallback={desktop(studio)}>{compact(studio)}</Show>
+					<Show when={studio.commandOpen()}>{Command.view(studio)}</Show>
+				</Errored>
+			}</For>
+			<For each={studio.crash() == null ? [] : [studio.crash()]}>{(k:Read<Crash>) -> Crash.view(studio, k(), () -> studio.reload())}</For>
 		</view>;
 	}
 

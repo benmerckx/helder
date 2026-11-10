@@ -357,7 +357,8 @@ function startPreview(host) {
 				preview.events.push([3, host.handles.add(m.text)]);
 				break;
 			case 'exit': {
-				log('studio: the preview ended: ' + m.code + ' ' + (m.stack ?? ''));
+				const report = [m.message, m.stack].filter(Boolean).join('\n');
+				log('studio: the preview ended: ' + m.code + (report ? '\n' + report : ''));
 				// (an incremental build's program that ends right after it starts: built again from cold, a new
 				// compiler; the warm server has built a wrong program after some edits, as the desktop studio sees too)
 				const last = preview.lastBuild;
@@ -370,7 +371,12 @@ function startPreview(host) {
 					compile(host, last.req, true);
 					break;
 				}
-				preview.events.push([4, m.code]);
+				preview.events.push([4, m.code, m.code ? host.handles.add(report) : 0]);
+				// (a crash: started again from the same module, as the desktop studio does, three times at most a build)
+				if (m.code !== 0 && previewBytes && (preview.crashes = (preview.crashes ?? 0) + 1) <= 3) setTimeout(async () => {
+					const module = await WebAssembly.compile(previewBytes);
+					w.postMessage({ type: 'start', wasm: module, imports: await importsOf(module), fonts: await previewFonts, gfx });
+				}, 250);
 				break;
 			}
 			case 'snapshot':
@@ -481,6 +487,7 @@ function compile(host, req, cold = false) {
 			startPreview(host);
 		} else if (b.ok && b.wasm) {
 			previewBytes = b.wasm;
+			preview.crashes = 0;
 			const snapshot = await new Promise((resolve) => {
 				if (!preview.worker) return resolve(null);
 				preview.snapshot = resolve;
@@ -791,6 +798,25 @@ function studioWeb(host) {
 	};
 }
 
+// the studio's own module ended with an error: the module is gone, so the
+// page says so over it (the message, where, and a reload: the project is
+// in OPFS, every edit saved)
+function crashed(message, stack) {
+	state.crash = { message, stack };
+	const d = document.createElement('div');
+	d.id = 'crash';
+	d.setAttribute('role', 'alertdialog');
+	d.setAttribute('aria-label', 'The studio stopped');
+	d.innerHTML = '<div class="box"><div class="title">The studio stopped</div><div class="message"></div><pre></pre>'
+		+ '<div class="actions"><button class="copy">Copy</button><button class="reload">Reload</button></div></div>';
+	d.querySelector('.message').textContent = message;
+	d.querySelector('pre').textContent = stack;
+	d.querySelector('.reload').onclick = () => location.reload();
+	d.querySelector('.copy').onclick = () => navigator.clipboard?.writeText(message + '\n' + stack).catch(() => {});
+	document.body.append(d);
+	d.querySelector('.reload').focus();
+}
+
 // (the welcome's lists: OPFS's projects read before the module starts)
 const opfsProjects = await projectNames();
 function withProjects(host) {
@@ -810,9 +836,11 @@ try {
 	const r = await run(window.STUDIO_WASM ?? 'studio.wasm', {
 		imports: [...IMPORTS, withProjects], canvas: 'studio', fonts, gfx, args: [],
 		stdout: (s) => log(s), stderr: (s) => log('stderr: ' + s),
-		onExit: (code, stack) => {
-			log('studio: exit ' + code + ' ' + (stack ?? ''));
-			if (code) window.studioLoad?.fail('it exited (' + code + ')');
+		onExit: (code, stack, message) => {
+			log('studio: exit ' + code + ' ' + (message ?? '') + '\n' + (stack ?? ''));
+			if (!code) return;
+			window.studioLoad?.fail('it exited (' + code + ')');
+			crashed(message ?? 'it exited (' + code + ')', stack ?? '');
 		},
 		onError: (e) => log('studio: ' + e.message),
 	});

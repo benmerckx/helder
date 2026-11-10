@@ -12,6 +12,11 @@ compilation server alike.
   (`--wait`, `--server-listen`, `--server-connect`) the build stays resident
   and a frontend's errors come back as the compiler's messages, at their
   file, line and columns.
+  A dev build (`-D hxmc.dev`) is also given `-D hxmc.stacks` (an uncaught
+  exception reports its frames, `Called from X (file line N)`) and on
+  wasm32-wasi `-D hxmc.symbols` (a name section: the browser's stack
+  names each frame, which src/helder/os/browser.mjs turns into Haxe's at
+  the exit; hxmc has no lines there yet).
 - `MarkupHook.hx`: markup in any function (helder.view's DESIGN.md 3.5).
   Around hxmc's parse (`TypeloadParse.parseHook`, again when a compilation
   server has replaced it), each parsed file's markup literals are wrapped as

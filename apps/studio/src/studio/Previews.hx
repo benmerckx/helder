@@ -266,6 +266,7 @@ class Previews {
 		if (p == null) return;
 		p.closeStdin();
 		process = p;
+		said = "";
 		startedAt = haxe.Timer.stamp();
 		// (the last process's frames' targets are not this one's; its copies' mappings let go: their pixels copied here)
 		releasing.resize(0);
@@ -288,6 +289,7 @@ class Previews {
 					for (s in screens) {
 						s.reloading = false;
 						s.crashed = code != 0;
+						if (code != 0) s.report(said);
 					}
 					onLog('studio: the screens\' program ended (exit code $code)');
 					if (onFrame != null) onFrame(screens[0]);
@@ -307,8 +309,14 @@ class Previews {
 
 	@:coroutine function forward(src:Stream.Source) {
 		var r = new Reader(src), line;
-		try while ((line = r.readLine()) != null) onLog('[screens] $line') catch (_:haxe.Exception) {}
+		try while ((line = r.readLine()) != null) {
+			onLog('[screens] $line');
+			if (line.startsWith("Uncaught exception")) said = line else if (line.startsWith("Called from") && said != "") said += "\n" + line;
+		} catch (_:haxe.Exception) {}
 	}
+
+	// the program's report of an uncaught error (hxmc's: the error, then its frames), its last
+	var said = "";
 
 	// the program's connection: its hello answered, then its messages
 	@:coroutine function connected(socket:Socket) {
@@ -607,8 +615,12 @@ class Screen {
 
 	inline function set_crashed(v:Bool) {
 		crashedSignal(v);
+		if (!v) report("");
 		return v;
 	}
+
+	// what its program said as it ended (the uncaught error and where it was thrown), shown over it
+	public final report = signal("");
 	public var shownAt = -1.0;
 	// the last patch's ms to its frame (Hot.patched; -1: waiting)
 	public var patchedMs = -1.0;

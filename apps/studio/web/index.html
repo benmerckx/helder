@@ -34,6 +34,27 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0b0d; ove
 #loading .bar > div { height: 100%; width: 0; background: #a3a3aa; transition: width 0.15s linear; }
 #loading .bar[hidden] { display: block; visibility: hidden; }
 #loading.error .status { color: #ec8383; max-width: 36rem; text-align: center; }
+/* (the studio's module ended with an error: studio.mjs's crashed) */
+#crash {
+	position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px;
+	background: rgba(11, 11, 13, 0.72); color: #f0f0f2; font: 13px/1.4 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+}
+#crash .box {
+	display: flex; flex-direction: column; gap: 10px; width: min(640px, 100%); max-height: calc(100dvh - 32px); box-sizing: border-box;
+	padding: 16px; border-radius: 6px; background: #161618; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 16px 48px -12px rgba(0, 0, 0, 0.6);
+}
+#crash .title { font-size: 15px; font-weight: 500; }
+#crash .message { color: #ec8383; overflow-wrap: anywhere; }
+#crash pre {
+	margin: 0; padding: 8px; min-height: 0; overflow: auto; border-radius: 4px; background: #0b0b0d; color: #a3a3aa;
+	font: 12px/18px 'Geist Mono', ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+#crash pre:empty { display: none; }
+#crash .actions { display: flex; justify-content: flex-end; gap: 8px; }
+#crash button {
+	font: inherit; color: #f0f0f2; background: #232326; border: 0; border-radius: 4px; padding: 0 12px; height: 28px; cursor: pointer;
+}
+#crash button.reload { background: #2f6fed; }
 /* (no cross-document view transitions here: the loading screen fades in itself) */
 @supports not (view-transition-name: none) { #loading { animation: in 0.3s ease-out; } }
 @keyframes in { from { opacity: 0; } }

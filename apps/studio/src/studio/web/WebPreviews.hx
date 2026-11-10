@@ -114,8 +114,11 @@ class WebPreviews {
 					onLog('[preview] ' + WebText.take(ev[0]));
 				case 4:
 					running = false;
-					for (s in screens)
+					var said = ev[1] == 0 ? "" : WebText.take(ev[1]);
+					for (s in screens) {
 						s.crashed = true;
+						s.report(said);
+					}
 					onLog('studio: the preview ended (exit code ${ev[0]})');
 					if (onFrame != null) onFrame(screens[0]);
 				case 5:

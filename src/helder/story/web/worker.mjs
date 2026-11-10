@@ -57,7 +57,7 @@ async function handle(m) {
 			onLine: (line) => postMessage({ type: 'line', line }),
 			stdout: (text) => postMessage({ type: 'log', text }),
 			stderr: (text) => postMessage({ type: 'log', text, error: true }),
-			onExit: (code, stack) => postMessage({ type: 'exit', code, stack }),
+			onExit: (code, stack, message) => postMessage({ type: 'exit', code, stack, message }),
 			onError: (err) => postMessage({ type: 'log', text: String(err), error: true }),
 		});
 		current = r.host;

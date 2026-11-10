@@ -27,10 +27,15 @@
 //                  Window.scrollsAt does not take), for os; gfx:
 //                  'webgl2' for gfx, WebGL2 even where WebGPU is, and
 //                  antialias: true, the canvas's frames multisampled;
-//                  onExit: a function (code, stack) called when the
-//                  program exits (main's end, an uncaught exception's
+//                  onExit: a function (code, stack, message) called when
+//                  the program exits (main's end, an uncaught exception's
 //                  exit 1, also in a frame or callback after main
-//                  returned), stack the JavaScript one where it exited)
+//                  returned): stack where it exited, its Haxe frames
+//                  when the module names them (a dev build's name
+//                  section: "Called from studio.Board.view
+//                  (studio/Board.hx)", no lines yet), else JavaScript's;
+//                  message the runtime's report ("Uncaught exception:
+//                  Null Access"), or null)
 //   memory()       the module's memory; bytes(p, n), string(p) read it (a
 //                  view made anew each time: the memory may have grown)
 //   handles        the JavaScript objects the module refers to by integer
@@ -151,11 +156,48 @@ function installTracking() {
 }
 
 class Exit {
-	constructor(code) {
+	constructor(code, message = null) {
 		this.code = code;
-		// (where it exited: the module's frames, named with a name section)
-		this.stack = code ? new Error('exit ' + code).stack : '';
+		this.message = message;
+		this.stack = '';
+		if (!code) return;
+		// (where it exited: the module's frames, more than V8's 10, named with a name section)
+		const limit = Error.stackTraceLimit;
+		Error.stackTraceLimit = 200;
+		const raw = new Error('exit ' + code).stack;
+		Error.stackTraceLimit = limit;
+		const frames = haxeFrames(raw);
+		this.stack = frames.length ? frames.map((f) => 'Called from ' + f).join('\n') : raw;
 	}
+}
+
+// the Haxe frames of a JavaScript stack, innermost first: the module's
+// functions named by hxmc's symbols (F_, then the function's path with
+// every character but a letter or a digit an underscore), the runtime's
+// and the page's left out
+export function haxeFrames(stack) {
+	const out = [];
+	for (const m of String(stack).matchAll(/at (F_\w+) \(wasm/g)) {
+		if (/^F_(hxmc_|haxe_NativeStackTrace|haxe_CallStack|haxe_Exception_)/.test(m[1])) continue;
+		out.push(demangle(m[1]));
+	}
+	return out;
+}
+
+// a symbol as a Haxe name and its file: its packages (lower case) up to its
+// type, the rest its field (F_studio_web_WebPreviews_poll:
+// studio.web.WebPreviews.poll, studio/web/WebPreviews.hx; a local
+// function's number after its owner's); a guess where a type or a package
+// has an underscore of its own
+export function demangle(sym) {
+	const parts = sym.slice(2).split('_');
+	let i = 0;
+	while (i < parts.length - 1 && /^[a-z]/.test(parts[i])) i++;
+	const path = parts.slice(0, i + 1);
+	let field = parts.slice(i + 1).join('_');
+	const local = /^(.*)_(\d+)$/.exec(field);
+	if (local) field = local[1];
+	return path.join('.') + (field ? '.' + field : '') + (local ? ' (a local function)' : '') + ' (' + path.join('/') + '.hx)';
 }
 
 export async function run(wasm, options = {}) {
@@ -242,7 +284,7 @@ export async function run(wasm, options = {}) {
 			} catch (e) {
 				if (!(e instanceof Exit)) throw e;
 				host.exitCode = e.code;
-				options.onExit?.(e.code, e.stack);
+				options.onExit?.(e.code, e.stack, e.message);
 				return undefined;
 			}
 		},
@@ -253,12 +295,17 @@ export async function run(wasm, options = {}) {
 		1: { out: options.stdout ?? ((s) => console.log(s)), text: '', dec: new TextDecoder() },
 		2: { out: options.stderr ?? ((s) => console.error(s)), text: '', dec: new TextDecoder() },
 	};
+	// (the runtime's report of an uncaught exception, the line before its exit)
+	let uncaught = null;
 	function write(fd, data) {
 		const s = sinks[fd];
 		s.text += s.dec.decode(data, { stream: true });
 		const lines = s.text.split('\n');
 		s.text = lines.pop();
-		for (const l of lines) s.out(l);
+		for (const l of lines) {
+			if (fd === 2 && l.startsWith('Uncaught exception')) uncaught = l;
+			s.out(l);
+		}
 	}
 	// (arguments and environment variables: a table of pointers, then the strings)
 	function strings(list, ptrs, buf) {
@@ -388,7 +435,7 @@ export async function run(wasm, options = {}) {
 			return open.delete(fd) ? 0 : 8;
 		},
 		proc_exit(code) {
-			throw new Exit(code);
+			throw new Exit(code, code ? uncaught : null);
 		},
 	};
 	// (a filestat: a regular file of size bytes)
@@ -428,7 +475,7 @@ export async function run(wasm, options = {}) {
 	} catch (e) {
 		if (!(e instanceof Exit)) throw outOfMemory(e, 0, memory);
 		host.exitCode = e.code;
-		options.onExit?.(e.code, e.stack);
+		options.onExit?.(e.code, e.stack, e.message);
 	}
 	return { host, instance, exitCode: host.exitCode ?? 0 };
 }

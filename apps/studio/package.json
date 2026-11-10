@@ -6,6 +6,9 @@
   "author": "Ben Merckx",
   "homepage": "https://github.com/benmerckx/helder/tree/main/apps/studio",
   "helder": {
-    "main": "Main"
+    "main": "Main",
+    "defines": {
+      "hxmc.symbols": "1"
+    }
   }
 }

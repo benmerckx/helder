@@ -89,6 +89,10 @@ class Studio {
 	public final layersOpen = signal(true);
 	// the command field's list open (secondary-K: Command)
 	public final commandOpen = signal(false);
+	// the studio's own error nothing caught, shown over it (Crash), and its
+	// view's making (Reload: made again, the project and previews kept)
+	public final crash:Signal<Null<Crash>> = signal(null);
+	public final made = signal(0);
 	// the status line's message, the agent's last reply
 	public final message = signal("");
 	public final reply = signal("");
@@ -184,6 +188,23 @@ class Studio {
 		#if (hxmc.target == "wasm32-wasi")
 		Async.launch(_ -> studio.web.WebTools.serve(this));
 		#end
+	}
+
+	// an error nothing caught (helder.os.App.onError, Errored): said, logged and shown
+	public function crashed(e:Dynamic) {
+		var c = Crash.of(e);
+		Sys.stderr().writeString('studio: ${c.message}' + (c.stack == "" ? "" : '\n${c.stack}') + "\n");
+		log("crash", {message: c.message, where: c.where});
+		crash(c);
+	}
+
+	// the studio's view made again after a crash (the selection and the command field let go)
+	public function reload() {
+		crash(null);
+		commandOpen(false);
+		selection(null);
+		others([]);
+		made(made.peek() + 1);
 	}
 
 	// (a headless run's script waits while the studio waits on its processes: Headless.hold)

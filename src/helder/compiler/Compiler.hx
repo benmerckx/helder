@@ -64,6 +64,7 @@ class Compiler {
 		compiler.Compiler.beforeTypingHook = function(com, actx) {
 			Phases.begin(com);
 			noOutput = actx.noOutput;
+			dev(com);
 			if (typing != null) typing(com, actx);
 			// (a compilation server's parse replaces hxmc's: around it again)
 			MarkupHook.install();
@@ -166,6 +167,16 @@ class Compiler {
 
 	// What @hxmc/cli's launcher gives its compiler: upstream's std, hxmc's,
 	// and the platform packages' runtime objects.
+	// a dev build reports where it failed: an uncaught exception's frames
+	// with their files and lines natively (hxmc's table of them, in every
+	// program), and in the browser the functions' names (a name section: the
+	// JavaScript stack names each frame; hxmc has no lines there yet)
+	static function dev(com:context.Common.CommonContext) {
+		if (!core.Define.rawDefined(com.defines, "hxmc.dev")) return;
+		core.Define.rawDefine(com.defines, "hxmc.stacks");
+		if (core.Define.rawDefinedValueSafe(com.defines, "hxmc.target") == "wasm32-wasi") core.Define.rawDefine(com.defines, "hxmc.symbols");
+	}
+
 	static function environment() {
 		var cli = locate("node_modules/@hxmc/cli");
 		if (cli == null) return;

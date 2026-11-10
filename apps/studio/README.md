@@ -261,8 +261,19 @@ opens and closes it.
   its own with a context of its own (helder.story.Host,
   helder.ui.ScreenContext: its clock and timers, keymap, settings, safe
   area, dark or light). A crash or an endless loop takes the host down,
-  not the studio: the canvas keeps the last frames and the host is started
-  again.
+  not the studio: the canvas keeps the last frames, each screen says what
+  stopped it (the uncaught error and its frames: a dev build reports
+  them, natively with files and lines, in the browser the functions) and
+  the host is started again (three times a build, in the browser too).
+- **The studio's own errors are shown, not fatal.** An error of the
+  studio's out of an event, a frame or a view's making (helder.os's
+  App.onError, an Errored boundary) is shown over it (studio.Crash: the
+  message, where it was thrown, the stack) with Reload, which makes the
+  studio's view again, the project and its previews kept. In the browser
+  a WebAssembly catch has no stack, so the module is left to end there and
+  the page shows the same panel from its JavaScript stack (the module
+  built with `hxmc.symbols`, its frames named), Reload reloading the page
+  (every edit is in OPFS).
 - **Frames are GPU textures the studio composites.** The host draws each
   screen into a texture of its own the studio's process opens without a
   copy (helder.gfx's shared textures: an IOSurface through Metal on macOS,
