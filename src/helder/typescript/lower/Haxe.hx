@@ -174,6 +174,11 @@ class Haxe {
 				ELocal(l);
 			case HNull(x) | HAbstract(_, _, x, _):
 				toHaxe(e, x, to, where);
+			// (a Read of a type parameter's values, or of an array of them: generic
+			// code only passes them on, so they stay the program's: a For's items
+			// given back as they are)
+			case HRead(x) if (opaque(x)):
+				b.coerce(call(interop("readerOf"), [any(e)]), to);
 			case HRead(_):
 				b.coerce(call(interop("reader"), [any(e)]), to);
 			case HBytes(_):
@@ -211,6 +216,13 @@ class Haxe {
 				b.coerce(call(interop("toHaxe"), [any(e)]), to);
 		}
 	}
+
+	static function opaque(t:HType):Bool
+		return switch t {
+			case HParam(_): true;
+			case HNull(x) | HArray(x): opaque(x);
+			case _: false;
+		}
 
 	// a structure of fields from a JavaScript object's properties (each converted by its type)
 	function structure(o:Ex, fields:Array<HArg>, where:String):Ex {

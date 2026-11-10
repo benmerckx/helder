@@ -25,6 +25,11 @@ class Interop {
 	public static function toJs(v:Dynamic):Dynamic {
 		if (v == null) return null;
 		if (Std.isOfType(v, JsObject) || Std.isOfType(v, String) || Std.isOfType(v, Bool)) return v;
+		// (what a signal holds: the program's own objects and arrays, as written)
+		if (shaped(v)) {
+			var o = origins.get(v);
+			if (o != null) return o;
+		}
 		if (Std.isOfType(v, helder.view.graph.Read.Reader)) return callable(v);
 		if (Std.isOfType(v, Int)) {
 			var i:Int = v;
@@ -110,14 +115,14 @@ class Interop {
 		var f = callables.get(r);
 		if (f != null) return f;
 		f = Builtins.nativeFunction("", 0, (_, args, _) -> {
-			if (args.length == 0) return toJs(r.read());
+			if (args.length == 0) return held(r, r.read());
 			if (!Std.isOfType(r, helder.view.graph.Node)) throw "helder.view: a memo or a Read is read only";
 			var n:helder.view.graph.Node<Dynamic> = cast r, a:Dynamic = args[0];
 			if (Std.isOfType(a, JsFunction) && (a : JsFunction).haxe == null) Seed.diverge("a value (a signal holds no function: update it where its type says so)", a, "a signal written");
-			n.write(toHaxe(a));
+			written(n, a);
 			return Seed.undefinedValue;
 		});
-		f.setOwn("peek", Builtins.nativeFunction("peek", 0, (_, _, _) -> toJs(r.peek())));
+		f.setOwn("peek", Builtins.nativeFunction("peek", 0, (_, _, _) -> held(r, r.peek())));
 		f.haxe = r;
 		if (Std.isOfType(r, helder.view.graph.Node)) callables.set(r, f);
 		return f;
@@ -130,8 +135,70 @@ class Interop {
 	// f() where f's type is a Signal or a Memo: its node read (else f called)
 	public static function signalRead(f:Dynamic):Dynamic {
 		var r = nodeOf(f);
-		return r != null ? toJs(r.read()) : call(f, []);
+		return r != null ? held(r, r.read()) : call(f, []);
 	}
+
+	// A value the program writes to a signal is made Haxe's (its arrays and
+	// plain objects: Haxe code reads them), and read back as the program
+	// wrote it: the same objects, nested ones too (signal(o)() === o). Kept
+	// per signal, its last two values (a write lands a moment later: a read
+	// in between gets the one before), so what is kept is what signals hold.
+	static final origins = new haxe.ds.ObjectMap<Dynamic, Dynamic>();
+	static final kept = new haxe.ds.ObjectMap<Dynamic, Array<Array<Dynamic>>>();
+
+	// signal(v) from the program (Graph.signalValue's): read back as v
+	public static function signal(v:Dynamic):Dynamic {
+		var h = toHaxe(v);
+		var n = helder.view.graph.Node.signal(h, null);
+		remember(n, h, v);
+		return toJs(n);
+	}
+
+	// (a value written: converted, and its origins kept)
+	static function written(n:helder.view.graph.Node<Dynamic>, v:Dynamic) {
+		var h = toHaxe(v);
+		n.write(h);
+		remember(n, h, v);
+	}
+
+	// (a value read: as it was written, else made JavaScript's once and kept so)
+	static function held(r:helder.view.graph.Read.Reader<Dynamic>, h:Dynamic):Dynamic {
+		if (!shaped(h)) return toJs(h);
+		var o = origins.get(h);
+		if (o != null) return o;
+		var js = toJs(h);
+		remember(r, h, js);
+		return js;
+	}
+
+	static function remember(r:Dynamic, h:Dynamic, js:Dynamic) {
+		if (!shaped(h)) return;
+		var found = kept.get(r);
+		var generations:Array<Array<Dynamic>> = found == null ? [] : found;
+		if (found == null) kept.set(r, generations);
+		var keys = [];
+		link(h, js, keys);
+		generations.push(keys);
+		while (generations.length > 2) {
+			var gone = generations.shift() ?? [];
+			for (k in gone) if (!Lambda.exists(generations, g -> g.contains(k))) origins.remove(k);
+		}
+	}
+
+	static function link(h:Dynamic, js:Dynamic, keys:Array<Dynamic>) {
+		if (!shaped(h) || h == js) return;
+		origins.set(h, js);
+		keys.push(h);
+		if (Std.isOfType(h, Array) && Std.isOfType(js, JsArray)) {
+			var items:Array<Dynamic> = h, i = 0;
+			for (x in (js : JsArray).elements()) if (i < items.length) link(items[i++], x, keys);
+		} else if (Std.isOfType(js, JsObject))
+			for (k in Reflect.fields(h)) link(Reflect.field(h, k), Lib.get(js, k), keys);
+	}
+
+	// (a Haxe array or structure: what conversion makes anew)
+	static inline function shaped(h:Dynamic):Bool
+		return h != null && (Std.isOfType(h, Array) || Type.typeof(h) == TObject);
 
 	// f(v) where f's type is a Signal and v's no function: written, a function a divergence
 	public static function signalWrite(f:Dynamic, v:Dynamic, where:String):Dynamic {
@@ -139,7 +206,7 @@ class Interop {
 		if (r == null) return call(f, [v]);
 		if (!Std.isOfType(r, helder.view.graph.Node)) throw "helder.view: a memo or a Read is read only";
 		if (Std.isOfType(v, JsFunction) && (v : JsFunction).haxe == null) Seed.diverge("a value (a signal holds no function)", v, where);
-		(cast r : helder.view.graph.Node<Dynamic>).write(toHaxe(v));
+		written(cast r, v);
 		return Seed.undefinedValue;
 	}
 
@@ -148,7 +215,13 @@ class Interop {
 		var r = nodeOf(f);
 		if (r == null) return call(f, [update]);
 		if (!Std.isOfType(r, helder.view.graph.Node)) throw "helder.view: a memo or a Read is read only";
-		(cast r : helder.view.graph.Node<Dynamic>).update(x -> toHaxe(call(update, [toJs(x)])));
+		var n:helder.view.graph.Node<Dynamic> = cast r;
+		n.update(x -> {
+			var js = call(update, [held(n, x)]);
+			var h = toHaxe(js);
+			remember(n, h, js);
+			return h;
+		});
 		return Seed.undefinedValue;
 	}
 
@@ -161,6 +234,19 @@ class Interop {
 			return new helder.view.graph.Read.Thunk<Dynamic>(() -> toHaxe(call(f, [])));
 		}
 		return new helder.view.graph.Read.Const<Dynamic>(toHaxe(v));
+	}
+
+	// a Read of values generic code only passes on: a function as reader's,
+	// a constant's arrays Haxe's with their items the program's own
+	public static function readerOf(v:Dynamic):Dynamic {
+		if (Std.isOfType(v, JsFunction)) return reader(v);
+		return new helder.view.graph.Read.Const<Dynamic>(shallow(v));
+	}
+
+	static function shallow(v:Dynamic):Dynamic {
+		if (v == null || v == Seed.undefinedValue) return null;
+		if (Std.isOfType(v, JsArray)) return [for (x in (v : JsArray).elements()) x == Lib.hole || x == Seed.undefinedValue ? null : x];
+		return v;
 	}
 
 	// a program's component's Read prop: a function as it is (a signal's, a
@@ -336,7 +422,8 @@ private class LoopHost implements Promises.EventHost {
 		}
 
 	public function timer(ms:Float, f:Void->Void):Void->Void {
-		var t = loop.at(haxe.Timer.stamp() + ms / 1000, new TimerCall(loop.context(), f));
+		// (the loop's clock: a headless run's is its frames')
+		var t = loop.at(helder.headless.Time.stamp() + ms / 1000, new TimerCall(loop.context(), f));
 		return () -> t.close();
 	}
 

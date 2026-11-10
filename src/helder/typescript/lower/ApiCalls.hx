@@ -128,8 +128,10 @@ abstract class ApiCalls extends ClassValues {
 						var m = apiClass(c, n);
 						var member = apiMember(m, name, true, n);
 						if (member.mount) return mount(n, member);
-						var r = bridge.callStatic(m, member, apiArguments(actual, member.type), where());
-						return dev && c.path == "helder.view.graph.Graph" && name == "signalValue" && actual.length == 1 ? hotSignal(n, r) : r;
+						var made = c.path == "helder.view.graph.Graph" && name == "signalValue" && actual.length == 1 && !hasSpread(actual);
+						// (a signal of the program's value: read back as that value, Interop.signal)
+						var r = made ? bridge.call(bridge.interop("signal"), [any(expr(actual[0]))]) : bridge.callStatic(m, member, apiArguments(actual, member.type), where());
+						return dev && made ? hotSignal(n, r) : r;
 					case FClass(c): return fail(n, c.name + " is a class: construct it with new");
 					case null: return null;
 				}
