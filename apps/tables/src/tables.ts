@@ -28,8 +28,8 @@ export const LINE: Entry = { label: "", line: true, run: () => {} };
 export type Popup = { x: number; y: number; width?: number; from?: Node; items: Entry[] };
 export type Place = { x: number; y: number; from?: Node };
 export type Link = { label: string; detail: string; run: () => void };
-// an open table's tab: what it shows, kept while another is shown
-export type Tab = { table: string; where: string; quick: string; conditions: Condition[]; mode: string; history: Visit[] };
+// what a table showed: kept while another is shown (data: a dev reload keeps it too)
+export type View = { table: string; where: string; quick: string; conditions: Condition[]; mode: string; history: Visit[] };
 type Visit = { table: string; where: string };
 // a question before something is lost: what is lost (discard), or saved first (save)
 export type Ask = { title: string; text: string; discard: string; run: () => void; save?: () => void };
@@ -51,10 +51,10 @@ export class Tables {
 	readonly filterFailed = signal(false);
 	// the rows searched for a text, and narrowed by conditions (filters.ts)
 	readonly quick = signal("");
-	// the open tables' tabs, the one shown
-	readonly tabs: Signal<Tab[]> = signal<Tab[]>([]);
+	// the views of the tables shown before, and the one shown (its table's id)
+	readonly views: Signal<View[]> = signal<View[]>([]);
+	readonly shown = signal("");
 	readonly asking: Signal<Ask | null> = signal<Ask | null>(null);
-	readonly active = signal(-1);
 	readonly conditions: Signal<Condition[]> = signal<Condition[]>([]);
 	// the open table's rows matching, its changes, the last query's time
 	readonly count = signal(-1);
@@ -102,9 +102,8 @@ export class Tables {
 	private narrowed = "";
 	private narrowTimer = 0;
 	private history: Visit[] = [];
-	// (the tabs and the one shown: these, published to tabs and active)
-	private tabList: Tab[] = [];
-	private at = -1;
+	// (the views: this, published to views)
+	private viewList: View[] = [];
 	private resultRows: Record<string, unknown>[] = [];
 	private resultKeys: string[] = [];
 	private noteId = 0;
@@ -182,12 +181,12 @@ export class Tables {
 				this.tables(list);
 				this.state("ready");
 				const first = list.find(t => !t.view) ?? list[0];
-				// (the tabs a dev reload kept: shown again, else the first table)
-				const kept = this.tabs.peek().filter(tab => list.some(t => t.id === tab.table));
-				if (this.current.peek() === null && kept.length > 0) {
-					this.tabList = kept;
-					this.showTab(Math.max(0, Math.min(this.active.peek(), kept.length - 1)), list);
-				} else if (first !== undefined && this.current.peek() === null) this.openTab(first);
+				// (the views a dev reload kept, the one shown again; else the first table)
+				this.viewList = this.views.peek().filter(v => list.some(t => t.id === v.table));
+				const shown = this.shown.peek();
+				const was: View = { table: shown, where: this.applied.peek(), quick: this.quick.peek(), conditions: this.conditions.peek(), mode: this.mode.peek(), history: [] };
+				if (this.current.peek() === null && list.some(t => t.id === shown)) this.restore(was, list);
+				else if (first !== undefined && this.current.peek() === null) this.visit(first);
 				if (this.query.peek() === "" && first !== undefined) {
 					// (the signal's write lands later: the editor given the text itself)
 					const q = `SELECT * FROM ${this.sql.table(first)} LIMIT 100`;
@@ -274,7 +273,7 @@ export class Tables {
 		if (!same && r.view !== null && filters.joined([this.narrowed, w]) === r.where) grid.restore(r.view.top, r.view.left, r.view.row, r.view.col);
 		else grid.reset();
 		this.current(t);
-		this.retab(t.id, w);
+		this.shown(t.id);
 		this.filter(w);
 		this.applied(w);
 		this.filterFailed(false);
@@ -332,69 +331,19 @@ export class Tables {
 		this.applyFilter("");
 	}
 
-	// ---- tabs: a table each, its filter, search, conditions, view and Back kept while another is shown
+	// ---- each table's view: its filter, search, conditions, mode and Back, kept while another is shown
 
-	// a table in its tab: the one it has, else a new one
-	openTab(t: Table) {
-		const k = this.tabList.findIndex(tab => tab.table === t.id);
-		if (k >= 0) return this.switchTab(k);
-		this.keepTab();
-		this.tabList = [...this.tabList, { table: t.id, where: "", quick: "", conditions: [], mode: "data", history: [] }];
-		this.at = this.tabList.length - 1;
-		this.publishTabs();
+	// a table shown as it was left (from the sidebar), else afresh
+	visit(t: Table) {
+		const cur = this.current.peek();
+		if (cur === t && this.opening.peek() === null) return;
+		this.keepView();
+		const v = this.viewList.find(v => v.table === t.id);
+		if (v !== undefined) return this.restore(v, this.tables.peek());
 		this.history = [];
 		this.canBack(false);
 		if (this.mode.peek() === "structure") this.mode("data");
 		this.open(t, "", false);
-	}
-
-	switchTab(k: number) {
-		if (k === this.at || this.tabList[k] === undefined) return;
-		this.keepTab();
-		this.showTab(k);
-	}
-
-	nextTab(d: number) {
-		const n = this.tabList.length;
-		if (n > 1) this.switchTab((this.at + d + n) % n);
-	}
-
-	// (a tab with changes not saved asks first: discarded, or saved)
-	closeTab(k = this.at, sure = false) {
-		const tab = this.tabList[k];
-		if (tab === undefined) return;
-		const r = this.opened.get(tab.table), n = r?.changes() ?? 0;
-		if (!sure && r !== undefined && n > 0) {
-			this.asking({
-				title: `Close ${tab.table}?`,
-				text: `${n === 1 ? "Its change is" : `Its ${n} changes are`} not saved.`,
-				discard: "Discard and close",
-				run: () => {
-					r.discard();
-					this.closeTab(k, true);
-				},
-				save: () => {
-					this.switchTab(k);
-					this.save();
-				}
-			});
-			return;
-		}
-		if (k === this.at) this.keepTab();
-		this.tabList = this.tabList.filter((_, i) => i !== k);
-		if (this.tabList.length === 0) {
-			this.at = -1;
-			this.publishTabs();
-			this.clearTable();
-			return;
-		}
-		if (k < this.at) {
-			this.at--;
-			this.publishTabs();
-		} else if (k === this.at) {
-			this.at = -1;
-			this.showTab(Math.min(k, this.tabList.length - 1));
-		} else this.publishTabs();
 	}
 
 	// the window closing (its close button, quitting): asked first while changes are not saved
@@ -419,57 +368,22 @@ export class Tables {
 		else this.grid.focus(false);
 	}
 
-	private showTab(k: number, list = this.tables.peek()) {
-		const tab = this.tabList[k];
-		this.at = k;
-		this.publishTabs();
-		this.history = tab.history;
-		this.canBack(tab.history.length > 0);
-		this.mode(tab.mode);
-		const t = list.find(t => t.id === tab.table);
-		if (t !== undefined) this.open(t, tab.where, false, tab);
+	private restore(v: View, list: Table[]) {
+		const t = list.find(t => t.id === v.table);
+		if (t === undefined) return;
+		this.history = v.history;
+		this.canBack(v.history.length > 0);
+		this.mode(v.mode);
+		this.open(t, v.where, false, v);
 	}
 
-	// (the tab shown as it is now)
-	private keepTab() {
-		const tab = this.tabList[this.at];
-		if (tab === undefined) return;
-		this.tabList = this.tabList.map((x, i) => (i === this.at
-			? { ...tab, where: this.applied.peek(), quick: this.quick.peek(), conditions: this.conditions.peek(), mode: this.mode.peek(), history: this.history }
-			: x));
-	}
-
-	// (the tab shown now shows t: Back and a relation followed stay in it; the first table makes one)
-	private retab(table: string, where: string) {
-		if (this.at < 0) {
-			this.tabList = [{ table, where, quick: "", conditions: [], mode: this.mode.peek(), history: [] }];
-			this.at = 0;
-		} else this.tabList = this.tabList.map((x, i) => (i === this.at ? { ...x, table, where } : x));
-		this.publishTabs();
-	}
-
-	private publishTabs() {
-		this.tabs(this.tabList);
-		this.active(this.at);
-	}
-
-	// (no tab left: nothing shown)
-	private clearTable() {
-		this.rows = null;
-		this.cols = [];
-		this.current(null);
-		this.grid.columns = [];
-		this.grid.rowCount = 0;
-		this.grid.refresh();
-		this.count(-1);
-		this.changes(0);
-		this.filter("");
-		this.applied("");
-		this.quick("");
-		this.conditions([]);
-		this.narrowed = "";
-		this.history = [];
-		this.canBack(false);
+	// (the view shown, as it is now, kept with its table)
+	private keepView() {
+		const t = this.current.peek();
+		if (t === null) return;
+		const v: View = { table: t.id, where: this.applied.peek(), quick: this.quick.peek(), conditions: this.conditions.peek(), mode: this.mode.peek(), history: this.history };
+		this.viewList = [...this.viewList.filter(x => x.table !== t.id), v];
+		this.views(this.viewList);
 	}
 
 	// ---- the search and the conditions (applied as they are typed, a moment after)

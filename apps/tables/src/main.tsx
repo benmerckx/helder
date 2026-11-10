@@ -29,9 +29,6 @@ const Do = actions("tables", {
 	query() { return {}; },
 	undo() { return {}; },
 	panel() { return {}; },
-	closeTab() { return {}; },
-	nextTab() { return {}; },
-	previousTab() { return {}; },
 	appearance(kind: string) { return { kind }; }
 });
 Keymap.global.bind("secondary-s", Do.save())
@@ -44,12 +41,7 @@ Keymap.global.bind("secondary-s", Do.save())
 	.bind("secondary-2", Do.structure())
 	.bind("secondary-3", Do.query())
 	.bind("secondary-z", Do.undo())
-	.bind("secondary-i", Do.panel())
-	.bind("secondary-w", Do.closeTab())
-	.bind("ctrl-tab", Do.nextTab())
-	.bind("ctrl-shift-tab", Do.previousTab())
-	.bind("secondary-shift-]", Do.nextTab())
-	.bind("secondary-shift-[", Do.previousTab());
+	.bind("secondary-i", Do.panel());
 
 const given = args().length > 0 && !args()[0].startsWith("--") ? args()[0] : null;
 const app = new Tables(given === null ? "http://127.0.0.1:4983/" : given.startsWith("http") ? given : "http://" + given);
@@ -66,7 +58,7 @@ app.start();
 
 // the menu bar: File, Edit, View (its views, the row panel, the appearance)
 const menus = [
-	{ label: "File", items: [item("Save Changes", Do.save()), item("Discard Changes", Do.discard()), separator, item("Refresh", Do.refresh()), separator, item("Close Tab", Do.closeTab()), separator, role("quit")] },
+	{ label: "File", items: [item("Save Changes", Do.save()), item("Discard Changes", Do.discard()), separator, item("Refresh", Do.refresh()), separator, role("quit")] },
 	{ label: "Edit", items: [item("Undo", Do.undo()), separator, role("cut"), role("copy"), role("paste"), role("select-all")] },
 	{
 		label: "View",
@@ -76,7 +68,7 @@ const menus = [
 			submenu("Appearance", [item("System", Do.appearance("system")), item("Light", Do.appearance("light")), item("Dark", Do.appearance("dark"))])
 		]
 	},
-	{ label: "Window", role: "window" as const, items: [item("Show Next Tab", Do.nextTab()), item("Show Previous Tab", Do.previousTab())] }
+	{ label: "Window", role: "window" as const, items: [] }
 ];
 
 // (the window: closed once nothing unsaved is in the way)
@@ -105,9 +97,6 @@ UiWindow.run(
 					app.panel(!app.panel.peek());
 					break;
 				case "appearance": app.appear(a.kind); break;
-				case "closeTab": app.closeTab(); break;
-				case "nextTab": app.nextTab(1); break;
-				case "previousTab": app.nextTab(-1); break;
 			}
 			return true;
 		}, a => {
@@ -120,8 +109,6 @@ UiWindow.run(
 				case "save": case "discard": case "undo": return app.changes.peek() > 0 ? Enabled : Disabled;
 				case "back": return app.canBack.peek() ? Enabled : Disabled;
 				case "run": return app.mode.peek() === "sql" ? Enabled : Disabled;
-				case "closeTab": return app.tabs.peek().length > 0 ? Enabled : Disabled;
-				case "nextTab": case "previousTab": return app.tabs.peek().length > 1 ? Enabled : Disabled;
 				default: return Enabled;
 			}
 		})}>

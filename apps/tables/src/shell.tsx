@@ -71,7 +71,7 @@ function Sidebar(props: { app: Tables }) {
 					ref={(n: Node) => (searchField = n)} onInput={(e) => app.search(e.text)} onKeyDown={(e) => {
 						if (e.key === Key.ENTER) {
 							const first = shown()[0];
-							if (first !== undefined) app.openTab(first);
+							if (first !== undefined) app.visit(first);
 						}
 						if (e.key === Key.ESCAPE) {
 							app.search("");
@@ -114,7 +114,7 @@ function TableItem(props: { app: Tables; t: Table }) {
 	return <view:button tag={"table-" + t.id} slot="nav-item" role="listitem" label={t.name} focusable data-on={on() ? "true" : "false"}
 		onPress={() => {
 			if (app.mode() === "sql") app.mode("data");
-			app.openTab(t);
+			app.visit(t);
 		}}>
 		<Icon src={t.view ? icons.view : icons.table} color={on() ? c("accent-ink") : c("fg3")}/>
 		<text grow={1} min-width={0} max-lines={1} text-overflow="ellipsis">{t.name}</text>
@@ -152,9 +152,7 @@ function Header(props: { app: Tables }) {
 		<Show when={app.canBack()}>
 			<view:button tag="back" slot="button" role="button" label="Back" focusable onPress={() => app.back()}><Icon src={icons.back} color={c("fg2")} size={Theme.ICON}/></view:button>
 		</Show>
-		<view tag="tabs" direction="row" align-items="center" column-gap={2} min-width={0} shrink={1} role="tablist" label="Open tables">
-			<Repeat count={app.tabs().length}>{(k: number) => <TabItem app={app} index={k}/>}</Repeat>
-		</view>
+		<text font-weight={Theme.MEDIUM} font-size={13} max-lines={1} text-overflow="ellipsis" min-width={0} shrink={1} padding="0 4">{app.current()?.id ?? ""}</text>
 		<view grow={1}/>
 		<Show when={app.state() === "ready"}>
 			<view slot="seg" role="tablist" label="View">
@@ -167,22 +165,6 @@ function Header(props: { app: Tables }) {
 			</view:button>
 		</Show>
 	</view>;
-}
-
-// an open table's tab: its name, a way to close it (its width the same shown or not)
-function TabItem(props: { app: Tables; index: number }) {
-	const app = props.app, k = props.index;
-	const on = () => app.active() === k;
-	const name = () => app.tabs()[k]?.table ?? "";
-	return <view:button tag={"tab-" + k} slot="nav-item" role="tab" label={name()} selected={on()} data-on={on() ? "true" : "false"} focusable
-		height={28} padding="0 4 0 10" column-gap={6} min-width={0} shrink={1} onPress={() => app.switchTab(k)}>
-		<text font-weight={on() ? Theme.MEDIUM : 400} max-lines={1} text-overflow="ellipsis" min-width={0} shrink={1}>{name()}</text>
-		<view:button tag={"close-tab-" + k} slot="button" role="button" label={"Close " + name()} width={18} height={18} min-width={18} padding={0} shrink={0}
-			onPointerDown={(e) => e.stop()} onPress={(e) => {
-				e.stop();
-				app.closeTab(k);
-			}}><Icon src={icons.close} color={c("fg3")} size={10}/></view:button>
-	</view:button>;
 }
 
 function rowsText(app: Tables): string {
