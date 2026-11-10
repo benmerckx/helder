@@ -99,9 +99,10 @@ class Op {
 	// submitted to the loop's backend; done: this op, or its error thrown
 	@:coroutine public function run():Op {
 		var op = this;
-		var io = Async.loopOf(Async.context()).io;
+		var loop = Async.loopOf(Async.context()), io = loop.io;
 		Async.suspendCancellable(cont -> {
 			op.cont = cont;
+			loop.submitted = haxe.Timer.stamp();
 			io.submit(op);
 			return _ -> io.cancel(op);
 		});

@@ -41,8 +41,9 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	final timers:Array<Timer> = [];
 	var live = 0;
 	var order = 0;
-	// I/O: operations submitted, completed (Io.Backend)
+	// I/O: operations submitted, completed (Io.Backend); when one was last submitted (the machine's clock)
 	public final io:Io.Backend;
+	public var submitted = 0.0;
 	// conditions checked each turn (a fetch in the browser): true when done
 	final checks:Array<Void->Bool> = [];
 	// other threads' posts (Loop.post) and how many sources may still post
@@ -177,6 +178,13 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	// (this thread) until every promised post has come: the next turn runs
 	// them all (at most a minute: a job that never ends does not stop the loop)
 	public function settle() {
+		// (and I/O in flight: a request's reply lands in the frame after it
+		// was sent, as on a machine whose network is instant, not seconds of
+		// the run's time later; what has been waited on a moment, a server's
+		// accept, an idle read, holds no frame up)
+		var start = haxe.Timer.stamp();
+		while (count == 0 && io.pending() > 0 && start - submitted < 0.5 && haxe.Timer.stamp() - start < 0.5)
+			io.poll(0.002, -1);
 		#if target.threaded
 		var spins = 0, until = haxe.Timer.stamp() + 60;
 		while (true) {
