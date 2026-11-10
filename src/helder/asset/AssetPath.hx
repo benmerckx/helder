@@ -19,7 +19,7 @@ class AssetPath {
 		if (path.indexOf("\\") >= 0) return "a backslash ('/' separates the parts on every platform)";
 		if (path.indexOf(":") >= 0) return "a colon (a drive or a URL's scheme: assets are named relative to the project or a class path)";
 		for (i in 0...path.length) {
-			var c = path.charCodeAt(i);
+			var c = StringTools.fastCodeAt(path, i);
 			if (c < 0x20 || c == 0x7f) return "a control character";
 		}
 		for (p in path.split("/"))

@@ -99,7 +99,7 @@ class Html {
 		if (f.indexOf("-") >= 0) return f;
 		var b = new StringBuf();
 		for (i in 0...f.length) {
-			var c = f.charCodeAt(i);
+			var c = StringTools.fastCodeAt(f, i);
 			if (c >= "A".code && c <= "Z".code) {
 				b.addChar("-".code);
 				b.addChar(c + 32);

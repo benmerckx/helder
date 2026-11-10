@@ -49,7 +49,8 @@ class Hosted {
 	static inline var NEXT = DevHost.NEXT;
 	static inline var NEXT_BYTES = DevHost.NEXT_BYTES;
 
-	@:keep @:hxmc.export("hxmc_dev_state") static var state:Ptr;
+	// (the host writes it before a build runs: no initial value of its own)
+	@:keep @:hxmc.export("hxmc_dev_state") @:nullSafety(Off) static var state:Ptr;
 
 	// true while this build hands over: what the host keeps is left, not destroyed
 	public static var handingOver(default, null) = false;

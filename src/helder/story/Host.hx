@@ -83,16 +83,16 @@ class Host {
 	// change), at its own pixels per point (the studio's zoom into it: its
 	// frames sharp at the canvas' scale; the others at the host's)
 	public function focus(name:Null<String>, ?scale:Float) {
-		var next = name == null ? null : screen(name);
-		if (focused != null && focused != next && focused.scale != this.scale) {
-			focused.scale = this.scale;
-			focused.redraw = true;
+		var was = focused, next = name == null ? null : screen(name);
+		if (was != null && was != next && was.scale != this.scale) {
+			was.scale = this.scale;
+			was.redraw = true;
 		}
 		focused = next;
-		if (focused == null) return;
+		if (next == null) return;
 		var k = scale ?? this.scale;
-		if (k != focused.scale) focused.scale = k;
-		focused.redraw = true;
+		if (k != next.scale) next.scale = k;
+		next.redraw = true;
 	}
 
 	// one turn at now (seconds): each screen shown built the first time,
@@ -104,6 +104,7 @@ class Host {
 			if (!s.visible) continue;
 			s.mount();
 			var ui = s.ui;
+			if (ui == null) continue;
 			var changed = s.context.run(() -> {
 				Clock.tick(now);
 				ui.update();
@@ -135,6 +136,8 @@ class Host {
 	// a screen's frame: the target at its size, its tree painted, handed over
 	// (changed: something in it changed since its last frame; else the focused one's frame of every turn)
 	function draw(s:HostScreen, changed:Bool) {
+		var ui = s.ui;
+		if (ui == null) return;
 		var scale = s.scale;
 		var w = Math.round(s.width * scale), h = Math.round(s.height * scale);
 		// (not now: the runtime has no target free for it, or the same pixels are there; again at a next turn when it changed)
@@ -149,13 +152,12 @@ class Host {
 		}
 		s.redraw = false;
 		var c = pass.colors[0].clear;
-		@:privateAccess {
+		if (c != null) @:privateAccess {
 			c.r = background.r / 255;
 			c.g = background.g / 255;
 			c.b = background.b / 255;
 		}
 		renderer.scale = scale;
-		var ui = s.ui;
 		ui.scale = scale;
 		s.context.run(() -> {
 			renderer.begin(device.width, device.height);
@@ -266,6 +268,8 @@ class HeadlessHost implements HostRuntime {
 		device.readPixels(b);
 	}
 
-	public function present(s:HostScreen, changed:Bool)
-		if (framed != null) framed(s, pixels.get(s.name));
+	public function present(s:HostScreen, changed:Bool) {
+		var f = framed, b = pixels.get(s.name);
+		if (f != null && b != null) f(s, b);
+	}
 }

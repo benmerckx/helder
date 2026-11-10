@@ -99,13 +99,21 @@ class SharedFrames implements HostRuntime {
 		surface = Surface.headless(1, 1);
 	}
 
+	// (the host this runs: set once made, before its first frame)
+	function hosted():Host {
+		var h = host;
+		if (h == null) throw "helder.story: NativeHost without its host";
+		return h;
+	}
+
 	public function sharing(device:Device):String {
-		if (kind == null) kind = forceCopy || device.sharing == null ? "copy" : device.sharing;
-		return kind;
+		var d = device.sharing, k = kind ?? (forceCopy || d == null ? "copy" : d);
+		kind = k;
+		return k;
 	}
 
 	public function begin(s:HostScreen, device:Device, width:Int, height:Int, changed:Bool):Bool {
-		var i = host.screens.indexOf(s), k = sharing(device);
+		var i = hosted().screens.indexOf(s), k = sharing(device);
 		var last = told.get(i);
 		// (the same pixels as the frame the studio has: nothing to draw)
 		if (!changed && last != null && last.width == width && last.height == height) return false;
@@ -150,19 +158,19 @@ class SharedFrames implements HostRuntime {
 	}
 
 	public function capture(s:HostScreen, device:Device) {
-		var f = current;
-		if (f == null || f.file == null) return;
+		var f = current, file = f?.file;
+		if (f == null || file == null) return;
 		var n = f.width * f.height * 4;
 		if (pixels.length < n) pixels = Bytes.alloc(n);
 		device.readPixels(pixels);
-		f.file.write(pixels, n);
+		file.write(pixels, n);
 	}
 
 	public function present(s:HostScreen, changed:Bool) {
 		var f = current, i = currentScreen;
 		current = null;
 		if (f == null) return;
-		if (f.texture != null) host.device.frameInto(null);
+		if (f.texture != null) hosted().device.frameInto(null);
 		f.held = true;
 		told.set(i, f);
 		#if hxmc.dev
@@ -181,7 +189,7 @@ class SharedFrames implements HostRuntime {
 
 	// the studio shows a newer frame of the screen: this one's target free
 	public function release(s:HostScreen, buffer:Int) {
-		var list = targets.get(host.screens.indexOf(s));
+		var list = targets.get(hosted().screens.indexOf(s));
 		if (list != null) for (f in list)
 			if (f.id == buffer) f.held = false;
 	}
@@ -189,9 +197,9 @@ class SharedFrames implements HostRuntime {
 	// a screen's last frame written to path (a 16-byte header, "HLDF", its
 	// width and height, then RGBA rows top to bottom): {path, width, height}
 	public function snap(s:HostScreen, path:String):Dynamic {
-		var f = told.get(host.screens.indexOf(s));
+		var f = told.get(hosted().screens.indexOf(s));
 		if (f == null) throw 'no frame of ${s.name} yet';
-		var device = host.device, n = f.width * f.height * 4;
+		var device = hosted().device, n = f.width * f.height * 4;
 		var b = Bytes.alloc(16 + n), px = Bytes.alloc(n);
 		if (f.file != null) f.file.read(px, n) else {
 			device.frameInto(f.texture);

@@ -141,10 +141,11 @@ class Hot {
 	public static function load<T>(key:String, type:String, ?decode:String->T):Null<T> {
 		init();
 		var k = frame.loadKey(key);
-		if (restored == null) return null;
-		var e = restored.get(k);
+		var r = restored;
+		if (r == null) return null;
+		var e = r.get(k);
 		if (e == null) return null;
-		restored.remove(k);
+		r.remove(k);
 		if (e.type != type) {
 			log('$k reset: its type changed');
 			return null;
@@ -263,7 +264,7 @@ class Hot {
 			#end
 			if (at != null && at.indexOf(":") > 0) {
 				var fd = hxmc.NativeNet.socket();
-				if (fd >= 0 && hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) >= 0) {
+				if (fd >= 0 && hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1)) ?? 0) >= 0) {
 					hxmc.NativeNet.setBlocking(fd, false);
 					socket = fd;
 					helder.devtools.Agent.start();
@@ -275,7 +276,7 @@ class Hot {
 	}
 
 	// the snapshot's format: haxe.Serializer's of an array of strings: key, type, data, key, ...
-	static function parse(data:String):Map<String, {type:String, data:String}> {
+	static function parse(data:String):Null<Map<String, {type:String, data:String}>> {
 		var m = new Map<String, {type:String, data:String}>();
 		var a:Array<String> = try haxe.Unserializer.run(data) catch (e:Dynamic) {
 			log("the snapshot could not be read (" + Std.string(e) + "): a cold start");
@@ -477,10 +478,11 @@ class Hot {
 	// (Android) a build's library from the dev server, on a connection of its
 	// own ("lib <n>": the bytes, then the end), into the file at path
 	static function fetch(n:String, path:String) {
-		var at = Sys.getEnv("HXMC_DEV");
-		if (at == null || at == "") at = haxe.macro.Compiler.getDefine("hxmc.dev-server");
+		var at = Sys.getEnv("HXMC_DEV") ?? "";
+		if (at == "") at = haxe.macro.Compiler.getDefine("hxmc.dev-server") ?? "";
 		var fd = hxmc.NativeNet.socket();
-		if (fd < 0 || hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) < 0)
+		var port = Std.parseInt(at.substr(at.lastIndexOf(":") + 1)) ?? 0;
+		if (fd < 0 || hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, port) < 0)
 			throw "helder.dev: no dev server at " + at + " for the library";
 		hxmc.NativeNet.setBlocking(fd, true);
 		var req = haxe.io.Bytes.ofString("lib " + n + "\n");
@@ -561,9 +563,10 @@ private class Frame {
 		return path == "" ? name : path + "/" + name;
 
 	function claim(name:String):String {
-		if (counts == null) counts = new Map();
-		var c = counts.exists(name) ? counts.get(name) : 0;
-		counts.set(name, c + 1);
+		var cs = counts;
+		if (cs == null) counts = cs = new Map();
+		var c = cs.get(name) ?? 0;
+		cs.set(name, c + 1);
 		return c == 0 ? name : name + "#" + c;
 	}
 

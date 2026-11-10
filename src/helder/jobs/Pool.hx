@@ -14,16 +14,17 @@ class Pool {
 	// r queued: false without threads (Jobs.workers = 0)
 	public static function submit(r:Run):Bool {
 		if (Jobs.workers == 0) return false;
-		if (queue == null) {
+		var q = queue;
+		if (q == null) {
 			threads = Jobs.size();
 			if (threads <= 0) return false;
-			var q = new Deque<Run>();
-			queue = q;
+			var made = new Deque<Run>();
+			queue = q = made;
 			for (_ in 0...threads)
-				Thread.create(() -> work(q));
+				Thread.create(() -> work(made));
 		}
 		if (threads <= 0) return false;
-		queue.add(r);
+		q.add(r);
 		return true;
 	}
 

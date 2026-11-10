@@ -24,7 +24,7 @@ class Agent {
 
 	static final methods = new Map<String, Dynamic->Dynamic>();
 	static var nextId = 1;
-	static var trace0:Null<Dynamic->?haxe.PosInfos->Void> = null;
+	static var trace0:Null<(v:Dynamic, ?infos:Null<haxe.PosInfos>) -> Void> = null;
 
 	// a method a library adds (params to result; throw an RpcError, or anything, for an error)
 	public static function method(name:String, f:Dynamic->Dynamic)

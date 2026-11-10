@@ -12,7 +12,7 @@ import sys.io.File;
 class Snapshots {
 	static final files = new Map<String, {entries:Map<String, String>, dirty:Bool}>();
 
-	public static function check(name:String, value:String, pos:PosInfos) {
+	public static function check(name:String, value:String, ?pos:PosInfos) {
 		Runner.check();
 		var c = Runner.running();
 		var key = (c == null ? "" : c.fullName() + ": ") + name;

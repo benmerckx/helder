@@ -80,7 +80,7 @@ class HtmlNode {
 	public function write(b:StringBuf) {
 		switch kind {
 			case Text:
-				var t:String = text;
+				var t = text ?? "";
 				if (parent != null && parent.kind == Element && RAW.exists(parent.tag))
 					b.add(parent.tag == "script" ? StringTools.replace(t, "</", "<\\/") : parent.tag == "style" ? t : Html.escapeText(t));
 				else b.add(t == "" ? "<!--#-->" : Html.escapeText(t));
@@ -135,7 +135,8 @@ class HtmlNode {
 	function startsWithNewline():Bool {
 		if (text != null) return StringTools.startsWith(text, "\n");
 		var first = children[0];
-		return first != null && first.kind == Text && StringTools.startsWith(first.text, "\n");
+		var t = first?.kind == Text ? first.text : null;
+		return t != null && StringTools.startsWith(t, "\n");
 	}
 
 	// elements whose content is text only, which the parser takes as one text

@@ -38,6 +38,7 @@ class HostAgent {
 		if (m.method == null) return false;
 		var p:Dynamic = m.params ?? {};
 		var s = p.screen == null ? null : host.screen(Std.string(p.screen));
+		var ui = s?.ui;
 		inline function answer(r:Dynamic)
 			if (m.id != null) Agent.respond(m.id, r);
 		switch (m.method : String) {
@@ -53,35 +54,35 @@ class HostAgent {
 			case "Studio.screens":
 				answer({screens: list(host)});
 			case "Host.snap" | "Ui.getTree" | "Ui.nodesAt" | "Input.pointer" | "Input.wheel" | "Input.key" | "Input.text" | "Story.controls" | "Story.set"
-				if (s == null || s.ui == null):
+				if (s == null || ui == null):
 				if (m.id != null) Agent.respond(m.id, null, {code: -32602, message: 'no screen ${p.screen} shown'});
 			case "Host.snap":
 				answer(onSnap == null ? null : onSnap(s, p.path));
 			case "Ui.getTree":
-				answer(s.run(() -> helder.ui.DevTree.treeOf([s.ui])));
+				answer(s.run(() -> helder.ui.DevTree.treeOf([ui])));
 			case "Ui.nodesAt":
-				answer(s.run(() -> helder.ui.DevTree.nodesAtOf([s.ui], p)));
+				answer(s.run(() -> helder.ui.DevTree.nodesAtOf([ui], p)));
 			case "Input.pointer":
 				var x:Float = p.x, y:Float = p.y, b = p.button == null ? 1 : Std.int(p.button);
 				s.run(() -> switch (p.type : String) {
-					case "down": s.ui.pointerDown(x, y, b);
-					case "up": s.ui.pointerUp(x, y, b);
-					case _: s.ui.pointerMove(x, y);
+					case "down": ui.pointerDown(x, y, b);
+					case "up": ui.pointerUp(x, y, b);
+					case _: ui.pointerMove(x, y);
 				});
 				answer({});
 			case "Input.wheel":
-				s.run(() -> s.ui.wheel(p.x, p.y, p.dx, p.dy));
+				s.run(() -> ui.wheel(p.x, p.y, p.dx, p.dy));
 				answer({});
 			case "Input.key":
 				var key = Std.int(p.key), mods = p.mods == null ? 0 : Std.int(p.mods);
-				s.run(() -> if (p.type == "up") s.ui.keyUp(key, mods) else s.ui.keyDown(key, mods));
+				s.run(() -> if (p.type == "up") ui.keyUp(key, mods) else ui.keyDown(key, mods));
 				answer({});
 			case "Input.text":
-				s.run(() -> s.ui.textInput(Std.string(p.text)));
+				s.run(() -> ui.textInput(Std.string(p.text)));
 				answer({});
 			case "Story.controls":
 				var c = s.controls;
-				answer({controls: c == null ? [] : [for (x in c.list) {name: x.name, kind: x.kind, value: c.signals.get(x.name).peek(), options: x.options}]});
+				answer({controls: c == null ? [] : [for (x in c.list) {name: x.name, kind: x.kind, value: c.signals.get(x.name)?.peek(), options: x.options}]});
 			case "Story.set":
 				var sig = s.controls?.signals.get(Std.string(p.name));
 				if (sig != null) s.run(() -> {

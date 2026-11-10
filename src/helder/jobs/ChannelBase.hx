@@ -83,7 +83,8 @@ class ChannelBase {
 		#if target.threaded
 		allLock.release();
 		#end
-		loop.post(wake);
+		var l = loop;
+		if (l != null) l.post(wake);
 	}
 
 	// (a message, from any thread)
@@ -107,7 +108,8 @@ class ChannelBase {
 			b.free();
 			throw new JobError(-1, "send on a closed channel");
 		}
-		loop.post(wake);
+		var l = loop;
+		if (l != null) l.post(wake);
 	}
 
 	// (the next message, null once closed and empty: the owner's thread only)
@@ -139,10 +141,10 @@ class ChannelBase {
 
 	// (on the owner's loop: a waiting receive goes on)
 	function wake() {
-		var w = waiter;
-		if (w == null) return;
+		var w = waiter, l = loop;
+		if (w == null || l == null) return;
 		waiter = null;
-		loop.release();
+		l.release();
 		w.resume(true, null);
 	}
 

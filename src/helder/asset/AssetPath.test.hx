@@ -15,16 +15,16 @@ function tests() {
 		});
 		test("empty, absolute, Windows' and URLs' forms", () -> {
 			equals(AssetPath.error(""), "an empty path");
-			assert(AssetPath.error("/ui/x.png").indexOf("absolute") >= 0);
-			assert(AssetPath.error("ui\\x.png").indexOf("backslash") >= 0);
-			assert(AssetPath.error("C:/x.png").indexOf("colon") >= 0);
-			assert(AssetPath.error("http://x/y.png").indexOf("colon") >= 0);
+			assert(says("/ui/x.png", "absolute"));
+			assert(says("ui\\x.png", "backslash"));
+			assert(says("C:/x.png", "colon"));
+			assert(says("http://x/y.png", "colon"));
 		});
 		test("empty parts, . and ..", () -> {
-			assert(AssetPath.error("ui//x.png").indexOf("empty part") >= 0);
-			assert(AssetPath.error("ui/").indexOf("empty part") >= 0);
-			assert(AssetPath.error("./x.png").indexOf('"."') >= 0);
-			assert(AssetPath.error("ui/../x.png").indexOf('".."') >= 0);
+			assert(says("ui//x.png", "empty part"));
+			assert(says("ui/", "empty part"));
+			assert(says("./x.png", '"."'));
+			assert(says("ui/../x.png", '".."'));
 		});
 		test("control characters", () -> {
 			assert(AssetPath.error("a\nb") != null);
@@ -33,7 +33,7 @@ function tests() {
 	});
 	describe("caseOf", () -> {
 		var tree = ["" => ["ui", "Models"], "ui" => ["Icons"], "ui/Icons" => ["sword.png"], "Models" => []];
-		var list = (d:String) -> tree.exists(d) ? tree.get(d) : [];
+		var list = (d:String) -> tree.get(d) ?? [];
 		test("every part as on disk: null", () -> equals(AssetPath.caseOf("ui/Icons/sword.png", list), null));
 		test("a part in another case: it and the name on disk", () -> {
 			equals(AssetPath.caseOf("ui/icons/sword.png", list), {part: "icons", actual: "Icons"});
@@ -44,3 +44,7 @@ function tests() {
 	test("in a bundle: assets/<key>", () -> equals(AssetPath.bundled("ui/sword.png"), "assets/ui/sword.png"));
 	test("as a URL: each part encoded", () -> equals(AssetPath.url("a b/ü#.png"), "a%20b/%C3%BC%23.png"));
 }
+
+// (whether a path's error mentions what)
+function says(path:String, what:String):Bool
+	return (AssetPath.error(path) ?? "").indexOf(what) >= 0;

@@ -65,6 +65,7 @@ class Compiler {
 			Phases.begin(com);
 			noOutput = actx.noOutput;
 			dev(com);
+			nullSafety(actx);
 			if (typing != null) typing(com, actx);
 			// (a compilation server's parse replaces hxmc's: around it again)
 			MarkupHook.install();
@@ -175,6 +176,20 @@ class Compiler {
 		if (!core.Define.rawDefined(com.defines, "hxmc.dev")) return;
 		core.Define.rawDefine(com.defines, "hxmc.stacks");
 		if (core.Define.rawDefinedValueSafe(com.defines, "hxmc.target") == "wasm32-wasi") core.Define.rawDefine(com.defines, "hxmc.symbols");
+	}
+
+	// Haxe's null safety for helder's packages that keep it (NullSafety's,
+	// by package; HELDER_NULL_SAFETY="<package>=<mode>,..." adds others, a
+	// measure's): an init macro of every build this compiler makes
+	static function nullSafety(actx:compiler.ParsedArg.ArgContext) {
+		var env = Sys.getEnv("HELDER_NULL_SAFETY") ?? "";
+		var all = [for (p in NullSafety.packages.keys()) p => NullSafety.packages.get(p)];
+		for (kv in env.split(",")) {
+			var i = kv.indexOf("=");
+			if (i > 0) all.set(kv.substr(0, i), kv.substr(i + 1));
+		}
+		for (p => mode in all)
+			actx.configMacros.unshift('nullSafety("$p", $mode)');
 	}
 
 	static function environment() {

@@ -62,12 +62,14 @@ const force = process.env.FORCE_COLOR, no = process.env.NO_COLOR;
 const color = force ? force !== '0' && force !== 'false' : !no && process.env.TERM !== 'dumb' && !!process.stderr.isTTY;
 const status = (verb, sgr, text) => (color ? `\x1b[${sgr};1m${verb.padStart(9)}\x1b[0m` : verb.padStart(9)) + ' ' + text;
 
-const sources = Math.max(...['cli', 'async', 'pack', 'image'].map((p) => newest(path.join(root, 'src/helder', p))));
+const sources = Math.max(...['cli', 'async', 'pack', 'image', 'compiler'].map((p) => newest(path.join(root, 'src/helder', p))));
 if (!fs.existsSync(exe) || fs.statSync(exe).mtimeMs < sources) {
 	const t0 = Date.now();
 	// (built beside it, then renamed over it: a running one, `helder dev`'s, cannot be written over)
 	const tmp = exe.replace(/(\.exe)?$/, `.${process.pid}$1`);
-	const b = spawnSync(haxe[0], [...haxe.slice(1), '-cp', 'src', '-main', 'helder.cli.Cli', '--custom-target', `hxmc=${tmp}`], { cwd: root, encoding: 'utf8' });
+	// (null safety for the packages that keep it, as helder's compiler checks them: src/helder/compiler/NullSafety.hx)
+	const safe = [...fs.readFileSync(path.join(root, 'src/helder/compiler/NullSafety.hx'), 'utf8').matchAll(/"([\w.]+)" => "(\w+)"/g)].flatMap((m) => ['--macro', `nullSafety("${m[1]}", ${m[2]})`]);
+	const b = spawnSync(haxe[0], [...haxe.slice(1), '-cp', 'src', '-main', 'helder.cli.Cli', ...safe, '--custom-target', `hxmc=${tmp}`], { cwd: root, encoding: 'utf8' });
 	if (b.status === 0) fs.renameSync(tmp, exe);
 	if (b.status !== 0) {
 		process.stderr.write((b.stdout ?? '') + (b.stderr ?? '') + (b.error ? String(b.error) + '\n' : ''));

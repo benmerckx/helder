@@ -53,7 +53,8 @@ class Preview {
 		var h;
 		while ((h = PreviewWeb.next()) != 0)
 			receive(take(h));
-		host.frame(haxe.Timer.stamp());
+		var hs = host;
+		if (hs != null) hs.frame(haxe.Timer.stamp());
 		#if hxmc.dev
 		helder.dev.Hot.framed();
 		#end
@@ -64,7 +65,8 @@ class Preview {
 		var m:Dynamic = try Json.parse(line) catch (_:Dynamic) null;
 		if (m == null || m.method == null) return;
 		#if hxmc.dev
-		if (!helder.story.HostAgent.receive(host, m)) helder.devtools.Agent.dispatch(m);
+		var hs = host;
+		if (hs != null && !helder.story.HostAgent.receive(hs, m)) helder.devtools.Agent.dispatch(m);
 		#end
 	}
 

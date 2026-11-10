@@ -56,7 +56,8 @@ class Story {
 	public final seed:Int;
 	// a store screenshot's settings (null: not one)
 	public final screenshot:Null<StoreOptions>;
-	public final pos:PosInfos;
+	// where it is defined (the call's: Haxe fills it in)
+	public final pos:Null<PosInfos>;
 	// its size in points (null: a phone's, Stories.WIDTH x HEIGHT): the
 	// studio's screen of it (helder.story.Screens)
 	public final width:Null<Int>;

@@ -119,7 +119,7 @@ class Run implements IDispatchObject {
 		output = out;
 		var c = cont;
 		cont = null;
-		c.resume(this, null);
+		if (c != null) c.resume(this, null);
 	}
 
 	// (the awaiting task cancelled: resumed already by its cancellation)

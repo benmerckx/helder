@@ -22,9 +22,10 @@ class LiteralEdit {
 		list.sort((a, b) -> a.start - b.start);
 		var out = [], pos = 0, q = 0, last = -1;
 		function fail(at:Int, what:String):Null<Array<{id:String, source:String}>> {
-			if (why != null) {
+			var w = why;
+			if (w != null) {
 				var p = helder.markup.Live.lineColumn(now, at < now.length ? at : now.length);
-				why('line ${p.line}: $what');
+				w('line ${p.line}: $what');
 			}
 			return null;
 		}

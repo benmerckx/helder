@@ -123,13 +123,15 @@ class Files {
 	// resource, hxmc.rt.Bytes), after their header (Bundle's: its name, up to
 	// a byte 1)
 	static function mapped(key:String, f:(Ptr, Int) -> Void) {
-		if (index == null) {
-			index = new Map();
+		var ix = index;
+		if (ix == null) {
+			ix = new Map();
 			var names = hxmc.NativeResource.names();
 			for (i in 0...names.length)
-				index.set(names[i], i);
+				ix.set(names[i], i);
+			index = ix;
 		}
-		var i = index.get(Bundle.PREFIX + key);
+		var i = ix.get(Bundle.PREFIX + key);
 		if (i == null) throw 'helder.asset: $key not in this build (is it named by code that is left after dead code elimination?)';
 		var t = Mem.sym("hxmc_resources");
 		var p = t.add(Mem.getI32(t, 8 * i)), n = Mem.getI32(t, 8 * i + 4), h = 0;
@@ -148,7 +150,7 @@ class Files {
 		if (at == null || at == "") at = haxe.macro.Compiler.getDefine("hxmc.dev-server");
 		if (at == null || at.indexOf(":") < 0) return bundleBytes(key);
 		var fd = hxmc.NativeNet.socket();
-		if (fd < 0 || hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) < 0)
+		if (fd < 0 || hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1)) ?? 0) < 0)
 			throw 'helder.asset: $key: no dev server at $at';
 		hxmc.NativeNet.setBlocking(fd, true);
 		var req = Bytes.ofString("asset " + key + "\n");

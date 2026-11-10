@@ -88,7 +88,7 @@ class Bundle {
 	static function utf8(s:String):String {
 		var b = Bytes.alloc(s.length);
 		for (i in 0...s.length)
-			b.set(i, s.charCodeAt(i));
+			b.set(i, StringTools.fastCodeAt(s, i));
 		return b.toString();
 	}
 

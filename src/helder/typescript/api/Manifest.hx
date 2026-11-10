@@ -173,7 +173,8 @@ class Manifest {
 				any = true;
 			}
 		}
-		if (any) keep.unshift(macro var o:$self = null);
+		// (never run: references that keep the members, typed as the class)
+		if (any) keep.unshift(macro var o:$self = cast null);
 		var ctor:Dynamic = null;
 		if (c.ctor != null) {
 			ctor = t.of(c.ctor.type);

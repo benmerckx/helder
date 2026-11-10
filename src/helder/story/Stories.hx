@@ -83,7 +83,7 @@ class Stories {
 		var m = mount(s, width ?? WIDTH, height ?? HEIGHT, new StoryText());
 		var out = [];
 		function walk(n:Node, depth:Int) {
-			var kind = Type.getClassName(Type.getClass(n)).split(".").pop();
+			var c = Type.getClass(n), kind = c == null ? "Node" : Type.getClassName(c).split(".").pop();
 			var line = StringTools.lpad("", " ", 2 * depth) + kind + (n.tag != null ? '#${n.tag}' : "") + ' ${r(n.absX)},${r(n.absY)} ${r(n.width)}x${r(n.height)}';
 			if (Std.isOfType(n, TextNode)) line += ' "${(cast n : TextNode).text}"';
 			out.push(line);

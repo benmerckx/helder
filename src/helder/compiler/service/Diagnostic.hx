@@ -33,9 +33,9 @@ class Diagnostics {
 				var chars = pretty.matched(4) != null;
 				current = {
 					file: pretty.matched(2),
-					line: Std.parseInt(pretty.matched(3)),
-					column: chars ? Std.parseInt(pretty.matched(4)) : 1,
-					endColumn: chars ? Std.parseInt(pretty.matched(5)) : 1,
+					line: int(pretty.matched(3)),
+					column: chars ? int(pretty.matched(4)) : 1,
+					endColumn: chars ? int(pretty.matched(5)) : 1,
 					severity: severity(pretty.matched(1)),
 					message: pretty.matched(8).trim()
 				};
@@ -48,9 +48,9 @@ class Diagnostics {
 				current = null;
 				out.push({
 					file: classic.matched(1),
-					line: Std.parseInt(classic.matched(2)),
-					column: chars ? Std.parseInt(classic.matched(3)) : 1,
-					endColumn: chars ? Std.parseInt(classic.matched(4)) : 1,
+					line: int(classic.matched(2)),
+					column: chars ? int(classic.matched(3)) : 1,
+					endColumn: chars ? int(classic.matched(4)) : 1,
 					severity: w == null ? "error" : w.startsWith("Info") ? "info" : "warning",
 					message: classic.matched(8)
 				});
@@ -60,7 +60,7 @@ class Diagnostics {
 				if (m != "" && !~/^\^+$/.match(m)) current.message = current.message == "" ? m : current.message + "\n" + m;
 			} else if (lined.match(l)) {
 				current = null;
-				out.push({file: lined.matched(1), line: Std.parseInt(lined.matched(2)), column: 1, endColumn: 1, severity: "error", message: lined.matched(3)});
+				out.push({file: lined.matched(1), line: int(lined.matched(2)), column: 1, endColumn: 1, severity: "error", message: lined.matched(3)});
 			}
 		}
 		return out;
@@ -72,4 +72,8 @@ class Diagnostics {
 			case "INFO": "info";
 			case _: "warning";
 		}
+
+	// (a number the patterns matched: digits)
+	static function int(s:String):Int
+		return Std.parseInt(s) ?? 0;
 }

@@ -17,6 +17,13 @@ compilation server alike.
   wasm32-wasi `-D hxmc.symbols` (a name section: the browser's stack
   names each frame, which src/helder/os/browser.mjs turns into Haxe's at
   the exit; hxmc has no lines there yet).
+- `NullSafety.hx`: the packages Haxe's null safety checks, in every build
+  this compiler makes (an init macro added before the build's own) and in
+  the CLI's (src/helder/cli/run.mjs reads the list):
+  `HELDER_NULL_SAFETY="helder.ui=Loose,..."` adds packages, to measure
+  one. A package is listed once it passes Strict on every target, dev and
+  headless (the studio, examples/todo and a story host, built with
+  `--no-output`).
 - `MarkupHook.hx`: markup in any function (helder.view's DESIGN.md 3.5).
   Around hxmc's parse (`TypeloadParse.parseHook`, again when a compilation
   server has replaced it), each parsed file's markup literals are wrapped as

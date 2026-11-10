@@ -14,11 +14,11 @@ import haxe.ds.Vector;
 class Frames {
 	static inline var CAP = 256;
 
-	static var dt:Vector<Float>;
-	static var work:Vector<Float>;
-	static var gcBytes:Vector<Float>;
-	static var gcCount:Vector<Float>;
-	static var gcMs:Vector<Float>;
+	static final dt = new Vector<Float>(CAP);
+	static final work = new Vector<Float>(CAP);
+	static final gcBytes = new Vector<Float>(CAP);
+	static final gcCount = new Vector<Float>(CAP);
+	static final gcMs = new Vector<Float>(CAP);
 	static var n = 0;
 	// the frames recorded since enabled (the first of a batch: count - n)
 	static var count = 0;
@@ -32,13 +32,6 @@ class Frames {
 	static var ownSent = 0.0;
 
 	static function enable(ms:Float):Dynamic {
-		if (dt == null) {
-			dt = new Vector(CAP);
-			work = new Vector(CAP);
-			gcBytes = new Vector(CAP);
-			gcCount = new Vector(CAP);
-			gcMs = new Vector(CAP);
-		}
 		interval = Math.max(ms, 10) / 1000;
 		if (!Agent.framing) {
 			n = 0;

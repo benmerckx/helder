@@ -47,7 +47,7 @@ class StoryParagraph implements Paragraph {
 		var r:GlyphRun = {font: {family: "Mono", weight: 400, italic: false, data: haxe.io.Bytes.alloc(0), id: 0}, size: char * 2, glyphs: [], x: [], y: [], text: [], span: -1};
 		for (k => l in lines)
 			for (i in 0...l.length) {
-				var c = text.charCodeAt(l.start + i);
+				var c = StringTools.fastCodeAt(text, l.start + i);
 				r.glyphs.push(c);
 				r.x.push(i * char);
 				r.y.push(k * line + line * 0.8);

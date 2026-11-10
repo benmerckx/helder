@@ -86,10 +86,11 @@ class Literals {
 		Hot.at("", () -> {
 			var kept:Null<Array<String>> = Hot.load("helder.literals", "helder.literals.1");
 			if (kept != null) {
-				restored = [];
+				var r:Array<Kept> = [];
+				restored = r;
 				var i = 0;
 				while (i + 4 < kept.length) {
-					restored.push({id: kept[i], anchor: kept[i + 1], base: haxe.Unserializer.run(kept[i + 2]), value: haxe.Unserializer.run(kept[i + 3]),
+					r.push({id: kept[i], anchor: kept[i + 1], base: haxe.Unserializer.run(kept[i + 2]), value: haxe.Unserializer.run(kept[i + 3]),
 						kind: kept[i + 4]});
 					i += 5;
 				}
@@ -108,15 +109,16 @@ class Literals {
 
 	// a patch the last build kept: by id, else by file, kind and anchor (one alone), while its base is the literal's value
 	static function restore(s:Slot) {
-		if (restored == null || restored.length == 0) return;
-		var match = Lambda.find(restored, k -> k.id == s.id);
+		var r = restored;
+		if (r == null || r.length == 0) return;
+		var match = Lambda.find(r, k -> k.id == s.id);
 		if (match == null) {
 			var file = Slot.fileOf(s.id);
-			var same = restored.filter(k -> k.kind == s.kind && k.anchor == s.anchor && Slot.fileOf(k.id) == file && slots.get(k.id) == null);
+			var same = r.filter(k -> k.kind == s.kind && k.anchor == s.anchor && Slot.fileOf(k.id) == file && slots.get(k.id) == null);
 			if (same.length == 1) match = same[0];
 		}
 		if (match == null) return;
-		restored.remove(match);
+		r.remove(match);
 		if (match.base == s.base) s.patch({value: match.value});
 	}
 
@@ -224,13 +226,13 @@ private class Slot {
 					case "0": b.add("\x00");
 					case "u" if (t.charAt(i) == "{"):
 						var close = t.indexOf("}", i);
-						b.addChar(Std.parseInt("0x" + t.substring(i + 1, close)));
+						b.addChar(Std.parseInt("0x" + t.substring(i + 1, close)) ?? 0xFFFD);
 						i = close + 1;
 					case "u":
-						b.addChar(Std.parseInt("0x" + t.substr(i, 4)));
+						b.addChar(Std.parseInt("0x" + t.substr(i, 4)) ?? 0xFFFD);
 						i += 4;
 					case "x":
-						b.addChar(Std.parseInt("0x" + t.substr(i, 2)));
+						b.addChar(Std.parseInt("0x" + t.substr(i, 2)) ?? 0xFFFD);
 						i += 2;
 					case _: b.add(n);
 				}

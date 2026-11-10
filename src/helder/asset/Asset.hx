@@ -58,8 +58,9 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 	var current:Null<T> = null;
 	final waiting:Array<IContinuation<T>> = [];
 	// (the graph's node: the value, or while it loads (a reload too) an
-	// answer later, each run its own; asked: a reload's question)
-	final node:Node<T>;
+	// answer later, each run its own; asked: a reload's question; made on
+	// its first read, its function reading this handle's fields)
+	var made:Null<Node<T>> = null;
 	final asks:Array<Later<T>> = [];
 	var reloading = false;
 	final asked:Node<Int>;
@@ -67,8 +68,13 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 	@:noCompletion public function new(key:String) {
 		this.key = key;
 		asked = Node.signal(0, {ownedWrite: true});
+	}
+
+	function node():Node<T> {
+		var n = made;
+		if (n != null) return n;
 		// (of no owner: a handle outlives what reads it; every answer a change, a reload's object the same one)
-		node = Graph.runWithOwner(null, () -> Node.computed(cast ((_:Null<T>) -> {
+		n = Graph.runWithOwner(null, () -> Node.computed(cast ((_:Null<T>) -> {
 			asked.read();
 			if (reloading || state == Loading) {
 				var l = new Later<T>();
@@ -80,22 +86,25 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 				case _: (current : Dynamic);
 			}
 		} : Null<T>->Dynamic), {equals: (_, _) -> false}, false));
+		made = n;
+		return n;
 	}
 
 	// (the answers asked for: v, or the error)
-	function answer(v:Null<T>, error:Null<AssetError>) {
-		var ls = asks.copy();
-		asks.resize(0);
-		for (l in ls)
-			if (error != null) l.reject(error) else l.resolve(v);
-	}
+	function answer(v:T)
+		for (l in asks.splice(0, asks.length))
+			l.resolve(v);
+
+	function reject(error:AssetError)
+		for (l in asks.splice(0, asks.length))
+			l.reject(error);
 
 	inline function get_ready():Bool
 		return state == Ready;
 
 	// the value, tracked (Reader): pending while it loads, the AssetError once failed
 	public function read():T
-		return node.read();
+		return node().read();
 
 	// the value if it is here (not tracked, never throws), else null
 	public function peek():Null<T>
@@ -136,7 +145,7 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 			Async.resumeLater(c, v, null);
 		reloading = false;
 		// (nothing asked: the node asks again, the value its answer)
-		if (asks.length == 0) asked.update(n -> n + 1) else answer(v, null);
+		if (asks.length == 0) asked.update(n -> n + 1) else answer(v);
 	}
 
 	@:noCompletion public function fail(error:String) {
@@ -146,14 +155,16 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 		waiting.resize(0);
 		for (c in w)
 			Async.resumeLater(c, null, new AssetError(key, error));
-		answer(null, new AssetError(key, error));
+		reject(new AssetError(key, error));
 	}
 
 	// (a reload begins: a new value on its way; or ends having kept the last value)
 	@:noCompletion public function refresh(on:Bool) {
 		if (on == reloading) return;
 		reloading = on;
-		if (on) asked.update(n -> n + 1) else answer(current, null);
+		var v = current;
+		// (ended with nothing loaded yet: still loading, asked again)
+		if (on || v == null) asked.update(n -> n + 1) else answer(v);
 	}
 
 	public function toString():String

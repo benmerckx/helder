@@ -37,11 +37,11 @@ function tests() {
 		equals(Live.anchor(moved, m, m + 9), Live.anchor(src, s.start, s.end));
 	});
 	test("unchanged: no patches", () -> {
-		equals(LiteralEdit.diff(src, src, entries).length, 0);
+		equals(patches(src, src, entries).length, 0);
 	});
 	test("a colour and a number changed, longer and shorter: their new sources, by the built ids", () -> {
 		var now = StringTools.replace(StringTools.replace(src, '"#3b82f6"', '"#ef4444ff"'), "{24}", "{8}");
-		var d = LiteralEdit.diff(src, now, entries);
+		var d = patches(src, now, entries);
 		equals(d.length, 2);
 		equals(d[0].id, "a");
 		equals(d[0].source, "8");
@@ -49,13 +49,13 @@ function tests() {
 		equals(d[1].source, '"#ef4444ff"');
 	});
 	test("a text changed, a hexadecimal and an escape", () -> {
-		var d = LiteralEdit.diff(src, StringTools.replace(src, ">todos<", ">all done<"), entries);
+		var d = patches(src, StringTools.replace(src, ">todos<", ">all done<"), entries);
 		equals(d.length, 1);
 		equals(d[0].source, "all done");
 		var hex = "Color.rgb(0x18181B)";
-		equals(LiteralEdit.diff(hex, "Color.rgb(0x3b82f6)", [{id: "h", start: 10, end: 18, form: "number"}])[0].source, "0x3b82f6");
+		equals(patches(hex, "Color.rgb(0x3b82f6)", [{id: "h", start: 10, end: 18, form: "number"}])[0].source, "0x3b82f6");
 		var q = 'label="a"';
-		equals(LiteralEdit.diff(q, 'label="say \\"hi\\""', [{id: "q", start: 6, end: 9, form: "quoted"}])[0].source, '"say \\"hi\\""');
+		equals(patches(q, 'label="say \\"hi\\""', [{id: "q", start: 6, end: 9, form: "quoted"}])[0].source, '"say \\"hi\\""');
 	});
 	test("anything else: a build, its line said", () -> {
 		var why = null;
@@ -79,4 +79,11 @@ function tests() {
 		equals(d[1].severity, "warning");
 		equals(d[1].message, "unused");
 	});
+}
+
+// (the patches of a save that needs no build)
+function patches(built:String, now:String, entries:Array<helder.markup.Live.Entry>):Array<{id:String, source:String}> {
+	var d = LiteralEdit.diff(built, now, entries);
+	if (d == null) throw "a build, not patches";
+	return d;
 }

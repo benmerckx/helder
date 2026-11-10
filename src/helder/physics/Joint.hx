@@ -67,6 +67,7 @@ class Joint {
 		return b == null ? anchorB : b.position + b.orientation.rotate(anchorB);
 
 	@:allow(helder.physics) function wake() {
+		var b = this.b;
 		if (b == null) return;
 		// (one end moving wakes the other)
 		if (a.sleeping && !b.sleeping && !b.isStatic()) a.wake();
@@ -83,13 +84,15 @@ class Joint {
 			push(pa, pb, n, (l - length) * stiffness / dt);
 		} else {
 			ballPush(pa, pb, err * (stiffness / dt));
-			if (axisA != null) align(dt);
+			var ax = axisA, bx = axisB;
+			if (ax != null && bx != null) align(dt, ax, bx);
 		}
 	}
 
 	// Hinge's axes kept lined up: no turning of one against the other but
 	// about the axis, the misalignment pulled back
-	function align(dt:Float) {
+	function align(dt:Float, axisA:Vec3, axisB:Vec3) {
+		var b = this.b;
 		var wa = a.orientation.rotate(axisA), wb = b == null ? axisB : b.orientation.rotate(axisB);
 		var err = cross(wa, wb);
 		// (two directions across the axis)
@@ -110,6 +113,7 @@ class Joint {
 	// axes at once (the 3x3 effective mass inverted: the axes are coupled
 	// through the bodies' turning, which one axis at a time solves slowly)
 	function ballPush(pa:Vec3, pb:Vec3, bias:Vec3) {
+		var b = this.b;
 		var ra = pa - a.position, rb = b == null ? new Vec3(0, 0, 0) : pb - b.position;
 		var c0 = column(new Vec3(1, 0, 0), ra, rb), c1 = column(new Vec3(0, 1, 0), ra, rb), c2 = column(new Vec3(0, 0, 1), ra, rb);
 		var det = dot(c0, cross(c1, c2));
@@ -132,6 +136,7 @@ class Joint {
 	// an impulse along unit d making the points' relative speed along it
 	// -bias (the drift, b's point less a's, closing)
 	function push(pa:Vec3, pb:Vec3, d:Vec3, bias:Float) {
+		var b = this.b;
 		var ra = pa - a.position;
 		var va = a.velocityAt(pa), vb = b == null ? new Vec3(0, 0, 0) : b.velocityAt(pb);
 		var k = a.invMass + dot(d, cross(a.applyInvInertia(cross(ra, d)), ra));

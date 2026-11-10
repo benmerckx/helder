@@ -43,12 +43,13 @@ class Assets {
 	static function start<T>(a:Asset<T>, load:Body<T>, swap:Null<(old:T, fresh:T) -> T>) {
 		if (swap != null) a.refresh(true);
 		Async.launch(load).onCompletion((v, e) -> {
-			if (e != null) {
+			if (e != null || v == null) {
+				var why = e?.message ?? "nothing loaded";
 				// (a reload that failed: the last value stays)
 				if (swap != null) {
-					DevAssets.log('${a.key} not reloaded: ${e.message}');
+					DevAssets.log('${a.key} not reloaded: $why');
 					a.refresh(false);
-				} else a.fail(e.message);
+				} else a.fail(why);
 				return;
 			}
 			var old = a.peek();
