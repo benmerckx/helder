@@ -58,10 +58,8 @@ class Picture {
 	// a line of text in the face, size pixels tall per em (a missing letter: a gap)
 	public static function text(face:Face, text:String, size = 96):Bytes {
 		var m = face.metrics, scale = size / Model.EM;
-		var shapes = [for (c in new haxe.iterators.StringIteratorUnicode(text)) {
-			var ch = String.fromCharCode(c);
-			ch == " " ? null : Ink.shape(face, ch);
-		}];
+		var keys = [for (c in new haxe.iterators.StringIteratorUnicode(text)) String.fromCharCode(c)];
+		var shapes = [for (ch in keys) ch == " " ? null : Ink.shape(face, ch)];
 		var space = Model.EM * 0.22 + face.pen.width * 0.5, total = 0.0;
 		for (s in shapes)
 			total += s == null || s.contours.length == 0 ? space : s.advance;
@@ -70,7 +68,9 @@ class Picture {
 		c.clear(PAPER);
 		var x = pad + 0.0, base = pad + (m.ascender + 120) * scale;
 		c.fillRect(0, Math.round(base), w, 1, Paint.solid(GUIDE));
-		for (s in shapes) {
+		for (i in 0...shapes.length) {
+			var s = shapes[i];
+			if (i > 0) x += Model.kern(face, keys[i - 1], keys[i]) * scale;
 			if (s == null || s.contours.length == 0) {
 				x += space * scale;
 				continue;

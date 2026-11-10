@@ -246,12 +246,26 @@ class Board extends Node {
 			c.rect(x, y + Math.round(py(g)), w, 1, 0, line, 0, 0);
 		c.rect(x, y + Math.round(py(0)), w, 1, 0, edge, 0, 0);
 		// the neighbours either side
-		var ns = Ink.shape(f, Charset.neighbour(char)), ghost = alpha(fg, ws.dark.peek() ? 0.16 : 0.22);
-		if (ns.contours.length > 0)
-			for (i in 1...3) {
-				c.path(path(ns.contours, x + px(sp.start - ns.advance * i), y + base, "left" + i), ghost);
-				c.path(path(ns.contours, x + px(sp.end + ns.advance * (i - 1)), y + base, "right" + i), ghost);
-			}
+		// the line around it: the typed one, else its neighbours; the kerning between, where there is some
+		var seq = sequence(f, char), typed = seq.typed;
+		var ghost = alpha(fg, typed ? 0.55 : ws.dark.peek() ? 0.16 : 0.22), kerns = [];
+		for (i in 0...seq.keys.length) {
+			if (i == seq.at) continue;
+			var s = Ink.shape(f, seq.keys[i]);
+			if (s.contours.length > 0) c.path(path(s.contours, x + px(seq.origins[i]), y + base, "line" + i), ghost);
+		}
+		for (i in 0...seq.keys.length - 1) {
+			var v = Model.kern(f, seq.keys[i], seq.keys[i + 1]);
+			if (v == 0) continue;
+			var at = px(seq.origins[i + 1]);
+			c.rect(x + at - 1, y + py(0) + 4, 2, 10, 1, Theme.c("rose"), 0, 0);
+			kerns.push({x: at - 12, y: py(0) + 16, text: (v > 0 ? "+" : "") + Std.string(Math.round(v))});
+		}
+		var told = haxe.Json.stringify(kerns);
+		if (told != toldKerns) {
+			toldKerns = told;
+			ws.kerns(kerns);
+		}
 		// the tracing letter, where the view put the glyph (still while it is drawn over)
 		if (ws.guide.peek()) {
 			var cx = traceX, k = kept.get("tracing");
@@ -489,6 +503,72 @@ class Board extends Node {
 		}
 	}
 
+	var toldKerns = "";
+
+	// the letters on the board, from the open one's origin (in its own units):
+	// the typed line when it holds the open letter, else the letter between
+	// its neighbours; each placed by the advances and kerning before it
+	function sequence(f:Face, char:String):{keys:Array<String>, at:Int, origins:Array<Float>, advances:Array<Float>, typed:Bool} {
+		var keys = [for (c in new haxe.iterators.StringIteratorUnicode(ws.line.peek())) String.fromCharCode(c)];
+		var at = ws.lineAt.peek(), typed = keys.indexOf(char) >= 0;
+		if (!typed) {
+			var nb = Charset.neighbour(char);
+			keys = [nb, nb, char, nb, nb];
+			at = 2;
+		} else if (at < 0 || at >= keys.length || keys[at] != char) at = keys.indexOf(char);
+		var advances = [for (k in keys) {
+			var s = Ink.shape(f, k);
+			s.contours.length > 0 ? s.advance : Model.glyph(f, k)?.advance ?? (k == " " ? Model.EM * 0.22 + f.pen.width * 0.5 : 0);
+		}];
+		var origins = [for (_ in keys) 0.0];
+		origins[at] = -Ink.shape(f, char).dx;
+		if (Ink.shape(f, char).contours.length == 0) origins[at] = -f.metrics.spacing;
+		var i = at - 1;
+		while (i >= 0) {
+			origins[i] = origins[i + 1] - advances[i] - Model.kern(f, keys[i], keys[i + 1]);
+			i--;
+		}
+		for (i in at + 1...keys.length)
+			origins[i] = origins[i - 1] + advances[i - 1] + Model.kern(f, keys[i - 1], keys[i]);
+		return {keys: keys, at: at, origins: origins, advances: advances, typed: typed};
+	}
+
+	// another letter of the line opened where it stands (the view kept)
+	function openAt(f:Face, seq:{keys:Array<String>, at:Int, origins:Array<Float>, advances:Array<Float>, typed:Bool}, i:Int) {
+		var key = seq.keys[i], s = Ink.shape(f, key);
+		var origin = s.contours.length == 0 ? -f.metrics.spacing : -s.dx;
+		ox += (seq.origins[i] - origin) * scale;
+		viewFor = key;
+		var b = Ink.bounds(f, key);
+		traceX = b.x1 <= b.x0 ? 260 : (b.x0 + b.x1) / 2;
+		if (seq.typed) ws.lineAt(i);
+		ws.open(key);
+		repaint();
+	}
+
+	// the line's keys: Alt with the arrows kerns the open letter and the next
+	// (Shift: five times as much); the arrows, nothing selected, open the
+	// letter before or after it
+	function lineKey(e:Event):Bool {
+		if (e.key != Key.LEFT && e.key != Key.RIGHT) return false;
+		var f = ws.value(), char = ws.current.peek(), seq = sequence(f, char), dir = e.key == Key.RIGHT ? 1 : -1;
+		if (e.mods & Key.MOD_ALT != 0) {
+			if (seq.at + 1 >= seq.keys.length) return true;
+			if (!Model.kernable(f)) {
+				ws.say("This font's kerning is in its GPOS table, which Foundry keeps as it is: editing it comes later");
+				return true;
+			}
+			var next = seq.keys[seq.at + 1];
+			ws.kern(char, next, Model.kern(f, char, next) + dir * (e.mods & Key.MOD_SHIFT != 0 ? 25 : 5), "kern");
+			return true;
+		}
+		var nothing = ws.layer.peek() == "outline" ? ws.points.peek().length == 0 : ws.selected.peek() == null;
+		if (!nothing || !seq.typed) return false;
+		var i = seq.at + dir;
+		if (i >= 0 && i < seq.keys.length) openAt(f, seq, i);
+		return true;
+	}
+
 	inline function handleY():Float
 		return py(ws.value().metrics.descender) + 40;
 
@@ -522,13 +602,34 @@ class Board extends Node {
 		}
 		frame(width, height);
 		var sp = span(f, char), g = ws.glyph(char);
+		var seq = sequence(f, char);
 		for (side in ["left", "right"]) {
 			var sx = px(side == "left" ? sp.start : sp.end);
 			if (Math.abs(p.x - sx) < 10 && p.y > handleY() - 6 && p.y < handleY() + 28) {
+				// (Alt: the kerning with the letter on that side, not the spacing)
+				var other = side == "left" ? seq.at - 1 : seq.at + 1;
+				if (e.mods & Key.MOD_ALT != 0 && other >= 0 && other < seq.keys.length) {
+					if (!Model.kernable(f)) {
+						ws.say("This font's kerning is in its GPOS table, which Foundry keeps as it is: editing it comes later");
+						return;
+					}
+					var l = side == "left" ? seq.keys[other] : char, r = side == "left" ? char : seq.keys[other];
+					drag = {kind: "kern-" + side, x: gx(p.x), y: 0, left: Model.kern(f, l, r), right: 0};
+					kernPair = {left: l, right: r};
+					return repaint();
+				}
 				drag = {kind: side, x: gx(p.x), y: 0, left: g.left ?? 0, right: g.right ?? 0};
 				return repaint();
 			}
 		}
+		// (a press on another letter of the line: that one opened, where it is)
+		var gp = gx(p.x);
+		if (gp < sp.start || gp > sp.end)
+			for (i in 0...seq.keys.length)
+				if (i != seq.at && gp >= seq.origins[i] && gp < seq.origins[i] + seq.advances[i]) {
+					openAt(f, seq, i);
+					return;
+				}
 		if (ws.layer.peek() == "outline") return downOutline(e, p, g);
 		switch ws.tool.peek() {
 			case "draw":
@@ -614,6 +715,8 @@ class Board extends Node {
 						}
 					}
 					ws.setOutline(char, OutlineEdit.moved(from, chosen, Math.round(sx), Math.round(sy)), "drag");
+				case "kern-left" if (kernPair != null): ws.kern(kernPair.left, kernPair.right, Math.round(d.left - dx), "kern");
+				case "kern-right" if (kernPair != null): ws.kern(kernPair.left, kernPair.right, Math.round(d.left + dx), "kern");
 				case "left": ws.setSpacing(char, Math.round(d.left - dx), d.right, "space");
 				case "right": ws.setSpacing(char, d.left, Math.round(d.right + dx), "space");
 				case "knot" if (sel != null):
@@ -681,6 +784,7 @@ class Board extends Node {
 	}
 
 	function key(e:Event) {
+		if (lineKey(e)) return e.preventDefault();
 		if (e.key == Key.SPACE) {
 			hand(true);
 			return e.preventDefault();
@@ -776,6 +880,7 @@ class Board extends Node {
 	// double-click on a point for smooth or corner, on a curve for a new point
 
 	var dragFrom:Null<Array<Array<OPoint>>> = null;
+	var kernPair:Null<{left:String, right:String}> = null;
 
 	function downOutline(e:Event, p:{x:Float, y:Float}, g:Glyph) {
 		var outline = g.outline ?? [], char = ws.current.peek(), r = 9 / scale;

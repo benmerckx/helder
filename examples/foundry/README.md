@@ -58,6 +58,20 @@ with the pen. `Trace` does that:
 What comes out looks drawn: one pen, round ends, no change of width. That
 is the pen's style, not the font's.
 
+## The line and kerning
+
+Type letters in the header's Text field ("nanbnc", "HOHAH") and the board
+shows them as a line around the open letter, each placed by the advances
+and kerning before it; the others drawn grey. Press another letter of the
+line to open it where it stands; the arrows (with nothing selected) step
+along the line. Kerning is the space between two letters where they meet:
+Alt and the arrows set it between the open letter and the next (Shift: 25
+units, else 5), Alt and a drag of a spacing handle between it and the
+letter on that side. The board marks each kerned pair with its value, the
+preview and the export have it (a kern table). A font started from
+another keeps that font's kerning (its GPOS) as it is: Foundry's own
+cannot change it yet, and says so.
+
 ## Pen and Outline
 
 The board has two tabs. **Pen** draws and edits pen lines (below).
@@ -168,6 +182,7 @@ judge its strokes and correct them as a person does at the board.
 | `font.start {from, pen?}` | the font started again from a source: its outlines, or traced into pen lines |
 | `font.blend {a, b, t}` | the whole font between two sources |
 | `glyph.blend {char, a, b?, t}` | one letter between two sources (or one's alone), fitted to this font |
+| `kern.set {left, right, value}`, `kern.list` | the space between two glyphs; the font's pairs |
 | `font.export`, `font.rename`, `board.open` | the .ttf; its name; a glyph shown on the board |
 
 Every edit goes through the app's history, so you can undo it in the

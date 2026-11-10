@@ -37,7 +37,8 @@ typedef Metrics = {xHeight:Float, capHeight:Float, ascender:Float, descender:Flo
 // to write it again as a whole: its units to the em, its glyphs' order (by
 // key, from 0), its layout tables (GSUB, GPOS, GDEF: base64), which name
 // glyphs by their place in that order
-typedef Face = {name:String, pen:Pen, metrics:Metrics, glyphs:DynamicAccess<Glyph>, ?source:Source};
+// kerning: the space put between two glyphs, by "left\tright" (their keys)
+typedef Face = {name:String, pen:Pen, metrics:Metrics, glyphs:DynamicAccess<Glyph>, ?source:Source, ?kerning:DynamicAccess<Float>};
 
 typedef Source = {units:Int, order:Array<String>, tables:DynamicAccess<String>};
 
@@ -80,17 +81,34 @@ class Model {
 		for (k => v in face.glyphs)
 			if (k != char) glyphs.set(k, v);
 		if (g != null) glyphs.set(char, g);
-		return {name: face.name, pen: face.pen, metrics: face.metrics, glyphs: glyphs, source: face.source};
+		return {name: face.name, pen: face.pen, metrics: face.metrics, glyphs: glyphs, source: face.source, kerning: face.kerning};
 	}
 
 	public static function withPen(face:Face, pen:Pen):Face
-		return {name: face.name, pen: pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source};
+		return {name: face.name, pen: pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source, kerning: face.kerning};
 
 	public static function withMetrics(face:Face, metrics:Metrics):Face
-		return {name: face.name, pen: face.pen, metrics: metrics, glyphs: face.glyphs, source: face.source};
+		return {name: face.name, pen: face.pen, metrics: metrics, glyphs: face.glyphs, source: face.source, kerning: face.kerning};
+
+	// the face with the kerning between left and right (0: none)
+	public static function kerned(face:Face, left:String, right:String, value:Float):Face {
+		var k:DynamicAccess<Float> = {};
+		if (face.kerning != null)
+			for (key => v in face.kerning)
+				k.set(key, v);
+		if (Math.round(value) == 0) k.remove(left + "\t" + right) else k.set(left + "\t" + right, Math.round(value));
+		return {name: face.name, pen: face.pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source, kerning: k};
+	}
+
+	public static function kern(face:Face, left:String, right:String):Float
+		return face.kerning == null ? 0 : face.kerning.get(left + "\t" + right) ?? 0;
+
+	// whether the face's kerning is its own (a source's GPOS has its own, which a kern table does not change)
+	public static function kernable(face:Face):Bool
+		return face.source == null || !face.source.tables.exists("GPOS");
 
 	public static function named(face:Face, name:String):Face
-		return {name: name, pen: face.pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source};
+		return {name: name, pen: face.pen, metrics: face.metrics, glyphs: face.glyphs, source: face.source, kerning: face.kerning};
 
 	// whether char has ink of its own (pen lines, an outline)
 	public static function drawn(face:Face, char:String):Bool {
@@ -126,6 +144,7 @@ class Model {
 				spacing: num(m.spacing, METRICS.spacing)
 			},
 			glyphs: glyphs,
+			kerning: d.kerning,
 			source: d.source == null || !Std.isOfType(d.source.order, Array) ? null : {
 				units: Std.int(num(d.source.units, EM)),
 				order: [for (k in (d.source.order : Array<Dynamic>)) Std.string(k)],

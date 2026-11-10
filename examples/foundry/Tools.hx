@@ -119,6 +119,16 @@ class Tools {
 			}
 		},
 		{
+			name: "kern.set",
+			description: "The space between two glyphs where they meet (font units: negative closer, positive apart; 0 none), as text.snap then shows it. A font started from another keeps that font's own kerning (its GPOS) as it is: there this says so and changes nothing.",
+			inputSchema: {type: "object", properties: {left: {type: "string"}, right: {type: "string"}, value: {type: "number"}}, required: ["left", "right", "value"]}
+		},
+		{
+			name: "kern.list",
+			description: "The font's own kerning pairs: left, right and value.",
+			inputSchema: {type: "object", properties: {}}
+		},
+		{
 			name: "font.rename",
 			description: "The font's name (its family when exported).",
 			inputSchema: {type: "object", properties: {name: {type: "string"}}, required: ["name"]}
@@ -249,6 +259,15 @@ class Tools {
 				ws.setGlyph(char, {lines: lines, parts: [], left: g.left, right: g.right});
 				shown(char, 'drew $char');
 				[text('$char: ${lines.length} lines'), image(Picture.glyph(ws.value(), char))];
+			case "kern.set":
+				var l = character({char: args.left}), r = character({char: args.right});
+				if (!Model.kernable(ws.value())) throw "This font's kerning is its source's (GPOS), kept as it is: it cannot be changed yet";
+				ws.kern(l, r, args.value ?? 0);
+				said('Agent kerned $l$r');
+				[text('$l$r: ${Model.kern(ws.value(), l, r)}'), image(Picture.text(ws.value(), '$l$r$l$r', 120))];
+			case "kern.list":
+				var k = ws.value().kerning;
+				[text(Json.stringify(k == null ? [] : [for (pair => v in k) {var at = pair.indexOf("\t"); {left: pair.substr(0, at), right: pair.substr(at + 1), value: v};}]))];
 			case "font.rename":
 				ws.rename(Std.string(args.name));
 				[text(ws.value().name)];

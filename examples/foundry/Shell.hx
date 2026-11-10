@@ -209,6 +209,16 @@ class Shell implements Markup {
 				<text font-size={15} font-weight={Theme.MEDIUM} max-lines={1}>{() -> label(ws.current())}</text>
 				<text color={c("fg3")} font-family={Theme.CODE} font-size={Theme.SMALL}>{() -> unicode(ws.current())}</text>
 			</view>
+			<Tip label="Letters to see together on the board: press one to open it, the arrows step, Alt and the arrows kern">
+				<view slot="field" width={190}>
+					<text slot="field-label">Text</text>
+					<field tag="line" slot="field-input" font-family={Theme.UI} label="Text on the board" placeholder="nanbnc HOHAH" value={ws.line}
+						onInput={e -> {
+							ws.line(e.text);
+							ws.lineAt(-1);
+						}}/>
+				</view>
+			</Tip>
 			<view grow={1}/>
 			<Show when={ws.layer() == "pen"}>
 				<Segmented tag="tool" label="Tool" value={ws.tool} onChange={v -> ws.tool(v)} options={[
@@ -295,6 +305,8 @@ class Shell implements Markup {
 		return <view tag="board-area" grow={1} min-height={0} position="relative" overflow="hidden" onResize={e -> area({w: e.target.width, h: e.target.height})}>
 			{boardNode(ws)}
 			{guides(ws, area)}
+			<For each={ws.kerns} keyed={false}>{(l:Read<{x:Float, y:Float, text:String}>) -> <text position="absolute" left={l().x} top={l().y}
+				font-family={Theme.CODE} font-size={10} color={c("rose")} pointer-events="none">{l().text}</text>}</For>
 			<For each={ws.measure} keyed={false}>{(l:Read<{x:Float, y:Float, text:String}>) -> <view position="absolute" left={l().x} top={l().y}
 				padding="1 5" radius={4} background={c("rose")} pointer-events="none">
 				<text font-family={Theme.CODE} font-size={10} color={c("bg")}>{l().text}</text>
@@ -398,7 +410,7 @@ class Shell implements Markup {
 		return if (ws.layer() == "outline") "Shift picks several · double-click: smooth or corner, a new point · Alt measures" else switch ws.tool() {
 			case "adjust": "Double-click a knot for a corner";
 			case "erase": "Drag over lines to erase them";
-			case _: "Shift draws straight";
+			case _: "Shift draws straight · Alt and the arrows kern";
 		}
 
 	// ---- the font's settings

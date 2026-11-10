@@ -60,7 +60,7 @@ drops the rest of Hanken, and its kerning and features with them.
 
 This is what makes a font made from a real one shippable.
 
-## 3. Editing in context: a line of text, spacing, kerning
+## 3. Editing in context: a line of text, spacing, kerning (done but kerning groups, metrics keys and a source's GPOS kerning)
 
 Every serious editor edits letters among other letters. Glyphs' edit
 view is a line of text you type ("nanbnc HOHAH"): double-click a letter

@@ -19,13 +19,14 @@ class Draft {
 		var m = face.metrics, src = face.source;
 		// (a face from a font: written in its units and its glyphs' order, its layout tables as they were)
 		var k = src == null ? 1.0 : src.units / Model.EM;
-		var glyphs:Array<FontGlyph> = [], placed = new Map<String, Bool>();
+		var glyphs:Array<FontGlyph> = [], placed = new Map<String, Bool>(), index = new Map<String, Int>();
 		function glyph(key:String, keep:Bool) {
 			placed.set(key, true);
 			var s = Ink.shape(face, key), g = Model.glyph(face, key), cp = Charset.code(key);
 			var codes = cp >= 0 ? [cp] : [];
 			if (g != null && g.also != null) codes = codes.concat(g.also);
 			if (s.contours.length == 0 && !keep) return;
+			index.set(key, glyphs.length);
 			glyphs.push({
 				codes: codes,
 				advance: (s.contours.length == 0 ? g?.advance ?? 0 : s.advance) * k,
@@ -57,6 +58,10 @@ class Draft {
 			weight: weight(face.pen),
 			postScriptName: postScriptName,
 			glyphs: glyphs,
+			kerning: face.kerning == null ? null : [for (pair => v in face.kerning) {
+				var at = pair.indexOf("\t"), l = index.get(pair.substr(0, at)), r = index.get(pair.substr(at + 1));
+				if (l != null && r != null) {left: l, right: r, value: Math.round(v * k)};
+			}].filter(p -> p != null),
 			tables: tables
 		});
 	}

@@ -22,12 +22,16 @@ class Workshop {
 	public var board:Null<Board> = null;
 	public final view = signal({scale: 1.0, base: 0.0, fitted: true});
 	public final measure:Signal<Array<{x:Float, y:Float, text:String}>> = signal([]);
+	public final kerns:Signal<Array<{x:Float, y:Float, text:String}>> = signal([]);
 	// what the board edits: "pen" (lines) or "outline" (points), and the outline's points selected
 	public final layer = signal("pen");
 	public final points:Signal<Array<{c:Int, p:Int}>> = signal([]);
 	public final sample = signal("Hamburgefonstiv");
 	// the glyph grid's search
 	public final search = signal("");
+	// the line of text on the board (empty: the letter between its neighbours), and which of its letters is open
+	public final line = signal("");
+	public final lineAt = signal(-1);
 	public final size = signal(56.0);
 	// "system", "light", "dark"
 	public final appearance = signal("system");
@@ -244,6 +248,9 @@ class Workshop {
 		selected(null);
 	}
 
+	public function kern(left:String, right:String, value:Float, ?group:String)
+		edit(Model.kerned(latest, left, right, value), group);
+
 	public function setSpacing(char:String, left:Float, right:Float, ?group:String) {
 		var g = glyph(char);
 		setGlyph(char, {lines: g.lines, parts: g.parts, outline: g.outline, left: left, right: right, advance: g.advance, also: g.also}, group);
@@ -304,7 +311,7 @@ class Workshop {
 				also: g.also
 			});
 		}
-		return {name: f.name, pen: pen, metrics: m, glyphs: glyphs, source: f.source};
+		return {name: f.name, pen: pen, metrics: m, glyphs: glyphs, source: f.source, kerning: f.kerning};
 	}
 
 	// a glyph's lines from another face made to stand on this one's guides
