@@ -21,6 +21,7 @@ import helder.scene.render.PostShader.CompositeShader;
 //   renderer.post = post;              // a <Scene>'s box runs it (hdr={true})
 //   // or by hand, after the scene's pass into hdrColor:
 //   post.run(enc, hdrColor, ldrColor, width, height, time);
+//   post.add(FinishShader, finishBytes);  // a pass of its own after the grade (PostStage)
 //
 // Bloom has no threshold: everything spreads a little, what is bright
 // (an engine, a laser, the sun: values far over 1) spreads visibly. The
@@ -32,7 +33,11 @@ import helder.scene.render.PostShader.CompositeShader;
 // it in. The targets are the GPU's (as many as the levels, made at the
 // first run and when the size, base or levels change, freed by dispose);
 // a run records 2 * levels passes and allocates nothing. Without grain
-// the dither is still: a frame drawn again is the same pixels.
+// the dither is still: a frame drawn again is the same pixels. A program's
+// own stages (add: a pixel art finish, a CRT, an outline) come after the
+// composite, in order, each a pass reading the last one's image: the
+// composite and all but the last stage into two RGBA8 targets of the
+// run's size taken in turn, the last into the output.
 class PostProcess {
 	public final device:Device;
 	// the light before the curve (1: as drawn)
@@ -68,6 +73,17 @@ class PostProcess {
 	final composite:Pipeline;
 	final triangle:Buffer;
 	final linear:Sampler;
+	final nearest:Sampler;
+	// a program's own stages, after the composite (add)
+	final stages:Array<PostStage> = [];
+	// (the targets between them, made for a size)
+	final between:Array<Texture> = [];
+	final betweenPasses:Array<PassDesc> = [];
+	var betweenW = 0;
+	var betweenH = 0;
+	var compositeBetween:Null<Pipeline> = null;
+	final output:TextureFormat;
+	final frame:Bool;
 	final black:Texture;
 	final bloomBytes = Bytes.alloc(BloomDownShader.uniforms[0].size);
 	final compositeBytes = Bytes.alloc(CompositeShader.uniforms[0].size);
@@ -90,6 +106,8 @@ class PostProcess {
 	// box's); frame: run writes the frame instead (output unused)
 	public function new(device:Device, output:TextureFormat = RGBA8, frame = false) {
 		this.device = device;
+		this.output = output;
+		this.frame = frame;
 		var d = BloomDownShader.pipeline({});
 		d.colorFormat = RGBA16F;
 		down = device.createPipeline(d);
@@ -102,6 +120,7 @@ class PostProcess {
 		var v = BloomDownShader.vertexBytes([{pos: new Vec2(-1, -1)}, {pos: new Vec2(3, -1)}, {pos: new Vec2(-1, 3)}]);
 		triangle = device.createBuffer({size: v.length, usage: Vertex, data: v});
 		linear = device.createSampler({filter: Linear, wrap: Clamp});
+		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
 		var b = Bytes.alloc(8);
 		black = device.createTexture({width: 1, height: 1, format: RGBA16F, data: b});
 		downSlots = [BloomDownShader.uniforms[0].binding, BloomDownShader.textures[0].binding];
@@ -131,9 +150,21 @@ class PostProcess {
 		}
 	}
 
+	// a stage of the program's own after those before it (PostStage: its
+	// shader's first texture the image so far, its first block bytes)
+	public function add<V, P>(shader:helder.gfx.shader.Shader<V, P>, ?bytes:Bytes):PostStage {
+		var s = new PostStage(shader, bytes);
+		stages.push(s);
+		return s;
+	}
+
+	public function remove(stage:PostStage)
+		stages.remove(stage);
+
 	// the frame: source (the scene's RGBA16F, width by height) into target
-	// (the output format's render target of that size; null: the frame, a
-	// PostProcess made for it); time: seconds, the grain's
+	// (the output format's render target of that size, or with stages any
+	// size; null: the frame, a PostProcess made for it); time: seconds, the
+	// grain's
 	public function run(enc:Encoder, source:Texture, target:Null<Texture>, width:Int, height:Int, time = 0.0) {
 		var n = bloom > 0 ? Std.int(Math.max(1, Math.min(levels, MAX_LEVELS))) : 0;
 		var b = base >= 2 ? 2 : 1;
@@ -167,9 +198,19 @@ class PostProcess {
 			enc.endPass();
 			k--;
 		}
+		var count = 0;
+		for (s in stages)
+			if (s.enabled) count++;
+		if (count > 0) targets(width, height);
+		var into = count > 0 ? betweenPasses[0] : outPass;
 		outPass.colors[0].texture = target;
-		enc.beginPass(outPass);
-		enc.setPipeline(composite);
+		enc.beginPass(into);
+		if (count > 0 && compositeBetween == null) {
+			var c = CompositeShader.pipeline({});
+			c.colorFormat = RGBA8;
+			compositeBetween = device.createPipeline(c);
+		}
+		enc.setPipeline(count > 0 ? compositeBetween : composite);
 		// (the first level holds the n levels' light added: lift.w, 1 / n, scales it back)
 		CompositeShader.params.p.write({
 			exposure: new Vec4(exposure, n > 0 ? Math.min(1, bloom) : 0, (cast toneMap : Int), grain > 0 ? time % 1000 : 0),
@@ -184,7 +225,59 @@ class PostProcess {
 		enc.setVertexBuffer(0, triangle);
 		enc.draw(3);
 		enc.endPass();
+		// (the stages: each from the last target into the next, the last into the output)
+		var from = 0;
+		for (s in stages) {
+			if (!s.enabled) continue;
+			var last = --count == 0;
+			if (last) enc.beginPass(outPass) else enc.beginPass(betweenPasses[1 - from]);
+			enc.setPipeline(last ? stageLast(s) : stageBetween(s));
+			if (s.block >= 0 && s.bytes != null) enc.setUniforms(s.block, s.bytes);
+			enc.setTexture(s.source, between[from], s.filter == Nearest ? nearest : linear);
+			if (s.bind != null) s.bind(enc);
+			enc.setVertexBuffer(0, triangle);
+			enc.draw(3);
+			enc.endPass();
+			from = 1 - from;
+		}
 		outPass.colors[0].texture = null;
+	}
+
+	function stageBetween(s:PostStage):Pipeline {
+		if (s.middle == null) {
+			s.desc.colorFormat = RGBA8;
+			s.middle = device.createPipeline(s.desc);
+		}
+		return s.middle;
+	}
+
+	function stageLast(s:PostStage):Pipeline {
+		if (s.last == null) {
+			s.desc.colorFormat = frame ? null : output;
+			s.last = device.createPipeline(s.desc);
+		}
+		return s.last;
+	}
+
+	// the two targets between the composite and the stages, of the run's size
+	function targets(width:Int, height:Int) {
+		if (width == betweenW && height == betweenH) return;
+		releaseBetween();
+		betweenW = width;
+		betweenH = height;
+		for (_ in 0...2) {
+			var t = device.createTexture({width: width, height: height, renderTarget: true});
+			between.push(t);
+			betweenPasses.push({colors: [{load: Clear, clear: new Color(0, 0, 0, 0), texture: t}]});
+		}
+	}
+
+	function releaseBetween() {
+		for (t in between)
+			device.destroyTexture(t);
+		between.resize(0);
+		betweenPasses.resize(0);
+		betweenW = betweenH = 0;
 	}
 
 	inline function bloomParams(tx:Float, ty:Float, r:Float, first:Float)
@@ -203,6 +296,7 @@ class PostProcess {
 
 	public function dispose() {
 		release();
+		releaseBetween();
 		device.destroyBuffer(triangle);
 		device.destroyTexture(black);
 	}

@@ -5,6 +5,7 @@ import helder.asset.Assets;
 import helder.scene.*;
 import helder.scene.gltf.*;
 import helder.scene.render.*;
+import StageShaders;
 
 // packages/3d's test scenes (RenderTest natively, SceneWebTest in the
 // browser), each a frame against tests/3d/<name>.png:
@@ -60,8 +61,11 @@ import helder.scene.render.*;
 //          thinner upwards) under a sky it fogs to the far plane, drawn in
 //          HDR through a PostProcess; a glowing sign far off that it does
 //          not cover (Material.fog off)
+//   poststage the bloom scene through a PostProcess with two stages of
+//          its own (StageShaders, PostProcess.add): a sepia grade into a
+//          target between, then scanlines into the frame
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene", "fog"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene", "fog", "poststage"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -513,7 +517,7 @@ class Scenes {
 					Assets.poll();
 					r.draw(enc, world, camera);
 				};
-			case "bloom":
+			case "bloom" | "poststage":
 				// (an HDR renderer's targets: the scene in half floats, then the post into the frame)
 				var r = new Renderer(device, true, 1, true);
 				renderer = r;
@@ -525,6 +529,12 @@ class Scenes {
 				post.bloom = 0.08;
 				post.vignette = 0.3;
 				post.saturation = 1.1;
+				if (name == "poststage") {
+					var bytes = haxe.io.Bytes.alloc(SepiaShader.uniforms[0].size);
+					SepiaShader.params.stage.write({size: new helder.gfx.shader.Vec4(device.width, device.height, 8, 0.8)}, bytes);
+					post.add(SepiaShader, bytes);
+					post.add(ScanShader, bytes).filter = Nearest;
+				}
 				var world = new World();
 				var floor = world.node("floor");
 				floor.position = new Vec3(0, -0.6, 0);

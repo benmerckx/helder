@@ -317,6 +317,26 @@ post.levels = 4; post.base = 2;       // a cheaper bloom: 4 levels from a quarte
 renderer.post = post;                 // a <Scene hdr>'s box runs it; else post.run(enc, hdrColor, target, w, h, time)
 ```
 
+A program's own passes join the chain after the grade (`PostStage`): a
+shader drawn over the whole target, its vertex `{pos:Vec2}` (a triangle
+in clip space, the chain's), its first texture the image so far (tone
+mapped: a pixel art finish, a CRT, an outline), its first uniform block
+the bytes given. Stages run in order, each reading the last one's image;
+the last draws into the chain's output (the frame, or `run`'s target, of
+any size: a frame drawn small and finished in big pixels on the screen),
+the others into two RGBA8 targets of the run's size; the chain makes their
+pipelines for what they draw into:
+
+```haxe
+var stage = post.add(FinishShader, finishBytes);   // fragment(i, p:{view:FinishView, frame:Texture2D})
+stage.filter = Nearest;                            // read in big pixels (Linear by default)
+stage.bind = enc -> enc.setTexture(slot, noise, sampler);  // anything else it reads
+stage.enabled = false;                             // passed over; post.remove(stage)
+```
+
+`tests/3d/poststage.png` is the bloom frame through two (a sepia grade,
+then scanlines: tests/3d/StageShaders.hx).
+
 Bloom is the physically based kind (Jimenez, Call of Duty: Advanced
 Warfare; Unity's HDRP): the frame filtered down a chain of half-sized
 RGBA16F targets (13 taps, the first level in Karis' average against
