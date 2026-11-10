@@ -447,7 +447,8 @@ class Afterglow {
 	static final WARM = new Vec3(1.0, 0.55, 0.18);
 
 	static function main() {
-		var window = new Window("Afterglow", 405, 720);
+		// (on the web 0 x 0: the canvas fills the page, a phone's whole screen)
+		var window = #if (hxmc.target == "wasm32-wasi") new Window("Afterglow", 0, 0) #else new Window("Afterglow", 405, 720) #end;
 		var device = Device.create(window.surface);
 		var glow = new Afterglow(device);
 		var start = -1.0;
