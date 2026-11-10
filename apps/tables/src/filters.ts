@@ -36,8 +36,33 @@ export function first(c: Column): Op {
 	return text(c) && c.values.length === 0 ? "contains" : "=";
 }
 
-// a condition as SQL ("": one whose value is not given yet)
+// the values a column's condition picks from (an enum's, a boolean's), null: typed
+export function choices(c: Column): string[] | null {
+	if (c.values.length > 0) return c.values;
+	return c.mode === "boolean" ? ["true", "false"] : null;
+}
+
+// what a value is typed as, shown while it is empty
+export function hint(c: Column): string {
+	if (c.mode === "timestamp" || c.mode === "timestamp_ms") return "2024-05-06";
+	return c.numeric ? "number" : "value";
+}
+
+// whether a condition's value is one its column takes (a date half typed is not yet)
+export function valid(t: Table, c: Condition): boolean {
+	const col = t.columns[c.col];
+	if (col === undefined || !valued(c.op) || c.value === "" || c.op === "contains" || c.op === "starts") return true;
+	try {
+		format.parse(col, c.value);
+		return true;
+	} catch (_) {
+		return false;
+	}
+}
+
+// a condition as SQL ("": one whose value is not given yet, or not one its column takes)
 export function condition(t: Table, c: Condition, sql: Sql): string {
+	if (!valid(t, c)) return "";
 	const col = t.columns[c.col];
 	if (col === undefined) return "";
 	const name = sql.name(col.name);

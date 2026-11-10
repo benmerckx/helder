@@ -111,3 +111,24 @@ describe("filters", () => {
 		equals(filters.joined([]), "");
 	});
 });
+
+describe("filters, typed values", () => {
+	test("a value its column does not take is no condition yet", () => {
+		const t = new Table("main", "events", false);
+		const at = new Column("at", "integer", true, false, null);
+		at.mode = "timestamp";
+		t.add(at);
+		equals(filters.condition(t, { col: 0, op: ">", value: "2024-0" }, new Sql("sqlite")), "");
+		equals(filters.condition(t, { col: 0, op: ">", value: "2024-01-02" }, new Sql("sqlite")), `"at" > 1704153600`);
+		equals(filters.hint(at), "2024-05-06");
+	});
+
+	test("an enum's and a boolean's values picked", () => {
+		const status = new Column("status", "enum('open','done')", false, false, null);
+		equals(filters.choices(status), ["open", "done"]);
+		const flag = new Column("done", "integer", false, false, null);
+		flag.mode = "boolean";
+		equals(filters.choices(flag), ["true", "false"]);
+		equals(filters.choices(new Column("n", "integer", false, false, null)), null);
+	});
+});

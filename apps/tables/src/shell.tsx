@@ -9,7 +9,7 @@ import { DataGrid, Key, Node, SafeArea, Svg, TextField, Theme, WindowControls } 
 import * as format from "./format";
 import * as icons from "./icons";
 import { Table } from "./table";
-import { Entry, Link, Tables, primary } from "./tables";
+import { Entry, Link, Place, Tables, primary } from "./tables";
 import * as filters from "./filters";
 
 export const SIDEBAR = 240;
@@ -32,6 +32,7 @@ export function view(app: Tables) {
 		</view>
 		<Show when={app.menu() !== null}><MenuLayer app={app}/></Show>
 		<Show when={app.reviewing()}><Review app={app}/></Show>
+		<Show when={app.asking() !== null}><Asking app={app}/></Show>
 	</view>;
 }
 
@@ -337,9 +338,11 @@ function Review(props: { app: Tables }) {
 	</view>;
 }
 
-// (where a menu opens: under node)
-function below(n: Node): { x: number; y: number } {
-	return { x: n.absX, y: n.absY + n.height + 4 };
+// (where a menu opens: under the button pressed, the target's nearest focusable ancestor)
+function below(target: Node): Place {
+	let n: Node = target;
+	while (!n.focusable && n.parent !== null) n = n.parent;
+	return { x: n.absX, y: n.absY + n.height + 4, from: n };
 }
 
 // a condition: its column and its operator (each a menu), its value, a way to remove it
@@ -347,6 +350,15 @@ function Chip(props: { app: Tables; index: number }) {
 	const app = props.app, i = props.index;
 	const cond = () => app.conditions()[i];
 	const column = () => app.current()?.columns[cond()?.col ?? -1];
+	// (a value picked from its column's: an enum's, a boolean's, compared as a whole)
+	const picked = () => {
+		const col = column(), op = cond()?.op;
+		return col !== undefined && filters.choices(col) !== null && (op === "=" || op === "<>");
+	};
+	const wrong = () => {
+		const t = app.current(), x = cond();
+		return t !== null && x !== undefined && !filters.valid(t, x);
+	};
 	return <view tag={"condition-" + i} direction="row" align-items="center" height={26} radius={Theme.RADIUS} border-width={1} border-color={c("line")}
 		background={c("bg")} overflow="hidden">
 		<view:button slot="button" role="button" label="Column" focusable height={24} radius={0} onPress={(e) => app.pickColumn(i, below(e.target))}>
@@ -356,16 +368,58 @@ function Chip(props: { app: Tables; index: number }) {
 			<text color={c("fg2")}>{filters.label(cond()?.op ?? "=")}</text>
 		</view:button>
 		<Show when={filters.valued(cond()?.op ?? "=")}>
-			<field tag={"condition-value-" + i} label="Value" placeholder="value" width={140} height={24} padding="0 6" font-family={Theme.CODE}
-				background={c("canvas")} value={cond()?.value ?? ""} autofocus={(cond()?.value ?? "") === ""}
-				onInput={(e) => app.setCondition(i, { value: e.text }, 300)} onKeyDown={(e) => {
-					if (e.key === Key.ENTER) app.grid.focus(true);
-					if (e.key === Key.ESCAPE) app.grid.focus(true);
-				}}/>
+			<Show when={picked()} fallback={
+				<field tag={"condition-value-" + i} label="Value" placeholder={column() === undefined ? "value" : filters.hint(column()!)} width={140} height={24}
+					padding="0 6" font-family={Theme.CODE} background={c("canvas")} value={cond()?.value ?? ""} autofocus={(cond()?.value ?? "") === ""}
+					color={wrong() ? c("red") : c("fg")} onInput={(e) => app.setCondition(i, { value: e.text }, 300)} onKeyDown={(e) => {
+						if (e.key === Key.ENTER) app.grid.focus(true);
+						if (e.key === Key.ESCAPE) app.grid.focus(true);
+					}}/>
+			}>
+				<view:button tag={"condition-value-" + i} slot="button" role="button" label="Value" focusable autofocus={(cond()?.value ?? "") === ""} height={24} radius={0}
+					min-width={60} onPress={(e) => app.pickValue(i, below(e.target))}>
+					<text font-family={Theme.CODE} color={(cond()?.value ?? "") === "" ? c("fg3") : c("fg")}>{(cond()?.value ?? "") === "" ? "choose" : cond()!.value}</text>
+				</view:button>
+			</Show>
 		</Show>
 		<view:button slot="button" role="button" label="Remove this filter" focusable width={24} height={24} padding={0} radius={0} onPress={() => app.removeCondition(i)}>
 			<Icon src={icons.close} color={c("fg3")} size={12}/>
 		</view:button>
+	</view>;
+}
+
+// ---- a question before changes are lost: Save first (when it can), Discard, Cancel (Escape)
+
+function Asking(props: { app: Tables }) {
+	const app = props.app, ask = app.asking.peek()!;
+	return <view tag="ask-layer" position="absolute" inset={0} align-items="center" justify="center" padding={24}
+		background={app.dark() ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.16)"} onPointerDown={() => app.answer("cancel")}>
+		<view tag="ask" slot="floating" width={400} max-width="100%" padding={0} shadow={Theme.popover()} role="alertdialog" label={ask.title}
+			onPointerDown={(e) => e.stop()} onKeyDown={(e) => {
+				if (e.key === Key.ESCAPE) {
+					app.answer("cancel");
+					e.preventDefault();
+				}
+			}}>
+			<view row-gap={6} padding={`16 ${Theme.PAD + 4} 4`}>
+				<text font-weight={Theme.MEDIUM}>{ask.title}</text>
+				<text color={c("fg2")}>{ask.text}</text>
+			</view>
+			<view direction="row" align-items="center" column-gap={8} padding={Theme.PAD}>
+				<view:button tag="ask-discard" slot="button" role="button" label={ask.discard} focusable onPress={() => app.answer("discard")}>
+					<text color={c("red")}>{ask.discard}</text>
+				</view:button>
+				<view grow={1}/>
+				<view:button tag="ask-cancel" slot="button" role="button" label="Cancel" focusable autofocus={ask.save === undefined} onPress={() => app.answer("cancel")}>
+					<text>Cancel</text>
+				</view:button>
+				<Show when={ask.save !== undefined}>
+					<view:button tag="ask-save" slot="primary" role="button" label="Save first" focusable autofocus onPress={() => app.answer("save")}>
+						<text>Save…</text>
+					</view:button>
+				</Show>
+			</view>
+		</view>
 	</view>;
 }
 
@@ -525,7 +579,8 @@ function MenuLayer(props: { app: Tables }) {
 	const at = signal({ x: m.x, y: m.y });
 	const close = () => {
 		app.menu(null);
-		app.grid.focus(false);
+		if (m.from !== undefined && m.from.ui !== null) m.from.focus(false);
+		else app.grid.focus(false);
 	};
 	const step = (d: number) => {
 		const on = nodes.findIndex(n => n.focused);

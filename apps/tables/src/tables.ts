@@ -4,7 +4,7 @@
 // saved), the row panel, its structure, the SQL console and its results;
 // where you came from (Back); what the status bar says
 import { signal, Signal } from "helder/view";
-import { CodeEditor, DataGrid, GridColumn, Svg, Theme, UiWindow } from "helder/ui";
+import { CodeEditor, DataGrid, GridColumn, Node, Svg, Theme, UiWindow } from "helder/ui";
 import { Store } from "helder/os";
 import { delay } from "helder/async";
 import { complete } from "./complete";
@@ -24,11 +24,15 @@ const LEFT = 0, RIGHT = 2;
 // a menu's item: its label, a quieter detail, an icon, disabled, checked (on), a separator (line)
 export type Entry = { label: string; detail?: string; icon?: Svg; disabled?: boolean; on?: boolean; muted?: boolean; line?: boolean; run: () => void };
 export const LINE: Entry = { label: "", line: true, run: () => {} };
-export type Popup = { x: number; y: number; width?: number; items: Entry[] };
+// a menu: where it opens, the node focused again when it closes (else the grid)
+export type Popup = { x: number; y: number; width?: number; from?: Node; items: Entry[] };
+export type Place = { x: number; y: number; from?: Node };
 export type Link = { label: string; detail: string; run: () => void };
 // an open table's tab: what it shows, kept while another is shown
 export type Tab = { table: string; where: string; quick: string; conditions: Condition[]; mode: string; history: Visit[] };
 type Visit = { table: string; where: string };
+// a question before something is lost: what is lost (discard), or saved first (save)
+export type Ask = { title: string; text: string; discard: string; run: () => void; save?: () => void };
 
 export class Tables {
 	// "connecting", "ready", "offline"
@@ -49,6 +53,7 @@ export class Tables {
 	readonly quick = signal("");
 	// the open tables' tabs, the one shown
 	readonly tabs: Signal<Tab[]> = signal<Tab[]>([]);
+	readonly asking: Signal<Ask | null> = signal<Ask | null>(null);
 	readonly active = signal(-1);
 	readonly conditions: Signal<Condition[]> = signal<Condition[]>([]);
 	// the open table's rows matching, its changes, the last query's time
@@ -349,9 +354,27 @@ export class Tables {
 		if (n > 1) this.switchTab((this.at + d + n) % n);
 	}
 
-	// (its rows and changes stay: opened again, it is as it was left)
-	closeTab(k = this.at) {
-		if (this.tabList[k] === undefined) return;
+	// (a tab with changes not saved asks first: discarded, or saved)
+	closeTab(k = this.at, sure = false) {
+		const tab = this.tabList[k];
+		if (tab === undefined) return;
+		const r = this.opened.get(tab.table), n = r?.changes() ?? 0;
+		if (!sure && r !== undefined && n > 0) {
+			this.asking({
+				title: `Close ${tab.table}?`,
+				text: `${n === 1 ? "Its change is" : `Its ${n} changes are`} not saved.`,
+				discard: "Discard and close",
+				run: () => {
+					r.discard();
+					this.closeTab(k, true);
+				},
+				save: () => {
+					this.switchTab(k);
+					this.save();
+				}
+			});
+			return;
+		}
 		if (k === this.at) this.keepTab();
 		this.tabList = this.tabList.filter((_, i) => i !== k);
 		if (this.tabList.length === 0) {
@@ -367,6 +390,28 @@ export class Tables {
 			this.at = -1;
 			this.showTab(Math.min(k, this.tabList.length - 1));
 		} else this.publishTabs();
+	}
+
+	// the window closing (its close button, quitting): asked first while changes are not saved
+	quit(close: () => void) {
+		let n = 0;
+		for (const r of this.opened.values()) n += r.changes();
+		if (n === 0) return close();
+		this.asking({
+			title: "Quit Tables?",
+			text: `${n === 1 ? "A change is" : `${n} changes are`} not saved.`,
+			discard: "Discard and quit",
+			run: close
+		});
+	}
+
+	answer(a: "discard" | "save" | "cancel") {
+		const ask = this.asking.peek();
+		this.asking(null);
+		if (ask === null) return;
+		if (a === "discard") ask.run();
+		else if (a === "save" && ask.save !== undefined) ask.save();
+		else this.grid.focus(false);
 	}
 
 	private showTab(k: number) {
@@ -455,12 +500,12 @@ export class Tables {
 	}
 
 	// a column for condition i (-1: a new one), from a menu under node at
-	pickColumn(i: number, at: { x: number; y: number }) {
+	pickColumn(i: number, at: Place) {
 		const t = this.current.peek();
 		if (t === null) return;
 		const now = i < 0 ? -1 : this.conditions.peek()[i]?.col ?? -1;
 		this.menu({
-			x: at.x, y: at.y,
+			x: at.x, y: at.y, from: at.from,
 			items: t.columns.map((c, k) => ({
 				label: c.name, detail: c.detail(), on: k === now,
 				run: () => (i < 0 ? this.addCondition(k) : this.setCondition(i, { col: k, op: filters.first(c) }))
@@ -468,10 +513,18 @@ export class Tables {
 		});
 	}
 
-	pickOp(i: number, at: { x: number; y: number }) {
+	// a value for condition i from its column's (an enum's, a boolean's)
+	pickValue(i: number, at: Place) {
+		const t = this.current.peek(), c = this.conditions.peek()[i];
+		const values = t === null || c === undefined ? null : filters.choices(t.columns[c.col]);
+		if (values === null) return;
+		this.menu({ x: at.x, y: at.y, from: at.from, items: values.map(v => ({ label: v, on: v === c.value, run: () => this.setCondition(i, { value: v }) })) });
+	}
+
+	pickOp(i: number, at: Place) {
 		const c = this.conditions.peek()[i];
 		if (c === undefined) return;
-		this.menu({ x: at.x, y: at.y, items: filters.OPS.map(o => ({ label: o.label, detail: o.op.length <= 2 ? o.op : "", on: o.op === c.op, run: () => this.setCondition(i, { op: o.op }) })) });
+		this.menu({ x: at.x, y: at.y, from: at.from, items: filters.OPS.map(o => ({ label: o.label, detail: o.op.length <= 2 ? o.op : "", on: o.op === c.op, run: () => this.setCondition(i, { op: o.op }) })) });
 	}
 
 	private narrowing(t: Table, quick: string, list: Condition[]): string {

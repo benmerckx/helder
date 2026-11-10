@@ -79,11 +79,15 @@ const menus = [
 	{ label: "Window", role: "window" as const, items: [item("Show Next Tab", Do.nextTab()), item("Show Previous Tab", Do.previousTab())] }
 ];
 
+// (the window: closed once nothing unsaved is in the way)
+let win: UiWindow | null = null;
+
 UiWindow.run(
-	<Surface title="Tables" width={1180} height={740} titlebar="inset" theme={Theme.sheet} background={Theme.c("canvas")} dark={app.dark()}>
+	<Surface title="Tables" width={1180} height={740} titlebar="inset" theme={Theme.sheet} background={Theme.c("canvas")} dark={app.dark()}
+		ref={(w: UiWindow) => (win = w)} onClose={() => app.quit(() => win?.close())}>
 		<view grow={1} actions={handle(Do, a => {
 			// (the changes' review open: only saving them, or the appearance)
-			if (app.reviewing.peek() && a.type !== "save" && a.type !== "appearance") return true;
+			if ((app.reviewing.peek() || app.asking.peek() !== null) && a.type !== "save" && a.type !== "appearance") return true;
 			switch (a.type) {
 				case "save": app.save(); break;
 				case "discard": app.discard(); break;
