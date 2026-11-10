@@ -181,11 +181,18 @@ class Shell implements Markup {
 				<text color={c("fg3")} font-size={Theme.SMALL} max-lines={1}>{() -> describe(ws)}</text>
 			</view>
 			<view grow={1}/>
+			<Segmented tag="layer" label="Edit" value={ws.layer} onChange={v -> {
+				ws.layer(v);
+				ws.points([]);
+				ws.selected(null);
+			}} options={[{value: "pen", label: "Pen", hint: "Pen lines"}, {value: "outline", label: "Outline", hint: "Outline points"}]}/>
+			<Show when={ws.layer() == "pen"}>
 			<Segmented tag="tool" label="Tool" value={ws.tool} onChange={v -> ws.tool(v)} options={[
 				{value: "draw", label: "Draw", icon: Icons.pen, hint: "Draw (P)"},
 				{value: "adjust", label: "Adjust", icon: Icons.pointer, hint: "Adjust (V)"},
 				{value: "erase", label: "Erase", icon: Icons.eraser, hint: "Erase (E)"}
 			]}/>
+			</Show>
 			<view width={1} height={16} background={c("line")}/>
 			<Tip label={ws.guide() ? "Hide the tracing letter" : "Show the tracing letter"} keys="T">
 				<view:button tag="guide" slot="button" role="button" label="Tracing letter" focusable data-on={ws.guide() ? "true" : "false"}
@@ -214,8 +221,12 @@ class Shell implements Markup {
 			{boardNode(ws)}
 			{guides(ws, area)}
 			<view position="absolute" top={14} left={0} right={0} align-items="center" pointer-events="none">
-				<Show when={Workshop.state(ws.face(), ws.current()) == "borrowed" || Charset.parts(ws.face(), ws.current()).length > 0
-					&& Model.drawn(ws.face(), ws.current())}>{borrowed(ws)}</Show>
+				<Switch>
+					<Match when={ws.layer() == "outline" && !Model.outlined(Model.glyph(ws.face(), ws.current()))}>{layerNote(ws)}</Match>
+					<Match when={ws.layer() == "pen" && Model.outlined(Model.glyph(ws.face(), ws.current()))}>{layerNote(ws)}</Match>
+					<Match when={Workshop.state(ws.face(), ws.current()) == "borrowed" || Charset.parts(ws.face(), ws.current()).length > 0
+						&& Model.drawn(ws.face(), ws.current())}>{borrowed(ws)}</Match>
+				</Switch>
 			</view>
 			<view position="absolute" bottom={16} left={0} right={0} align-items="center" pointer-events="none">
 				<Show when={Workshop.state(ws.face(), ws.current()) == "empty"}>
@@ -237,6 +248,29 @@ class Shell implements Markup {
 		</view>;
 	}
 
+	// what the layer shows of a letter that is the other kind, and the way across
+	static function layerNote(ws:Workshop):View
+		return <view tag="layer-note" slot="floating" direction="row" align-items="center" column-gap={6} padding="4 4 4 12" pointer-events="auto"
+			shadow={Theme.popover()}>
+			<Switch>
+				<Match when={ws.layer() == "pen"}>
+					<text color={c("fg2")} padding="0 4 0 0">An outline: its points are in Outline. Draw here to add pen lines over it.</text>
+					<view:button tag="trace" slot="button" role="button" label="Trace into pen lines" focusable onPress={() -> ws.trace(ws.current())}>
+						{icon(Icons.pen, 12)}<text>Trace into pen lines</text>
+					</view:button>
+				</Match>
+				<Match when={Model.glyph(ws.face(), ws.current())?.lines.length > 0}>
+					<text color={c("fg2")} padding="0 4 0 0">Drawn with the pen.</text>
+					<view:button tag="bake" slot="button" role="button" label="Edit as outline" focusable onPress={() -> ws.bake(ws.current())}>
+						{icon(Icons.pointer, 12)}<text>Edit as outline</text>
+					</view:button>
+				</Match>
+				<Match when={true}>
+					<text color={c("fg2")} padding="0 8 0 0">No outline. Draw it with the pen, or start from a font (File, New Font).</text>
+				</Match>
+			</Switch>
+		</view>;
+
 	static function boardNode(ws:Workshop):Node {
 		var b = new Board(ws);
 		b.style.position = Absolute;
@@ -249,6 +283,8 @@ class Shell implements Markup {
 			ws.guide();
 			ws.dark();
 			ws.agentStroke();
+			ws.layer();
+			ws.points();
 			0;
 		}, _ -> b.repaint());
 		return b;
@@ -331,7 +367,8 @@ class Shell implements Markup {
 		</view>;
 
 	static function hint(ws:Workshop):String
-		return switch ws.tool() {
+		return if (ws.layer() == "outline")
+			"Drag points and handles (Shift: several). Double-click a point: smooth or corner; a curve: a new point. Delete removes. Arrows nudge." else switch ws.tool() {
 			case "adjust": "Drag a knot or a line. Double-click a knot for a corner. Delete removes. Arrows nudge.";
 			case "erase": "Drag over lines to erase them.";
 			case _: "Press and drag to draw a line. Ends near another line join it; knots near a guide rest on it.";

@@ -16,8 +16,21 @@ class Blend {
 	static inline var BIAS = 4.0;
 
 	public static function faces(a:Face, b:Face, t:Float, name:String):Face {
+		var face = mixed(a, b, t, name);
+		for (group in Charset.groups) {
+			if (group.name == "Accented") continue;
+			for (char in group.chars) {
+				var g = glyph(a, b, char, t);
+				if (g != null) face = Model.with(face, char, {lines: [for (l in g.lines) Freehand.snap(l, face, [])], parts: [], left: g.left, right: g.right});
+			}
+		}
+		return face;
+	}
+
+	// a face with the pen, proportions and spacing between a's and b's, no glyphs
+	public static function mixed(a:Face, b:Face, t:Float, name:String):Face {
 		var pa = a.pen, pb = b.pen, ma = a.metrics, mb = b.metrics;
-		var face:Face = {
+		return {
 			name: name,
 			pen: {
 				width: Math.round(mix(pa.width, pb.width, t)),
@@ -34,36 +47,30 @@ class Blend {
 			},
 			glyphs: {}
 		};
-		for (group in Charset.groups) {
-			if (group.name == "Accented") continue;
-			for (char in group.chars) {
-				var g = glyph(a, b, char, t);
-				if (g != null) face = Model.with(face, char, {lines: [for (l in g.lines) Freehand.snap(l, face, [])], parts: [], left: g.left, right: g.right});
-			}
-		}
-		return face;
 	}
 
 	// one letter between a's and b's, in their own spaces (null: neither has it)
 	public static function glyph(a:Face, b:Face, char:String, t:Float):Null<Glyph> {
-		var la = Ink.lines(a, char), lb = Ink.lines(b, char);
-		if (la.length == 0 && lb.length == 0) return null;
+		var ca = Ink.ink(a, char), cb = Ink.ink(b, char);
+		if (ca.length == 0 && cb.length == 0) return null;
 		var ga = Model.glyph(a, char), gb = Model.glyph(b, char);
 		return {
-			lines: shapes(la, a.pen, lb, b.pen, t),
+			lines: shapes(ca, cb, t),
 			parts: [],
 			left: Math.round(mix(ga?.left ?? 0, gb?.left ?? 0, t)),
 			right: Math.round(mix(ga?.right ?? 0, gb?.right ?? 0, t))
 		};
 	}
 
-	// the pen lines of the shape between la drawn with pa and lb with pb
-	public static function shapes(la:Array<Line>, pa:Pen, lb:Array<Line>, pb:Pen, t:Float):Array<Line> {
-		if (lb.length == 0 || t <= 0) return la;
-		if (la.length == 0 || t >= 1) return lb;
+	// the pen lines of the shape between two inks (a glyph's contours, TrueType's)
+	public static function shapes(ca:Array<Array<helder.text.FontEncoder.FontPoint>>, cb:Array<Array<helder.text.FontEncoder.FontPoint>>, t:Float):Array<Line> {
+		if (cb.length == 0) t = 0;
+		if (ca.length == 0) t = 1;
 		// (both inks laid on the box between theirs: the strokes over each
 		// other, else two stems apart would each fade at the half)
-		var ca = Ink.contours(la, pa), cb = Ink.contours(lb, pb), ba = box(ca), bb = box(cb);
+		var ba = box(ca), bb = box(cb);
+		if (t <= 0) bb = ba;
+		if (t >= 1) ba = bb;
 		var x0 = mix(ba.x0, bb.x0, t), y0 = mix(ba.y0, bb.y0, t), x1 = mix(ba.x1, bb.x1, t), y1 = mix(ba.y1, bb.y1, t);
 		ca = onto(ca, ba, x0, y0, x1, y1);
 		cb = onto(cb, bb, x0, y0, x1, y1);

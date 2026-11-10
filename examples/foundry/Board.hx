@@ -69,8 +69,8 @@ class Board extends Node {
 		scale = v.scale;
 		base = v.base;
 		if (viewFor != char || Math.abs(w - viewWidth) > 0.5 || rescale) {
-			var lines = Ink.lines(f, char), b = Ink.box(lines);
-			var cx = lines.length == 0 ? 260 : (b.x0 + b.x1) / 2;
+			var b = Ink.bounds(f, char);
+			var cx = b.x1 <= b.x0 ? 260 : (b.x0 + b.x1) / 2;
 			ox = w / 2 - cx * scale;
 			viewFor = char;
 			viewWidth = w;
@@ -145,8 +145,8 @@ class Board extends Node {
 			var one = Ink.contours([g.lines[hoverLine]], f.pen);
 			c.path(Glyphs.path(one, scale, x + ox, y + base), alpha(Theme.c("red"), 0.85));
 		}
-		// the lines and knots (adjusting), the line being drawn
-		if (ws.tool.peek() == "adjust") paintLines(c, x, y, g, f);
+		// the outline's points (the outline layer), the lines and knots (adjusting), the line being drawn
+		if (ws.layer.peek() == "outline") paintOutline(c, x, y, g) else if (ws.tool.peek() == "adjust") paintLines(c, x, y, g, f);
 		var st = stroke;
 		if (st != null && st.length > 0) {
 			var p = new Path();
@@ -254,6 +254,57 @@ class Board extends Node {
 		return ((h ^ (h >>> 16)) & 0xFFFFFF) / 0xFFFFFF;
 	}
 
+	// the outline: its path, each point on it (a square a corner, a circle
+	// smooth), each handle on a line from its point; the selected filled
+	function paintOutline(c:Canvas, x:Float, y:Float, g:Glyph) {
+		var outline = g.outline;
+		if (outline == null) return;
+		var accent = Theme.c("accent"), bg = Theme.c("bg"), chosen = ws.points.peek();
+		var p = new Path();
+		for (pts in outline) {
+			var n = pts.length, start = 0;
+			while (start < n && pts[start].off == true)
+				start++;
+			if (start == n) continue;
+			p.moveTo(x + px(pts[start].x), y + py(pts[start].y));
+			var i = 1;
+			while (i <= n) {
+				var q = pts[(start + i) % n];
+				if (q.off == true) {
+					var h2 = pts[(start + i + 1) % n], e = pts[(start + i + 2) % n];
+					p.cubicTo(x + px(q.x), y + py(q.y), x + px(h2.x), y + py(h2.y), x + px(e.x), y + py(e.y));
+					i += 3;
+				} else {
+					p.lineTo(x + px(q.x), y + py(q.y));
+					i++;
+				}
+			}
+			p.close();
+		}
+		c.path(p, null, {width: 1.5, paint: accent, cap: Round, join: Round});
+		for (ci in 0...outline.length) {
+			var pts = outline[ci], n = pts.length;
+			for (pi in 0...n) {
+				var q = pts[pi];
+				if (q.off != true) continue;
+				// (a handle's line from the point it belongs to)
+				var anchor = pts[(pi - 1 + n) % n].off == true ? pts[(pi + 1) % n] : pts[(pi - 1 + n) % n];
+				var l = new Path();
+				l.moveTo(x + px(anchor.x), y + py(anchor.y));
+				l.lineTo(x + px(q.x), y + py(q.y));
+				c.path(l, null, {width: 1, paint: alpha(accent, 0.55)});
+			}
+			for (pi in 0...n) {
+				var q = pts[pi], on = Lambda.exists(chosen, s -> s.c == ci && s.p == pi);
+				var qx = x + px(q.x), qy = y + py(q.y);
+				if (q.off == true) c.rect(qx - 3.5, qy - 3.5, 7, 7, 3.5, on ? accent : bg, 1.5, accent) else {
+					var r = 4.5;
+					c.rect(qx - r, qy - r, r * 2, r * 2, q.smooth == true ? r : 1, on ? accent : bg, 1.5, accent);
+				}
+			}
+		}
+	}
+
 	function paintLines(c:Canvas, x:Float, y:Float, g:Glyph, f:Face) {
 		var accent = Theme.c("accent"), sel = ws.selected.peek();
 		for (i in 0...g.lines.length) {
@@ -314,6 +365,7 @@ class Board extends Node {
 				return repaint();
 			}
 		}
+		if (ws.layer.peek() == "outline") return downOutline(e, p, g);
 		switch ws.tool.peek() {
 			case "draw":
 				straight = e.mods & Key.MOD_SHIFT != 0;
@@ -355,6 +407,16 @@ class Board extends Node {
 		if (d != null) {
 			var dx = gx(p.x) - d.x, dy = gy(p.y) - d.y, sel = ws.selected.peek();
 			switch d.kind {
+				case "points" if (dragFrom != null):
+					var chosen = ws.points.peek(), sx = dx, sy = dy;
+					// (one point on the curve near a guide: on it)
+					if (chosen.length == 1) {
+						var q = dragFrom[chosen[0].c][chosen[0].p], m = f.metrics;
+						if (q.off != true)
+							for (guide in [m.descender, 0, m.xHeight, m.capHeight, m.ascender])
+								if (Math.abs(py(q.y + dy) - py(guide)) < 6) sy = guide - q.y;
+					}
+					ws.setOutline(char, OutlineEdit.moved(dragFrom, chosen, Math.round(sx), Math.round(sy)), "drag");
 				case "left": ws.setSpacing(char, Math.round(d.left - dx), d.right, "space");
 				case "right": ws.setSpacing(char, d.left, Math.round(d.right + dx), "space");
 				case "knot" if (sel != null):
@@ -406,6 +468,7 @@ class Board extends Node {
 			if (l != null) ws.addLine(char, l);
 		}
 		drag = null;
+		dragFrom = null;
 		releaseCapture();
 		repaint();
 	}
@@ -418,6 +481,7 @@ class Board extends Node {
 	}
 
 	function key(e:Event) {
+		if (ws.layer.peek() == "outline") return keyOutline(e);
 		var sel = ws.selected.peek(), char = ws.current.peek();
 		if (e.key == Key.ESCAPE) {
 			ws.selected(null);
@@ -437,6 +501,59 @@ class Board extends Node {
 			knots: [for (i in 0...l.knots.length) sel.knot < 0 || sel.knot == i ? {x: l.knots[i].x + dx, y: l.knots[i].y + dy, corner: l.knots[i].corner} : l.knots[i]],
 			closed: l.closed
 		}, "nudge");
+		e.preventDefault();
+	}
+
+	// ---- the outline layer: points chosen (Shift adds), dragged, a
+	// double-click on a point for smooth or corner, on a curve for a new point
+
+	var dragFrom:Null<Array<Array<OPoint>>> = null;
+
+	function downOutline(e:Event, p:{x:Float, y:Float}, g:Glyph) {
+		var outline = g.outline ?? [], char = ws.current.peek(), r = 9 / scale;
+		var hit = OutlineEdit.pointAt(outline, gx(p.x), gy(p.y), r), now = haxe.Timer.stamp(), chosen = ws.points.peek();
+		var twice = now - lastPress < 0.35;
+		lastPress = now;
+		if (hit != null) {
+			var picked = Lambda.exists(chosen, s -> s.c == hit.c && s.p == hit.p);
+			if (twice && picked && chosen.length == 1) {
+				ws.setOutline(char, OutlineEdit.toggled(outline, hit.c, hit.p));
+				lastPress = 0;
+				return;
+			}
+			if (e.mods & Key.MOD_SHIFT != 0) ws.points(picked ? chosen.filter(s -> !(s.c == hit.c && s.p == hit.p)) : chosen.concat([hit])) else if (!picked)
+				ws.points([hit]);
+			dragFrom = outline;
+			drag = {kind: "points", x: gx(p.x), y: gy(p.y), left: 0, right: 0};
+			return repaint();
+		}
+		var seg = OutlineEdit.segmentAt(outline, gx(p.x), gy(p.y), 7 / scale);
+		if (seg != null && twice) {
+			ws.setOutline(char, OutlineEdit.inserted(outline, seg.c, seg.at, seg.t));
+			ws.points([]);
+			lastPress = 0;
+			return;
+		}
+		if (e.mods & Key.MOD_SHIFT == 0) ws.points([]);
+		repaint();
+	}
+
+	function keyOutline(e:Event) {
+		var chosen = ws.points.peek(), char = ws.current.peek(), outline = ws.glyph(char).outline;
+		if (e.key == Key.ESCAPE) {
+			ws.points([]);
+			return e.preventDefault();
+		}
+		if (chosen.length == 0 || outline == null) return;
+		if (e.key == Key.DELETE || e.key == Key.BACKSPACE) {
+			ws.setOutline(char, OutlineEdit.removed(outline, chosen));
+			ws.points([]);
+			return e.preventDefault();
+		}
+		var step = e.mods & Key.MOD_SHIFT != 0 ? 10 : 1, dx = 0, dy = 0;
+		if (e.key == Key.LEFT) dx = -step else if (e.key == Key.RIGHT) dx = step else if (e.key == Key.UP) dy = step else if (e.key == Key.DOWN) dy = -step else
+			return;
+		ws.setOutline(char, OutlineEdit.moved(outline, chosen, dx, dy), "nudge");
 		e.preventDefault();
 	}
 

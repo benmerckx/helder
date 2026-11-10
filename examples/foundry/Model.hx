@@ -13,8 +13,15 @@ typedef Line = {knots:Array<Knot>, ?closed:Bool};
 // another glyph's lines, moved: how (Turn), and an offset
 typedef Part = {of:String, how:Turn, ?dx:Float, ?dy:Float};
 
-// lines of its own and parts; left and right widen (or narrow) its spacing
-typedef Glyph = {lines:Array<Line>, parts:Array<Part>, ?left:Float, ?right:Float};
+// a point of an outline: on the contour (a corner, or smooth: the handles
+// either side in line), or a cubic curve's handle (off); a contour is
+// closed, from on point to on point a line, or a curve through two handles
+typedef OPoint = {x:Float, y:Float, ?off:Bool, ?smooth:Bool};
+
+// pen lines of its own, an outline of its own (a font's letter kept
+// exact: its points edited as they are), parts; left and right widen (or
+// narrow) its spacing. Its ink is all of them.
+typedef Glyph = {lines:Array<Line>, parts:Array<Part>, ?outline:Array<Array<OPoint>>, ?left:Float, ?right:Float};
 
 // the nib: its width, how much thinner it draws across than along its
 // edge (0: a round marker, 1: a flat calligraphy nib), its edge's angle
@@ -77,11 +84,14 @@ class Model {
 	public static function named(face:Face, name:String):Face
 		return {name: name, pen: face.pen, metrics: face.metrics, glyphs: face.glyphs};
 
-	// whether char has lines of its own
+	// whether char has ink of its own (pen lines, an outline)
 	public static function drawn(face:Face, char:String):Bool {
 		var g = face.glyphs.get(char);
-		return g != null && g.lines.length > 0;
+		return g != null && (g.lines.length > 0 || outlined(g));
 	}
+
+	public static inline function outlined(g:Null<Glyph>):Bool
+		return g != null && g.outline != null && g.outline.length > 0;
 
 	public static function save(face:Face):String
 		return haxe.Json.stringify(face);
@@ -124,7 +134,26 @@ class Model {
 		var rawParts:Array<Dynamic> = Std.isOfType(g.parts, Array) ? g.parts : [];
 		for (p in rawParts)
 			if (p != null && p.of != null) parts.push({of: Std.string(p.of), how: p.how ?? Same, dx: num(p.dx, 0), dy: num(p.dy, 0)});
-		return {lines: lines, parts: parts, left: num(g.left, 0), right: num(g.right, 0)};
+		var outline = Std.isOfType(g.outline, Array) ? outlineOf(g.outline) : null;
+		return {lines: lines, parts: parts, outline: outline, left: num(g.left, 0), right: num(g.right, 0)};
+	}
+
+	// an outline from JSON: contours of points as {x, y, off, smooth} or [x, y] ([x, y, "off"], [x, y, "smooth"])
+	public static function outlineOf(raw:Array<Dynamic>):Array<Array<OPoint>> {
+		var out = [];
+		for (c in raw) {
+			if (!Std.isOfType(c, Array)) continue;
+			var points:Array<OPoint> = [];
+			for (p in (c : Array<Dynamic>)) {
+				if (p == null) continue;
+				if (Std.isOfType(p, Array)) {
+					var a:Array<Dynamic> = p;
+					if (a.length >= 2) points.push({x: num(a[0], 0), y: num(a[1], 0), off: a[2] == "off", smooth: a[2] == "smooth"});
+				} else points.push({x: num(p.x, 0), y: num(p.y, 0), off: p.off == true, smooth: p.smooth == true});
+			}
+			if (points.length > 1) out.push(points);
+		}
+		return out;
 	}
 
 	public static function lineOf(l:Dynamic):Null<Line> {

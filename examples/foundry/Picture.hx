@@ -15,6 +15,7 @@ class Picture {
 	static inline var GUIDE = 0xFFD4D4D8;
 	static inline var LINE = 0xFF2563EB;
 	static inline var BEARING = 0xFFF0ABAB;
+	static inline var HANDLE = 0xFF93B4F5;
 
 	// one glyph, size pixels square: its ink, the guides, its spacing, its lines and knots
 	public static function glyph(face:Face, char:String, size = 512):Bytes {
@@ -38,6 +39,13 @@ class Picture {
 					if (i == 0) pen.moveTo(px, py) else pen.lineTo(px, py);
 				}
 		c.stroke(pen, new Stroke(1.5), Paint.solid(LINE));
+		// (the outline's points: on the curve squares, handles small)
+		for (contour in Ink.outline(face, char))
+			for (q in contour) {
+				var dot = new Path(), r = q.off == true ? 2.0 : 3.0;
+				dot.rect(ox + (q.x + s.dx) * scale - r, y(q.y) - r, r * 2, r * 2);
+				c.fill(dot, Paint.solid(q.off == true ? HANDLE : LINE));
+			}
 		for (l in Ink.lines(face, char))
 			for (k in l.knots) {
 				var dot = new Path();

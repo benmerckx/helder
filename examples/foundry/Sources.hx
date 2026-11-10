@@ -6,7 +6,8 @@ import helder.text.SystemFonts;
 // The fonts a face can come from, by name: "current" (the one being
 // drawn), "Pebble", the open fonts Foundry carries (Inter, Hanken
 // Grotesk, Geist Mono), any font installed on the system (by family);
-// each traced into pen lines once (Trace) and kept.
+// each read once, its outlines kept (Outlines) or traced into pen lines
+// (Trace), and kept.
 class Sources {
 	static final BUNDLED = ["Inter", "Hanken Grotesk", "Geist Mono"];
 	static final kept = new Map<String, Face>();
@@ -20,11 +21,12 @@ class Sources {
 		return out;
 	}
 
-	public static function face(name:String, ws:Workshop):Face {
+	// name's face: its outlines kept (else traced into pen lines)
+	public static function face(name:String, ws:Workshop, pen = false):Face {
 		var key = name.toLowerCase();
 		if (key == "current") return ws.value();
 		if (key == "pebble") return Sample.face();
-		var hit = kept.get(key);
+		var id = (pen ? "pen:" : "outline:") + key, hit = kept.get(id);
 		if (hit != null) return hit;
 		var font = switch key {
 			case "inter": FontFile.parse(Asset.embed("fonts/Inter.ttf"));
@@ -35,8 +37,8 @@ class Sources {
 				if (f == null || f.family.toLowerCase() != key) throw 'No font named "$name" (sources.list names them)';
 				f;
 		}
-		var traced = Trace.face(font, name);
-		kept.set(key, traced);
-		return traced;
+		var made = pen ? Trace.face(font, name) : Outlines.face(font, name);
+		kept.set(id, made);
+		return made;
 	}
 }

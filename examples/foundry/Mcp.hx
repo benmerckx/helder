@@ -19,6 +19,10 @@ class Mcp {
 			Sys.println('foundry: no MCP server ($e)');
 			return;
 		}
+		// (a live reload's new build listens again: this one lets the port go)
+		#if hxmc.dev
+		helder.dev.Hot.onDispose(() -> server.close());
+		#end
 		var url = 'http://127.0.0.1:${server.port}/mcp';
 		ws.mcp(url);
 		Sys.println('foundry: MCP at $url (an HTTP server for any agent that speaks MCP)');

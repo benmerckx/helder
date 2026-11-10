@@ -19,26 +19,43 @@ class Ink {
 	static inline var ROUND = 1.12;
 
 	// a glyph's lines in its own space, its parts' moved there
-	public static function lines(face:Face, char:String, depth = 0):Array<Line> {
-		if (depth > 4) return [];
+	public static function lines(face:Face, char:String):Array<Line>
+		return resolve(face, char, 0).lines;
+
+	// a glyph's outline in its own space, its parts' moved there
+	public static function outline(face:Face, char:String):Array<Array<OPoint>>
+		return resolve(face, char, 0).outline;
+
+	static function resolve(face:Face, char:String, depth:Int):Inks {
+		if (depth > 4) return {lines: [], outline: []};
 		var g = Model.glyph(face, char);
-		var out = g == null ? [] : g.lines.copy();
+		var out:Inks = {lines: g == null ? [] : g.lines.copy(), outline: g == null || g.outline == null ? [] : g.outline.copy()};
 		var base:Null<Box> = null;
 		for (p in Charset.parts(face, char)) {
-			var src = lines(face, p.of, depth + 1);
-			if (src.length == 0) continue;
+			var src = resolve(face, p.of, depth + 1);
+			if (src.lines.length == 0 && src.outline.length == 0) continue;
 			var moved = move(src, p, face, base);
-			if (base == null) base = box(moved);
-			for (l in moved)
-				out.push(l);
+			if (base == null) base = inkBox(moved, face.pen);
+			for (l in moved.lines)
+				out.lines.push(l);
+			for (c in moved.outline)
+				out.outline.push(c);
 		}
 		return out;
 	}
 
-	static function move(src:Array<Line>, p:Part, face:Face, base:Null<Box>):Array<Line> {
-		var b = box(src), m = face.metrics, hv = vertical(face.pen);
+	// a part's ink where its turn puts it (the pen's lines and the outline
+	// moved alike, about the box their ink covers)
+	static function move(src:Inks, p:Part, face:Face, base:Null<Box>):Inks {
+		var m = face.metrics, hv = vertical(face.pen);
+		if (p.how == Dotless)
+			src = {
+				lines: src.lines.filter(l -> Lambda.exists(l.knots, k -> k.y < m.xHeight)),
+				outline: src.outline.filter(c -> Lambda.exists(c, q -> q.y < m.xHeight))
+			};
+		var b = inkBox(src, face.pen);
 		var band = Charset.tall(p.of) ? m.capHeight : m.xHeight;
-		var a = 1.0, bb = 0.0, c = 0.0, d = 1.0, e = 0.0, f = 0.0;
+		var a = 1.0, d = 1.0, e = 0.0, f = 0.0;
 		switch p.how {
 			case Flip:
 				a = -1;
@@ -52,49 +69,95 @@ class Ink {
 				d = -1;
 				f = band;
 			case Grow:
+				// (the ink from the baseline to the x-height (or ascenders) made capital-high)
 				var top = b.y1 > m.xHeight + 60 ? m.ascender : m.xHeight;
-				var k = (m.capHeight - 2 * hv) / (top - 2 * hv);
+				var k = m.capHeight / top;
 				a = d = k;
 				e = b.x0 - b.x0 * k;
-				f = hv - hv * k;
 			case Mark if (base != null):
 				e = (base.x0 + base.x1) / 2 - (b.x0 + b.x1) / 2;
-				if (b.y0 > m.xHeight - 50) f = Math.max(0, base.y1 - (m.xHeight - hv));
-			case Dotless:
-				src = src.filter(l -> Lambda.exists(l.knots, k -> k.y < m.xHeight));
+				if (b.y0 > m.xHeight - 50) f = Math.max(0, base.y1 - m.xHeight);
 			case Top:
-				f = m.xHeight - hv - b.y1;
+				f = m.xHeight - b.y1;
 			case Beside:
-				e = b.x1 - b.x0 + face.pen.width * 1.6;
+				e = b.x1 - b.x0 + face.pen.width * 0.6;
 			case _:
 		}
 		e += p.dx ?? 0;
 		f += p.dy ?? 0;
-		return [for (l in src) {knots: [for (k in l.knots) {x: a * k.x + c * k.y + e, y: bb * k.x + d * k.y + f, corner: k.corner}], closed: l.closed}];
+		// (a pen line grown keeps its knots half the pen from the guides: the pen's ink is not scaled)
+		var top = b.y1 > m.xHeight + 60 ? m.ascender : m.xHeight, kp = (m.capHeight - 2 * hv) / (top - 2 * hv);
+		var lines = [for (l in src.lines) {knots: [for (q in l.knots) {
+			x: a * q.x + e,
+			y: p.how == Grow ? hv + (q.y - hv) * kp : d * q.y + f,
+			corner: q.corner
+		}], closed: l.closed}];
+		var outline = [for (c in src.outline) [for (q in c) {x: a * q.x + e, y: d * q.y + f, off: q.off, smooth: q.smooth}]];
+		// (turned or mirrored once: the contours run the other way, as a font's must not)
+		if (a * d < 0) outline = [for (c in outline) reversed(c)];
+		return {lines: lines, outline: outline};
+	}
+
+	// a contour run the other way round, its points' kinds kept in place
+	public static function reversed(c:Array<OPoint>):Array<OPoint> {
+		var out = c.copy();
+		out.reverse();
+		return out;
+	}
+
+	// the box a glyph's ink covers, in its own space
+	public static function bounds(face:Face, char:String):Box
+		return inkBox(resolve(face, char, 0), face.pen);
+
+	// the box a glyph's ink covers: its outline's points, its knots and how far the pen reaches from them
+	static function inkBox(ink:Inks, pen:Pen):Box {
+		var hv = vertical(pen), hh = horizontal(pen);
+		var b:Box = {x0: Math.POSITIVE_INFINITY, y0: Math.POSITIVE_INFINITY, x1: Math.NEGATIVE_INFINITY, y1: Math.NEGATIVE_INFINITY};
+		for (l in ink.lines)
+			for (k in l.knots) {
+				b.x0 = Math.min(b.x0, k.x - hh);
+				b.x1 = Math.max(b.x1, k.x + hh);
+				b.y0 = Math.min(b.y0, k.y - hv);
+				b.y1 = Math.max(b.y1, k.y + hv);
+			}
+		for (c in ink.outline)
+			for (q in c) {
+				b.x0 = Math.min(b.x0, q.x);
+				b.x1 = Math.max(b.x1, q.x);
+				b.y0 = Math.min(b.y0, q.y);
+				b.y1 = Math.max(b.y1, q.y);
+			}
+		if (b.x0 > b.x1) return {x0: 0, y0: 0, x1: 0, y1: 0};
+		return b;
+	}
+
+	// a glyph's ink as TrueType contours in its own space: its outline and its pen lines
+	public static function ink(face:Face, char:String):Array<Array<FontPoint>> {
+		var r = resolve(face, char, 0);
+		return [for (c in r.outline) quads(c)].concat(contours(r.lines, face.pen));
 	}
 
 	// a glyph's contours placed for the font: its ink after its left
 	// spacing, its advance after its right
 	public static function shape(face:Face, char:String):Shape {
 		// (a face never changes: its shapes are kept until the next one; a
-		// glyph whose lines, pen and spacing are the same as the last face's keeps its shape too)
+		// glyph whose ink, pen and spacing are the same as the last face's keeps its shape too)
 		var hit = shapes.get(char);
 		if (hit != null && hit.face == face) return hit.shape;
-		var lines = lines(face, char), g = Model.glyph(face, char);
-		var key = haxe.Json.stringify({l: lines, p: face.pen, s: face.metrics.spacing, a: g?.left, b: g?.right});
+		var r = resolve(face, char, 0), g = Model.glyph(face, char);
+		var key = haxe.Json.stringify({l: r.lines, o: r.outline, p: face.pen, s: face.metrics.spacing, a: g?.left, b: g?.right});
 		if (hit != null && hit.key == key) {
 			shapes.set(char, {face: face, key: key, shape: hit.shape});
 			return hit.shape;
 		}
-		var s = make(face, char, lines);
+		var s = make(face, char, [for (c in r.outline) quads(c)].concat(contours(r.lines, face.pen)));
 		shapes.set(char, {face: face, key: key, shape: s});
 		return s;
 	}
 
 	static final shapes = new Map<String, {face:Face, key:String, shape:Shape}>();
 
-	static function make(face:Face, char:String, lines:Array<Line>):Shape {
-		var contours = contours(lines, face.pen);
+	static function make(face:Face, char:String, contours:Array<Array<FontPoint>>):Shape {
 		var x0 = Math.POSITIVE_INFINITY, y0 = Math.POSITIVE_INFINITY, x1 = Math.NEGATIVE_INFINITY, y1 = Math.NEGATIVE_INFINITY;
 		for (c in contours)
 			for (p in c) {
@@ -116,6 +179,200 @@ class Ink {
 			x1: x1 + dx,
 			y1: y1
 		};
+	}
+
+	// ---- outlines: cubic contours to TrueType's quadratics and back
+
+	// a contour of cubic curves as TrueType's: a curve that is a quadratic
+	// raised (a TrueType font's, as read) its quadratic again, exactly; else
+	// split in two, four... until each half's quadratic is within the tolerance
+	public static function quads(c:Array<OPoint>):Array<FontPoint> {
+		var n = c.length, start = 0;
+		while (start < n && c[start].off == true)
+			start++;
+		if (start == n) return [];
+		var out:Array<FontPoint> = [];
+		var i = 0;
+		while (i < n) {
+			var p0 = c[(start + i) % n];
+			out.push({x: p0.x, y: p0.y, on: true});
+			var a = c[(start + i + 1) % n];
+			if (a.off != true) {
+				i++;
+				continue;
+			}
+			var b = c[(start + i + 2) % n], p3 = c[(start + i + 3) % n];
+			for (q in cubicToQuads(p0.x, p0.y, a.x, a.y, b.x, b.y, p3.x, p3.y))
+				out.push(q);
+			i += 3;
+		}
+		return out;
+	}
+
+	// a cubic as quadratics' points: their controls (off) and the points between them (on), its end left out
+	static function cubicToQuads(x0:Float, y0:Float, x1:Float, y1:Float, x2:Float, y2:Float, x3:Float, y3:Float):Array<FontPoint> {
+		for (n in [1, 2, 3, 4, 6, 8]) {
+			var out:Array<FontPoint> = [], ok = true;
+			for (k in 0...n) {
+				var s = sub(x0, y0, x1, y1, x2, y2, x3, y3, k / n, (k + 1) / n);
+				// (the quadratic through the piece's ends nearest it)
+				var qx = (3 * (s[2] + s[4]) - s[0] - s[6]) / 4, qy = (3 * (s[3] + s[5]) - s[1] - s[7]) / 4;
+				for (j in 1...8) {
+					var t = j / 8, u = 1 - t;
+					var cx = u * u * u * s[0] + 3 * u * u * t * s[2] + 3 * u * t * t * s[4] + t * t * t * s[6];
+					var cy = u * u * u * s[1] + 3 * u * u * t * s[3] + 3 * u * t * t * s[5] + t * t * t * s[7];
+					var px = u * u * s[0] + 2 * u * t * qx + t * t * s[6], py = u * u * s[1] + 2 * u * t * qy + t * t * s[7];
+					if ((cx - px) * (cx - px) + (cy - py) * (cy - py) > TOLERANCE * TOLERANCE * 0.5) ok = false;
+				}
+				if (!ok) break;
+				out.push({x: qx, y: qy, on: false});
+				if (k < n - 1) out.push({x: s[6], y: s[7], on: true});
+			}
+			if (ok) return out;
+		}
+		// (a curve no handful of quadratics follows: as lines through it)
+		return [for (j in 1...16) {
+			var t = j / 16, u = 1 - t;
+			{x: u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, y: u * u * u * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3, on: true};
+		}];
+	}
+
+	// the part of a cubic from t0 to t1, as its four points (x0, y0, ... x3, y3)
+	public static function sub(x0:Float, y0:Float, x1:Float, y1:Float, x2:Float, y2:Float, x3:Float, y3:Float, t0:Float, t1:Float):Array<Float> {
+		inline function at(t:Float, a:Float, b:Float, c:Float, d:Float):Float {
+			var u = 1 - t;
+			return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+		}
+		inline function slope(t:Float, a:Float, b:Float, c:Float, d:Float):Float {
+			var u = 1 - t;
+			return 3 * u * u * (b - a) + 6 * u * t * (c - b) + 3 * t * t * (d - c);
+		}
+		var k = (t1 - t0) / 3;
+		var ax = at(t0, x0, x1, x2, x3), ay = at(t0, y0, y1, y2, y3), dx = at(t1, x0, x1, x2, x3), dy = at(t1, y0, y1, y2, y3);
+		return [
+			ax, ay,
+			ax + slope(t0, x0, x1, x2, x3) * k, ay + slope(t0, y0, y1, y2, y3) * k,
+			dx - slope(t1, x0, x1, x2, x3) * k, dy - slope(t1, y0, y1, y2, y3) * k,
+			dx, dy
+		];
+	}
+
+	// TrueType contours as cubic outlines (a quadratic raised exactly; points
+	// where the curve runs straight through made smooth)
+	public static function cubics(contours:Array<Array<FontPoint>>):Array<Array<OPoint>> {
+		var out = [];
+		for (c in contours) {
+			var n = c.length, start = 0;
+			while (start < n && !c[start].on)
+				start++;
+			if (start == n) continue;
+			var pts:Array<OPoint> = [];
+			var px = c[start].x, py = c[start].y;
+			pts.push({x: px, y: py});
+			var i = 1;
+			while (i <= n) {
+				var q = c[(start + i) % n];
+				if (q.on) {
+					if (i < n) pts.push({x: q.x, y: q.y});
+					px = q.x;
+					py = q.y;
+					i++;
+					continue;
+				}
+				var nx = c[(start + i + 1) % n];
+				var ex = nx.on ? nx.x : (q.x + nx.x) / 2, ey = nx.on ? nx.y : (q.y + nx.y) / 2;
+				pts.push({x: px + (q.x - px) * 2 / 3, y: py + (q.y - py) * 2 / 3, off: true});
+				pts.push({x: ex + (q.x - ex) * 2 / 3, y: ey + (q.y - ey) * 2 / 3, off: true});
+				var last = nx.on ? i + 1 >= n : false;
+				if (!(nx.on && i + 1 == n)) pts.push({x: ex, y: ey});
+				px = ex;
+				py = ey;
+				i += nx.on ? 2 : 1;
+			}
+			out.push(smoothed(pts));
+		}
+		return out;
+	}
+
+	// a contour with fewer points, the same curve within a font unit: two
+	// curves meeting at a smooth point made one wherever one follows both
+	// (its handles along the outer two, as long as a curve split there had
+	// them), as a TrueType font's many short quadratics read as cubics
+	public static function tidied(c:Array<OPoint>):Array<OPoint> {
+		var pts = c.copy();
+		var merged = true;
+		while (merged) {
+			merged = false;
+			var n = pts.length;
+			if (n < 8) break;
+			for (i in 0...n) {
+				// (a, h1, h2, b, h3, h4, d: b smooth between two curves)
+				var a = pts[i], h1 = pts[(i + 1) % n], h2 = pts[(i + 2) % n], b = pts[(i + 3) % n], h3 = pts[(i + 4) % n], h4 = pts[(i + 5) % n],
+					d = pts[(i + 6) % n];
+				if (a.off == true || h1.off != true || h2.off != true || b.off == true || b.smooth != true || h3.off != true || h4.off != true || d.off == true)
+					continue;
+				var l1 = arc(a, h1, h2, b), l2 = arc(b, h3, h4, d), tau = l1 / (l1 + l2);
+				if (tau <= 0.05 || tau >= 0.95) continue;
+				var n1 = {x: a.x + (h1.x - a.x) / tau, y: a.y + (h1.y - a.y) / tau, off: true};
+				var n2 = {x: d.x + (h4.x - d.x) / (1 - tau), y: d.y + (h4.y - d.y) / (1 - tau), off: true};
+				if (!follows(a, n1, n2, d, [a, h1, h2, b], [b, h3, h4, d])) continue;
+				// (b and its handles out, the outer handles longer)
+				var keep = [], drop = [(i + 2) % n, (i + 3) % n, (i + 4) % n];
+				for (k in 0...n)
+					if (drop.indexOf(k) < 0) keep.push(k == (i + 1) % n ? n1 : k == (i + 5) % n ? n2 : pts[k]);
+				pts = keep;
+				merged = true;
+				break;
+			}
+		}
+		return pts;
+	}
+
+	static function arc(a:OPoint, b:OPoint, c:OPoint, d:OPoint):Float {
+		var len = 0.0, px = a.x, py = a.y;
+		for (k in 1...17) {
+			var t = k / 16, u = 1 - t;
+			var x = u * u * u * a.x + 3 * u * u * t * b.x + 3 * u * t * t * c.x + t * t * t * d.x;
+			var y = u * u * u * a.y + 3 * u * u * t * b.y + 3 * u * t * t * c.y + t * t * t * d.y;
+			len += Math.sqrt((x - px) * (x - px) + (y - py) * (y - py));
+			px = x;
+			py = y;
+		}
+		return len;
+	}
+
+	// whether the curve (a, b, c, d) passes within a unit of both curves' points
+	static function follows(a:OPoint, b:OPoint, c:OPoint, d:OPoint, s1:Array<OPoint>, s2:Array<OPoint>):Bool {
+		var curve = [for (k in 0...97) {
+			var t = k / 96, u = 1 - t;
+			{x: u * u * u * a.x + 3 * u * u * t * b.x + 3 * u * t * t * c.x + t * t * t * d.x, y: u * u * u * a.y + 3 * u * u * t * b.y + 3 * u * t * t * c.y + t * t * t * d.y};
+		}];
+		for (s in [s1, s2])
+			for (k in 1...10) {
+				var t = k / 10, u = 1 - t;
+				var x = u * u * u * s[0].x + 3 * u * u * t * s[1].x + 3 * u * t * t * s[2].x + t * t * t * s[3].x;
+				var y = u * u * u * s[0].y + 3 * u * u * t * s[1].y + 3 * u * t * t * s[2].y + t * t * t * s[3].y;
+				var near = Math.POSITIVE_INFINITY;
+				for (q in curve)
+					near = Math.min(near, (q.x - x) * (q.x - x) + (q.y - y) * (q.y - y));
+				if (near > 1.0) return false;
+			}
+		return true;
+	}
+
+	// a contour's on points made smooth where the curve runs straight through them
+	public static function smoothed(c:Array<OPoint>):Array<OPoint> {
+		var n = c.length;
+		return [for (i in 0...n) {
+			var p = c[i];
+			if (p.off == true) p else {
+				var a = c[(i - 1 + n) % n], b = c[(i + 1) % n];
+				var ux = p.x - a.x, uy = p.y - a.y, vx = b.x - p.x, vy = b.y - p.y;
+				var lu = Math.sqrt(ux * ux + uy * uy), lv = Math.sqrt(vx * vx + vy * vy);
+				var smooth = (a.off == true || b.off == true) && lu > 1e-6 && lv > 1e-6 && (ux * vx + uy * vy) / (lu * lv) > 0.995;
+				{x: p.x, y: p.y, smooth: smooth};
+			}
+		}];
 	}
 
 	// the contours of lines drawn with pen
@@ -404,6 +661,9 @@ class Ink {
 }
 
 typedef Box = {x0:Float, y0:Float, x1:Float, y1:Float};
+
+// a glyph's ink: its pen lines and its outline
+typedef Inks = {lines:Array<Line>, outline:Array<Array<OPoint>>};
 
 // the pen's ellipse: half its width along its edge's angle, less across
 private class Nib {

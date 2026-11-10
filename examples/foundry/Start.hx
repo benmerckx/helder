@@ -10,10 +10,10 @@ import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 import helder.view.graph.Read;
 
-// Where a font starts: Pebble (Foundry's own), an open font traced into
-// pen lines (Trace: Inter, Hanken Grotesk, Geist Mono, each under the SIL
-// Open Font License, as what is made from it stays), a font file of the
-// user's (desktop), or nothing. Each card set in its own font.
+// Where a font starts: Pebble (Foundry's own, pen lines), an open font's
+// own outlines (Outlines: Inter, Hanken Grotesk, Geist Mono, each under
+// the SIL Open Font License, as what is made from it stays), a font file
+// of the user's (desktop), or nothing. Each card set in its own font.
 class Start implements Markup {
 	public static inline var PEBBLE = "Foundry Pebble";
 
@@ -28,7 +28,7 @@ class Start implements Markup {
 		{
 			id: "inter",
 			name: "Inter",
-			about: "A neutral grotesk for screens by Rasmus Andersson, traced into pen lines.",
+			about: "A neutral grotesk for screens by Rasmus Andersson, its outlines as they are.",
 			family: "Inter",
 			license: "SIL Open Font License 1.1",
 			file: () -> Asset.embed("fonts/Inter.ttf")
@@ -36,7 +36,7 @@ class Start implements Markup {
 		{
 			id: "hanken",
 			name: "Hanken Grotesk",
-			about: "A friendly geometric grotesk by Alfredo Marco Pradil, traced into pen lines.",
+			about: "A friendly geometric grotesk by Alfredo Marco Pradil, its outlines as they are.",
 			family: "Hanken Grotesk",
 			license: "SIL Open Font License 1.1",
 			file: () -> Asset.embed("fonts/HankenGrotesk-Regular.ttf")
@@ -44,7 +44,7 @@ class Start implements Markup {
 		{
 			id: "geist",
 			name: "Geist Mono",
-			about: "A monospace by Vercel, every letter as wide as the next, traced into pen lines.",
+			about: "A monospace by Vercel, every letter as wide as the next, its outlines as they are.",
 			family: "Geist Mono",
 			license: "SIL Open Font License 1.1",
 			file: () -> Asset.embed("fonts/GeistMono-Regular.ttf")
@@ -64,10 +64,10 @@ class Start implements Markup {
 			var frames = 0;
 			Clock.add(_ -> {
 				if (++frames < 3) return true;
-				var face = s.file == null ? Sample.face() : Trace.face(FontFile.parse(s.file()), "My " + s.name);
+				var face = s.file == null ? Sample.face() : Outlines.face(FontFile.parse(s.file()), "My " + s.name);
 				busy("");
 				ws.begin(face);
-				ws.say(s.file == null ? 'Started from ${s.name}' : 'Traced ${s.name} into ${countDrawn(face)} letters of pen lines: ${s.license}');
+				ws.say(s.file == null ? 'Started from ${s.name}' : 'Started from ${s.name}\'s outlines, ${countDrawn(face)} letters: ${s.license}');
 				return false;
 			});
 		}
@@ -76,12 +76,12 @@ class Start implements Markup {
 			ws.say("A blank font: trace the grey letter behind each one, or draw your own");
 		}
 		function open() {
-			var path = helder.os.FileDialog.open(helder.os.App.windows[0], "Trace a font", [{name: "Fonts", extensions: ["ttf", "otf"]}]);
+			var path = helder.os.FileDialog.open(helder.os.App.windows[0], "Open a font", [{name: "Fonts", extensions: ["ttf", "otf"]}]);
 			if (path == null) return;
 			try {
-				var face = Trace.face(FontFile.parse(sys.io.File.getBytes(path)), "My Font");
+				var face = Outlines.face(FontFile.parse(sys.io.File.getBytes(path)), "My Font");
 				ws.begin(face);
-				ws.say('Traced ${haxe.io.Path.withoutDirectory(path)}: keep to its license when you share what you make');
+				ws.say('Started from ${haxe.io.Path.withoutDirectory(path)}: keep to its license when you share what you make');
 			} catch (e:Dynamic) {
 				ws.say('Could not read that font ($e)');
 			}
@@ -101,8 +101,8 @@ class Start implements Markup {
 						<image src={Icons.pen} width={14} height={14}/><text>Start blank</text>
 					</view:button>
 					<Show when={helder.os.FileDialog.available()}>
-						<view:button tag="start-file" slot="button" role="button" label="Trace a font file" focusable onPress={open}>
-							<image src={Icons.download} width={14} height={14}/><text>Trace a font file…</text>
+						<view:button tag="start-file" slot="button" role="button" label="Open a font file" focusable onPress={open}>
+							<image src={Icons.download} width={14} height={14}/><text>Open a font file…</text>
 						</view:button>
 					</Show>
 					<view grow={1}/>
@@ -116,7 +116,7 @@ class Start implements Markup {
 		return <view:button tag={"start-" + s.id} slot="starter" role="button" label={"Start from " + s.name} focusable onPress={() -> pick(s)}>
 			<view height={120} align-items="center" justify="center" radius={Theme.RADIUS_M} background={c("well")}>
 				<Show when={busy() == s.id} fallback={<text font-family={s.family} font-size={58} line-height="64px" color={c("fg")}>Ag</text>}>
-					<text color={c("fg2")}>Tracing…</text>
+					<text color={c("fg2")}>Reading…</text>
 				</Show>
 			</view>
 			<view row-gap={4} padding="10 2 0">

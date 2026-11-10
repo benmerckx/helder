@@ -14,10 +14,21 @@ bun run helder build examples/foundry --target web    # bin/web/Foundry.html
 
 ## Where a font starts
 
-The start screen (first run; File, New Font, Cmd/Ctrl+N) offers Pebble,
-the open fonts Foundry carries (Inter, Hanken Grotesk, Geist Mono: SIL Open
-Font License 1.1), a font file of your own (desktop) or a blank page. A
-font of outlines is traced into pen lines (`Trace`):
+The start screen (first run; File, New Font, Cmd/Ctrl+N) offers Pebble
+(Foundry's own, drawn with the pen), the open fonts Foundry carries
+(Inter, Hanken Grotesk, Geist Mono: SIL Open Font License 1.1), a font
+file of your own (desktop) or a blank page. A font keeps its own outlines
+(`Outlines`): each letter's contours exactly as the font has them
+(TrueType's quadratics raised to cubics, then neighbouring curves merged
+wherever one cubic follows both within a font unit, so there are points
+to edit and not every joint of the original), its metrics, each letter's
+place and advance. What you make from it is still a proper font: the
+x-height slider moves outline points with the guides, and the Outline tab
+edits them. A font made from an OFL font is shared under the OFL.
+
+A letter can also be traced into pen lines (the Pen tab's "Trace into
+pen lines", or `font.start {pen: true}` for a whole font), to restyle it
+with the pen. `Trace` does that:
 
 1. Each glyph is drawn on the CPU (helder.canvas).
 2. It is thinned to its skeleton (Zhang and Suen's thinning, then the
@@ -29,12 +40,21 @@ font of outlines is traced into pen lines (`Trace`):
    bends it, so the chain is cut back there and carried on straight.
 5. Each chain becomes knots (`Freehand`'s), snapped to the guides.
 
-The pen is as wide as the strokes (twice their distance from the edge
-along the skeleton, the median of the small letters). The metrics and
-each glyph's place and advance are the font's. What comes out is the font
-drawn with one pen, close to a monoline font, the skeleton of a
-high-contrast one. It takes about 200 ms a font. A font made from an OFL
-font is shared under the OFL.
+What comes out looks drawn: one pen, round ends, no change of width. That
+is the pen's style, not the font's.
+
+## Pen and Outline
+
+The board has two tabs. **Pen** draws and edits pen lines (below).
+**Outline** edits the letter's outline as points: a point on the curve (a
+square a corner, a circle smooth) and its handles. Drag them (Shift picks
+several), double-click a point to make it smooth or a corner, double-click
+a curve to put a point there (the curve unchanged), Delete removes points
+(the curves either side made one), the arrows nudge. A letter can have
+both: Hanken's outline and a pen swash over it. A pen letter opens in
+Outline with "Edit as outline", which bakes its ink into points exactly
+(the pen's contours are already its outline). Any letter's ink is its
+outline plus its pen lines, and borrowing (b from d, é from e) moves both.
 
 ## How it works
 
@@ -110,13 +130,14 @@ judge its strokes and correct them as a person does at the board.
 |---|---|
 | `font.read` | the name, pen, proportions, how far ink reaches past a knot, each character's state |
 | `glyph.read {char}` | its lines (knots), what it borrows, its spacing and box, a picture on its guides |
-| `glyph.draw {char, lines, mode?}` | its lines replaced (or added to), and a picture of the result |
+| `glyph.draw {char, lines?, outline?, mode?}` | its lines (or outline) replaced (or added to), and a picture of the result |
 | `glyph.borrow {char, parts}` | made from others: mirrored, turned, grown, an accent over a base |
+| `glyph.transform {chars, scaleX, scaleY, slant, dx, dy}` | letters' ink (outline points and knots) scaled, slanted or moved: "lowercase", "uppercase", "figures" or the letters |
 | `glyph.clear`, `glyph.space` | back to empty or its default borrowing; its spacing either side |
 | `pen.set`, `metrics.set` | the whole font's pen and proportions, letters following |
 | `text.snap {text}` | a picture of text set in the font now |
 | `sources.list` | the fonts to take from: current, Pebble, the bundled open fonts, every installed one |
-| `font.start {from}` | the font started again from a source, traced into pen lines |
+| `font.start {from, pen?}` | the font started again from a source: its outlines, or traced into pen lines |
 | `font.blend {a, b, t}` | the whole font between two sources |
 | `glyph.blend {char, a, b?, t}` | one letter between two sources (or one's alone), fitted to this font |
 | `font.export`, `font.rename`, `board.open` | the .ttf; its name; a glyph shown on the board |
@@ -148,5 +169,7 @@ agents' pictures on the CPU. helder.os provides `Store`, and `Downloads`
 for the export. helder.async serves MCP.
 
 Not yet: kerning pairs (the encoder writes them, the app has no tool for
-them), a second weight as a variable font, opening an existing font, and
-a layout for phones.
+them), variable fonts (masters of the same letter: pen letters drawn with
+two pens, outline letters with their points moved; the encoder's fvar and
+gvar, an axis over the board), the pen's width per knot and flat joins,
+and a layout for phones.

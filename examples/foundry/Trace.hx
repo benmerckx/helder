@@ -102,6 +102,28 @@ class Trace {
 		return {lines: lines, widths: widths, left: x0, right: font.advance(g) * fs - b[2] * fs, advance: font.advance(g) * fs};
 	}
 
+	// TrueType contours (a glyph's ink, in its own space) as pen lines
+	public static function contours(cs:Array<Array<helder.text.FontEncoder.FontPoint>>):Array<Line> {
+		var x0 = Math.POSITIVE_INFINITY, y0 = Math.POSITIVE_INFINITY, x1 = Math.NEGATIVE_INFINITY, y1 = Math.NEGATIVE_INFINITY;
+		for (c in cs)
+			for (p in c) {
+				x0 = Math.min(x0, p.x);
+				x1 = Math.max(x1, p.x);
+				y0 = Math.min(y0, p.y);
+				y1 = Math.max(y1, p.y);
+			}
+		if (x0 > x1) return [];
+		var w = Math.ceil((x1 - x0) * K) + PAD * 2, h = Math.ceil((y1 - y0) * K) + PAD * 2;
+		var canvas = new Canvas(w, h);
+		canvas.fill(Picture.path(cs, K, -x0 * K + PAD, y1 * K + PAD), Paint.solid(0xFF000000));
+		var px = haxe.io.Bytes.alloc(w * h * 4);
+		canvas.readPixels(px, 0, 0, w, h);
+		var on = new Vector<Bool>(w * h);
+		for (i in 0...w * h)
+			on[i] = px.get(i * 4 + 3) >= 128;
+		return skeleton(on, w, h, (x, y) -> {x: (x + 0.5 - PAD) / K + x0, y: y1 - (y + 0.5 - PAD) / K}).lines;
+	}
+
 	// a shape's pen lines (thinned in place): unit, a pixel's place in font
 	// units; widths, the strokes' along them (font units)
 	public static function skeleton(on:Vector<Bool>, w:Int, h:Int, unit:(Float, Float) -> {x:Float, y:Float}):{lines:Array<Line>, widths:Array<Float>} {
