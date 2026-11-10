@@ -179,7 +179,8 @@ function Seg(props: { app: Tables; mode: string; label: string; src: Svg }) {
 	const app = props.app, mode = props.mode;
 	return <view:button tag={"mode-" + mode} slot="seg-item" role="tab" label={props.label} focusable selected={app.mode() === mode}
 		data-on={app.mode() === mode ? "true" : "false"} onPress={() => {
-			app.mode(mode);
+			if (mode === "sql") app.showSql();
+			else app.mode(mode);
 			if (mode === "sql") app.editor.view.focus(false);
 			else if (mode === "data") app.grid.focus(false);
 		}}>
@@ -408,7 +409,7 @@ function example(app: Tables): string {
 	const t = app.current();
 	if (t === null || t.columns.length === 0) return "";
 	const col = t.columns.find(c => !c.primary && !c.numeric) ?? t.columns[0];
-	return `"${col.name}" = '…'`;
+	return `${app.quote(col.name)} = '…'`;
 }
 
 function readOnlyText(app: Tables): string {

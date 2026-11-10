@@ -132,3 +132,12 @@ describe("filters, typed values", () => {
 		equals(filters.choices(new Column("n", "integer", false, false, null)), null);
 	});
 });
+
+describe("columns", () => {
+	test("booleans by their type: Postgres' boolean, MySQL's tinyint(1)", () => {
+		equals(new Column("ok", "boolean", false, false, null).mode, "boolean");
+		equals(new Column("archived", "tinyint(1)", false, false, null).mode, "boolean");
+		equals(new Column("n", "tinyint(4)", false, false, null).mode, "");
+		equals(format.text(new Column("archived", "tinyint(1)", false, false, null), 1), "true");
+	});
+});

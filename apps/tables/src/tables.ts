@@ -104,6 +104,8 @@ export class Tables {
 	private history: Visit[] = [];
 	// (the views: this, published to views)
 	private viewList: View[] = [];
+	// (the console's query as suggested, until it is written over)
+	private suggested = "";
 	private resultRows: Record<string, unknown>[] = [];
 	private resultKeys: string[] = [];
 	private noteId = 0;
@@ -187,12 +189,6 @@ export class Tables {
 				const was: View = { table: shown, where: this.applied.peek(), quick: this.quick.peek(), conditions: this.conditions.peek(), mode: this.mode.peek(), history: [] };
 				if (this.current.peek() === null && list.some(t => t.id === shown)) this.restore(was, list);
 				else if (first !== undefined && this.current.peek() === null) this.visit(first);
-				if (this.query.peek() === "" && first !== undefined) {
-					// (the signal's write lands later: the editor given the text itself)
-					const q = `SELECT * FROM ${this.sql.table(first)} LIMIT 100`;
-					this.query(q);
-					this.editor.text = q;
-				}
 				return;
 			} catch (e) {
 				this.state("offline");
@@ -201,7 +197,23 @@ export class Tables {
 		}
 	}
 
-	get dialect(): string {
+	// the SQL console, its query the open table's while it is the one suggested (else as written)
+	showSql() {
+		const t = this.current.peek(), q = this.editor.text;
+		if (t !== null && (q.trim() === "" || q === this.suggested)) {
+			this.suggested = `SELECT * FROM ${this.sql.table(t)} LIMIT 100`;
+			this.editor.text = this.suggested;
+			this.query(this.suggested);
+		}
+		this.mode("sql");
+	}
+
+	// a name as the dialect quotes it
+	quote(name: string): string {
+		return this.sql.name(name);
+	}
+
+		get dialect(): string {
 		return this.setup.peek()?.dialect ?? "";
 	}
 

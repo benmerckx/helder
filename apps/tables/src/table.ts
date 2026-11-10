@@ -22,6 +22,8 @@ export class Column {
 
 	constructor(readonly name: string, readonly type: string, readonly nullable: boolean, readonly primary: boolean, readonly defaultValue: string | null) {
 		if (type.toLowerCase().startsWith("enum(")) this.values = quoted(type);
+		// (a boolean by its type: Postgres' boolean, MySQL's tinyint(1))
+		if (["boolean", "bool", "tinyint(1)"].includes(type.toLowerCase())) this.mode = "boolean";
 	}
 
 	// numbers are aligned right

@@ -29,6 +29,7 @@ const Do = actions("tables", {
 	query() { return {}; },
 	undo() { return {}; },
 	panel() { return {}; },
+	close() { return {}; },
 	appearance(kind: string) { return { kind }; }
 });
 Keymap.global.bind("secondary-s", Do.save())
@@ -41,7 +42,8 @@ Keymap.global.bind("secondary-s", Do.save())
 	.bind("secondary-2", Do.structure())
 	.bind("secondary-3", Do.query())
 	.bind("secondary-z", Do.undo())
-	.bind("secondary-i", Do.panel());
+	.bind("secondary-i", Do.panel())
+	.bind("secondary-w", Do.close());
 
 const given = args().length > 0 && !args()[0].startsWith("--") ? args()[0] : null;
 const app = new Tables(given === null ? "http://127.0.0.1:4983/" : given.startsWith("http") ? given : "http://" + given);
@@ -58,7 +60,7 @@ app.start();
 
 // the menu bar: File, Edit, View (its views, the row panel, the appearance)
 const menus = [
-	{ label: "File", items: [item("Save Changes", Do.save()), item("Discard Changes", Do.discard()), separator, item("Refresh", Do.refresh()), separator, role("quit")] },
+	{ label: "File", items: [item("Save Changes", Do.save()), item("Discard Changes", Do.discard()), separator, item("Refresh", Do.refresh()), separator, item("Close Window", Do.close()), role("quit")] },
 	{ label: "Edit", items: [item("Undo", Do.undo()), separator, role("cut"), role("copy"), role("paste"), role("select-all")] },
 	{
 		label: "View",
@@ -90,13 +92,14 @@ UiWindow.run(
 				case "run": if (app.mode.peek() === "sql") app.run(); break;
 				case "data": app.mode("data"); break;
 				case "structure": app.mode("structure"); break;
-				case "query": app.mode("sql"); break;
+				case "query": app.showSql(); break;
 				case "undo": if (app.mode.peek() === "data") app.undo(); break;
 				case "panel":
 					app.mode("data");
 					app.panel(!app.panel.peek());
 					break;
 				case "appearance": app.appear(a.kind); break;
+				case "close": app.quit(() => win?.close()); break;
 			}
 			return true;
 		}, a => {

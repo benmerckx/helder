@@ -11,10 +11,20 @@ import { Column, Table, quoted } from "./table";
 export async function load(db: Drizzle, setup: Setup, sql: Sql): Promise<Table[]> {
 	const tables = sql.postgres ? await postgres(db) : sql.mysql ? await mysql(db) : await sqlite(db);
 	for (const t of tables)
-		t.relations = setup.relations.filter(r => r.table === t.name && (r.schema === t.schema || (r.schema === "public" && t.schema === "main")));
+		t.relations = setup.relations.filter(r => r.table === t.name && (r.schema === t.schema || (plain(r.schema) && plain(t.schema))));
 	modes(tables, setup.files);
 	await counts(db, sql, tables);
-	return tables;
+	// (the default schema's first: public, main)
+	return [...tables].sort((a, b) => rank(a) - rank(b));
+}
+
+function rank(t: Table): number {
+	return plain(t.schema) ? 0 : 1;
+}
+
+// (the default schema: SQLite's main, Postgres' public, MySQL's none; drizzle's relations say public for all)
+function plain(schema: string): boolean {
+	return schema === "" || schema === "public" || schema === "main";
 }
 
 type Read = (r: any[]) => { schema: string; table: string; view: boolean; column: Column };
@@ -57,10 +67,28 @@ async function postgres(db: Drizzle): Promise<Table[]> {
 		+ `WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema', 'drizzle') AND c.table_schema NOT LIKE 'pg_toast%' `
 		+ `ORDER BY c.table_schema, c.table_name, c.ordinal_position`);
 	return group(rows, r => {
-		const c = new Column(r[3], r[4] === "USER-DEFINED" ? r[7] : r[4] ?? "", r[5] === "YES", primary.has(`${r[0]}.${r[1]}.${r[3]}`), r[6]);
+		const c = new Column(r[3], pgType(r[4], r[7]), r[5] === "YES", primary.has(`${r[0]}.${r[1]}.${r[3]}`), r[6]);
 		if (labels.has(r[7])) c.values = labels.get(r[7])!;
 		return { schema: r[0], table: r[1], view: r[2] === "VIEW", column: c };
 	});
+}
+
+// (a Postgres type by its short name: timestamptz for timestamp with time zone, an enum's own, an array's element's[])
+const SHORT: Record<string, string> = {
+	"timestamp without time zone": "timestamp",
+	"timestamp with time zone": "timestamptz",
+	"time without time zone": "time",
+	"time with time zone": "timetz",
+	"character varying": "varchar",
+	"character": "char",
+	"double precision": "double",
+	"bit varying": "varbit"
+};
+
+function pgType(data: string | null, udt: string | null): string {
+	if (data === "USER-DEFINED") return udt ?? "";
+	if (data === "ARRAY") return udt !== null && udt.startsWith("_") ? udt.substring(1) + "[]" : "array";
+	return data === null ? "" : SHORT[data] ?? data;
 }
 
 async function mysql(db: Drizzle): Promise<Table[]> {
@@ -73,16 +101,19 @@ async function mysql(db: Drizzle): Promise<Table[]> {
 async function counts(db: Drizzle, sql: Sql, tables: Table[]) {
 	const real = tables.filter(t => !t.view);
 	if (real.length === 0) return;
-	// (Postgres: the planner's estimates, a big table not scanned)
+	// (Postgres: the planner's estimates for a big table, not scanned; a
+	// small one, or one never analysed (-1, 0), counted)
+	let exact = real;
 	if (sql.postgres) {
 		const rows = await db.rows(`SELECT n.nspname AS s, c.relname AS t, c.reltuples::bigint AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r'`);
 		for (const r of rows)
 			for (const t of real)
-				if (t.schema === r[0] && t.name === r[1]) t.count = Math.max(0, Math.floor(Number(r[2])));
-		return;
+				if (t.schema === r[0] && t.name === r[1] && Number(r[2]) > 100000) t.count = Math.floor(Number(r[2]));
+		exact = real.filter(t => t.count < 0);
+		if (exact.length === 0) return;
 	}
-	const q = real.map((t, k) => `SELECT ${k} AS i, COUNT(*) AS n FROM ${sql.table(t)}`).join(" UNION ALL ");
-	for (const r of await db.rows(q)) real[r[0] as number].count = r[1] as number;
+	const q = exact.map((t, k) => `SELECT ${k} AS i, COUNT(*) AS n FROM ${sql.table(t)}`).join(" UNION ALL ");
+	for (const r of await db.rows(q)) exact[Number(r[0])].count = Number(r[1]);
 }
 
 // Drizzle's modes and enums, from the schema's source: in a table's
