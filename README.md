@@ -493,8 +493,8 @@ collection only when it allocates or blocks.
     isolation needed; SharedArrayBuffer only as a fast path), and an inline
     fallback where workers are missing;
   - **two tiers of jobs** ([measured](tests/bench/results/jobs.md)):
-    GC-free jobs, `@:hxmc.unsafe` functions over off-heap buffers (hxmc's
-    `IoBuffer`), run in a safe region (`hxmc.unsafe.Blocking`) the
+    GC-free jobs, checked kernels (`@:hxmc.kernel`) over off-heap buffers
+    (hxmc's `IoBuffer`, as spans), run in a safe region (`hxmc.unsafe.Blocking`) the
     collector never waits for: the default for the engine (decoding,
     physics, pathfinding). And ordinary GC jobs for user code: on the web
     isolates, natively only for short loops, since a collection waits for
@@ -506,7 +506,7 @@ collection only when it allocates or blocks.
     from any thread or job to the loop of the thread that made it;
     anonymous structures and Arrays of these are sendable too (copied).
   - **first user: image decoding** (done): helder.image's one PNG decoder,
-    `PngCore`, is `@:hxmc.unsafe` over native memory, the same code
+    `PngCore`, is a checked kernel over spans, the same code
     `PngDecoder` runs on the calling thread and `ImageJobs` as a GC-free
     job (every colour type, depth, Adam7, APNG's frames; the old decoder
     removed: 1.4x faster, a quarter of the garbage, 83 KB smaller). Left:
