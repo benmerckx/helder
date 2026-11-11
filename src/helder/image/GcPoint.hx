@@ -10,12 +10,7 @@ package helder.image;
 class GcPoint {
 	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 	public static inline function poll()
-		if (GcRequest.rt_gc_requested != 0) stop();
-
-	// (the runtime's safepoint, a GC point: the caller's live references are
-	// rooted across it, as at an allocation's slow path)
-	static function stop()
-		@:privateAccess hxmc.rt.Threads.preempt();
+		hxmc.Safepoint.poll();
 	#else
 	public static inline function poll() {}
 	#end
@@ -26,11 +21,3 @@ class GcPoint {
 		return true;
 	}
 }
-
-#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-// (the runtime's flag, set while a collection waits for the other threads:
-// read as a C variable, each read a load)
-@:hxmc.c private extern class GcRequest {
-	static final rt_gc_requested:Int;
-}
-#end

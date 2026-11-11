@@ -1,29 +1,21 @@
 package helder.async;
 
 #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+import hxmc.I64;
 import hxmc.ReadOnlySpan;
 import hxmc.Span;
-import hxmc.unsafe.Posix;
 import hxmc.unsafe.UInt8;
 
-// POSIX's calls on descriptors that take memory, over spans: the one place
-// helder.async hands the system an address, each call its span's own
-// address and length (pipe: a span of two Ints at least), so that their
-// callers (Loop's wake pipe, Signals' handler) are checked kernels over
-// scratch in their frame. Not on Windows: the callers' branch for it is
+// POSIX's calls on descriptors that take memory, as typed bindings over
+// spans (hxmc's @:hxmc.safe: each reads or writes only its span, within its
+// length), so that their callers (Loop's wake pipe, Signals' handler) are
+// checked kernels over scratch in their frame; checked against unistd.h
+// (-D hxmc.header-check). Not on Windows: the callers' branch for it is
 // another (Mem.os(), known when compiling, so these are not linked there).
-@:hxmc.kernel @:hxmc.unsafe
-class Fds {
-	// at most b.length bytes read into b: their number, 0 at the end, < 0 on a failure
-	public static function read(fd:Int, b:Span<UInt8>):Int
-		return Posix.read(fd, (cast b : hxmc.Span.SpanData).ptr, b.length).toInt();
-
-	// b written: the bytes written, < 0 on a failure
-	public static function write(fd:Int, b:ReadOnlySpan<UInt8>):Int
-		return Posix.write(fd, (cast b : hxmc.Span.SpanData).ptr, b.length).toInt();
-
-	// a pipe, its ends into fds[0] (read) and fds[1] (write): 0, else -1
-	public static function pipe(fds:Span<Int>):Int
-		return fds.length < 2 ? -1 : Posix.pipe((cast fds : hxmc.Span.SpanData).ptr);
+@:hxmc.c @:hxmc.fast @:hxmc.safe @:hxmc.header("unistd.h")
+extern class Fds {
+	static function read(fd:Int, buf:Span<UInt8>):I64;
+	static function write(fd:Int, buf:ReadOnlySpan<UInt8>):I64;
+	@:hxmc.len(fds, 2) static function pipe(fds:Span<Int>):Int;
 }
 #end

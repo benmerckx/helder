@@ -507,7 +507,7 @@ private class Wake {
 
 	@:hxmc.kernel static function posixDrain(fd:Int) {
 		var b:hxmc.Span<hxmc.unsafe.UInt8> = hxmc.Span.stack(64);
-		while (Fds.read(fd, b) > 0) {}
+		while (Fds.read(fd, b).toInt() > 0) {}
 	}
 }
 #end

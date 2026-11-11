@@ -36,10 +36,9 @@ class Downloads {
 
 	static function download(name:String, data:Bytes, type:String) {
 		#if (hxmc.target == "wasm32-wasi")
-		// (the bytes copied by the page: a fast call, no GC point while it has data's address)
 		Arena.scoped(a -> {
 			var n = a.cstring(name), t = a.cstring(type);
-			helder.os.web.Dom.download(n, BytesPtr.of(data, 0, data.length), data.length, t);
+			helder.os.web.Dom.download(n, hxmc.ReadOnlySpan.ofBytes(data), data.length, t);
 		});
 		#end
 	}

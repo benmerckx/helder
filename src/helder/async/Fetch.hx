@@ -20,7 +20,7 @@ class Fetch {
 		// (taken straight into the Bytes: no copy in between, no GC point)
 		var n = Web.fetch_length(h);
 		var b = Bytes.alloc(n);
-		Web.fetch_take(h, BytesPtr.of(b, 0, n));
+		Web.fetch_take(h, hxmc.Span.ofBytes(b));
 		if (progress != null) progress(n, n);
 		return b;
 		#else
@@ -37,7 +37,7 @@ class Fetch {
 		var h = fetched(path, progress);
 		var n = Web.fetch_length(h);
 		var b = IoBuffer.alloc(n);
-		Web.fetch_take(h, b.ptr);
+		Web.fetch_take(h, hxmc.Span.ofIoBuffer(b));
 		if (progress != null) progress(n, n);
 		return b;
 	}

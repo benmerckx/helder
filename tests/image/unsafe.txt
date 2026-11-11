@@ -10,7 +10,4 @@ src/helder/image/ImageMemory.hx: public function take(v:Bytes):hxmc.unsafe.IoBuf
 src/helder/image/ImageMemory.hx: if (i < 0) return hxmc.unsafe.IoBuffer.ofBytes(v);  # (a result not of this memory: copied off the heap, the caller's to free)
 src/helder/image/PngCore.hx: import hxmc.unsafe.UInt8;  # the spans' element type
 src/helder/image/PngDecoder.hx: var b = hxmc.unsafe.IoBuffer.alloc(len);  # the rows decoded beside the pixels off the GC heap (PngCore's buffer, as a span), freed after
-src/helder/image/WebImages.hx: import hxmc.unsafe.Ptr;  # the browser decoder's imports take a file's address and length (wasm32 only)
-src/helder/asset/ImageAsset.hx: var h = helder.image.WebImages.decode(f, hxmc.unsafe.Ptr.nil(), 0, 1);  # a fetch's handle decoded by the browser: no pointer passed (nil, length 0)
-src/helder/asset/ImageAsset.hx: helder.image.WebImages.file_take(h, hxmc.unsafe.BytesPtr.of(b, 0, n));  # the browser copies a file's n bytes into b (allocated of its length) in a fast call: no GC point while it has b's address; BytesPtr.of checks n against b
-src/helder/gfx/ImageTexture.hx: device.writeTextureImage(t, helder.image.WebImages.decode(0, hxmc.unsafe.BytesPtr.of(b, offset, length), length, 0), true);  # a file's range handed to the browser's decoder, copied there in a fast call (no GC point while it has b's address; BytesPtr.of checks the range against b)
+src/helder/image/WebImages.hx: import hxmc.unsafe.UInt8;  # the spans' element type (the browser decoder's imports take a file as a span: wasm32 only)
