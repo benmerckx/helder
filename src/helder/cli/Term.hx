@@ -119,12 +119,11 @@ class Term {
 
 	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 	// (Windows: ENABLE_VIRTUAL_TERMINAL_PROCESSING on the console's handle; false where it has none)
-	@:hxmc.unsafe static function vt(which:Int):Bool {
-		var h = TermK32.GetStdHandle(which);
-		var mode = hxmc.unsafe.Mem.stack(8);
-		if (TermK32.GetConsoleMode(h, mode) == 0) return false;
-		var m = hxmc.unsafe.Mem.getI32(mode, 0);
-		return (m & 4) != 0 || TermK32.SetConsoleMode(h, m | 4) != 0;
+	static function vt(which:Int):Bool {
+		var h = TermK32.GetStdHandle(which), mode = hxmc.unsafe.IoBuffer.alloc(4);
+		var got = TermK32.GetConsoleMode(h, mode.ptr) != 0, m = mode.getInt32(0);
+		mode.free();
+		return got && ((m & 4) != 0 || TermK32.SetConsoleMode(h, m | 4) != 0);
 	}
 	#end
 }

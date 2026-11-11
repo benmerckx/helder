@@ -474,17 +474,21 @@ private class Wake {
 	public static function pipe():Int
 		return if (hxmc.unsafe.Mem.os() == 2) -1 else posixPipe();
 
-	@:hxmc.unsafe static function posixPipe():Int {
-		var fds = hxmc.unsafe.Mem.stack(8);
-		if (hxmc.unsafe.Posix.pipe(fds) != 0) return -1;
-		var r = hxmc.unsafe.Mem.getI32(fds, 0), w = hxmc.unsafe.Mem.getI32(fds, 4);
-		flags(r);
-		flags(w);
-		return r | (w << 16);
+	static function posixPipe():Int {
+		var ends = pipeEnds();
+		if (ends < 0) return -1;
+		flags(ends & 0xFFFF);
+		flags(ends >>> 16);
+		return ends;
+	}
+
+	@:hxmc.kernel static function pipeEnds():Int {
+		var fds:hxmc.Span<Int> = hxmc.Span.stack(2);
+		return Fds.pipe(fds) != 0 ? -1 : fds[0] | (fds[1] << 16);
 	}
 
 	// (F_SETFL O_NONBLOCK: Linux's 0x800, the BSDs' 4; F_SETFD FD_CLOEXEC)
-	@:hxmc.unsafe static function flags(fd:Int) {
+	static function flags(fd:Int) {
 		hxmc.unsafe.Posix.fcntl(fd, 4, hxmc.unsafe.Mem.os() == 1 ? 4 : 0x800);
 		hxmc.unsafe.Posix.fcntl(fd, 2, 1);
 	}
@@ -495,15 +499,15 @@ private class Wake {
 	public static function drain(fd:Int)
 		if (hxmc.unsafe.Mem.os() == 2) {} else posixDrain(fd);
 
-	@:hxmc.unsafe static function posixWrite(fd:Int) {
-		var b = hxmc.unsafe.Mem.stack(8);
-		hxmc.unsafe.Mem.setI8(b, 0, 1);
-		hxmc.unsafe.Posix.write(fd, b, 1);
+	@:hxmc.kernel static function posixWrite(fd:Int) {
+		var b:hxmc.Span<hxmc.unsafe.UInt8> = hxmc.Span.stack(1);
+		b[0] = 1;
+		Fds.write(fd, b);
 	}
 
-	@:hxmc.unsafe static function posixDrain(fd:Int) {
-		var b = hxmc.unsafe.Mem.stack(64);
-		while (hxmc.unsafe.Posix.read(fd, b, 64) > 0) {}
+	@:hxmc.kernel static function posixDrain(fd:Int) {
+		var b:hxmc.Span<hxmc.unsafe.UInt8> = hxmc.Span.stack(64);
+		while (Fds.read(fd, b) > 0) {}
 	}
 }
 #end

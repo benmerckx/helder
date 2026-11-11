@@ -36,12 +36,11 @@ class Downloads {
 
 	static function download(name:String, data:Bytes, type:String) {
 		#if (hxmc.target == "wasm32-wasi")
-		Arena.scoped(a -> send(a.cstring(name), data, a.cstring(type)));
+		// (the bytes copied by the page: a fast call, no GC point while it has data's address)
+		Arena.scoped(a -> {
+			var n = a.cstring(name), t = a.cstring(type);
+			helder.os.web.Dom.download(n, BytesPtr.of(data, 0, data.length), data.length, t);
+		});
 		#end
 	}
-
-	#if (hxmc.target == "wasm32-wasi")
-	@:hxmc.unsafe static function send(name:CString, data:Bytes, type:CString)
-		helder.os.web.Dom.download(name, BytesPtr.of(data, 0, data.length), data.length, type);
-	#end
 }

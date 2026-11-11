@@ -64,11 +64,9 @@ class ImageAsset {
 
 	static function file(h:Int):haxe.io.Bytes {
 		var n = helder.image.WebImages.file_length(h), b = haxe.io.Bytes.alloc(n);
-		take(h, b, n);
+		// (the browser copies the file's n bytes into b: a fast call, no GC point while it has b's address)
+		helder.image.WebImages.file_take(h, hxmc.unsafe.BytesPtr.of(b, 0, n));
 		return b;
 	}
-
-	@:hxmc.unsafe static function take(h:Int, b:haxe.io.Bytes, n:Int)
-		helder.image.WebImages.file_take(h, hxmc.unsafe.BytesPtr.of(b, 0, n));
 	#end
 }

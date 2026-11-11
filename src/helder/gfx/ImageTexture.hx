@@ -40,15 +40,12 @@ class ImageTexture {
 		var size = Image.size(b, offset, length);
 		if (size == null) return null;
 		var t = device.createTexture({width: size.width, height: size.height, format: format == null ? RGBA8 : format, mipLevels: mips ? 0 : 1});
-		device.writeTextureImage(t, start(b, offset, length), true);
+		// (the range copied by the browser's decoder: a fast call, no GC point while it has b's address)
+		device.writeTextureImage(t, helder.image.WebImages.decode(0, hxmc.unsafe.BytesPtr.of(b, offset, length), length, 0), true);
 		return t;
 		#else
 		return null;
 		#end
 	}
 
-	#if (hxmc.target == "wasm32-wasi")
-	@:hxmc.unsafe static function start(b:haxe.io.Bytes, offset:Int, length:Int):Int
-		return helder.image.WebImages.decode(0, hxmc.unsafe.BytesPtr.of(b, offset, length), length, 0);
-	#end
 }

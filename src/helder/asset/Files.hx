@@ -65,7 +65,7 @@ class Files {
 		var b:Null<IoBuffer> = null;
 		mapped(key, (p, n) -> {
 			b = IoBuffer.alloc(n);
-			copy(b, p, n);
+			LibC.memcpy(b.ptr, p, (n : hxmc.I64));
 		});
 		Assets.progressed(key, b.length, b.length);
 		return b;
@@ -76,9 +76,6 @@ class Files {
 		return IoBuffer.ofBytes(read(key, file));
 		#end
 	}
-
-	@:hxmc.unsafe static inline function copy(b:IoBuffer, p:Ptr, n:Int)
-		LibC.memcpy(b.ptr, p, (n : hxmc.I64));
 
 	static function bundleBytes(key:String):Bytes {
 		#if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64")
