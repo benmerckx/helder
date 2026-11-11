@@ -290,7 +290,9 @@ class Run {
 		var cp = cps(["src", "tests/jobs/reject"]);
 		for (r in [
 			{main: "NotSendable", want: "helder.jobs: count's input cannot be sent: .items[]: Item is a class"},
-			{main: "NotSendableChannel", want: "helder.jobs: a Channel's value cannot be sent: Int -> Void is a function"}
+			{main: "NotSendableChannel", want: "helder.jobs: a Channel's value cannot be sent: Int -> Void is a function"},
+			{main: "NotKernel", want: "a GC-free job is an @:hxmc.kernel @:hxmc.callback static function (job:helder.jobs.Job):Int (raw)"},
+			{main: "ReadsRaw", want: "Mem, Atomic and C functions need @:hxmc.unsafe"}
 		]) {
 			var b = build(cp.concat(["-main", r.main, "--custom-target", 'hxmc=bin/jobs/reject/${r.main}']), 'bin/jobs/reject/${r.main}.log');
 			if (b.code == 0 || !b.log.contains(r.want)) throw new Failed('${r.main}: expected the error "${r.want}":\n' + b.log);

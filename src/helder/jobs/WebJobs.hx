@@ -101,7 +101,7 @@ class WebJobs {
 			input = IoBuffer.alloc(n);
 			JobsHost.input(input.ptr);
 		}
-		var job = Job.make(input);
+		var job = JobRecord.make(input);
 		var s = Run.GcCall.call(Ptr.ofI64(fn), job.ptr());
 		var out = job.takeOutput();
 		var o:Ptr = cast out;

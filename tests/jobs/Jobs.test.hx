@@ -126,19 +126,19 @@ function tests() {
 class JobsWork {
 	public static var sawCancel = 0;
 
-	@:hxmc.unsafe @:hxmc.callback public static function invert(job:Job):Int {
-		var n = job.input.length, src = job.input.ptr, out = job.output(n);
-		if (out.isNull()) return -1;
-		for (i in 0...n)
-			Mem.setI8(out, i, 255 - Mem.getU8(src, i));
+	@:hxmc.kernel @:hxmc.callback public static function invert(job:Job):Int {
+		var src = job.input(), out = job.output(src.length);
+		if (out.length < src.length) return -1;
+		for (i in 0...src.length)
+			out[i] = 255 - src[i];
 		return 0;
 	}
 
-	@:hxmc.unsafe @:hxmc.callback public static function refuse(job:Job):Int
+	@:hxmc.kernel @:hxmc.callback public static function refuse(job:Job):Int
 		return -5;
 
 	// (until cancelled, a few seconds at most)
-	@:hxmc.unsafe @:hxmc.callback public static function spin(job:Job):Int {
+	@:hxmc.kernel @:hxmc.callback public static function spin(job:Job):Int {
 		var s = 0;
 		for (i in 0...20000) {
 			if (job.cancelled) {

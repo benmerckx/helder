@@ -19,7 +19,7 @@ class Run implements IDispatchObject {
 	final id = nextId++;
 	final fn:Ptr;
 	final gcFree:Bool;
-	final job:Job;
+	final job:JobRecord;
 	final loop:Loop;
 	var cont:Null<IContinuation<Run>>;
 	var abandoned = false;
@@ -35,7 +35,7 @@ class Run implements IDispatchObject {
 		this.gcFree = gcFree;
 		this.loop = loop;
 		this.cont = cont;
-		job = Job.make(input);
+		job = JobRecord.make(input);
 		output = cast Ptr.nil();
 	}
 

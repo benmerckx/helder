@@ -71,7 +71,7 @@ class JobDefinition implements Definition<JobAdapter, JobSignature> {
 
 // What a job's adapter tells of its function: its name, its inputs' and
 // result's types (null: Void), the constants it reads, whether it is a
-// GC-free job (Haxe's @:hxmc.unsafe callback, which takes a Job: unchecked)
+// GC-free job (Haxe's kernel callback, which takes a Job: hxmc checks it)
 typedef JobSignature = {
 	name:String,
 	inputs:Array<SendType>,

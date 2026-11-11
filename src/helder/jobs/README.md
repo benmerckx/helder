@@ -11,15 +11,15 @@ that does not use it.
 
 ```haxe
 import helder.jobs.*;
-import hxmc.unsafe.*;
+import hxmc.unsafe.IoBuffer;
 
-// GC-free, the engine's: an @:hxmc.unsafe callback over off-heap memory
-@:hxmc.unsafe @:hxmc.callback static function invert(job:Job):Int {
-  var n = job.input.length, src = job.input.ptr, out = job.output(n);
-  if (out.isNull()) return -1;                     // < 0: a JobError's code
-  for (i in 0...n) {
+// GC-free, the engine's: a checked kernel over off-heap memory, as spans
+@:hxmc.kernel @:hxmc.callback static function invert(job:Job):Int {
+  var src = job.input(), out = job.output(src.length);
+  if (out.length < src.length) return -1;          // < 0: a JobError's code
+  for (i in 0...src.length) {
     if (i & 0xFFFF == 0 && job.cancelled) return -2;
-    Mem.setI8(out, i, 255 - Mem.getU8(src, i));
+    out[i] = 255 - src[i];
   }
   return 0;
 }
@@ -66,14 +66,18 @@ Haxe's serialization of them.
 `Jobs.job(f).run(?input)` (a definition: `JobDefinition`, through `Sendable`) awaits `f`'s run with its input; `f` is a
 static function, named (`Class.field`, private too):
 
-- **GC-free** (`@:hxmc.unsafe @:hxmc.callback function (job:Job):Int`):
-  its input an `IoBuffer` moved into the run (freed after it), its
-  output one it allocates with `job.output(n)` (not zeroed; `truncate(n)`
-  shortens it), which `run` returns; a result < 0 is a `JobError` with that
-  code. Natively the pool calls it in a safe region (`hxmc.unsafe.Blocking`),
-  so other threads' collections never wait for it: the compiler checks
-  that it touches no GC object. The default for the engine (decoding:
-  `helder.image.ImageJobs`).
+- **GC-free** (`@:hxmc.kernel @:hxmc.callback function (job:Job):Int`):
+  its input an `IoBuffer` moved into the run (freed after it), read as a
+  `ReadOnlySpan<UInt8>` (`job.input()`), its output one it allocates with
+  `job.output(n)` (a `Span<UInt8>`, not zeroed, empty when out of memory;
+  `truncate(n)` shortens it), which `run` returns; a result < 0 is a
+  `JobError` with that code. Natively the pool calls it in a safe region
+  (`hxmc.unsafe.Blocking`), so other threads' collections never wait for
+  it. It is a checked kernel (hxmc's `@:hxmc.kernel`): the compiler checks
+  that it touches no GC object and reads and writes only through its
+  spans. A `Job` is a proof (`@:hxmc.proof`): only the pool hands one out,
+  so nothing else calls a job, and `Job`'s accessors are the one trusted
+  part. The default for the engine (decoding: `helder.image.ImageJobs`).
 - **GC** (any static function of one sendable argument, or none, to a
   sendable result, or Void): its argument and result copied across
   (`Sendable`, below); its exception a `JobError` (code -1, the message;
@@ -93,8 +97,8 @@ static function, named (`Class.field`, private too):
 
 Natively (`Pool`) the threads wait on one queue; a run's end is posted to
 its loop, whose wake pipe ends its wait (`helder.async.Loop`; App.run's
-wait polls it too). A run's record (`Job`) is malloc'ed: the job reads it
-in its region, the cancel flag included.
+wait polls it too). A run's record (`JobRecord`) is malloc'ed: the job reads it
+in its region (through its `Job`), the cancel flag included.
 
 ## Sendable
 

@@ -7,11 +7,12 @@ import hxmc.unsafe.Ptr;
 // IoBuffers made without a GC point (an IoBuffer's own alloc throws when
 // out of memory): its layout, hxmc.unsafe.IoBuffer's (a 16-byte header whose
 // second word is a NativeArray<Byte>'s, then the bytes)
+@:hxmc.kernel @:hxmc.unsafe
 class Buffers {
 	public static inline var HEADER = 16;
 
 	// an IoBuffer of n bytes, not zeroed (nil when out of memory)
-	@:hxmc.unsafe public static function alloc(n:Int):Ptr {
+	public static function alloc(n:Int):Ptr {
 		if (n < 0) return Ptr.nil();
 		var p = LibC.malloc(HEADER + n);
 		if (p.isNull()) return p;
@@ -20,7 +21,7 @@ class Buffers {
 	}
 
 	// (its length set: n bytes, no more than it has)
-	@:hxmc.unsafe public static function header(p:Ptr, n:Int) {
+	public static function header(p:Ptr, n:Int) {
 		var words = (n + 7) >> 3;
 		Mem.setI64(p, 0, 0);
 		Mem.setI16(p, 8, hxmc.rt.Types.T_BYTES);

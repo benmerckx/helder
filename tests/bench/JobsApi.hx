@@ -35,7 +35,7 @@ class JobsApi {
 	static inline var WINDOW = 90;
 	static inline var FRAME = 1 / 60;
 
-	@:hxmc.unsafe @:hxmc.callback static function empty(job:Job):Int
+	@:hxmc.kernel @:hxmc.callback static function empty(job:Job):Int
 		return 0;
 
 	static function emptyGc(x:Int):Int

@@ -18,11 +18,11 @@ class JobsWeb {
 		if (!ok) failed++;
 	}
 
-	@:hxmc.unsafe @:hxmc.callback static function invert(job:Job):Int {
-		var n = job.input.length, src = job.input.ptr, out = job.output(n);
-		if (out.isNull()) return -1;
-		for (i in 0...n)
-			Mem.setI8(out, i, 255 - Mem.getU8(src, i));
+	@:hxmc.kernel @:hxmc.callback static function invert(job:Job):Int {
+		var src = job.input(), out = job.output(src.length);
+		if (out.length < src.length) return -1;
+		for (i in 0...src.length)
+			out[i] = 255 - src[i];
 		return 0;
 	}
 

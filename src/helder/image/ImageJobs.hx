@@ -8,8 +8,6 @@ import helder.jobs.Jobs;
 import hxmc.ReadOnlySpan;
 import hxmc.Span;
 import hxmc.unsafe.IoBuffer;
-import hxmc.unsafe.Mem;
-import hxmc.unsafe.Ptr;
 import hxmc.unsafe.UInt8;
 
 // Images decoded as GC-free jobs (helder.jobs: natively on a pool's thread
@@ -24,14 +22,14 @@ import hxmc.unsafe.UInt8;
 class ImageJobs {
 	// the PNG job: its input the file, its output the RGBA8 pixels (the
 	// size: the header's, PngCore.info)
-	@:hxmc.unsafe @:hxmc.callback public static function png(job:Job):Int {
-		var input = job.input, info:Ptr<UInt8> = cast Mem.stack(PngCore.INFO);
-		var e = PngCore.info(ReadOnlySpan.unsafeOf(input.ptr, input.length), Span.unsafeOf(info, PngCore.INFO));
+	@:hxmc.kernel @:hxmc.callback public static function png(job:Job):Int {
+		var input = job.input(), info:Span<UInt8> = Span.stack(PngCore.INFO);
+		var e = PngCore.info(input, info);
 		if (e != 0) return e;
-		var w = Mem.getI32(info, PngCore.WIDTH), h = Mem.getI32(info, PngCore.HEIGHT);
-		var len = PngCore.bufferLength(ReadOnlySpan.unsafeOf(info, PngCore.INFO), w, h), out = job.output(len);
-		if (out.isNull()) return PngCore.ERR_MEMORY;
-		e = PngCore.decode(ReadOnlySpan.unsafeOf(input.ptr, input.length), Span.unsafeOf(info, PngCore.INFO), Span.unsafeOf(out, len));
+		var w = info.getI32(PngCore.WIDTH), h = info.getI32(PngCore.HEIGHT);
+		var len = PngCore.bufferLength(info, w, h), out = job.output(len);
+		if (out.length < len) return PngCore.ERR_MEMORY;
+		e = PngCore.decode(input, info, out);
 		if (e != 0) return e;
 		job.truncate(w * h * 4);
 		return 0;

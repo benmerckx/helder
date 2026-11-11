@@ -230,10 +230,9 @@ class Sendable {
 		var a = new JobAdapter(f);
 		// (static: a function named, checked by the kernel's adapter; its
 		// input and result Sendable, checked by the handler)
-		new JobDefinition().generate(a.node(f), a);
+		var free = new JobDefinition().generate(a.node(f), a).gcFree;
 		var c = a.c, cf = a.cf, args = a.args, ret = a.ret;
 		var fpath = field(classExpr(c), cf.name);
-		var free = cf.meta.has(":hxmc.unsafe");
 		var module = c.module, pack = module.split(".");
 		pack.pop();
 		var name = (StringTools.endsWith(c.name, "_Fields_") ? module.split(".").pop() : c.name) + "_" + cf.name + "_Job";
@@ -286,7 +285,7 @@ class Sendable {
 			};
 			fields = (macro class {
 				@:hxmc.callback public static function entry(p:hxmc.unsafe.Ptr):Int {
-					var job:helder.jobs.Job = cast p;
+					var job:helder.jobs.JobRecord = cast p;
 					return try {
 						$head;
 						$body;
@@ -375,7 +374,7 @@ class Sendable {
 }
 
 // job(f)'s Haxe adapter: f the static or module-level function named, its
-// signature from its type (a GC-free job's unchecked)
+// signature from its type (a GC-free job's: a kernel, which hxmc checks)
 private class JobAdapter extends helder.definition.HaxeAdapter implements helder.jobs.JobDefinition.JobAdapter {
 	public var c:ClassType;
 	public var cf:ClassField;
@@ -399,9 +398,6 @@ private class JobAdapter extends helder.definition.HaxeAdapter implements helder
 				return error("a job is a static or module-level function, named (Class.field, field)", f.pos);
 		}
 		if (cf.params.length > 0) error('${cf.name} has type parameters (its values\' types must be known)', f.pos);
-		var free = cf.meta.has(":hxmc.unsafe");
-		if (free && (!cf.meta.has(":hxmc.callback") || !Context.unify(cf.type, Context.resolveType(macro:helder.jobs.Job->Int, f.pos))))
-			error('a GC-free job is an @:hxmc.unsafe @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
 		switch Context.follow(cf.type) {
 			case TFun(x, r):
 				args = x;
@@ -409,6 +405,13 @@ private class JobAdapter extends helder.definition.HaxeAdapter implements helder
 			case _:
 				return error("a job is a function", f.pos);
 		}
+		// (GC-free: it takes a Job, which only the pool hands out)
+		var free = args.length == 1 && switch args[0].t {
+			case TAbstract(_.get() => {name: "Job", pack: ["helder", "jobs"]}, _): true;
+			case _: false;
+		}
+		if (free && (!cf.meta.has(":hxmc.kernel") || !cf.meta.has(":hxmc.callback") || !Context.unify(ret, Context.getType("Int"))))
+			error('a GC-free job is an @:hxmc.kernel @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
 		@:privateAccess var void = Sendable.isVoid(ret);
 		return {
 			name: cf.name,

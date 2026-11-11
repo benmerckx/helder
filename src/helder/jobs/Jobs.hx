@@ -14,16 +14,17 @@ import hxmc.unsafe.Ptr;
 // module) and its result resumes the awaiting coroutine on its own loop
 // (helder.async: a coroutine never changes thread, only data crosses).
 //
-//   // GC-free, the engine's: an @:hxmc.unsafe callback over off-heap memory
+//   // GC-free, the engine's: a checked kernel over off-heap memory
 //   var pixels:IoBuffer = Jobs.job(PngJob.decode).run(IoBuffer.ofBytes(png));
 //   // a GC job, user code: values that can be sent in and out (Sendable)
 //   var n:Int = Jobs.job(Words.count).run(text);
 //   var t = task.async(_ -> Jobs.job(Words.count).run(text));   // a Task
 //
 // Two tiers:
-// - a GC-free job is a static `@:hxmc.unsafe @:hxmc.callback function (job:Job):Int`:
+// - a GC-free job is a static `@:hxmc.kernel @:hxmc.callback function (job:Job):Int`:
 //   its input an IoBuffer moved into the run, its output one it allocates
-//   (Job.output), the awaiting task's to free; a result < 0 is a JobError.
+//   (Job.output), the awaiting task's to free, both spans; a result < 0 is
+//   a JobError.
 //   Natively it runs in a safe region (hxmc.unsafe.Blocking), so the
 //   collector never waits for it: no pause of other threads' frames.
 // - a GC job is any static function of one sendable argument (or none) to a
@@ -80,7 +81,7 @@ class Jobs {
 	}
 
 	// (a GC job's wrapper: an exception as the run's error, its message the output)
-	public static function failed(job:Job, e:Dynamic):Int {
+	public static function failed(job:JobRecord, e:Dynamic):Int {
 		var m = e is haxe.Exception ? (e : haxe.Exception).message : Std.string(e);
 		var w = new Writer();
 		w.string(m);
