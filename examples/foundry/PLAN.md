@@ -111,26 +111,62 @@ refinement, not repair.
 
 ## 6. Variable fonts
 
-Fontra is the reference: a font has axes (Weight, Width), each glyph has
-sources (masters) at places on them, and sliders show any point in
-between, live. Glyphs calls them masters and shows them as tabs; FontLab
-matches incompatible masters for you.
+Every editor shares one model, the designspace: axes (Weight 100 to 900,
+Width 75 to 125, each with a minimum, a default and a maximum), masters
+drawn at a few places on them, everything between interpolated, and named
+instances (Light, Regular, Bold) at points. Masters must be compatible:
+the same contours, points, order and start points, only the positions
+differing. How they show it:
 
-- Axes and masters: Weight 300 and 700, say. A master starts as a copy
-  of another. In a pen letter the knots are shared and the pen differs;
-  in an outline letter the points are moved, never added or taken away
-  (adding one is refused while masters disagree, as in Glyphs).
-- Starting from a variable font (Hanken Grotesk is published as one):
-  helder reads its gvar, and its outlines at the axis ends are the
-  masters, compatible as they come.
-- Seeing it: an axis bar above the board (the masters as stops, the
-  letter interpolated as you drag, the masters' outlines over each
-  other), the same slider on the preview strip, a waterfall of
-  instances, a specimen of named instances (Light, Regular, Bold).
-- The encoder writes fvar, gvar and HVAR; the preview is the real
-  variable font, interpolated by helder's text engine.
-- A weight tool for outlines (an offset, then corrected by hand) and a
-  check of the masters' compatibility, letter by letter.
+- Glyphs: masters set up in Font Info, shown as tabs above the canvas;
+  instances listed apart; brace layers ({600}) for an intermediate master
+  of one glyph, bracket layers ([700]) for an alternate past a point;
+  warnings and a compatibility view; smart components with axes of their
+  own.
+- FontLab: a Variations panel, interpolated instances live in the glyph
+  window, Matchmaker repairing incompatible masters (missing points,
+  start points, directions).
+- RoboFont and UFO: a UFO file per master and a .designspace naming axes,
+  masters and instances; extensions (Skateboard, Prepolator) for preview
+  and compatibility; fontmake builds it. Google Fonts' pipeline.
+- Fontra, the closest to Foundry: variable first, a Designspace panel,
+  each glyph's sources at their locations, sliders on the canvas, a new
+  source made where one edits between masters, axes per glyph.
+- FontForge's multiple masters are old and rarely used; Glyphr Studio and
+  BirdFont have none.
+
+What they all find hard: keeping masters compatible (designers draw the
+Bold by moving the Light's points, never adding any), seeing the middle
+that is never drawn (waterfalls, previews at many points), and spacing
+and kerning per master.
+
+Foundry's way, Fontra's model with Glyphs' clarity:
+
+1. Axes and masters in the inspector: Weight first, Width later. A master
+   starts as a copy of the one open, so it is compatible from the start.
+   In a pen letter the knots are shared and the pen differs (a Bold is
+   often the same lines, a wider pen); in an outline letter points move
+   but are never added or taken away while masters disagree (refused, not
+   warned about). Advances, sidebearings, anchors and kerning per master.
+2. An axis bar above the board: the masters as stops (a press opens one
+   to edit), the letter interpolated as the slider is dragged, the
+   masters' outlines drawn over each other.
+3. Starting from a variable font (Inter, Hanken Grotesk): helder reads
+   fvar and gvar, the outlines at the axis ends become the masters,
+   compatible as they come.
+4. Export: the encoder writes fvar, gvar, HVAR and STAT (the named
+   instances); static instances as separate fonts too.
+5. Seeing it: the preview strip's own slider and a waterfall (Thin to
+   Black on one screen), drawn by the real variable font through helder's
+   text engine, so what is seen is what ships; a specimen of the named
+   instances.
+6. Agents: axes, masters and instances in font.read; master.add, an
+   axis location on glyph.draw and glyph.read, text.snap at a location.
+7. A check of compatibility letter by letter, and a weight tool for
+   outlines (an offset, then corrected by hand).
+
+Later: intermediate masters of one glyph (brace layers), alternates past
+a point (feature variations, rvrn), avar to bend an axis, axes per glyph.
 
 ## 7. Finishing
 
