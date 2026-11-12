@@ -154,7 +154,7 @@ jobs:
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::notice::not main ($GITHUB_REF): not published"; exit 0; fi
           for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64 win32-arm64; do
             if npm view "@helder.build/$p@$VERSION" version >/dev/null 2>&1; then echo "@helder.build/$p@$VERSION is on npm"; continue; fi
-            npm publish "tgz/helder.build-$p-$VERSION.tgz" --provenance --access public --tag next
+            npm publish "./tgz/helder.build-$p-$VERSION.tgz" --provenance --access public --tag next
           done
           if npm view "helder@$VERSION" version >/dev/null 2>&1; then echo "helder@$VERSION is on npm"; exit 0; fi
-          npm publish "tgz/helder-$VERSION.tgz" --provenance --access public --tag next
+          npm publish "./tgz/helder-$VERSION.tgz" --provenance --access public --tag next
