@@ -63,22 +63,25 @@ class SpriteBox extends helder.ui.Node {
 		if (animate && ui != null) ui.requestFrame();
 		var k = density > 0 ? Math.min(1, density / r.scale) : 1;
 		var pw = Std.int(Math.max(1, Math.round(width * r.scale * k))), ph = Std.int(Math.max(1, Math.round(height * r.scale * k)));
+		var device = r.device, batch = this.batch;
+		this.device = device;
 		if (batch == null) {
-			device = r.device;
-			batch = new SpriteBatch(r.device, RGBA8);
+			batch = this.batch = new SpriteBatch(device, RGBA8);
 			if (onReady != null) onReady(batch);
 		}
-		if (pw != tw || ph != th) {
+		var color = this.color;
+		if (color == null || pw != tw || ph != th) {
 			if (color != null) {
 				retired.push(color);
 				retiredAt.push(records);
 			}
-			color = device.createTexture({width: pw, height: ph, renderTarget: true});
+			color = this.color = device.createTexture({width: pw, height: ph, renderTarget: true});
 			tw = pw;
 			th = ph;
 		}
 		while (retired.length > 0 && records >= retiredAt[0] + 2) {
-			device.destroyTexture(retired.shift());
+			var t = retired.shift();
+			if (t != null) device.destroyTexture(t);
 			retiredAt.shift();
 		}
 		batch.begin(width, height);
@@ -100,6 +103,7 @@ class SpriteBox extends helder.ui.Node {
 	}
 
 	public function dispose() {
+		var device = this.device, color = this.color, batch = this.batch;
 		if (device != null) {
 			if (color != null) device.destroyTexture(color);
 			for (t in retired)
@@ -108,7 +112,7 @@ class SpriteBox extends helder.ui.Node {
 			retiredAt.resize(0);
 			if (batch != null) batch.dispose();
 		}
-		color = null;
-		batch = null;
+		this.color = null;
+		this.batch = null;
 	}
 }

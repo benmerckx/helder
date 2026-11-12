@@ -188,8 +188,11 @@ class QuadBatch {
 
 	// the run (0 to draws()) drawn, once bound
 	public inline function draw(enc:Encoder, run:Int) {
+		// (a local: inlined into a package under Strict null safety, the field isn't narrowed)
+		var b = buffer;
 		if (instanced) {
-			enc.setVertexBuffer(1, buffer, runs[run * 3 + 1] * stride);
+			if (b == null) return;
+			enc.setVertexBuffer(1, b, runs[run * 3 + 1] * stride);
 			enc.drawIndexed(6, runs[run * 3 + 2]);
 		} else enc.drawIndexed(runs[run * 3 + 2] * 6, 1, runs[run * 3 + 1] * 6, 0);
 	}
