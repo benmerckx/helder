@@ -616,7 +616,13 @@ stays the content's: `Ui.titleHit`, which each system's code asks at a
 press, Windows at each WM_NCHITTEST); `env(titlebar-area-x)`, `-y`,
 `-width` and `-height` are the bar's area free of the buttons (the Window
 Controls Overlay's names, bound as the safe area's; without an inset
-title bar the fallback). Tests: `TitlebarArea.test.hx`.
+title bar the fallback). A layout whose top left and top right are
+different bars (a sidebar's, an inspector's) puts one at each end,
+`<WindowControls side="start"/>` and `<WindowControls side="end"/>`: only
+the one at the system's side is drawn (`WindowButtons.side()`, reactive:
+`"start"` on macOS, `"end"` on Windows and Linux, null without an inset
+title bar), which a bar's padding at that end can follow too. Tests:
+`TitlebarArea.test.hx`.
 
 ```haxe
 <Surface title="Studio" titlebar="inset">
@@ -624,6 +630,16 @@ title bar the fallback). Tests: `TitlebarArea.test.hx`.
 		<text>Studio</text><view grow={1}/><WindowControls/>
 	</view>
 </Surface>
+```
+
+```haxe
+<view direction="row">
+	<view tag="sidebar" drag-region><WindowControls side="start"/><text>Project</text></view>
+	<view grow={1}/>
+	<view tag="inspector" drag-region padding-right={WindowButtons.side() == "end" ? 0 : 12}>
+		<text>Inspector</text><view grow={1}/><WindowControls side="end"/>
+	</view>
+</view>
 ```
 
 A value that is a signal, a memo or a function is reactive: the attribute,

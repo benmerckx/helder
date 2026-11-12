@@ -760,11 +760,12 @@ export declare class SafeArea {
 	static resolve(value: string, e: unknown, t?: unknown): string;
 }
 
-// Small controls with their look by slot (Theme's): a slider and a
-// segmented choice.
+// Small controls with their look by slot (Theme's): a slider, a
+// segmented choice, a tooltip.
 //
 //   <Slider label="Weight" value={weight} min={20} max={200} step={1} onChange={weight}/>
 //   <Segmented label="Tool" value={tool} options={[{value: "draw", label: "Draw"}, ...]} onChange={tool}/>
+//   <Tip label="Tracing letter" keys="T"><view:button ...><image src={eye}/></view:button></Tip>
 export declare class Controls {
 	// A number between min and max, shown as a field (its label inside on
 	// the left, its value on the right, the part up to it filled): a press
@@ -776,10 +777,15 @@ export declare class Controls {
 	// a press chooses, the arrow keys move between them. Slots: "seg",
 	// "seg-item" (an icon follows its colour).
 	static Segmented(props: { label: string; value: Read<string>; options: Array<{ value: string; label: string; icon?: Svg; hint?: string }>; onChange: (arg0: string) => void; tag?: string; compact?: boolean }): View;
+	// What a control does, said under it once the pointer rests on it (half
+	// a second), with its shortcut beside it: for a button that shows only an
+	// icon. A press or the pointer leaving hides it. Slots: "tip", "kbd".
+	static Tip(props: { label: string; keys?: string; placement?: string; children?: unknown }): View;
 }
 
 export declare const Slider: typeof Controls.Slider;
 export declare const Segmented: typeof Controls.Segmented;
+export declare const Tip: typeof Controls.Tip;
 
 // A grid of many rows, drawn (a table browser's, a spreadsheet's): only
 // the cells in view are laid out and drawn, their text cut with an
@@ -1145,8 +1151,19 @@ export declare class Theme {
 // window has the system's title bar, in the browser or on a phone. Its
 // colour is the text's (currentColor).
 //   <view direction="row" drag-region><text>Title</text><view grow={1}/><WindowControls/></view>
+// A layout whose top left and top right are different bars (a sidebar's,
+// an inspector's) puts one at each end with its side: only the one where
+// the system puts them is drawn (side(): macOS's at the start, Windows' and
+// Linux's at the end), the other nothing.
+//   <view drag-region><WindowControls side="start"/><text>Project</text></view>
+//   <view drag-region><text>Inspector</text><view grow={1}/><WindowControls side="end"/></view>
 export declare class WindowButtons {
-	static WindowControls(props: { tag?: string }): View;
+	// the side of the window the system puts its buttons: "start" (macOS's,
+	// at the left: env(titlebar-area-x) after them), "end" (Windows', Linux's),
+	// null without an inset title bar (the system's, the browser, a phone).
+	// Reactive, as SafeArea.titlebar: a bar's padding at that end can follow it.
+	static side(): string | null;
+	static WindowControls(props: { tag?: string; side?: string }): View;
 }
 
 export declare const WindowControls: typeof WindowButtons.WindowControls;
