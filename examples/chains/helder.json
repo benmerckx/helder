@@ -1,0 +1,10 @@
+{
+  "$schema": "https://helder.build/schema/helder.json",
+  "name": "Chains",
+  "description": "Chains of balls hanging from a beam, a heavy ball swinging through them. Click to swing it again.",
+  "run": {
+    "name": "helder-chains",
+    "listed": true,
+    "source": "https://github.com/helder/helder/tree/main/examples/chains"
+  }
+}

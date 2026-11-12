@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helder.build/schema/helder.json",
+  "title": "helder.json",
+  "description": "A Helder app's settings, by target, and where each is published (src/helder/cli/HelderJson.hx).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "name": {"type": "string", "description": "The app's name: the page's title, the stores'."},
+    "label": {"type": "string", "description": "The launcher's and home screen's label (else name)."},
+    "description": {"type": "string"},
+    "id": {"type": "string", "description": "Both phones' id, a.b.c (else org.helder.<name>).", "pattern": "^[A-Za-z][A-Za-z0-9_-]*(\\.[A-Za-z][A-Za-z0-9_-]*)+$"},
+    "version": {"type": "string", "description": "The version shown (versionName, CFBundleShortVersionString)."},
+    "build": {"type": "integer", "minimum": 1, "description": "The build number (versionCode, CFBundleVersion)."},
+    "entry": {"type": "string", "description": "What helder builds from this directory: a .hx, .ts or .tsx file (else its main file)."},
+    "icon": {
+      "description": "The icon's file (an SVG, or a PNG of 1024 px), or one for each purpose.",
+      "oneOf": [
+        {"type": "string"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"any": {"type": "string"}, "maskable": {"type": "string"}, "monochrome": {"type": "string"}}
+        }
+      ]
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {"type": "string", "description": "The browser's and the system bars' colour."},
+        "background": {"type": "string", "description": "The splash screen's and the page's background."}
+      }
+    },
+    "splash": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {"type": "string"},
+        "background": {"type": "string"},
+        "dark": {"type": "object", "additionalProperties": false, "properties": {"image": {"type": "string"}, "background": {"type": "string"}}}
+      }
+    },
+    "display": {"enum": ["fullscreen", "standalone", "minimal-ui", "browser"]},
+    "orientation": {"enum": ["any", "natural", "portrait", "portrait-primary", "portrait-secondary", "landscape", "landscape-primary", "landscape-secondary"]},
+    "lang": {"type": "string"},
+    "dir": {"enum": ["ltr", "rtl", "auto"]},
+    "categories": {"type": "array", "items": {"type": "string"}},
+    "fileHandlers": {"type": "array", "description": "The web manifest's file_handlers: the file types the app opens."},
+    "run": {
+      "type": "object",
+      "description": "helder.run: the app at <name>.helder.run (helder publish --run).",
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9]|-(?!-))*[a-z0-9]$", "minLength": 3, "maxLength": 40, "description": "The address (else name, made a slug)."},
+        "listed": {"type": "boolean", "description": "Listed on helder.build/explore (false)."},
+        "kind": {"enum": ["game", "app", "tool"]},
+        "tags": {"type": "array", "maxItems": 5, "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,23}$"}},
+        "source": {"type": "string", "pattern": "^https://", "description": "Where its source is (a GitHub repository's: the page's verified mark)."},
+        "screenshots": {"type": "array", "maxItems": 8, "items": {"type": "string"}, "description": "Images beside helder.json (else one is taken of the program)."}
+      }
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "web": {"$ref": "#/$defs/target"},
+        "windows": {"$ref": "#/$defs/target"},
+        "linux": {"$ref": "#/$defs/target"},
+        "macos": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"publish": {"type": "array", "items": {"enum": ["notarize"]}}, "store": {"$ref": "#/$defs/store"}}
+        },
+        "android": {
+          "type": "object",
+          "properties": {
+            "package": {"type": "string"},
+            "minSdk": {"type": "integer", "minimum": 29},
+            "targetSdk": {"type": "integer"},
+            "permissions": {"type": "array", "items": {"type": "string"}},
+            "key": {"type": "string"},
+            "signing": {"type": "object", "properties": {"certificate": {"type": "string"}, "key": {"type": "string"}}},
+            "serviceAccount": {"type": "string"},
+            "publish": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {"const": "play"},
+                  {
+                    "type": "object",
+                    "required": ["to"],
+                    "additionalProperties": false,
+                    "properties": {"to": {"const": "play"}, "track": {"enum": ["internal", "alpha", "beta", "production"]}, "draft": {"type": "boolean"}}
+                  }
+                ]
+              }
+            },
+            "store": {"$ref": "#/$defs/store"}
+          }
+        },
+        "ios": {
+          "type": "object",
+          "properties": {
+            "bundleId": {"type": "string"},
+            "minVersion": {"type": "string"},
+            "entitlements": {"type": "string"},
+            "signing": {"type": "object", "properties": {"certificate": {"type": "string"}, "key": {"type": "string"}, "profile": {"type": "string"}}},
+            "sdk": {"type": "object"},
+            "nonExemptEncryption": {"type": "boolean"},
+            "privacy": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+            "publish": {"type": "array", "items": {"enum": ["testflight"]}},
+            "store": {"$ref": "#/$defs/store"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "store": {"type": "string", "pattern": "^https://", "description": "The app's page in this target's store (helder.run's page links it)."},
+    "target": {"type": "object", "additionalProperties": false, "properties": {"publish": {"type": "array", "maxItems": 0}, "store": {"$ref": "#/$defs/store"}}}
+  }
+}

@@ -59,16 +59,37 @@ class Manifest {
 	// package.json's "helder" members that are the app's identity (the others, main, name, defines: the build's)
 	public static final LEGACY = ["id", "label", "version", "versionName", "orientation", "fullscreen", "android", "ios"];
 
-	// the manifest's file in a project's directory, null: none
+	// the app's settings' file in a project's directory: helder.json (HelderJson), else helder.webmanifest; null: none
 	public static function find(root:String):Null<String> {
-		var f = root == "." ? FILE : '$root/$FILE';
-		return sys.FileSystem.exists(f) ? f : null;
+		for (name in [HelderJson.FILE, FILE]) {
+			var f = root == "." ? name : '$root/$name';
+			if (sys.FileSystem.exists(f)) return f;
+		}
+		return null;
 	}
 
-	// the file read and parsed (its icons' paths from the project's directory)
+	// the file read and parsed (its icons' paths from the project's directory);
+	// helder.json's as the web manifest it stands for, its run block and destinations beside
 	public static function load(file:String):AppConfig {
 		var text = try sys.io.File.getContent(file) catch (e:Dynamic) throw '$file: $e';
-		return parse(text, FILE);
+		if (!file.endsWith(HelderJson.FILE)) return parse(text, FILE);
+		var h = HelderJson.parse(text);
+		var cfg = parse(haxe.Json.stringify(h.manifest), HelderJson.FILE);
+		cfg.run = h.run;
+		cfg.destinations = h.destinations;
+		cfg.stores = h.stores;
+		cfg.manifest = h.manifest;
+		return cfg;
+	}
+
+	// the web manifest a web build writes for the settings' file (its text),
+	// and the files it names (from the full manifest: the splash's too)
+	public static function web(file:String, cfg:AppConfig):{text:String, files:Array<String>} {
+		if (cfg.manifest == null) {
+			var text = sys.io.File.getContent(file);
+			return {text: text, files: files(text)};
+		}
+		return {text: HelderJson.webText(cfg.manifest), files: files(haxe.Json.stringify(cfg.manifest))};
 	}
 
 	// whether package.json's "helder" key holds the app's identity (the deprecated place)
@@ -284,6 +305,11 @@ typedef AppConfig = {
 	?file_handlers:Array<{?action:String, accept:haxe.DynamicAccess<Array<String>>}>,
 	?android:Dynamic,
 	?ios:Dynamic,
+	// helder.json's: helder.run's block, `helder publish`'s destinations, the stores' pages; the web manifest it stands for
+	?run:Null<HelderJson.RunConfig>,
+	?destinations:Array<HelderJson.Destination>,
+	?stores:haxe.DynamicAccess<String>,
+	?manifest:Dynamic,
 }
 
 typedef IconSpec = {

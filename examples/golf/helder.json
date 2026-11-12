@@ -1,0 +1,23 @@
+{
+  "$schema": "https://helder.build/schema/helder.json",
+  "name": "Floating Greens",
+  "description": "Mini golf on floating islands. Nine short holes: drag back from the ball, let go to shoot.",
+  "id": "build.helder.golf",
+  "version": "1.0",
+  "entry": "Golf.hx",
+  "icon": "icon.svg",
+  "colors": {
+    "theme": "#9fd0ff",
+    "background": "#fbdfea"
+  },
+  "run": {
+    "name": "floating-greens",
+    "listed": true,
+    "kind": "game",
+    "tags": [
+      "golf",
+      "physics"
+    ],
+    "source": "https://github.com/helder/helder/tree/main/examples/golf"
+  }
+}

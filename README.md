@@ -270,10 +270,13 @@ Done as a first slice:
     examples 185-575 ms;
   - conventions over configuration: package.json's `"helder"` key and a
     `helder.hxml` beside it as the overrides; the app's name, icons,
-    colours, splash and native ids in `helder.webmanifest`, a web app
-    manifest served to browsers as it is, with a `"helder"` member for
-    Android's and iOS's own (src/helder/cli/README.md: its icons made for
-    every target at build time); every example built by
+    colours, splash and native ids in `helder.json`, by target, with where
+    `helder publish` sends each (helder.run, Google Play, TestFlight); a
+    web build writes the web app manifest it stands for
+    (`helder.webmanifest`, still read where there is no `helder.json`;
+    `helder migrate` converts it) (src/helder/cli/README.md: its icons made
+    for every target at build time); `helder publish --run` and `helder
+    share` put the web build on helder.run; every example built by
     `helder build <file>` with no flags (the examples lane).
 - **`helder test` and `helder.test`** (src/helder/test/README.md): the
   `*.test.hx` files under `src/`, `tests/` and the class paths, linked into
