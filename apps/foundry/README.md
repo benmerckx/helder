@@ -8,8 +8,8 @@ Foundry's own Pebble, or from an open font traced into pen lines. Agents
 can draw too, over MCP, and make fonts between fonts.
 
 ```sh
-bun run helder dev examples/foundry                   # a window, live-reloaded
-bun run helder build examples/foundry --target web    # bin/web/Foundry.html
+bun run helder dev apps/foundry                       # a window, live-reloaded
+bun run helder build apps/foundry --target web        # bin/web/Foundry.html
 ```
 
 ## Where a font starts

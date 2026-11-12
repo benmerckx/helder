@@ -1,7 +1,7 @@
 import helder.asset.Asset;
 import helder.ui.Svg;
 
-// Lucide's icons (examples/foundry/icons, ISC: LICENSE), those used
+// Lucide's icons (apps/foundry/icons, ISC: LICENSE), those used
 class Icons {
 	public static final pen = load(Asset.embed("icons/pen-tool.svg"));
 	public static final pointer = load(Asset.embed("icons/mouse-pointer-2.svg"));

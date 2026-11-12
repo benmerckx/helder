@@ -141,7 +141,8 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, resources.arsc (icons, the splash theme), DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
 
 `examples/` has a program per folder, `apps/` whole apps (`apps/viewer`:
-an image viewer, apps/viewer/README.md); `tests/Run.hx` has the checks, and
+an image viewer, apps/viewer/README.md; `apps/foundry`: a font editor,
+apps/foundry/README.md); `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
 checkout (bin/cli/helder, rebuilt when its sources change):
 

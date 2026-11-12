@@ -1,7 +1,4 @@
-// title: Foundry
-// summary: Make a font by drawing it: letters as pen lines on guides, one pen for the whole font (weight, contrast, nib angle), letters borrowed from each other (b from d, u from n, é from e), open fonts traced into pen lines to start from, every edit set at once in a real font you type in, exported as a .ttf by helder.text's FontEncoder; agents draw and blend fonts too, over MCP
-// tags: ui, view, text, canvas, app, showcase
-// demo: canvas 1280x800
+// Foundry (apps/foundry/README.md): a font made by drawing it, agents drawing too over MCP
 import helder.ui.actions.Actions;
 import helder.ui.actions.Keymap;
 import helder.ui.draw.UiWindow;
@@ -119,7 +116,7 @@ class Foundry implements Markup {
 		];
 
 	// Hanken Grotesk for the interface, Geist Mono for values, Inter to start
-	// from (examples/foundry/fonts), Pebble's own
+	// from (apps/foundry/fonts), Pebble's own
 	static function fonts() {
 		var f = helder.text.SystemFonts.get();
 		for (b in [
