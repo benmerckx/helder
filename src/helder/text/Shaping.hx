@@ -120,6 +120,53 @@ interface TextBackend {
 	function fallback(cp:Int, ?lang:String):Null<{path:String, index:Int}>;
 	// the system's face of a family closest to weight and italic; null: none
 	function find(family:String, weight:Int, italic:Bool):Null<{path:String, index:Int}>;
+	// how its rasters are blended where the system blends them otherwise
+	// than as plain coverage (Windows' grayscale text: its contrast and
+	// gamma, GlyphBlend); null: as they are
+	function blend():Null<GlyphBlend>;
+}
+
+// Windows' grayscale text blend, as Direct2D draws DirectWrite's coverage
+// (after Windows Terminal's AtlasEngine, MIT, which writes it out): the
+// coverage's contrast enhanced, less for light text (grayscale enhanced
+// contrast, the user's ClearType tuning), then corrected for the text
+// colour's intensity by the gamma's ratios, so that light text on dark is
+// not thinner than dark on light. The renderer's shader applies it to the
+// glyphs the platform drew (AtlasGlyph.native).
+class GlyphBlend {
+	// the four ratios of the alpha correction, the grayscale enhanced contrast
+	public final ratios:Array<Float>;
+	public final contrast:Float;
+
+	public function new(gamma:Float, contrast:Float) {
+		this.contrast = contrast;
+		ratios = GlyphBlend.ratiosOf(gamma);
+	}
+
+	// (Direct2D's table, a row each tenth of gamma 1.0 to 2.2, scaled as Windows Terminal scales it)
+	static final TABLE = [
+		[0.0000, 0.0000, 0.0000, 0.0000], [0.0166, -0.0807, 0.2227, -0.0751], [0.0350, -0.1760, 0.4325, -0.1370], [0.0543, -0.2821, 0.6302, -0.1876],
+		[0.0739, -0.3963, 0.8167, -0.2287], [0.0933, -0.5161, 0.9926, -0.2616], [0.1121, -0.6395, 1.1588, -0.2877], [0.1300, -0.7649, 1.3159, -0.3080],
+		[0.1469, -0.8911, 1.4644, -0.3234], [0.1627, -1.0170, 1.6051, -0.3347], [0.1773, -1.1420, 1.7385, -0.3426], [0.1908, -1.2652, 1.8650, -0.3476],
+		[0.2031, -1.3864, 1.9851, -0.3501]
+	];
+
+	public static function ratiosOf(gamma:Float):Array<Float> {
+		var g = gamma < 1 ? 1.0 : gamma > 2.2 ? 2.2 : gamma;
+		var r = TABLE[Math.round((g - 1) / 0.1)];
+		var n13 = 65536 / (255 * 255) * 4, n24 = 256 / 255 * 4;
+		return [n13 * r[0] / 4, n24 * r[1] / 4, n13 * r[2] / 4, n24 * r[3] / 4];
+	}
+
+	// a coverage a in a colour r, g, b (0 to 1, straight): what is blended
+	// (the shader's, UiShader, the same)
+	public function apply(a:Float, r:Float, g:Float, b:Float):Float {
+		var light = 3 - 4 * (0.30 * r + 0.59 * g + 0.11 * b);
+		var k = contrast * (light < 0 ? 0 : light > 1 ? 1 : light);
+		var f = 0.25 * r + 0.5 * g + 0.25 * b;
+		a = a * (k + 1) / (a * k + 1);
+		return a + a * (1 - a) * ((ratios[0] * f + ratios[1]) * a + (ratios[2] * f + ratios[3]));
+	}
 }
 
 // A shaped run's glyphs (kept for the next run: its columns grow)

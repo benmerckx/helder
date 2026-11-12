@@ -227,7 +227,10 @@ class GlyphAtlas {
 		var sx = spot & 0xFFFF, sy = spot >>> 16;
 		write(pad, blur, pixels, sy * width + sx, width);
 		touch(sx, sy, w, h);
-		return new AtlasGlyph(sx, sy, w, h, bleft - pad, btop - pad);
+		var g = new AtlasGlyph(sx, sy, w, h, bleft - pad, btop - pad);
+		// (the platform's raster, sharp: blended as the platform blends it, Shaping.GlyphBlend)
+		if (drawn == 2 && pad == 0) g.blend = Shaping.backendFor(font)?.blend();
+		return g;
 	}
 
 	// (the glyph drawn: its coverage in raster's bitmap (drawn 1) or native's
@@ -376,6 +379,9 @@ class AtlasGlyph {
 	public final h:Int;
 	public final left:Int;
 	public final top:Int;
+	// how it is blended, drawn by the platform (Windows' DirectWrite: its
+	// contrast and gamma); null: its coverage as it is
+	public var blend:Null<Shaping.GlyphBlend> = null;
 	// (its face and key there, the last frame that drew it: a repack's)
 	var face:Null<Face> = null;
 	var key = 0;

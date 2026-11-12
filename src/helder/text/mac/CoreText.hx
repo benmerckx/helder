@@ -33,6 +33,9 @@ class CoreText implements TextBackend {
 
 	function new() {}
 
+	public function blend():Null<GlyphBlend>
+		return null;
+
 	public function name():String
 		return "Core Text";
 
