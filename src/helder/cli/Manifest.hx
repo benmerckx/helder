@@ -26,7 +26,8 @@ using StringTools;
 //       "version": "1.2", "build": 3,      versionName and versionCode, CFBundleShortVersionString and CFBundleVersion (1.0, 1)
 //       "id": "org.example.game",          both platforms' id (else org.helder.<name>)
 //       "android": {"package": "org.example.game", "minSdk": 29, "targetSdk": 36, "permissions": ["VIBRATE"], "key": "<file>",
-//                   "signing": {"certificate": "<pem>", "key": "<pem>"}},
+//                   "signing": {"certificate": "<pem>", "key": "<pem>"},
+//                   "adaptiveIcon": {"foreground": "fg.svg", "background": "bg.svg", "monochrome": "mono.svg"}},
 //       "ios": {"bundleId": "org.example.game", "minVersion": "15.0", "entitlements": "<file>",
 //               "signing": {"certificate": "<pem>", "key": "<pem>", "profile": "<.mobileprovision>"},
 //               "sdk": {"version": "26.0", "build": "23A339", "xcode": "2600", "xcodeBuild": "17A324", "machine": "25A354"},
@@ -51,7 +52,7 @@ class Manifest {
 	];
 	static final PURPOSE = ["any", "maskable", "monochrome"];
 	static final HELDER = ["version", "build", "id", "android", "ios", "splash"];
-	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount"];
+	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount", "adaptiveIcon"];
 	static final IOS = ["bundleId", "minVersion", "entitlements", "signing", "sdk", "nonExemptEncryption", "privacy"];
 	static final SIGNING = ["certificate", "key", "profile"];
 	public static final SDK = ["version", "build", "xcode", "xcodeBuild", "machine"];
@@ -155,6 +156,13 @@ class Manifest {
 		var min = str(i, "minVersion", '"helder": {"ios": {"minVersion"}}');
 		if (min != null && !~/^[0-9]+\.[0-9]+$/.match(min)) throw '$where: "helder": {"ios": {"minVersion": "$min"}}: a version, major.minor (15.0)';
 		var signing:Dynamic = i.signing, sdk:Dynamic = i.sdk, privacy:Dynamic = i.privacy, release:Dynamic = a.signing;
+		// (the launcher's adaptive icon as layers of its own, each a full 108 dp layer: Android.resources)
+		var adaptive:Dynamic = a.adaptiveIcon;
+		if (adaptive != null) {
+			known(adaptive, ["foreground", "background", "monochrome"], '"helder": {"android": {"adaptiveIcon"}}');
+			for (k in ["foreground", "background", "monochrome"]) str(adaptive, k, '"helder": {"android": {"adaptiveIcon": {"$k"}}}');
+			if (adaptive.foreground == null) throw '$where: "helder": {"android": {"adaptiveIcon"}}: its foreground (a file) is needed';
+		}
 		if (release != null) {
 			known(release, ["certificate", "key"], '"helder": {"android": {"signing"}}');
 			for (k in ["certificate", "key"]) str(release, k, '"helder": {"android": {"signing": {"$k"}}}');
@@ -223,7 +231,8 @@ class Manifest {
 				targetSdk: targetSdk,
 				key: str(a, "key", '"helder": {"android": {"key"}}'),
 				signing: release,
-				serviceAccount: str(a, "serviceAccount", '"helder": {"android": {"serviceAccount"}}')
+				serviceAccount: str(a, "serviceAccount", '"helder": {"android": {"serviceAccount"}}'),
+				adaptiveIcon: adaptive
 			},
 			ios: {
 				id: bundle,

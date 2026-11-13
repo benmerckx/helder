@@ -337,7 +337,11 @@ browser extensions and PWA tools each claim.
   foreground the maskable icon (its 80% safe zone on the layer's 66 dp),
   else the icon of any purpose inside the safe zone, 108 dp at xxxhdpi;
   its background `background_color`; a monochrome layer (Android 13's
-  themed icons) from a monochrome icon. The activity's theme
+  themed icons) from a monochrome icon. Or the app's own layers,
+  `targets.android.adaptiveIcon` (`{"foreground", "background",
+  "monochrome"}`: each a full 108 dp layer, its safe zone the middle 66
+  dp, drawn whole; the background a picture, a gradient or clouds, not
+  only a colour). The activity's theme
   `Theme.Helder` (the framework's it had as its parent): the splash's
   colour as `windowSplashScreenBackground` (Android 12's SplashScreen) and
   `windowBackground` (before it, and Android 10 and 11), the splash image

@@ -28,7 +28,7 @@ using StringTools;
 //       "screenshots": ["shots/1.png"]     (an override; else the stories with store: true, else one of the program)
 //     },
 //     "targets": {
-//       "android": {"package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount",
+//       "android": {"package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount", "adaptiveIcon",
 //                   "publish": ["play"] or [{"to": "play", "track": "internal"}], "store": "<url>"},
 //       "ios": {"bundleId", "minVersion", "entitlements", "signing", "sdk", "nonExemptEncryption", "privacy",
 //               "publish": ["testflight"], "store": "<url>"},
