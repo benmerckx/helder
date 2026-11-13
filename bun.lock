@@ -30,9 +30,15 @@
 
     "@hxmc/darwin-x64": ["@hxmc/darwin-x64@0.1.0-nightly.20261113.420630f", "", { "os": "darwin", "cpu": "x64" }, "sha512-PY0wsqEikHLJ4GVs3eOkWGgV/HeeF3+Dp4TJ2qhQCf1zzUrZoKLpewpf/Mf/sF9IB1mYQyg2//EFX1G8qL/zkQ=="],
 
+    "@hxmc/linux-arm64": ["@hxmc/linux-arm64@0.1.0-nightly.20261113.420630f", "", { "os": "linux", "cpu": "arm64" }, "sha512-usDaRfMBHX5W+NfgjIDCo1+92U69JddGT6LxqZQfg95bN7edm3/LSovUsxi7YBWYDosIocKrALkwofGAEvpoYw=="],
+
+    "@hxmc/linux-x64": ["@hxmc/linux-x64@0.1.0-nightly.20261113.420630f", "", { "os": "linux", "cpu": "x64" }, "sha512-TpbKWNF/HtgYssnc2DWoZ8zM8jqv7ll+XbY8s2fZKRqYVKKIQ4qOj4nwGWwrVdHYuEEFS7w8KBOq4AlDQu2Tsg=="],
+
     "@hxmc/source": ["@hxmc/source@0.1.0-nightly.20261113.420630f", "", { "peerDependencies": { "@hxmc/cli": "0.1.0-nightly.20261113.420630f" }, "bin": { "hxmc-rebuild": "hxmc/bootstrap/hxmc-rebuild" } }, "sha512-TGA0T6AFGAADXE24qs5wBihwPfBhwR8lPGUsNohIWDFWyGPyDS1OzxgTIk1NFYwLHQ3wV5bsedIfHEOEF6/NMQ=="],
 
     "@hxmc/win32-arm64": ["@hxmc/win32-arm64@0.1.0-nightly.20261113.420630f", "", { "os": "win32", "cpu": "arm64" }, "sha512-WnPgGMUnX/6LhTUEAlrVW374Q7IDgW/cK+KM34Sy0AC7OCX2OJrofoyOGT9Ia/Mc0EUu0qC4gBgEl3P+HJk3pQ=="],
+
+    "@hxmc/win32-x64": ["@hxmc/win32-x64@0.1.0-nightly.20261113.420630f", "", { "os": "win32", "cpu": "x64" }, "sha512-OOxFkxilaaLEjlxS8LeLQOH3C4Du/wluDTJEIt1z9vt5S76pFs6MoRqcr1AHzJDKje/1ztx06SgdN88hQfHpiw=="],
 
     "@typescript/typescript-darwin-arm64": ["@typescript/typescript-darwin-arm64@7.1.0-dev.20261106.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Rr7/4UP4xfSesZjcDI1oxuJTEbYRgVsli0afgBL5UlmBFHRjWr4UdfsXIGEann/VEXDXzba0kwFEIy657XIDXA=="],
 
