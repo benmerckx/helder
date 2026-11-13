@@ -137,7 +137,7 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 	const f0 = mix(mix(vec3(0.04), base, metallic), vec3(0.12), crystal);
 	const sunUp = dot(up, l);
 	const day = mix(1.0, smoothstep(-0.08, 0.22, sunUp), material.ground.x);
-	let direct = brdf(n, v, l, base, metallic, a2, f0).mul(frame.lightColor.xyz).mul(shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day);
+	let direct = brdf(n, v, l, base, metallic, a2, f0).mul(frame.lightColor.xyz).mul(shadowed(frame, shadowMap, shadowMapFar, world, n) * day);
 	direct = direct.add(point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
 		.add(point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1))
 		.add(point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2))
@@ -175,7 +175,7 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 		const cr = clamp(material.layers.y, 0.04, 1);
 		const ca = cr * cr;
 		const fc = (0.04 + 0.96 * pow(1 - nv, 5)) * coat;
-		const lit = shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day;
+		const lit = shadowed(frame, shadowMap, shadowMapFar, world, n) * day;
 		const layer = coatLobe(n, v, l, ca * ca).mul(frame.lightColor.xyz).mul(lit * coat).add(reflected(frame, environmentMap, r, cr).mul(fc));
 		direct = direct.mul(1 - fc);
 		ambient = ambient.mul(1 - fc).add(layer);
@@ -283,20 +283,21 @@ function point(n: Vec3, v: Vec3, world: Vec3, base: Vec3, metallic: number, a2: 
 	return result;
 }
 
-// the direct light's share at a point (1: lit) from the shadow maps
-function shadowed(frame: PbrFrame, map: Texture2D, far: Texture2D, world: Vec3, nl: number): number {
+// the direct light's share at a point (1: lit) from the shadow maps (n: the surface's unit normal)
+function shadowed(frame: PbrFrame, map: Texture2D, far: Texture2D, world: Vec3, n: Vec3): number {
 	const strength = frame.shadow.x;
 	let result = 1.0;
 	if (strength > 0) {
-		let lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, nl);
-		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, nl);
+		const nl = max(dot(n, frame.lightDir.xyz), 0);
+		let lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, n, nl);
+		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, n, nl);
 		if (lit >= 0) result = 1 - strength * (1 - lit);
 	}
 	return result;
 }
 
 // a cascade's lit share (0 to 1) at a point, or -1 where its map does not reach
-function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, soft: Vec4, deep: number, world: Vec3, nl: number): number {
+function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, soft: Vec4, deep: number, world: Vec3, n: Vec3, nl: number): number {
 	let result = -1.0;
 	const ls = viewProj.mul(vec4(world, 1));
 	const p = ls.xyz.div(ls.w);
@@ -304,7 +305,7 @@ function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, soft: Vec4, deep:
 	if (uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1 && p.z < 1) {
 		const depth = p.z - params.y * (1 + 2 * (1 - nl));
 		const t = params.z;
-		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, nl);
+		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, plane(viewProj, n, deep));
 		else
 			result = (tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
 				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
@@ -318,10 +319,27 @@ function tap(map: Texture2D, uv: Vec2, depth: number, dx: number, dy: number): n
 	return step(depth, sampleLevel(map, uv.add(vec2(dx, dy)), 0).x);
 }
 
+// how the depth of the surface's plane changes across the map, a uv (PbrShader.hx's plane)
+function plane(viewProj: Mat4, n: Vec3, deep: number): Vec2 {
+	const t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
+	const t2 = cross(n, t1);
+	const a = viewProj.mul(vec4(t1, 0)).xyz;
+	const b = viewProj.mul(vec4(t2, 0)).xyz;
+	const au = vec2(a.x * 0.5, -a.y * 0.5);
+	const bu = vec2(b.x * 0.5, -b.y * 0.5);
+	const det = au.x * bu.y - au.y * bu.x;
+	let g = vec2(0);
+	if (abs(det) > 0.000001) g = vec2(a.z * bu.y - b.z * au.y, au.x * b.z - bu.x * a.z).div(det);
+	const most = deep * 4;
+	const len = length(g);
+	if (len > most) g = g.mul(most / len);
+	return g;
+}
+
 // the soft filter's lit share (Shadows.soft; PbrShader.hx's softly)
-function softly(map: Texture2D, uv: Vec2, depth: number, widest: number, texel: number, soft: Vec4, deep: number, nl: number): number {
+function softly(map: Texture2D, uv: Vec2, depth: number, widest: number, texel: number, soft: Vec4, deep: number, g: Vec2): number {
 	const n = soft.x;
-	const slope = deep * min(sqrt(max(1 - nl * nl, 0)) / max(nl, 0.05), 4);
+	const margin = depth - length(g) * texel;
 	const cell = fract(floor(uv.div(texel)).div(64)).mul(64);
 	const h = fract(52.9829189 * fract(dot(cell, vec2(0.06711056, 0.00583715))));
 	const t = 2 * fract(2 * h) - 1;
@@ -337,16 +355,17 @@ function softly(map: Texture2D, uv: Vec2, depth: number, widest: number, texel: 
 		let found = 0.0;
 		let k = 0.0;
 		while (k < m) {
-			const at = sqrt((k + 0.5) / m) * widest;
-			const d = sampleLevel(map, uv.add(dir.mul(at)), 0).x;
-			if (d < depth - (at + texel) * slope) {
-				sum += d;
+			const off = dir.mul(sqrt((k + 0.5) / m) * widest);
+			const d = sampleLevel(map, uv.add(off), 0).x;
+			const at = dot(g, off);
+			if (d < margin + at) {
+				sum += margin + at - d;
 				found += 1;
 			}
 			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
 			k += 1;
 		}
-		if (found > 0) radius = clamp((depth - sum / found) * soft.w / max(deep, 0.0001), texel * 1.5, widest);
+		if (found > 0) radius = clamp(sum / found * soft.w / max(deep, 0.0001), texel * 1.5, widest);
 		else lit = 1;
 	}
 	if (lit < 0) {
@@ -354,8 +373,8 @@ function softly(map: Texture2D, uv: Vec2, depth: number, widest: number, texel: 
 		let sum = 0.0;
 		let k = 0.0;
 		while (k < n) {
-			const at = sqrt((k + 0.5) / n) * radius;
-			sum += step(depth - (at + texel) * slope, sampleLevel(map, uv.add(dir.mul(at)), 0).x);
+			const off = dir.mul(sqrt((k + 0.5) / n) * radius);
+			sum += step(margin + dot(g, off), sampleLevel(map, uv.add(off), 0).x);
 			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
 			k += 1;
 		}

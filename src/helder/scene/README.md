@@ -210,7 +210,7 @@ frame (`sceneDraws`, `shadowDraws`, `postDraws` beside `draws` and
 
 ```
 HELDER_CONTROLS=none GOLF_DEMO=8 bun run helder run examples/golf --headless --stats bin/golf-stats.json --at 4
-headless: 3D draws by pass: main 17 (at most 18), shadow maps 17 (at most 17), post 8 (at most 8)
+headless: 3D draws by pass: main 17 (at most 18), shadow maps 17 (at most 17), post 12 (at most 12)
 ```
 
 Nodes drawing one primitive are one instanced draw whatever their scale
@@ -285,8 +285,12 @@ shadows are opted in with `.soft(radius, samples, spread)`: a disc of
 texel; with a `spread` a blocker search first (half as many taps), the
 penumbra widening by `spread` a metre from its caster up to the radius,
 so a shadow is sharp where it meets what casts it (PCSS); `spread` 0, the
-radius everywhere (tests/3d's `softshadows` frame; `shadows` and
-`cascades` keep the 3x3 filter). `Shapes.box`, `sphere` and
+radius everywhere. Each tap is compared with the surface's own depth there
+(its plane as the light sees it), so a far smaller `bias` than the 3x3
+filter's keeps tilted surfaces from shadowing themselves, and low casters
+(a rail on a green) still cast: examples/golf uses `bias = 0.001` with one
+2048 map (tests/3d's `softshadows` frame; `shadows` and `cascades` keep
+the 3x3 filter). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need
 `renderer.use(new Skinning(device))`; materials' normal maps need
 `renderer.use(new NormalMaps(device))`, made before the models load (they

@@ -265,7 +265,7 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 	// across the terminator as the planet's own light is)
 	var sunUp = dot(up, l);
 	var day = mix(1.0, smoothstep(-0.08, 0.22, sunUp), material.ground.x);
-	var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * (shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day);
+	var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * (shadowed(frame, shadowMap, shadowMapFar, world, n) * day);
 	direct += point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
 		+ point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
 		+ point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
@@ -317,7 +317,7 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 		var cr = clamp(material.layers.y, 0.04, 1);
 		var ca = cr * cr;
 		var fc = (0.04 + 0.96 * pow(1 - nv, 5)) * coat;
-		var lit = shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day;
+		var lit = shadowed(frame, shadowMap, shadowMapFar, world, n) * day;
 		var layer = coatLobe(n, v, l, ca * ca) * frame.lightColor.xyz * (lit * coat) + reflected(frame, environmentMap, r, cr) * fc;
 		direct = direct * (1 - fc);
 		ambient = ambient * (1 - fc) + layer;
@@ -454,13 +454,14 @@ function point(n:Vec3, v:Vec3, world:Vec3, base:Vec3, metallic:Float, a2:Float, 
 // the direct light's share at a point (1: lit) from the shadow maps: the
 // first cascade's where it reaches, else the second's; a 3x3
 // percentage-closer filter, or the soft one (Shadows.soft); 1 outside
-// them or without shadows
-function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, nl:Float):Float {
+// them or without shadows (n: the surface's unit normal)
+function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, n:Vec3):Float {
 	var strength = frame.shadow.x;
 	var result = 1.0;
 	if (strength > 0) {
-		var lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, nl);
-		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, nl);
+		var nl = max(dot(n, frame.lightDir.xyz), 0);
+		var lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, n, nl);
+		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, n, nl);
 		if (lit >= 0) result = 1 - strength * (1 - lit);
 	}
 	return result;
@@ -470,7 +471,7 @@ function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, nl:F
 // reach (params: y the bias, z a texel of the map, w the soft filter's
 // widest radius in its uv; soft and deep: shadowSoft's, this map's depth
 // a uv)
-function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, soft:Vec4, deep:Float, world:Vec3, nl:Float):Float {
+function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, soft:Vec4, deep:Float, world:Vec3, n:Vec3, nl:Float):Float {
 	var result = -1.0;
 	var ls = viewProj * vec4(world, 1);
 	var p = ls.xyz / ls.w;
@@ -479,7 +480,7 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, soft:Vec4, deep:Floa
 		// (more bias where the light grazes the surface)
 		var depth = p.z - params.y * (1 + 2 * (1 - nl));
 		var t = params.z;
-		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, nl);
+		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, plane(viewProj, n, deep));
 		else
 			result = (tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
 				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
@@ -492,19 +493,41 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, soft:Vec4, deep:Floa
 function tap(map:Texture2D, uv:Vec2, depth:Float, dx:Float, dy:Float):Float
 	return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
 
+// how the depth of the surface's plane (unit normal n) changes across the
+// map, a uv (an orthographic light's viewProj: two directions along the
+// plane, their change of uv and depth, solved for it), its length at most
+// four times deep (the plane seen from the light at a slant of 76 degrees:
+// past it, no surface that is lit much)
+function plane(viewProj:Mat4, n:Vec3, deep:Float):Vec2 {
+	var t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
+	var t2 = cross(n, t1);
+	var a = (viewProj * vec4(t1, 0)).xyz;
+	var b = (viewProj * vec4(t2, 0)).xyz;
+	var au = vec2(a.x * 0.5, -a.y * 0.5);
+	var bu = vec2(b.x * 0.5, -b.y * 0.5);
+	var det = au.x * bu.y - au.y * bu.x;
+	var g = vec2(0);
+	if (abs(det) > 0.000001) g = vec2(a.z * bu.y - b.z * au.y, au.x * b.z - bu.x * a.z) / det;
+	var most = deep * 4;
+	var len = length(g);
+	if (len > most) g = g * (most / len);
+	return g;
+}
+
 // the soft filter's lit share (Shadows.soft): soft.x taps on a golden-angle
 // spiral (Vogel's disc) out to a radius, turned at each of the map's
 // texels by interleaved gradient noise (of the whole texel modulo 64,
-// exact in floats: the same turn on every GPU); with a spread (soft.w), first a blocker
-// search over the widest radius with half as many taps, the radius then
-// the penumbra's at the blockers' mean distance (PCSS: sharp where the
-// shadow meets its caster, softer away from it), a texel and a half at
-// least; none found: lit. Each tap's depth lowered by the surface's slope
-// across its distance and a texel more (the nearest texel's reach; deep:
-// this map's depth a uv), so a tilted surface does not shadow itself
-function softly(map:Texture2D, uv:Vec2, depth:Float, widest:Float, texel:Float, soft:Vec4, deep:Float, nl:Float):Float {
+// exact in floats: the same turn on every GPU); with a spread (soft.w),
+// first a blocker search over the widest radius with half as many taps,
+// the radius then the penumbra's at the blockers' mean distance (PCSS:
+// sharp where the shadow meets its caster, softer away from it), a texel
+// and a half at least; none found: lit. Each tap compared with the
+// surface's own depth there (its plane in the light's view, g: plane),
+// less a texel's change of it (the nearest texel's reach), so a tilted
+// surface does not shadow itself and what stands on it still does
+function softly(map:Texture2D, uv:Vec2, depth:Float, widest:Float, texel:Float, soft:Vec4, deep:Float, g:Vec2):Float {
 	var n = soft.x;
-	var slope = deep * min(sqrt(max(1 - nl * nl, 0)) / max(nl, 0.05), 4);
+	var margin = depth;
 	var cell = fract(floor(uv / texel) / 64) * 64;
 	var h = fract(52.9829189 * fract(dot(cell, vec2(0.06711056, 0.00583715))));
 	// (the turn without trigonometry, whose precision GPUs differ in: a half
@@ -523,16 +546,18 @@ function softly(map:Texture2D, uv:Vec2, depth:Float, widest:Float, texel:Float, 
 		var found = 0.0;
 		var k = 0.0;
 		while (k < m) {
-			var at = sqrt((k + 0.5) / m) * widest;
-			var d = sampleLevel(map, uv + dir * at, 0).x;
-			if (d < depth - (at + texel) * slope) {
-				sum += d;
+			var off = dir * (sqrt((k + 0.5) / m) * widest);
+			var d = sampleLevel(map, uv + off, 0).x;
+			var at = dot(g, off);
+			if (d < margin + at) {
+				// (the blocker's distance above the surface there)
+				sum += margin + at - d;
 				found += 1;
 			}
 			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
 			k += 1;
 		}
-		if (found > 0) radius = clamp((depth - sum / found) * soft.w / max(deep, 0.0001), texel * 1.5, widest);
+		if (found > 0) radius = clamp(sum / found * soft.w / max(deep, 0.0001), texel * 1.5, widest);
 		else lit = 1;
 	}
 	if (lit < 0) {
@@ -540,8 +565,8 @@ function softly(map:Texture2D, uv:Vec2, depth:Float, widest:Float, texel:Float, 
 		var sum = 0.0;
 		var k = 0.0;
 		while (k < n) {
-			var at = sqrt((k + 0.5) / n) * radius;
-			sum += step(depth - (at + texel) * slope, sampleLevel(map, uv + dir * at, 0).x);
+			var off = dir * (sqrt((k + 0.5) / n) * radius);
+			sum += step(margin + dot(g, off), sampleLevel(map, uv + off, 0).x);
 			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
 			k += 1;
 		}
