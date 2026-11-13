@@ -871,6 +871,9 @@ class Renderer implements Canvas {
 	// (under a transform: scaled pixels, gy whole on the target's grid less
 	// the translation's fraction, which the glyph is moved back by); one too
 	// large for it, or that did not fit this frame, an image of its own
+	// (the glyph quad's blend: the platform's, its coverage's contrast and gamma)
+	var blend:Null<helder.text.Shaping.GlyphBlend> = null;
+
 	inline function glyph(f:helder.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool, sigma = 0.0) {
 		// (aligned: the subpixel offset on the target's grid, as the transform moves it;
 		// the pen floored to CoreGraphics' step for its ppem, as CoreText places it;
@@ -898,9 +901,11 @@ class Renderer implements Canvas {
 			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h)) {
 				qr0 = qr1 = qr2 = qr3 = qw0 = qw1 = qw2 = qw3 = 0;
 				stretched = k != 1;
+				blend = a.blend;
 				quad(qx, qy, qx + a.w * k, qy + a.h * k, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color,
 					0, 1, 0, 0, 0);
 				stretched = false;
+				blend = null;
 			}
 		}
 	}
@@ -1058,10 +1063,19 @@ class Renderer implements Canvas {
 		b.setFloat(o + 84, fill.g / 255 * fa);
 		b.setFloat(o + 88, fill.b / 255 * fa);
 		b.setFloat(o + 92, fa);
-		b.setFloat(o + 96, border.r / 255 * ba);
-		b.setFloat(o + 100, border.g / 255 * ba);
-		b.setFloat(o + 104, border.b / 255 * ba);
-		b.setFloat(o + 108, ba);
+		// (a glyph blended as the platform blends it: the gamma's ratios where a border's colour is, its contrast in params.w)
+		var gb = mode == 1 ? blend : null;
+		if (gb != null) {
+			b.setFloat(o + 96, gb.ratios[0]);
+			b.setFloat(o + 100, gb.ratios[1]);
+			b.setFloat(o + 104, gb.ratios[2]);
+			b.setFloat(o + 108, gb.ratios[3]);
+		} else {
+			b.setFloat(o + 96, border.r / 255 * ba);
+			b.setFloat(o + 100, border.g / 255 * ba);
+			b.setFloat(o + 104, border.b / 255 * ba);
+			b.setFloat(o + 108, ba);
+		}
 		b.setFloat(o + 112, qr0);
 		b.setFloat(o + 116, qr1);
 		b.setFloat(o + 120, qr2);
@@ -1073,7 +1087,7 @@ class Renderer implements Canvas {
 		b.setFloat(o + 144, mode);
 		b.setFloat(o + 148, blur);
 		b.setFloat(o + 152, filtered);
-		b.setFloat(o + 156, 0);
+		b.setFloat(o + 156, gb != null ? 1 + gb.contrast : 0);
 		b.setFloat(o + 160, clipX0);
 		b.setFloat(o + 164, clipY0);
 		b.setFloat(o + 168, clipX1);

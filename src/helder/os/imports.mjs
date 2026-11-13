@@ -5,8 +5,10 @@
 //
 // A canvas's drawing buffer follows its displayed size in device pixels,
 // seen by a ResizeObserver and applied before the next frame (a Resize
-// event); a canvas the page does not size is given the window's size in CSS
-// pixels, or for a window of 0 x 0 fills the page (one made) or its box. Events are
+// event); a canvas the program makes fills the page (the page is the
+// program's: a window's own size is a desktop's); a canvas the page gives and
+// does not size is given the window's size in CSS pixels, or for a window of
+// 0 x 0 fills its box. Events are
 // queued as they come and polled at the start of the next frame, as the
 // native loops poll theirs: keys (as X11 KeySyms, Event.key) once the canvas
 // has the focus (a click gives it), the mouse over the canvas in buffer
@@ -537,8 +539,10 @@ export default function (host) {
 			// sized, kept by hxmc dev: as it is, its pixels too, when its size
 			// is the window's)
 			const kept = !made && c.hxmcKeepStyled === true;
-			// (0 x 0: the page filled, a canvas made; a canvas given, its box, unless the page sizes it)
-			const fill = width === 0 && height === 0;
+			// (a canvas made: the page filled, whatever size the window asked
+			// for, as the page is the program's; 0 x 0 with a canvas given: its
+			// box, unless the page sizes it)
+			const fill = made || (width === 0 && height === 0);
 			if (fill) {
 				if (made) c.style.cssText = 'display:block;position:fixed;inset:0;width:100%;height:100%';
 				else {

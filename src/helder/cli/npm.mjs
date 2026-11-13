@@ -105,7 +105,7 @@ dependency of the same version), which runs it: \`npx helder\`.
   executable: the GPL compiler is not linked into the MIT CLI. Its sources:
   - hxmc's at ${hxmcCommit}: https://github.com/benmerckx/hxmc/tree/${hxmcCommit}
     (npm: @hxmc/source@${hxmc.version});
-  - helder's at ${commit.slice(0, 7)}: https://github.com/benmerckx/helder/tree/${commit}/src
+  - helder's at ${commit.slice(0, 7)}: https://github.com/helder/helder/tree/${commit}/src
     (src/helder/compiler, built by src/helder/compiler/build.mjs).
 
 Both link hxmc's runtime: libuv (LICENSE.libuv) and Mbed TLS (LICENSE.mbedtls).

@@ -15,7 +15,8 @@ import helder.gfx.shader.ShaderMath.*;
 // inner edge a rectangle with rounded corners too (mode 0); or a glyph, the
 // atlas's coverage of the colour, read filtered (params.z: where a
 // transform turns it) or at its texels' centres (widths.xy: the atlas's
-// size) (mode 1); or an image, its texels (premultiplied) times the
+// size), the platform's glyphs blended as it blends them (helder.text's
+// GlyphBlend: Windows' contrast and gamma) (mode 1); or an image, its texels (premultiplied) times the
 // colour's alpha, its corners rounded as a rectangle's, read clamped to its
 // texels' centres (widths: an atlas page's part that is the image's) (mode
 // 2); or a shadow, the rectangle blurred by a Gaussian (its standard
@@ -43,7 +44,7 @@ import helder.gfx.shader.ShaderMath.*;
 	var border:Vec4; // the border's colour (premultiplied)
 	var radii:Vec4; // the corners' radii
 	var widths:Vec4; // the border's sides
-	var params:Vec4; // x: mode, y: blur, z: the texture (mode 1: filtered, mode 2: its slot)
+	var params:Vec4; // x: mode, y: blur, z: the texture (mode 1: filtered, mode 2: its slot), w: a glyph's blend (1 + its contrast; its gamma's ratios: border)
 	var clip:Vec4; // the clip: x0, y0, x1, y1 in target pixels
 	var clipRadii:Vec4; // its corners' radii
 }
@@ -172,7 +173,17 @@ final UiShader = shader({
 		if (mode > 0.5) {
 			var size = i.widths.xy;
 			var uv = i.params.z > 0.5 ? i.uv : (floor(i.uv * size) + vec2(0.5, 0.5)) / size;
-			return i.color * sample(p.atlas, uv).x * clipped;
+			var a = sample(p.atlas, uv).x;
+			if (i.params.w > 0.5) {
+				// (the platform's blend, Shaping.GlyphBlend: its contrast, less for light text, then its gamma's correction for the colour)
+				var fg = i.color.xyz / max(i.color.w, 0.0001);
+				var k = (i.params.w - 1) * clamp(3 - 4 * dot(fg, vec3(0.30, 0.59, 0.11)), 0, 1);
+				var f = dot(fg, vec3(0.25, 0.5, 0.25));
+				var g = i.border;
+				a = a * (k + 1) / (a * k + 1);
+				a = a + a * (1 - a) * ((g.x * f + g.y) * a + (g.z * f + g.w));
+			}
+			return i.color * a * clipped;
 		}
 		var d = box(i.local, i.half, i.radii);
 		var edge = clamp(0.5 - d, 0, 1);

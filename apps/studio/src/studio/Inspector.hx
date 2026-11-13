@@ -5,6 +5,7 @@ import helder.ui.gesture.Gesture;
 import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
+import helder.ui.widgets.WindowButtons.WindowControls;
 import studio.Theme.c;
 
 using StringTools;
@@ -20,16 +21,21 @@ using StringTools;
 class Inspector implements Markup {
 	// the desktop's panel at the right (compact: its sheet): what is selected, its sections; else
 	// the frame in focus, else the project
-	public static function card(studio:Studio):View
+	// (top: the window's top right; its buttons there where the app draws them, Shell.controlsRight)
+	public static function card(studio:Studio, top = false):View {
+		var controls = () -> top && Shell.controlsRight();
 		return <view tag="inspector" grow={1} min-height={0}>
-			<view tag="inspector-head" direction="row" align-items="center" column-gap={6} height={Theme.HEADER} padding={'0 ${Theme.PAD}'} shrink={0}>
+			<view tag="inspector-head" direction="row" align-items="center" column-gap={6} height={Theme.HEADER} drag-region={top}
+				padding={'0 ${controls() ? 0 : Theme.PAD} 0 ${Theme.PAD}'} shrink={0}>
 				<image src={headIcon(studio)} width={Theme.ICON_S} height={Theme.ICON_S} color={c("accent-ink")} shrink={0}/>
 				<text tag="inspector-title" font-weight={Theme.MEDIUM} shrink={1} min-width={0} max-lines={1} text-overflow="ellipsis">{title(studio)}</text>
 				<view grow={1}/>
 				<text tag="inspector-source" font-family={studio.selection() != null ? Theme.CODE : Theme.UI} font-size={Theme.SMALL} color={c("fg3")} shrink={0} max-lines={1}>{subtitle(studio)}</text>
+				{top ? <WindowControls side="end"/> : null}
 			</view>
 			<scroll grow={1} min-height={0}>{fields(studio)}</scroll>
 		</view>;
+	}
 
 	static function headIcon(studio:Studio):helder.ui.Svg {
 		var s = studio.selection(), f = studio.focused(), frame = f == null ? null : studio.project?.screen(f);

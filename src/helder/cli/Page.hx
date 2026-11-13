@@ -82,13 +82,14 @@ class Page {
 			.replace("{{style}}", app?.style ?? "")
 			.replace("{{splash}}", app?.splash ?? "")
 			.replace("{{preload}}", [for (u in imports.concat([browser])) '<link rel="modulepreload" href="$u">'].join("\n"))
-			.replace("{{wasm}}", wasm)
-			.replace("{{browser}}", browser)
-			.replace("{{fonts}}", haxe.Json.stringify(fonts))
-			.replace("{{imports}}", haxe.Json.stringify(imports))
-			.replace("{{dev}}", dev ? "true" : "false")
-			.replace("{{assets}}", haxe.Json.stringify(assets));
+			.replace("{{page}}", pageData(wasm, browser, fonts, imports, dev, assets));
 	}
+
+	// the page's values, the data block its scripts read (window.helderPage:
+	// the scripts are the same text for every program, so a
+	// Content-Security-Policy can name them by hash); safe inside a <script>
+	public static function pageData(wasm:String, browser:String, fonts:Array<String>, imports:Array<String>, dev:Bool, assets:Null<String>):String
+		return haxe.Json.stringify({wasm: wasm, browser: browser, fonts: fonts, imports: imports, assets: assets, dev: dev}).split("</").join("<\\/");
 
 	// the manifest's part of the page (null: no manifest): the manifest
 	// linked (base: where it and its files are), theme-color, the
@@ -184,6 +185,9 @@ class Page {
 		return out;
 	}
 
+	// the last page write wrote: its values (helder.run renders its own page from them: Run)
+	public static var written:Null<{title:String, wasm:String, browser:String, imports:Array<String>, fonts:Array<String>, assets:Null<String>}> = null;
+
 	// `helder build --target web`: the page (<name>.html), browser.mjs, the
 	// imports and the fonts beside the module; with the app's manifest
 	// (app: its file, its config) it too as it is (helder.webmanifest), the
@@ -216,12 +220,12 @@ class Page {
 		// (./: the page's module script imports browser.mjs from there, where helder/... is a bare specifier)
 		var page:Null<PageApp> = null;
 		if (app != null) {
-			var text = File.getContent(app.file);
-			File.saveContent('$dir/${Manifest.FILE}', text);
+			var web = Manifest.web(app.file, app.cfg), source = haxe.io.Path.withoutDirectory(app.file);
+			File.saveContent('$dir/${Manifest.FILE}', web.text);
 			files.push('$dir/${Manifest.FILE}');
-			for (f in Manifest.files(text)) {
+			for (f in web.files) {
 				var from = app.root == "." ? f : '${app.root}/$f';
-				if (!FileSystem.exists(from)) throw '${Manifest.FILE}: $f: no such file';
+				if (!FileSystem.exists(from)) throw '$source: $f: no such file';
 				TestCommand.mkdirs(haxe.io.Path.directory('$dir/$f') == "" ? "." : haxe.io.Path.directory('$dir/$f'));
 				File.copy(from, '$dir/$f');
 				files.push('$dir/$f');
@@ -236,6 +240,14 @@ class Page {
 			if (app.cfg.name != null) title = app.cfg.name;
 		}
 		File.saveContent('$dir/$name.html', html(title, '$name.wasm', "./helder/", pkgs, urls, false, listed ? '$name.wasm.assets.json' : null, page));
+		written = {
+			title: title,
+			wasm: '$name.wasm',
+			browser: "./helder/os/browser.mjs",
+			imports: [for (p in pkgs) './helder/$p/imports.mjs'],
+			fonts: urls,
+			assets: listed ? '$name.wasm.assets.json' : null
+		};
 		return files;
 	}
 }

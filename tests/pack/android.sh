@@ -124,11 +124,11 @@ check "adb install Golf.apk" $?
 adb logcat -c
 adb shell am start -W -n $gid/android.app.NativeActivity
 i=0
-while [ $i -lt 60 ] && ! seen "floating greens: 9 holes, drawing"; do
+while [ $i -lt 60 ] && ! seen "floating greens: 18 holes, drawing"; do
 	sleep 1
 	i=$((i + 1))
 done
-seen "floating greens: 9 holes, drawing"
+seen "floating greens: 18 holes, drawing"
 check "golf: its first frames" $?
 sleep 3
 adb exec-out screencap -p > "$out/golf.png"

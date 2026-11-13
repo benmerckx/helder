@@ -46,6 +46,14 @@ class Cli {
 				Async.main(task -> Sys.exit(Inspect.run(task, o)));
 			case "publish":
 				Async.main(_ -> Sys.exit(Publish.run(o)));
+			case "share":
+				Async.main(_ -> Sys.exit(Run.share(o)));
+			case "login":
+				Async.main(_ -> Sys.exit(Run.login()));
+			case "logout":
+				Sys.exit(Run.logout());
+			case "migrate":
+				Sys.exit(Run.migrate(o.positionals[0] ?? "."));
 			case "studio":
 				Async.main(_ -> Sys.exit(StudioCommand.run(o)));
 			case "devices":

@@ -2,7 +2,9 @@ package helder.ui.widgets;
 
 import helder.os.TitleBar.TitleHit;
 import helder.ui.Node;
+import helder.ui.SafeArea;
 import helder.view.*;
+import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 
 // The window's buttons in an inset title bar (helder.os's TitleBar, a
@@ -14,9 +16,32 @@ import helder.view.graph.Graph.*;
 // window has the system's title bar, in the browser or on a phone. Its
 // colour is the text's (currentColor).
 //   <view direction="row" drag-region><text>Title</text><view grow={1}/><WindowControls/></view>
+// A layout whose top left and top right are different bars (a sidebar's,
+// an inspector's) puts one at each end with its side: only the one where
+// the system puts them is drawn (side(): macOS's at the start, Windows' and
+// Linux's at the end), the other nothing.
+//   <view drag-region><WindowControls side="start"/><text>Project</text></view>
+//   <view drag-region><text>Inspector</text><view grow={1}/><WindowControls side="end"/></view>
 class WindowButtons implements Markup {
-	public static function WindowControls(props:{?tag:String}):View {
-		var tag = props.tag ?? "window-controls";
+	// the side of the window the system puts its buttons: "start" (macOS's,
+	// at the left: env(titlebar-area-x) after them), "end" (Windows', Linux's),
+	// null without an inset title bar (the system's, the browser, a phone).
+	// Reactive, as SafeArea.titlebar: a bar's padding at that end can follow it.
+	public static function side():Null<String> {
+		var t = SafeArea.titlebar();
+		return t == null ? null : t.x > 0 ? "start" : "end";
+	}
+
+	public static function WindowControls(props:{?tag:String, ?side:String}):View {
+		if (props.side != null) {
+			var at = props.side;
+			return <Show when={side() == at}>{controls(props.tag)}</Show>;
+		}
+		return controls(props.tag);
+	}
+
+	static function controls(tag:Null<String>):View {
+		tag = tag ?? "window-controls";
 		var kind = signal("none"), size = signal({w: 0.0, h: 0.0}), node:Null<Node> = null;
 		onCleanup(() -> if (node != null && node.ui != null && node.ui.controlsAt == node) node.ui.controlsAt = null);
 		// (its window known once it is laid out in one: its first onResize)
@@ -52,11 +77,38 @@ class WindowButtons implements Markup {
 	static function buttons(linux:Bool):View {
 		var w = helder.os.TitleBar.TitleBars.button(linux), h = helder.os.TitleBar.TitleBars.HEIGHT;
 		return <view direction="row" height={h}>
-			{button("window-minimize", "Minimize", Minimize, w, h, linux, n -> n.ui.window.minimize(), <view width={10} height={1} background="currentColor"/>)}
+			{button("window-minimize", "Minimize", Minimize, w, h, linux, n -> n.ui.window.minimize(), <image src={minimize()} width={10} height={10}/>)}
 			{button("window-maximize", "Maximize", Maximize, w, h, linux, n -> n.ui.window.maximize(!n.ui.window.maximized()),
-				<view width={9} height={9} border-width={1} border-color="currentColor" radius={linux ? 1 : 0}/>)}
-			{button("window-close", "Close", Close, w, h, linux, n -> n.ui.window.close(), <icon name="x" width={12} height={12}/>)}
+				<image src={maximize(linux)} width={10} height={10}/>)}
+			{button("window-close", "Close", Close, w, h, linux, n -> n.ui.window.close(), <image src={close()} width={10} height={10}/>)}
 		</view>;
+	}
+
+	// (the glyphs as SVGs: their currentColor the text's, as an image's;
+	// a view's own background="currentColor" is not resolved)
+	static var minimizeSvg:Null<helder.ui.Svg> = null;
+	static var maximizeSvgs:Array<Null<helder.ui.Svg>> = [null, null];
+
+	static function minimize():helder.ui.Svg {
+		if (minimizeSvg == null)
+			minimizeSvg = helder.ui.Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg>');
+		return minimizeSvg;
+	}
+
+	static var closeSvg:Null<helder.ui.Svg> = null;
+
+	// (Windows' own: corner to corner of the 10 by 10 square, as wide as the others)
+	static function close():helder.ui.Svg {
+		if (closeSvg == null)
+			closeSvg = helder.ui.Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"/></svg>');
+		return closeSvg;
+	}
+
+	static function maximize(linux:Bool):helder.ui.Svg {
+		var i = linux ? 1 : 0;
+		if (maximizeSvgs[i] == null)
+			maximizeSvgs[i] = helder.ui.Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="9" height="9" rx="${linux ? 1 : 0}"/></svg>');
+		return maximizeSvgs[i];
 	}
 
 	static function button(tag:String, label:String, hit:TitleHit, w:Int, h:Int, linux:Bool, press:Node->Void, glyph:View):View {

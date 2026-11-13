@@ -26,7 +26,7 @@ built on helder alone, with no browser engine and no runtime to install.
 ## Install
 
 Download the package for your system from the
-[releases](https://github.com/benmerckx/helder/releases) page.
+[releases](https://github.com/helder/helder/releases) page.
 
 **macOS 11 or later** (Apple silicon and Intel): unzip
 `viewer-<version>-macos-universal.zip` and move `Viewer.app` to

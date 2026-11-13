@@ -88,24 +88,33 @@ class Win32Window {
 			r.value.right = w;
 			r.value.bottom = h;
 			User32.AdjustWindowRectEx(r, STYLE, 0, 0);
+			// (inset: no caption above the client area)
+			if (owner.titlebar == Inset) r.value.top = 0;
 			User32.CreateWindowExW(0, className, a.wstring(title), STYLE, WM.CW_USEDEFAULT, WM.CW_USEDEFAULT, r.value.right - r.value.left,
 				r.value.bottom - r.value.top, Ptr.nil(), Ptr.nil(), instance, Ptr.nil());
 		});
 		if (hwnd.isNull()) throw "helder.os: CreateWindowExW failed (error " + Kernel32.GetLastError() + ")";
-		// (the frame computed again, without the caption: SWP_FRAMECHANGED, NOMOVE, NOSIZE, NOZORDER, NOACTIVATE)
-		if (owner.titlebar == Inset) User32.SetWindowPos(hwnd, Ptr.nil(), 0, 0, 0, 0, 0x20 | 0x1 | 0x2 | 0x4 | 0x10);
 		Shell32.DragAcceptFiles(hwnd, 1);
 		surface = new Surface(Win32, instance, hwnd, w, h);
 		open.push(this);
+		// (the frame computed again, without the caption: SWP_FRAMECHANGED, NOMOVE, NOSIZE, NOZORDER, NOACTIVATE; once the
+		// window is open's, so that the procedure's WM_NCCALCSIZE is ours: CreateWindowExW's went to DefWindowProc, a caption)
+		if (owner.titlebar == Inset) User32.SetWindowPos(hwnd, Ptr.nil(), 0, 0, 0, 0, 0x20 | 0x1 | 0x2 | 0x4 | 0x10);
 		#if hxmc.dev_host
 		if (helder.dev.Hosted.hosted() && open.length == 1) {
 			helder.dev.Hosted.set(helder.dev.Hosted.UI_WINDOW, hwnd);
 			hostWindow();
 		} else if (helder.dev.Hosted.hosted()) helder.dev.Hot.onDispose(() -> if (open.indexOf(this) >= 0) destroy());
 		#end
-		User32.ShowWindow(hwnd, WM.SW_SHOW);
+		// (shown at the poll after its first frame: Windows' white until the swap chain's first Present not seen)
+		hidden = true;
 		measure();
 	}
+
+	// not shown yet: its first frame not drawn (poll shows it at the one
+	// after a frame: polled once, a frame, then shown)
+	var hidden = false;
+	var polled = false;
 
 	#if hxmc.dev_host
 	// (the host's window, this build's: told, as X11Window tells its; at the
@@ -415,6 +424,14 @@ class Win32Window {
 	static function poll(onFrame:Void->Void, onEvent:Event->Void) {
 		Win32Window.onFrame = onFrame;
 		Win32Window.onEvent = onEvent;
+		// (the windows polled before the last frame: drawn by it, shown now)
+		for (w in open)
+			if (w.hidden) {
+				if (w.polled) {
+					w.hidden = false;
+					User32.ShowWindow(w.hwnd, WM.SW_SHOW);
+				} else w.polled = true;
+			}
 		for (w in open.copy())
 			if (w.pending) {
 				w.pending = false;

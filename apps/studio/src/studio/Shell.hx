@@ -6,6 +6,7 @@ import helder.view.Flow.*;
 import helder.view.graph.Graph.*;
 import helder.view.graph.Read;
 import helder.ui.view.UiFlow.VirtualList;
+import helder.ui.widgets.WindowButtons;
 import helder.ui.widgets.WindowButtons.WindowControls;
 import studio.Theme.c;
 
@@ -72,7 +73,7 @@ class Shell implements Markup {
 			</Show>
 			<Show when={studio.mode() != "code" && studio.mode() != "file" && studio.playing() == null}>
 				<view tag="inspector-card" slot="panel" position="absolute" right={0} top={0} bottom={0} width={Theme.INSPECTOR} border-width="0 0 0 1"
-					onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>{Inspector.card(studio)}</view>
+					onClick={e -> e.stop()} onPointerDown={e -> e.stop()}>{Inspector.card(studio, true)}</view>
 			</Show>
 		</view>;
 
@@ -95,16 +96,23 @@ class Shell implements Markup {
 	}
 
 	// the toolbar between the panels: where you are, the command field, the buttons
-	static function toolbar(studio:Studio):View
-		return <view tag="header" slot="panel" drag-region position="absolute" left={Theme.SIDEBAR}
-			right={studio.mode() == "code" || studio.mode() == "file" || studio.playing() != null ? 0 : Theme.INSPECTOR} top={0} height={Theme.HEADER}
-			padding={'0 ${Theme.PAD - 4} 0 ${Theme.PAD}'} border-width="0 0 1 0" direction="row" align-items="center" column-gap={8} overflow="visible">
+	static function toolbar(studio:Studio):View {
+		var wide = () -> studio.mode() == "code" || studio.mode() == "file" || studio.playing() != null;
+		return <view tag="header" slot="panel" drag-region position="absolute" left={Theme.SIDEBAR} right={wide() ? 0 : Theme.INSPECTOR} top={0}
+			height={Theme.HEADER} padding={'0 ${wide() && controlsRight() ? 0 : Theme.PAD - 4} 0 ${Theme.PAD}'} border-width="0 0 1 0" direction="row"
+			align-items="center" column-gap={8} overflow="visible">
 			{crumbs(studio)}
 			<view grow={1} min-width={4}/>
 			{commandField(studio)}
 			<view grow={1} min-width={4}/>
 			{buttons(studio)}
+			<Show when={wide()}><WindowControls side="end"/></Show>
 		</view>;
+	}
+
+	// the window's buttons at its top right (Windows', Linux's), the bar's padding there theirs
+	public static function controlsRight():Bool
+		return WindowButtons.side() == "end";
 
 	// page / frame (the project is the sidebar's, above)
 	static function crumbs(studio:Studio):View {
@@ -158,8 +166,8 @@ class Shell implements Markup {
 	static function compact(studio:Studio):View
 		return <view tag="main" grow={1} min-width={0} background={c("canvas")}>
 			<view position="absolute" inset={0}>{Board.view(studio)}</view>
-			<view tag="header" position="absolute" left={0} right={0} top={0} height={Theme.TOPBAR} direction="row" align-items="center" column-gap={2}
-				padding={'0 6 0 ${Theme.PAD + 2}'} background={c("bg")} border-width="0 0 1 0" border-color={c("line")}>
+			<view tag="header" drag-region position="absolute" left={0} right={0} top={0} height={Theme.TOPBAR} direction="row" align-items="center" column-gap={2}
+				padding={'0 ${controlsRight() ? 0 : 6} 0 ${Theme.PAD + 2}'} background={c("bg")} border-width="0 0 1 0" border-color={c("line")}>
 				<view tag="crumb" direction="row" align-items="center" shrink={1} min-width={0} grow={1}>
 					<text tag="crumb-screen" max-lines={1} text-overflow="ellipsis" font-weight={Theme.MEDIUM}>{crumbFrame(studio) ?? crumbPage(studio) ?? (studio.project?.name ?? "helder studio")}</text>
 				</view>
@@ -171,6 +179,7 @@ class Shell implements Markup {
 				</Show>
 				{Play.tools(studio)}
 				{Play.button(studio)}
+				<WindowControls side="end"/>
 			</view>
 			<Show when={studio.mode() == "file"}>
 				<view position="absolute" left={0} right={0} top={Theme.TOPBAR} bottom={Theme.BAR} background={c("bg")}>{FileView.view(studio)}</view>
@@ -185,7 +194,7 @@ class Shell implements Markup {
 	// (top: the window's; its buttons in the project's row, not in a sheet,
 	// nor without an inset title bar: the browser's, full screen)
 	public static function sidebar(studio:Studio, top = true):View {
-		var p = studio.project, bar = () -> top && SafeArea.titlebar() != null;
+		var p = studio.project, bar = () -> top && WindowButtons.side() == "start";
 		return <view tag="sidebar" grow={1} min-height={0}>
 			<view tag="project" direction="row" align-items="center" column-gap={8} drag-region={top} height={Theme.HEADER} padding={'0 ${Theme.PAD}'}
 				shrink={0} border-width="0 0 1 0" border-color={c("line")}>

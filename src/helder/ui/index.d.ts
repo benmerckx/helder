@@ -1131,8 +1131,19 @@ export declare class Theme {
 // window has the system's title bar, in the browser or on a phone. Its
 // colour is the text's (currentColor).
 //   <view direction="row" drag-region><text>Title</text><view grow={1}/><WindowControls/></view>
+// A layout whose top left and top right are different bars (a sidebar's,
+// an inspector's) puts one at each end with its side: only the one where
+// the system puts them is drawn (side(): macOS's at the start, Windows' and
+// Linux's at the end), the other nothing.
+//   <view drag-region><WindowControls side="start"/><text>Project</text></view>
+//   <view drag-region><text>Inspector</text><view grow={1}/><WindowControls side="end"/></view>
 export declare class WindowButtons {
-	static WindowControls(props: { tag?: string }): View;
+	// the side of the window the system puts its buttons: "start" (macOS's,
+	// at the left: env(titlebar-area-x) after them), "end" (Windows', Linux's),
+	// null without an inset title bar (the system's, the browser, a phone).
+	// Reactive, as SafeArea.titlebar: a bar's padding at that end can follow it.
+	static side(): string | null;
+	static WindowControls(props: { tag?: string; side?: string }): View;
 }
 
 export declare const WindowControls: typeof WindowButtons.WindowControls;

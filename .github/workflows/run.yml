@@ -1,0 +1,60 @@
+# The examples on helder.run (each examples/*/helder.json with a run block:
+# <run.name>.helder.run, listed on helder.build/explore under Examples), on
+# pushes to main that change them or helder, or by hand. No secret: GitHub
+# Actions' OIDC token for helder.build (trusted publishing). The first
+# publish of an address makes it helder's and trusts this repository; later
+# ones must come from here.
+# - runtime: this commit's runtime modules registered with helder.run first
+#   (POST /api/runtime, only from helder/helder's main): helder.run serves
+#   only runtime files it knows, so a commit that changes them publishes at
+#   once instead of after helder.build's next deploy;
+# - publish: each example and app with a helder.json run block (golf, foundry) built for the web, a screenshot taken headless
+#   (Mesa's llvmpipe), uploaded by `helder publish --run` (src/helder/cli/Run.hx).
+name: run
+
+on:
+  push:
+    branches: [main]
+    paths: [examples/**, apps/foundry/**, src/**, .github/workflows/run.yml, .github/scripts/runtime.mjs]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: run
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Fonts and Mesa (the examples' text, their headless screenshots)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core libegl1 libegl-mesa0
+      - name: helder's runtime, registered with helder.run
+        run: |
+          set -e
+          token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=helder.build" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).value')
+          node .github/scripts/runtime.mjs > "$RUNNER_TEMP/runtime.json"
+          curl -sS --fail-with-body -X POST https://helder.build/api/runtime -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/runtime.json"
+      - name: Publish
+        run: |
+          failed=""
+          for f in examples/*/helder.json apps/*/helder.json; do
+            d=$(dirname "$f")
+            grep -q '"run"' "$f" || continue
+            echo "::group::$d"
+            bun run helder publish "$d" --run || failed="$failed $d"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then echo "::error::not published:$failed"; exit 1; fi

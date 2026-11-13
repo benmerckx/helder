@@ -247,7 +247,10 @@ interface, `TextBackend`:
   (over a text analysis source of ours, its methods callbacks) for a
   character; IDWriteTextAnalyzer's AnalyzeScript, GetGlyphs and
   GetGlyphPlacements for shaping; IDWriteGlyphRunAnalysis (grayscale,
-  natural symmetric, no grid fitting) for rasters. A face is opened from
+  natural symmetric, fitted to the grid vertically) for rasters, blended
+  as Direct2D blends them (`GlyphBlend`: the default rendering params'
+  gamma and grayscale enhanced contrast, the user's ClearType tuning;
+  helder.ui's shader applies it). A face is opened from
   its file; a font's file named by the local loader's path.
 - macOS (`mac/CoreText`, Core Foundation and the Objective-C runtime): a
   family's faces by a CTFontDescriptor, a character's fallback from

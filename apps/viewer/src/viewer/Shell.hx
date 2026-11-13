@@ -325,7 +325,7 @@ class Shell implements Markup {
 						<text tag="about-name" font-size={18} color="#f4f4f5">Viewer</text>
 						<text tag="about-version" color="#a1a1aa">{"Version " + Version.NAME}</text>
 						<text color="#d4d4d8" text-align="center">helder's image viewer: PNG, JPEG, GIF, WebP, PDF and the system's formats</text>
-						<text color="#71717a" text-align="center">MIT License · github.com/benmerckx/helder</text>
+						<text color="#71717a" text-align="center">MIT License · github.com/helder/helder</text>
 					</view>
 				</view>
 			</Show>

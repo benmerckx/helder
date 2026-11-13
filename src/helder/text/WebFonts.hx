@@ -11,6 +11,8 @@ import hxmc.unsafe.*;
 	static function font_size(i:Int):Int;
 	// (safe: no more than buf's length, imports.mjs)
 	@:hxmc.safe static function font_read(i:Int, buf:hxmc.Span<UInt8>):Void;
+	// (the family a string copied for the call, the file a span: imports.mjs)
+	@:hxmc.safe static function font_face(family:String, weight:Int, italic:Int, buf:hxmc.ReadOnlySpan<UInt8>):Void;
 }
 
 class WebFonts {
@@ -24,6 +26,15 @@ class WebFonts {
 			out.push(b);
 		}
 		return out;
+	}
+
+	// a font the program added (or one it replaced: the same family, weight
+	// and style, the page's face replaced too) given to
+	// the page too, as a FontFace: the page's own text fields
+	// (WebViews' editors) are set in it by its family's name
+	public static function face(f:FontFile) {
+		if (hxmc.Platform.os() != hxmc.Platform.WASI) return;
+		WebFontsImports.font_face(f.family, f.weight, f.italic ? 1 : 0, hxmc.ReadOnlySpan.ofBytes(f.data));
 	}
 }
 #end

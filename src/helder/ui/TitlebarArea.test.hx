@@ -3,13 +3,15 @@ package helder.ui;
 import helder.os.TitleBar.TitleHit;
 import helder.test.Test;
 import helder.view.Render;
+import helder.ui.widgets.WindowButtons;
 import helder.ui.widgets.WindowButtons.WindowControls;
 
 // An inset title bar in ui: env(titlebar-area-*) resolved and bound as the
 // safe area's (the fallback without one), drag-region and the window's
 // buttons answering a press (Ui.titleHit: what Windows' WM_NCHITTEST, a
 // Mac's drag and Linux's moves ask), WindowControls drawing Windows' and
-// Linux's buttons, macOS's box placed (natively and as wasm32-wasi)
+// Linux's buttons, macOS's box placed, one at each end of a layout drawn
+// at the system's side (natively and as wasm32-wasi)
 function tests() {
 	describe("TitlebarArea", () -> {
 		afterEach(() -> SafeArea.setTitlebar(null));
@@ -44,6 +46,40 @@ function tests() {
 			equals(ui.titleHit(800 - 23, 10), Close);
 			equals(ui.titleHit(800 - 69, 10), Maximize);
 			equals(ui.titleHit(800 - 115, 10), Minimize);
+			dispose();
+		});
+		test("Windows' buttons drawn in the text's colour", () -> {
+			var ui = new Ui(null, 800, 600);
+			ui.window = new Host("windows");
+			var dispose = Render.render(Fixture.dark(), ui.root);
+			ui.update();
+			ui.update();
+			// (each glyph an SVG drawn in the text's colour: a view's own currentColor is not resolved, black)
+			for (tag in ["window-minimize", "window-maximize", "window-close"]) {
+				var glyph = ui.root.find(tag).children[0].children[0];
+				equals([Std.isOfType(glyph, ImageNode) && (cast glyph : ImageNode).svg != null, glyph.textColor() == Color.parse("#eeeeee")], [true, true]);
+			}
+			dispose();
+		});
+		test("each end's WindowControls: only the one at the system's side drawn", () -> {
+			var ui = new Ui(null, 800, 600);
+			ui.window = new Host("windows");
+			var dispose = Render.render(Fixture.ends(), ui.root);
+			ui.update();
+			equals(WindowButtons.side(), null);
+			equals([ui.root.find("start-controls") == null, ui.root.find("end-controls") == null], [true, true]);
+			// (Windows', Linux's: the bar from the left edge, the buttons at the right)
+			SafeArea.setTitlebar(new TitlebarArea(0, 0, 662, 32));
+			ui.update();
+			ui.update();
+			equals(WindowButtons.side(), "end");
+			equals([ui.root.find("start-controls") == null, ui.root.find("end-controls") != null], [true, true]);
+			equals(ui.titleHit(800 - 23, 10), Close);
+			// (macOS's: the bar after its buttons, at the left)
+			SafeArea.setTitlebar(new TitlebarArea(78, 0, 722, 28));
+			ui.update();
+			equals(WindowButtons.side(), "start");
+			equals([ui.root.find("start-controls") != null, ui.root.find("end-controls") == null], [true, true]);
 			dispose();
 		});
 		test("macOS's: a box of the system's buttons' size, placed after the layout", () -> {
@@ -91,6 +127,18 @@ private class Host implements WindowHost {
 }
 
 private class Fixture implements helder.view.Markup {
+	public static function dark()
+		return <view tag="page" background="#000000" color="#eeeeee">
+			<view tag="bar" direction="row"><view grow={1}/><WindowControls/></view>
+		</view>;
+
+	public static function ends()
+		return <view tag="page" direction="row">
+			<view tag="left" direction="row" width={200} drag-region><WindowControls tag="start-controls" side="start"/></view>
+			<view grow={1}/>
+			<view tag="right" direction="row" width={200} drag-region><view grow={1}/><WindowControls tag="end-controls" side="end"/></view>
+		</view>;
+
 	public static function bar()
 		return <view tag="page">
 			<view tag="bar" direction="row" align-items="center" drag-region padding-left="env(titlebar-area-x, 12px)" height="env(titlebar-area-height, 40px)">

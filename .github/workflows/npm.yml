@@ -16,7 +16,7 @@
 #   provenance); one already on npm at this version is left as it is.
 # No secret: npm's trusted publishing (OIDC). Each of the seven packages
 # trusts this workflow, set once by its owner:
-#   npm trust github <package> --file npm.yml --repo benmerckx/helder --allow-publish
+#   npm trust github <package> --file npm.yml --repo helder/helder --allow-publish --allow-stage-publish
 name: npm
 
 on:

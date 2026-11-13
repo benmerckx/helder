@@ -5,6 +5,7 @@ import helder.ui.widgets.Controls.Slider;
 import helder.ui.widgets.Controls.Tip;
 import helder.ui.widgets.Theme;
 import helder.ui.widgets.Theme.c;
+import helder.ui.widgets.WindowButtons;
 import helder.ui.widgets.WindowButtons.WindowControls;
 import helder.view.*;
 import helder.view.Flow.*;
@@ -74,7 +75,7 @@ class Shell implements Markup {
 		return <view tag="sidebar" slot="panel" width={SIDEBAR} shrink={0} border-width="0 1 0 0">
 			<view direction="row" align-items="center" column-gap={8} drag-region height={Theme.HEADER} padding={'0 ${Theme.PAD}'} shrink={0}
 				border-width="0 0 1 0" border-color={c("line")}>
-				<Show when={SafeArea.titlebar() != null}><view direction="row" align-items="center" padding="0 6 0 0"><WindowControls/></view></Show>
+				<Show when={WindowButtons.side() == "start"}><view direction="row" align-items="center" padding="0 6 0 0"><WindowControls/></view></Show>
 				<view width={20} height={20} radius={5} background={c("accent")} align-items="center" justify="center">
 					<text color={c("accent-fg")} font-family={Draft.FAMILY} font-size={14} line-height="14px">a</text>
 				</view>
@@ -417,8 +418,8 @@ class Shell implements Markup {
 
 	static function inspector(ws:Workshop):View
 		return <view tag="inspector" slot="panel" width={INSPECTOR} shrink={0} border-width="0 0 0 1">
-			<view direction="row" align-items="center" column-gap={6} drag-region height={Theme.HEADER} padding={'0 ${Theme.PAD}'} shrink={0}
-				border-width="0 0 1 0" border-color={c("line")}>
+			<view direction="row" align-items="center" column-gap={6} drag-region height={Theme.HEADER}
+				padding={'0 ${WindowButtons.side() == "end" ? 0 : Theme.PAD} 0 ${Theme.PAD}'} shrink={0} border-width="0 0 1 0" border-color={c("line")}>
 				<view grow={1}/>
 				<Show when={Workshop.canInstall()}>
 					<view:button tag="install" slot="button" role="button" label="Install the font" focusable onPress={ws.install}>
@@ -428,6 +429,7 @@ class Shell implements Markup {
 				<view:button tag="export" slot="primary" role="button" label="Export the font" focusable onPress={ws.export}>
 					{icon(Icons.download)}<text>Export .ttf</text>
 				</view:button>
+				<WindowControls side="end"/>
 			</view>
 			<scroll grow={1} min-height={0}>
 				<view slot="section" border-width="0 0 0 0">

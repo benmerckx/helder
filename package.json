@@ -109,7 +109,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/benmerckx/helder.git"
+    "url": "git+https://github.com/helder/helder.git"
   },
   "peerDependenciesMeta": {
     "typescript": {

@@ -12,9 +12,12 @@ import helder.os.win32.Com;
 // GetGlyphPlacements for shaping (at the face's units per em: advances and
 // offsets in font units); IDWriteGlyphRunAnalysis for a glyph's grayscale
 // coverage (DWRITE_TEXTURE_ALIASED_1x1 under grayscale anti-aliasing,
-// unhinted, natural symmetric). Each face opened once from its file
-// (FontFile.path; a face from bytes stays helder's own). A file is named by
-// its local loader's path (IDWriteLocalFontFileLoader).
+// natural symmetric, fitted to the grid vertically), blended as Direct2D
+// blends it (blend: the user's gamma and grayscale enhanced contrast).
+// Each face opened once from its file (FontFile.path) or its bytes (an
+// app's embedded fonts: Windows 10 1703's in-memory loader, the bytes
+// copied; before it, helder's own). A file is named by its local loader's
+// path (IDWriteLocalFontFileLoader).
 @:hxmc.unsafe(gc)
 class DirectWrite implements TextBackend {
 	public static function create():Null<TextBackend> {
@@ -58,6 +61,31 @@ class DirectWrite implements TextBackend {
 	public function name():String
 		return "DirectWrite";
 
+	static final IID_IDWriteRenderingParams1 = Com.guid(0x94413cf4, 0xa6fc, 0x4248, [0x8b, 0x50, 0x66, 0x74, 0x34, 0x8f, 0xca, 0xd3]);
+	var blended:Null<GlyphBlend> = null;
+
+	// the user's text rendering (their ClearType tuning): the default
+	// rendering params' gamma and grayscale enhanced contrast (Windows'
+	// defaults, 1.8 and 1, without them)
+	public function blend():Null<GlyphBlend> {
+		if (blended != null) return blended;
+		var gamma = 1.8, contrast = 1.0;
+		var o = out(0);
+		if (IDWriteFactory.CreateRenderingParams(factory, o) >= 0 && !o.value.isNull()) {
+			var params = o.value;
+			var g:Float = IDWriteRenderingParams.GetGamma(params);
+			if (g > 0) gamma = g;
+			var o1 = out(1);
+			if (IUnknown.QueryInterface(params, IID_IDWriteRenderingParams1, o1) >= 0 && !o1.value.isNull()) {
+				var c:Float = IDWriteRenderingParams.GetGrayscaleEnhancedContrast(o1.value);
+				if (c >= 0) contrast = c;
+				Com.release(o1.value);
+			}
+			Com.release(params);
+		}
+		return blended = new GlyphBlend(gamma, contrast);
+	}
+
 	inline function out(k:Int):Ptr<Ptr> {
 		var p:Ptr<Ptr> = cast scratch.add(8 * k);
 		p.value = Ptr.nil();
@@ -73,14 +101,46 @@ class DirectWrite implements TextBackend {
 		return buf;
 	}
 
-	// (the face of a font's file, opened once; nil: none)
+	static final IID_IDWriteFactory5 = Com.guid(0x958db99a, 0xbe2a, 0x4f09, [0xaf, 0x7d, 0x65, 0x18, 0x98, 0x03, 0xd1, 0xd3]);
+	// (the in-memory font file loader, registered once; nil: none, before Windows 10 1703)
+	var memory = Ptr.nil();
+	var memoryTried = false;
+
+	function memoryLoader():Ptr {
+		if (memoryTried) return memory;
+		memoryTried = true;
+		var f5 = out(6);
+		if (IUnknown.QueryInterface(factory, IID_IDWriteFactory5, f5) < 0 || f5.value.isNull()) return memory;
+		var factory5 = f5.value, l = out(7);
+		if (IDWriteFactory.CreateInMemoryFontFileLoader(factory5, l) >= 0 && !l.value.isNull()) {
+			var loader = l.value;
+			if (IDWriteFactory.RegisterFontFileLoader(factory, loader) >= 0) memory = loader else Com.release(loader);
+		}
+		Com.release(factory5);
+		return memory;
+	}
+
+	// (a font file of bytes: copied into native memory, then DirectWrite's own copy of them, no owner)
+	static function fromMemory(loader:Ptr, factory:Ptr, data:haxe.io.Bytes, file:Ptr<Ptr>) {
+		var n = data.length, p:Ptr<UInt8> = LibC.malloc((n : hxmc.I64));
+		copyOut(data, cast p, n);
+		IDWriteInMemoryFontFileLoader.CreateInMemoryFontFileReference(loader, factory, cast p, n, Ptr.nil(), file);
+		LibC.free(cast p);
+	}
+
+	@:hxmc.unsafe static inline function copyOut(b:haxe.io.Bytes, p:Ptr, n:Int)
+		LibC.memcpy(p, Mem.addr(b.getData()), (n : hxmc.I64));
+
+	// (the face of a font's file or bytes, opened once; nil: none)
 	function faceOf(f:FontFile):Ptr {
 		var h = faces.get(f.id);
 		if (h != null) return h;
 		var face = Ptr.nil();
-		if (f.path != null) {
-			var file = out(0);
-			Arena.scoped(a -> IDWriteFactory.CreateFontFileReference(factory, a.wstring(f.path), Ptr.nil(), file));
+		var bytes = f.path == null && f.data != null && f.data.length > 0 && !memoryLoader().isNull();
+		var file = out(0);
+		if (f.path != null) Arena.scoped(a -> IDWriteFactory.CreateFontFileReference(factory, a.wstring(f.path), Ptr.nil(), file));
+		else if (bytes) fromMemory(memory, factory, f.data, file);
+		if (!file.value.isNull()) {
 			var ff = file.value;
 			if (!ff.isNull()) {
 				var info:Ptr<Int32> = cast scratch.add(16);
@@ -171,8 +231,9 @@ class DirectWrite implements TextBackend {
 		(cast run.add(44) : Ptr<Int32>).value = 0;
 		var analysis:Ptr<Ptr> = LibC.malloc(8);
 		analysis.value = Ptr.nil();
-		// (DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, DWRITE_GRID_FIT_MODE_DISABLED, DWRITE_TEXT_ANTIALIAS_MODE_GRAYSCALE)
-		var hr = IDWriteFactory.CreateGlyphRunAnalysis2(factory, cast run, Ptr.nil(), 5, 0, 1, 1, dx, 0, analysis);
+		// (DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_MEASURING_MODE_NATURAL, DWRITE_GRID_FIT_MODE_ENABLED: the outline
+		// fitted to the pixels vertically, as Windows draws its text, DWRITE_TEXT_ANTIALIAS_MODE_GRAYSCALE)
+		var hr = IDWriteFactory.CreateGlyphRunAnalysis2(factory, cast run, Ptr.nil(), 5, 0, 2, 1, dx, 0, analysis);
 		var an = analysis.value;
 		LibC.free(cast analysis);
 		if (hr < 0 || an.isNull()) return false;
@@ -434,11 +495,21 @@ class IDWriteFactory {
 	@:slot(3) static function GetSystemFontCollection(self:Ptr, out:Ptr<Ptr>, check:Int):Int;
 	@:slot(7) static function CreateFontFileReference(self:Ptr, path:Ptr, time:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(9) static function CreateFontFace(self:Ptr, type:Int, files:Int, list:Ptr, index:Int, simulations:Int, out:Ptr<Ptr>):Int;
+	@:slot(10) static function CreateRenderingParams(self:Ptr, out:Ptr<Ptr>):Int;
+	@:slot(13) static function RegisterFontFileLoader(self:Ptr, loader:Ptr):Int;
 	@:slot(21) static function CreateTextAnalyzer(self:Ptr, out:Ptr<Ptr>):Int;
 	// (IDWriteFactory2's)
 	@:slot(26) static function GetSystemFontFallback(self:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(30) static function CreateGlyphRunAnalysis2(self:Ptr, run:Ptr, transform:Ptr, rendering:Int, measuring:Int, gridFit:Int, antialias:Int, x:Float32, y:Float32,
 		out:Ptr<Ptr>):Int;
+	// (IDWriteFactory5's)
+	@:slot(44) static function CreateInMemoryFontFileLoader(self:Ptr, out:Ptr<Ptr>):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
+class IDWriteInMemoryFontFileLoader {
+	@:slot(4) static function CreateInMemoryFontFileReference(self:Ptr, factory:Ptr, data:Ptr, size:Int, owner:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
@@ -497,6 +568,14 @@ class IDWriteTextAnalyzer {
 		featureLengths:Ptr, featureRanges:Int, max:Int, clusterMap:Ptr, textProps:Ptr, glyphs:Ptr, glyphProps:Ptr, count:Ptr):Int;
 	@:slot(8) static function GetGlyphPlacements(self:Ptr, text:Ptr, clusterMap:Ptr, textProps:Ptr, len:Int, glyphs:Ptr, glyphProps:Ptr, count:Int, face:Ptr,
 		em:Float32, sideways:Int, rtl:Int, script:Ptr, locale:Ptr, features:Ptr, featureLengths:Ptr, featureRanges:Int, advances:Ptr, offsets:Ptr):Int;
+}
+
+@:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
+class IDWriteRenderingParams {
+	@:slot(3) static function GetGamma(self:Ptr):Float32;
+	// (IDWriteRenderingParams1's)
+	@:slot(8) static function GetGrayscaleEnhancedContrast(self:Ptr):Float32;
 }
 
 @:build(helder.os.win32.Com.build())
