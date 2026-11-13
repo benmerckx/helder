@@ -375,27 +375,7 @@ export declare class WebResponse {
 // (helder.view's markup: its renderer, NodeRenderer)
 export declare class Node {
 	constructor(tag?: string);
-	// A node of the UI tree: a box laid out by its parent's flexbox (Layout),
-	// drawn by a renderer (Canvas) and receiving events (Ui). Its children are
-	// in drawing order (the last on top). x, y, width and height are the
-	// layout's result in pixels, relative to the parent's border box (rounded
-	// to whole pixels: absX, absY are the window's), valid after Ui.update. A
-	// change to the tree or to a layout property of the style marks the node
-	// and its ancestors for layout; a paint property asks only for a frame.
-	// Subclasses with content (TextNode) measure it (measureContent) and draw it
-	// (paintContent).
-	// (helder.view's markup: its renderer, NodeRenderer)
 	readonly style: unknown;
-	// A node of the UI tree: a box laid out by its parent's flexbox (Layout),
-	// drawn by a renderer (Canvas) and receiving events (Ui). Its children are
-	// in drawing order (the last on top). x, y, width and height are the
-	// layout's result in pixels, relative to the parent's border box (rounded
-	// to whole pixels: absX, absY are the window's), valid after Ui.update. A
-	// change to the tree or to a layout property of the style marks the node
-	// and its ancestors for layout; a paint property asks only for a frame.
-	// Subclasses with content (TextNode) measure it (measureContent) and draw it
-	// (paintContent).
-	// (helder.view's markup: its renderer, NodeRenderer)
 	readonly parent: Node | null;
 	// (a leaf's: one empty array shared by all, replaced by its own when a child comes)
 	readonly children: Node[];
@@ -760,11 +740,12 @@ export declare class SafeArea {
 	static resolve(value: string, e: unknown, t?: unknown): string;
 }
 
-// Small controls with their look by slot (Theme's): a slider and a
-// segmented choice.
+// Small controls with their look by slot (Theme's): a slider, a
+// segmented choice, a tooltip.
 //
 //   <Slider label="Weight" value={weight} min={20} max={200} step={1} onChange={weight}/>
 //   <Segmented label="Tool" value={tool} options={[{value: "draw", label: "Draw"}, ...]} onChange={tool}/>
+//   <Tip label="Tracing letter" keys="T"><view:button ...><image src={eye}/></view:button></Tip>
 export declare class Controls {
 	// A number between min and max, shown as a field (its label inside on
 	// the left, its value on the right, the part up to it filled): a press
@@ -776,10 +757,15 @@ export declare class Controls {
 	// a press chooses, the arrow keys move between them. Slots: "seg",
 	// "seg-item" (an icon follows its colour).
 	static Segmented(props: { label: string; value: Read<string>; options: Array<{ value: string; label: string; icon?: Svg; hint?: string }>; onChange: (arg0: string) => void; tag?: string; compact?: boolean }): View;
+	// What a control does, said under it once the pointer rests on it (half
+	// a second), with its shortcut beside it: for a button that shows only an
+	// icon. A press or the pointer leaving hides it. Slots: "tip", "kbd".
+	static Tip(props: { label: string; keys?: string; placement?: string; children?: unknown }): View;
 }
 
 export declare const Slider: typeof Controls.Slider;
 export declare const Segmented: typeof Controls.Segmented;
+export declare const Tip: typeof Controls.Tip;
 
 // A grid of many rows, drawn (a table browser's, a spreadsheet's): only
 // the cells in view are laid out and drawn, their text cut with an
