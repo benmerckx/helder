@@ -357,6 +357,15 @@ function texel(t: Texture2D, x: number, y: number): number {
 	return sampleLevel(t, vec2((x + 0.5) / 16, y), 0).x;
 }
 
+// a normal turned to the world by an instance's matrix (its columns): by
+// its cofactors, the inverse transpose times the determinant, with the
+// determinant's sign (PbrShader.hx's instanceNormal)
+function instanceNormal(c0: Vec3, c1: Vec3, c2: Vec3, n: Vec3): Vec3 {
+	const x = cross(c1, c2);
+	const turned = x.mul(n.x).add(cross(c2, c0).mul(n.y)).add(cross(c0, c1).mul(n.z));
+	return dot(c0, x) < 0 ? turned.neg() : turned;
+}
+
 export const pbr = slots({
 	options: {normalMap: false, skinned: false, instanced: false},
 	vertex: (v: PbrVertex, p: PbrVertexParams, m: Pbr): PbrVaryings => {
@@ -374,7 +383,7 @@ export const pbr = slots({
 		return {
 			clip: position(p.frame.viewProj.mul(world)),
 			world: world.xyz,
-			normal: m.options.instanced ? model.mul(vec4(nr, 0)).xyz : p.object!.normalMatrix.mul(vec4(nr, 0)).xyz,
+			normal: m.options.instanced ? instanceNormal(v.m0!.xyz, v.m1!.xyz, v.m2!.xyz, nr) : p.object!.normalMatrix.mul(vec4(nr, 0)).xyz,
 			uv: v.uv,
 			tangent: m.options.normalMap ? vec4(model.mul(vec4(v.tangent!.xyz, 0)).xyz, v.tangent!.w) : vec4(0),
 			up: m.options.instanced ? v.m1!.xyz : model.mul(vec4(0, 1, 0, 0)).xyz,

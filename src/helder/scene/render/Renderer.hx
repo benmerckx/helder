@@ -534,8 +534,10 @@ class Renderer {
 		var bytes = 0, i = 0;
 		while (i < count) {
 			var j = i + 1;
-			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend && uniformScale(list[i].node))
-				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
+			// (any scale: the instanced shader turns normals by the matrix's
+			// inverse transpose, as the object's normalMatrix)
+			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend)
+				while (j < count && list[j].primitive == list[i].primitive)
 					j++;
 			if (batchCount == batchStart.length) {
 				batchStart.push(0);
@@ -620,15 +622,6 @@ class Renderer {
 	// tangents and its material's map there)
 	inline function mapped(p:Mesh.Primitive):Bool
 		return normalSource != null && p.tangents != null && p.material.normalTexture != null && !p.skinned;
-
-	// whether a node's world matrix scales alike on every axis (instanced
-	// normals are turned by its upper 3x3)
-	static function uniformScale(n:Node):Bool {
-		var m = n.worldMatrix();
-		var x = m.c0.x * m.c0.x + m.c0.y * m.c0.y + m.c0.z * m.c0.z, y = m.c1.x * m.c1.x + m.c1.y * m.c1.y + m.c1.z * m.c1.z,
-			z = m.c2.x * m.c2.x + m.c2.y * m.c2.y + m.c2.z * m.c2.z;
-		return Math.abs(x - y) <= 1e-6 * x && Math.abs(x - z) <= 1e-6 * x;
-	}
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
 	// frame, object (-1: none), material, base colour, shadow map, skin,

@@ -525,6 +525,18 @@ function joint(t:Texture2D, k:Float, rows:Float):Mat4 {
 function texel(t:Texture2D, x:Float, y:Float):Float
 	return sampleLevel(t, vec2((x + 0.5) / 16, y), 0).x;
 
+// a normal n turned to the world by an instance's matrix (its columns
+// c0, c1, c2): by the inverse transpose of its upper 3x3, as the object's
+// normalMatrix turns it, here as its cofactors (the columns' cross
+// products, the inverse transpose times the determinant) with the
+// determinant's sign: exact for any scale, uneven or mirrored, and shear,
+// the length the fragment's normalize takes away
+function instanceNormal(c0:Vec3, c1:Vec3, c2:Vec3, n:Vec3):Vec3 {
+	var x = cross(c1, c2);
+	var turned = x * n.x + cross(c2, c0) * n.y + cross(c0, c1) * n.z;
+	return dot(c0, x) < 0 ? -turned : turned;
+}
+
 final pbr = slots({
 	options: {normalMap: false, skinned: false, instanced: false},
 	vertex: function(v:PbrVertex, p:PbrVertexParams, m:Pbr):PbrVaryings {
@@ -538,15 +550,12 @@ final pbr = slots({
 			pos = ((j0 * q) * v.weights.x + (j1 * q) * v.weights.y + (j2 * q) * v.weights.z + (j3 * q) * v.weights.w).xyz;
 			nr = ((j0 * n4) * v.weights.x + (j1 * n4) * v.weights.y + (j2 * n4) * v.weights.z + (j3 * n4) * v.weights.w).xyz;
 		}
-		// (instanced: normals turned by the matrix's upper 3x3, exact for
-		// rotations and uniform scales; a non-uniform scale is drawn without
-		// instancing)
 		var model = m.options.instanced ? mat4(vec4(v.m0.xyz, 0), vec4(v.m1.xyz, 0), vec4(v.m2.xyz, 0), v.m3) : p.object.model;
 		var world = model * vec4(pos, 1);
 		return {
 			clip: position(p.frame.viewProj * world),
 			world: world.xyz,
-			normal: m.options.instanced ? (model * vec4(nr, 0)).xyz : (p.object.normalMatrix * vec4(nr, 0)).xyz,
+			normal: m.options.instanced ? instanceNormal(v.m0.xyz, v.m1.xyz, v.m2.xyz, nr) : (p.object.normalMatrix * vec4(nr, 0)).xyz,
 			uv: v.uv,
 			tangent: m.options.normalMap ? vec4((model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w) : vec4(0),
 			up: m.options.instanced ? v.m1.xyz : (model * vec4(0, 1, 0, 0)).xyz,

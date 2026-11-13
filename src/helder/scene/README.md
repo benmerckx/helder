@@ -196,7 +196,7 @@ those alone). The performance examples use it: `examples/instancing`,
 Nodes that draw the same primitive are batched by the renderer (above).
 For many copies without a node each, an `InstancedMesh` is one mesh drawn
 from flat per-instance data in one instanced draw a primitive: a transform
-(position, unit quaternion, uniform scale; or a matrix), a colour (times
+(position, unit quaternion, uniform scale; or any affine matrix), a colour (times
 the material's), and custom floats for a program's own shader:
 
 ```haxe
