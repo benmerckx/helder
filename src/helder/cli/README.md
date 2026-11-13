@@ -207,20 +207,21 @@ for editors' completion):
 ```json
 {
   "$schema": "https://helder.build/schema/helder.json",
-  "name": "Floating Greens",
-  "description": "Mini golf on floating islands.",
-  "id": "build.helder.golf",
+  "name": "Little Skies",
+  "description": "Mini golf on three islands in the sky.",
+  "id": "build.helder.littleskies",
   "version": "1.2", "build": 3,
-  "entry": "Golf.hx",
-  "icon": "icon.svg",
-  "colors": {"theme": "#9fd0ff", "background": "#fbdfea"},
+  "entry": "src/LittleSkies.hx",
+  "icon": "brand/icon-ios.svg",
+  "colors": {"theme": "#ffae78", "background": "#fbdfea"},
   "display": "fullscreen",
   "orientation": "landscape",
-  "run": {"name": "floating-greens", "listed": true, "kind": "game", "tags": ["golf"],
-          "source": "https://github.com/helder/helder/tree/main/examples/golf"},
+  "run": {"name": "little-skies", "listed": true, "kind": "game", "tags": ["golf"],
+          "source": "https://github.com/helder/little-skies"},
   "targets": {
-    "android": {"minSdk": 31, "publish": [{"to": "play", "track": "internal"}], "store": "https://play.google.com/..."},
-    "ios": {"bundleId": "build.helder.golf", "publish": ["testflight"]}
+    "android": {"minSdk": 31, "adaptiveIcon": {"foreground": "brand/fg.svg", "background": "brand/bg.svg"},
+                "publish": [{"to": "play", "track": "internal"}], "store": "https://play.google.com/..."},
+    "ios": {"bundleId": "build.helder.littleskies", "publish": ["testflight"]}
   }
 }
 ```
@@ -390,8 +391,8 @@ unlisted, at a random name, for a week.
 ```sh
 helder login                         # GitHub, through helder.build (its device flow); the token in helder's config directory
 helder publish --run                 # this project's run block: <run.name>.helder.run and helder.build/<run.name>, a new version
-helder publish examples/golf --run --dry-run   # built, what would be uploaded printed
-helder share examples/golf           # anonymous: https://quiet-otter-k7m2.helder.run, for a week
+helder publish examples/planets --run --dry-run   # built, what would be uploaded printed
+helder share examples/planets        # anonymous: https://quiet-otter-k7m2.helder.run, for a week
 helder logout
 ```
 

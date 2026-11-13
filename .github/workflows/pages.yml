@@ -1,6 +1,6 @@
 # The examples' page (site/, bun run site) on GitHub Pages: on pushes to
 # main, bin/site built (each example that runs in a browser built for the
-# web, golf's APK for Android, the page's TSX built and run), the showreel
+# web, an `apk: android` example's APK, the page's TSX built and run), the showreel
 # and the demos' clips recorded headless into bin/site/media (bun run
 # site:reel: helder run --headless's frames streamed to ffmpeg; the videos
 # are not in git), checked in headless Chromium (bun run

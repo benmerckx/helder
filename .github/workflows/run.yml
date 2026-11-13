@@ -8,7 +8,7 @@
 #   (POST /api/runtime, only from helder/helder's main): helder.run serves
 #   only runtime files it knows, so a commit that changes them publishes at
 #   once instead of after helder.build's next deploy;
-# - publish: each example and app with a helder.json run block (golf, foundry) built for the web, a screenshot taken headless
+# - publish: each example and app with a helder.json run block (foundry; the game, Little Skies, publishes from helder/little-skies) built for the web, a screenshot taken headless
 #   (Mesa's llvmpipe), uploaded by `helder publish --run` (src/helder/cli/Run.hx).
 name: run
 

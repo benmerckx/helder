@@ -7,12 +7,12 @@ using StringTools;
 //
 //   {
 //     "$schema": "https://helder.build/schema/helder.json",
-//     "name": "Floating Greens",           the app's name (the page's title, the stores')
-//     "label": "Greens",                   the launcher's and home screen's label (else name)
-//     "description": "Mini golf on floating islands.",
-//     "id": "build.helder.golf",           both phones' id (else org.helder.<name>)
+//     "name": "Little Skies",              the app's name (the page's title, the stores')
+//     "label": "Skies",                    the launcher's and home screen's label (else name)
+//     "description": "Mini golf in the sky.",
+//     "id": "build.helder.littleskies",    both phones' id (else org.helder.<name>)
 //     "version": "1.2.0", "build": 3,      the version shown, and the build number (1)
-//     "entry": "Golf.hx",                  what helder builds from the directory (else its main file)
+//     "entry": "src/LittleSkies.hx",       what helder builds from the directory (else its main file)
 //     "icon": "icon.svg",                  or {"any": "icon.svg", "maskable": "maskable.png", "monochrome": "mono.svg"}
 //     "colors": {"theme": "#3ED6C3", "background": "#060912"},
 //     "splash": {"image": "splash.svg", "background": "#060912", "dark": {"image": "splash-dark.svg", "background": "#000"}},
@@ -20,7 +20,7 @@ using StringTools;
 //     "orientation": "landscape",          any, natural, portrait(-primary, -secondary), landscape(-primary, -secondary)
 //     "lang": "en", "dir": "ltr", "categories": ["games"], "fileHandlers": [...] (the web manifest's file_handlers)
 //     "run": {                             helder.run: <name>.helder.run (`helder publish`)
-//       "name": "floating-greens",         the address (else name, made a slug)
+//       "name": "little-skies",            the address (else name, made a slug)
 //       "listed": true,                    in helder.build/explore (false)
 //       "kind": "game",                    game, app or tool
 //       "tags": ["sports"],

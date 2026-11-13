@@ -436,7 +436,7 @@ packet at a time on the audio thread from its compressed bytes, resampled
 to the output's rate, crossfading from what played over `fade` seconds
 (`stopMusic(fade)`; `volume` the effects', `musicVolume` the music's).
 Nothing is allocated on the audio thread (`Sfx.test.hx`, `Vorbis.test.hx`;
-examples/golf's sounds).
+Little Skies' sounds, helder/little-skies).
 
 Vorbis (`Vorbis.hx`, the Vorbis I specification, some 900 lines): floor 1,
 residues 0 to 2, any channels; floor 0, unused by encoders since 2002, is

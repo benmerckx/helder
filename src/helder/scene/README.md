@@ -209,7 +209,7 @@ frame (`sceneDraws`, `shadowDraws`, `postDraws` beside `draws` and
 `passes`), and prints their medians:
 
 ```
-HELDER_CONTROLS=none GOLF_DEMO=8 bun run helder run examples/golf --headless --stats bin/golf-stats.json --at 4
+HELDER_CONTROLS=none bun run helder run examples/showroom --headless --stats bin/showroom-stats.json --at 4
 headless: 3D draws by pass: main 17 (at most 18), shadow maps 17 (at most 17), post 12 (at most 12)
 ```
 
@@ -288,7 +288,7 @@ so a shadow is sharp where it meets what casts it (PCSS); `spread` 0, the
 radius everywhere. Each tap is compared with the surface's own depth there
 (its plane as the light sees it), so a far smaller `bias` than the 3x3
 filter's keeps tilted surfaces from shadowing themselves, and low casters
-(a rail on a green) still cast: examples/golf uses `bias = 0.001` with one
+(a rail on a green) still cast: Little Skies (helder/little-skies) uses `bias = 0.001` with one
 2048 map (tests/3d's `softshadows` frame; `shadows` and `cascades` keep
 the 3x3 filter). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need
@@ -380,7 +380,7 @@ scene's light it was given (linear, RGBA16F, its alpha the scene's
 coverage) and `post.width`, `post.height` its size. A stage's `prepare`
 is recorded before the chain's passes, outside any pass, every run
 (enabled or not, so it may switch itself), for passes of its own from
-that light: Floating Greens' tilt-shift blurs it at half size there, then
+that light: Little Skies' tilt-shift blurs it at half size there, then
 mixes the blur in as its stage. A `<Scene hdr>`'s chain is there when its
 `setup` is called, so stages are added there.
 

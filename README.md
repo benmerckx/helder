@@ -872,8 +872,11 @@ fix.
   (tests/os/dev/dev-android.mjs), passing there (Pixel 6, API 34; iPhone
   17, iOS 26.2). Later:
   `.meta` sidecars, compressed textures, sounds decoded.
-- *Landed, a first slice*: **the game**, Floating Greens
-  (examples/golf/README.md): mini golf on floating islands, nine holes
+- *Landed, a first slice*: **the game**, Little Skies (first
+  examples/golf, Floating Greens; now its own repository,
+  https://github.com/helder/little-skies, a Haxe app with helder as a
+  dependency, published from there to helder.run, Google Play and
+  TestFlight): mini golf on floating islands, nine holes
   built from kit pieces in code (flats, ramps, rails, blocks, bumper
   posts, moving blocks, the cup) with a par each; the shot one gesture (a
   drag back from the ball: a recogniser of ui's arena winning the press at
@@ -899,7 +902,7 @@ fix.
   app's data directory (Linux's XDG data home, macOS's Application
   Support, Windows' APPDATA, Android's files directory, iOS's Library),
   localStorage on the web. Tested natively and as wasm32-wasi
-  (`Store.test.hx`), the web's through golf's save in Chromium.
+  (`Store.test.hx`), the web's through Little Skies' save in Chromium.
 - *Landed*: **CI on an Android emulator and the iOS simulator**: the
   `android` job (a Pixel 6's emulator, API 34: hello through `helder
   run` and adb, the screen fixture, Android's dev loop) and the
@@ -945,7 +948,7 @@ fix.
   - Android's counterpart (typed Java and Kotlin through JNI) is not part
     of this and waits for its own interop.
 
-  Driven by Expansion (the second game, after golf): a native iOS build
+  Driven by Expansion (the second game, after Little Skies): a native iOS build
   that runs well on a phone, then its saves in iCloud and its
   achievements in Game Center.
 - Then: **shipping to the stores from any machine, CI included**, in

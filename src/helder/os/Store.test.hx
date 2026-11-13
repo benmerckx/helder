@@ -6,8 +6,8 @@ import helder.test.Test;
 // and read back by a store opened again, removed and cleared, quotes,
 // newlines and non-ASCII text kept, a damaged file opened empty, a name
 // that is not one refused (natively and as wasm32-wasi: a file under
-// bin/test/store; the web's localStorage: the golf example's save in
-// Chromium, examples/golf/README.md).
+// bin/test/store; the web's localStorage: Little Skies' save in Chromium,
+// helder/little-skies).
 function tests() {
 	describe("Store", () -> {
 		final dir = "bin/test/store";

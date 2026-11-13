@@ -59,11 +59,11 @@ console.log(tree(plain));
   ```haxe
   final hole8 = story({name: "Holes/Turnstile", store: true, caption: "Three islands in the sky", render: c -> {
     var game = new Game();
-    game.demo(7, GolfReplay.rounds[7].shots);
+    game.demo(7, Rounds.rounds[7].shots);
     Clock.add(t -> { game.frame(t); true; });
     c.onDispose(game.dispose);
     c.play(4); // the moment: 4 s into the hole
-    Golf.view(game);
+    LittleSkies.view(game);
   }});
   ```
 

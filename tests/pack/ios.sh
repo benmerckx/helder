@@ -115,28 +115,30 @@ kill $console > /dev/null 2>&1
 node tests/pack/screen.mjs "$out/screen.txt" ios
 check "the screen's lines (tests/pack/screen.mjs)" $?
 
-# The golf example (examples/golf): built for the simulator, launched, its
-# first frames drawn (its line), a screenshot kept in <out dir>/golf.png.
-gid=build.helder.golf  # (examples/golf/helder.json's id)
-"$helder" build examples/golf/Golf.hx --target ios-sim -o "$out/Golf.app"
-check "helder build examples/golf --target ios-sim" $?
-xcrun simctl install "$udid" "$out/Golf.app"
-check "simctl install Golf.app" $?
-: > "$out/golf.txt"
-xcrun simctl launch --console-pty --terminate-running-process "$udid" $gid > "$out/golf.txt" 2>&1 &
+# The planets example (examples/planets: ui's markup with a <Scene> in it):
+# built for the simulator, launched, its first frames drawn (its line), a
+# screenshot kept in <out dir>/planets.png. (helder/little-skies, the game,
+# has its own CI.)
+gid=org.helder.Planets
+"$helder" build examples/planets/Planets.hx --target ios-sim -o "$out/Planets.app"
+check "helder build examples/planets --target ios-sim" $?
+xcrun simctl install "$udid" "$out/Planets.app"
+check "simctl install Planets.app" $?
+: > "$out/planets.txt"
+xcrun simctl launch --console-pty --terminate-running-process "$udid" $gid > "$out/planets.txt" 2>&1 &
 console=$!
 i=0
-while [ $i -lt 60 ] && ! grep -q "floating greens: 18 holes, drawing" "$out/golf.txt"; do
+while [ $i -lt 60 ] && ! grep -q "planets: drawing" "$out/planets.txt"; do
 	sleep 1
 	i=$((i + 1))
 done
-tail -20 "$out/golf.txt"
-grep -q "floating greens: 18 holes, drawing" "$out/golf.txt"
-check "golf: its first frames" $?
+tail -20 "$out/planets.txt"
+grep -q "planets: drawing" "$out/planets.txt"
+check "planets: its first frames" $?
 sleep 3
-! grep -q "Uncaught exception" "$out/golf.txt"
-check "golf: nothing uncaught" $?
-xcrun simctl io "$udid" screenshot "$out/golf.png" > /dev/null 2>&1
+! grep -q "Uncaught exception" "$out/planets.txt"
+check "planets: nothing uncaught" $?
+xcrun simctl io "$udid" screenshot "$out/planets.png" > /dev/null 2>&1
 xcrun simctl terminate "$udid" $gid > /dev/null 2>&1
 kill $console > /dev/null 2>&1
 
