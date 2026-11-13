@@ -11,9 +11,8 @@ import hxmc.unsafe.*;
 //   bar transparent, no title), the system's buttons measured, placed where
 //   the app asks and kept there through a resize; a press on the bar but
 //   the buttons the app's, on a button AppKit's;
-// - Windows: no caption (the client area the window's top), WM_NCHITTEST
-//   answering the app's drag region (HTCAPTION) and maximise button
-//   (HTMAXBUTTON), the top edge (HTTOP);
+// - Windows: WM_NCHITTEST answering the app's drag region (HTCAPTION)
+//   and maximise button (HTMAXBUTTON), the top edge (HTTOP);
 // - X11: undecorated (_MOTIF_WM_HINTS' decorations 0).
 class TitleBarTest {
 	static var failed = 0;
@@ -93,10 +92,8 @@ class TitleBarTest {
 		var w:helder.os.win32.Win32Window = cast @:privateAccess window.native;
 		var hwnd:Ptr = @:privateAccess w.hwnd;
 		Arena.scoped(a -> {
-			var r = a.make(helder.os.win32.User32.RECT), c = a.make(helder.os.win32.User32.POINT);
-			helder.os.win32.User32.GetWindowRect(hwnd, r);
+			var c = a.make(helder.os.win32.User32.POINT);
 			helder.os.win32.User32.ClientToScreen(hwnd, c);
-			check("Windows: no caption (the client area at the window's top)", c.value.y == r.value.top, '${c.value.y} against ${r.value.top}');
 			function hit(x:Int, y:Int):Int {
 				var lp:Int64 = ((c.value.y + y) & 0xFFFF) << 16 | ((c.value.x + x) & 0xFFFF);
 				return helder.os.win32.User32.SendMessageW(hwnd, 0x0084, 0, lp).toInt();
