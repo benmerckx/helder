@@ -1,9 +1,9 @@
 {
   "$schema": "https://helder.build/schema/helder.json",
   "name": "Floating Greens",
-  "description": "Mini golf on floating islands. Nine short holes: drag back from the ball, let go to shoot.",
+  "description": "Mini golf on floating islands: eighteen holes on three islands, each with its own tricks (bumpers, turnstiles, wind, lifts, portals, switches and gates). Drag back from the ball, let go to shoot.",
   "id": "build.helder.golf",
-  "version": "1.0",
+  "version": "1.1",
   "entry": "Golf.hx",
   "icon": "icon.svg",
   "colors": {
@@ -16,14 +16,18 @@
     "kind": "game",
     "tags": [
       "golf",
-      "physics"
+      "physics",
+      "3d",
+      "puzzle"
     ],
     "source": "https://github.com/helder/helder/tree/main/examples/golf",
     "screenshots": [
+      "screenshots/hole-8.png",
+      "screenshots/hole-16.png",
+      "screenshots/hole-10.png",
+      "screenshots/hole-18.png",
       "screenshots/hole-4.png",
-      "screenshots/hole-9.png",
-      "screenshots/hole-2.png",
-      "screenshots/hole-6.png"
+      "screenshots/hole-13.png"
     ]
   }
 }
