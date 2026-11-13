@@ -20,15 +20,6 @@
       "3d",
       "puzzle"
     ],
-    "source": "https://github.com/helder/helder/tree/main/examples/golf",
-    "screenshots": [
-      "screenshots/hole-8.png",
-      "screenshots/aim-12.png",
-      "screenshots/hole-16.png",
-      "screenshots/hole-10.png",
-      "screenshots/hole-18.png",
-      "screenshots/hole-4.png",
-      "screenshots/hole-13.png"
-    ]
+    "source": "https://github.com/helder/helder/tree/main/examples/golf"
   }
 }

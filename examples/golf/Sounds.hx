@@ -8,6 +8,8 @@ import helder.os.audio.Sfx;
 // phones yet, where they are silent). Kept soft: a little under each
 // event, never a wall of noise.
 class Sounds {
+	// no output opened, nothing played (the stories: frames on a virtual clock, faster than sound)
+	public static var silent = false;
 	static var sfx:Null<Sfx>;
 	static var tock = -1;
 	static var knock = -1;
@@ -27,7 +29,7 @@ class Sounds {
 
 	// the sounds made and the output opened (before the first is played: a few milliseconds)
 	public static function start() {
-		if (sfx != null) return;
+		if (sfx != null || silent) return;
 		var s = Sfx.open();
 		sfx = s;
 		if (!s.playing) return;

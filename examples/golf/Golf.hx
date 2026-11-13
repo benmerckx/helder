@@ -22,11 +22,11 @@ import helder.view.graph.Graph.*;
 // hole-in (stars, retry, next), the islands' scorecard (stars and best
 // strokes, saved) and a curtain between holes. Set in Nunito (the
 // numbers, labels, tips and buttons), the title and the holes' names in
-// Fredoka (both OFL, fonts/), embedded. GOLF_DEMO=<hole> plays its recorded
-// round, GOLF_PLAY=<hole> starts it, GOLF_AIM=<hole>,<dx>,<dz>,<power>
-// holds an aim on it (the predicted path shown), GOLF_MENU opens the
-// scorecard (natively). The game steps on ui's clock (Game.frame), its
-// simulation at a fixed rate.
+// Fredoka (both OFL, fonts/), embedded. GOLF_MENU opens the scorecard
+// (natively). The game steps on ui's clock (Game.frame), its simulation at
+// a fixed rate. Its screenshots are its stories (Golf.story.hx: a hole's
+// recorded round played to a moment, or an aim held), the same screen
+// (view) in a story's Ui.
 class Golf implements Markup {
 	static inline var INK = "#2b2d42";
 	static inline var MUTED = "#7d8597";
@@ -34,20 +34,9 @@ class Golf implements Markup {
 
 	static function main() {
 		Sys.println("floating greens: starting");
-		try helder.text.SystemFonts.get().add(helder.asset.Asset.embed("fonts/Fredoka.ttf")) catch (_:Dynamic) {}
-		try helder.text.SystemFonts.get().add(helder.asset.Asset.embed("fonts/Nunito.ttf")) catch (_:Dynamic) {}
+		fonts();
 		var game = new Game();
-		// (GOLF_DEMO=<hole>: its recorded round played, the frames' allocation printed natively)
 		#if (hxmc.target != "wasm32-wasi")
-		var demo = Std.parseInt(Sys.getEnv("GOLF_DEMO") ?? "");
-		if (demo != null) for (r in GolfReplay.rounds) if (r.hole == demo - 1) game.demo(r.hole, r.shots);
-		// (GOLF_PLAY=<hole>: that hole started, past the title)
-		var start = Std.parseInt(Sys.getEnv("GOLF_PLAY") ?? "");
-		if (start != null && demo == null) game.play(start - 1);
-		// (GOLF_AIM=<hole>,<dx>,<dz>,<power 0..1>: that hole, an aim held on it)
-		var held = (Sys.getEnv("GOLF_AIM") ?? "").split(",");
-		if (held.length == 4 && demo == null)
-			game.holdAim(Std.parseInt(held[0]) - 1, Std.parseFloat(held[1]), Std.parseFloat(held[2]), Std.parseFloat(held[3]));
 		if (Sys.getEnv("GOLF_MENU") != null) game.openMenu();
 		// (GOLF_QUALITY=0..2: the diorama's quality held: 2 all, 1 a thinner cloud sea, 0 no blur)
 		var quality = Std.parseInt(Sys.getEnv("GOLF_QUALITY") ?? "");
@@ -58,16 +47,30 @@ class Golf implements Markup {
 			true;
 		});
 		UiWindow.run(<Surface title="Floating Greens" width={390} height={844} theme={sheet}>
-			<view grow={1} background={game.sky()} font-family="Nunito" color={INK}>
-				<Scene grow={1} world={game.world} camera={game.camera} hdr animate setup={game.setup} ref={game.attach}>
-					<OrbitControls ref={game.controls}/>
-				</Scene>
-				<Hud game={game}/>
-				<view position="absolute" left={0} top={0} right={0} bottom={0} pointer-events="none" background={game.sky()}
-					opacity={game.curtain() ? 1.0 : 0.0} transition="opacity 0.28s ease-in-out"/>
-			</view>
+			{view(game)}
 		</Surface>);
 	}
+
+	static var fontsAdded = false;
+
+	// Nunito and Fredoka added to the system's fonts (once)
+	public static function fonts() {
+		if (fontsAdded) return;
+		fontsAdded = true;
+		try helder.text.SystemFonts.get().add(helder.asset.Asset.embed("fonts/Fredoka.ttf")) catch (_:Dynamic) {}
+		try helder.text.SystemFonts.get().add(helder.asset.Asset.embed("fonts/Nunito.ttf")) catch (_:Dynamic) {}
+	}
+
+	// the game's screen: the island's sky, the <Scene>, the HUD, the curtain
+	public static function view(game:Game):View
+		return <view grow={1} background={game.sky()} font-family="Nunito" color={INK}>
+			<Scene grow={1} world={game.world} camera={game.camera} hdr animate setup={game.setup} ref={game.attach}>
+				<OrbitControls ref={game.controls}/>
+			</Scene>
+			<Hud game={game}/>
+			<view position="absolute" left={0} top={0} right={0} bottom={0} pointer-events="none" background={game.sky()}
+				opacity={game.curtain() ? 1.0 : 0.0} transition="opacity 0.28s ease-in-out"/>
+		</view>;
 
 	// (the pop-ins: from small and clear when first drawn, eased by their transition)
 	static final sheet:StyleSheet = {

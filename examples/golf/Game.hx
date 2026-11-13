@@ -35,7 +35,8 @@ import helder.view.graph.Signal;
 // ones, slow motion on a hole-in, a sound for each. Each island has its
 // own light and colours (Course.worlds). What the HUD shows are signals,
 // written only when they change: a frame of play allocates nothing
-// (GOLF_DEMO=<hole> prints the frames' GcStats natively).
+// (GOLF_STATS=1 prints the frames' GcStats natively while a recorded round
+// or a held aim plays: the stories, Golf.story.hx).
 class Game {
 	public final world = new SceneWorld("golf");
 	public final camera:Camera;
@@ -46,6 +47,7 @@ class Game {
 	var box:Null<SceneBox>;
 	var orbit:Null<OrbitControls>;
 	var renderer:Null<Renderer>;
+	var shadows:Null<Shadows>;
 	public final shot = new helder.ui.gesture.Press();
 
 	// --- what the HUD reads
@@ -158,7 +160,7 @@ class Game {
 	static inline var TITLE = 7;
 	var aimDir = new Vec3(0, 0, -1);
 	var aimPower = 0.0;
-	// (GOLF_AIM: an aim held without a finger, for snaps)
+	// (holdAim: an aim held without a finger, a story's)
 	var held = false;
 	// the pull on screen (points, from the ball)
 	var pullX = 0.0;
@@ -225,6 +227,14 @@ class Game {
 		theme(Course.worlds[sim.hole.world]);
 	}
 
+	// the game let go: its scene world's slot freed, its shadow map (a story's, disposed with it)
+	public function dispose() {
+		world.dispose();
+		var s = shadows;
+		if (s != null) s.dispose();
+		shadows = null;
+	}
+
 	// --- set up by the <Scene>: its box, its renderer, its controls
 
 	public function attach(b:SceneBox) {
@@ -257,6 +267,9 @@ class Game {
 		s.strength = 0.55;
 		s.bias = 0.001;
 		r.use(s);
+		var old = shadows;
+		if (old != null) old.dispose();
+		shadows = s;
 		var post = r.post;
 		if (post != null) {
 			// (a phone's cheaper bloom: four levels from a quarter of the frame)
@@ -852,7 +865,7 @@ class Game {
 	static function speedOf(power:Float):Float
 		return Sim.MIN_SPEED + (Sim.MAX_SPEED - Sim.MIN_SPEED) * Math.pow(power, 1.6);
 
-	// an aim held (GOLF_AIM=<hole>,<dx>,<dz>,<power>: the hole started, the fly-over skipped, the aim shown as if dragged)
+	// an aim held (a story's: the hole started, the fly-over skipped, the aim shown as if dragged)
 	public function holdAim(index:Int, dx:Float, dz:Float, strength:Float) {
 		play(index);
 		endIntro();
@@ -936,7 +949,7 @@ class Game {
 		demoStep();
 	}
 
-	// --- a demo (GOLF_DEMO=<hole>: its recorded shots played, each at the step GolfReplay plays it; GcStats per frame printed natively)
+	// --- a demo (a story's: a hole's recorded shots played, each at the step GolfReplay plays it; GOLF_STATS=1: GcStats per frame printed natively)
 
 	var demoShots:Null<Array<Array<Float>>>;
 	var demoNext = 0;
@@ -948,7 +961,6 @@ class Game {
 
 	public function demo(hole:Int, shots:Array<Array<Float>>) {
 		demoShots = shots;
-		Sys.println("golf: demo of hole " + (hole + 1));
 		demoNext = 0;
 		play(hole);
 		endIntro();
@@ -972,9 +984,11 @@ class Game {
 		}
 	}
 
-	// (the frame's allocation, counted after the first seconds: what a frame of play, or of an aim held, costs)
+	// (the frame's allocation, counted after the first seconds: what a frame of play, or of an aim held, costs; GOLF_STATS=1)
+	static final stats = #if (hxmc.target == "wasm32-wasi") false #else Sys.getEnv("GOLF_STATS") != null #end;
+
 	function stat() {
-		if ((demoShots == null && !held) || realTime < 3) return;
+		if (!stats || (demoShots == null && !held) || realTime < 3) return;
 		statFrames++;
 		if (frameBytes > 0) {
 			statAllocating++;
