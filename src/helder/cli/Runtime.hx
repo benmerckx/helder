@@ -8,7 +8,9 @@ import sys.io.File;
 using StringTools;
 
 // The runtime objects (<dir>/<target>/{rt,ssl,uv}.o) that npm does not
-// install: Android's (android-arm64, android-x86_64). @hxmc/cli's
+// install: Android's (android-arm64, android-x86_64), and iOS's off a Mac
+// (an iPhone's and the simulator's are macOS arm64's, Darwin's: npm puts
+// @hxmc/darwin-arm64 on a Mac only, so that Linux builds an .ipa too). @hxmc/cli's
 // package.json names the GitHub release of benmerckx/hxmc built from the
 // same sources ("hxmc": {"rt": "rt-<16 hex>"}); its assets
 // <target>-<object>.gz are fetched on first use (curl, which follows the
@@ -21,9 +23,16 @@ class Runtime {
 	public static final OBJECTS = ["rt.o", "ssl.o", "uv.o"];
 	static final RELEASES = "https://github.com/benmerckx/hxmc/releases/download";
 
-	// the targets whose objects come from the release, not npm
-	public static function fetched(target:String):Bool
-		return target == "android-arm64" || target == "android-x86_64";
+	// the directory of a target's objects (iOS's: macOS arm64's, hxmc's Abi.rtName)
+	public static function objects(target:String):String
+		return target.startsWith("ios-") ? "macos-arm64" : target;
+
+	// the targets whose objects come from the release, not npm (iOS's: when
+	// no @hxmc/darwin-arm64 is installed beside the compiler)
+	public static function fetched(target:String):Bool {
+		if (target == "android-arm64" || target == "android-x86_64") return true;
+		return target.startsWith("ios-") && Compiler.locate("node_modules/@hxmc/darwin-arm64/macos-arm64/rt.o") == null;
+	}
 
 	static function has(dir:String, target:String):Bool {
 		for (o in OBJECTS) if (!FileSystem.exists('$dir/$target/$o')) return false;
@@ -46,6 +55,7 @@ class Runtime {
 	// use, HXMC_RT_DIR given their directory; an error's message thrown
 	@:coroutine public static function ensure(target:String) {
 		if (!fetched(target)) return;
+		target = objects(target);
 		var given = [for (d in (Sys.getEnv("HXMC_RT_DIR") ?? "").split(delimiter())) if (d != "") d];
 		for (d in given) if (has(d, target)) return;
 		var tag = tag();

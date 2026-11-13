@@ -62,6 +62,7 @@ class Ios {
 		var o = App.ios(e.name, e.config);
 		Manifest.warn(e);
 		var device = e.target == "ios-arm64";
+		Runtime.ensure(e.target);
 		// (the identity and profile checked before the build: its mistakes first)
 		var sign = device ? signing(o, e.root) : null;
 		if (sign != null && sign.profile == null) {
