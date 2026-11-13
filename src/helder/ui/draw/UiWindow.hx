@@ -271,6 +271,8 @@ class UiWindow {
 	function titlebarArea() {
 		if (open[0] != this || window.titlebar != Inset) return;
 		var a = window.titlebarArea(), k = renderer.scale;
+		// (a headless run standing in for the web page, helder.run's screenshot: no title bar, as a browser has it)
+		#if helder.headless if (Sys.getEnv("HELDER_CONTROLS") == "none") a = null; #end
 		var t = a == null ? null : new helder.ui.TitlebarArea(a.x / k, a.y / k, a.width / k, a.height / k);
 		if (helder.ui.TitlebarArea.same(t, titlebarShown)) return;
 		titlebarShown = t;

@@ -173,6 +173,8 @@ class Run {
 		var file = '$dir/_helder/shot-1.png';
 		try {
 			var h = Options.parse("run", [o.entry ?? ".", "--headless", "--snap", file, "--at", "2", "--size", portrait ? "390x844" : "1280x800"].concat(portrait ? ["--scale", "2"] : []));
+			// (as the web page has it: no window buttons drawn)
+			Sys.putEnv("HELDER_CONTROLS", "none");
 			if (HeadlessCommand.run(h, Entry.of(h)) == 0 && FileSystem.exists(file)) return ["_helder/shot-1.png"];
 		} catch (err:Dynamic) {}
 		Term.err(Style.status("warning", Warn, "no screenshot of the program (its page shows its icon): name some in helder.json's run.screenshots"));

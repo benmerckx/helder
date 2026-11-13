@@ -4,7 +4,7 @@
   "description": "Make a font by drawing it: pen lines and outlines, letters borrowed from each other, open fonts to start from, a real font typed in as you draw, agents drawing too over MCP",
   "license": "MIT",
   "author": "Ben Merckx",
-  "homepage": "https://github.com/benmerckx/helder/tree/main/apps/foundry",
+  "homepage": "https://github.com/helder/helder/tree/main/apps/foundry",
   "helder": {
     "main": "Foundry"
   }
