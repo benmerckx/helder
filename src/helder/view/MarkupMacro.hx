@@ -563,7 +563,7 @@ class HaxeTarget implements Target<Expr> {
 		return e.expr.match(EConst(CIdent("null")));
 
 	public function anyArray(items:Array<Expr>):Expr
-		return macro @:pos(pos) ([$a{items}] : Array<Any>);
+		return macro @:pos(pos) ([$a{items}] : Array<Null<Any>>);
 
 	public function declare(name:String, e:Expr, where:Null<Where>):Expr
 		return macro @:pos(at(where)) var $name = $e;
@@ -579,7 +579,7 @@ class HaxeTarget implements Target<Expr> {
 	}
 
 	public function holeDecl(name:String, e:Expr, factory:Bool):Expr
-		return {expr: EVars([{name: name, type: factory ? macro :Void->Any : macro :Any, expr: e}]), pos: e.pos};
+		return {expr: EVars([{name: name, type: factory ? macro :Void->Null<Any> : macro :Null<Any>, expr: e}]), pos: e.pos};
 
 	public function holeRef(name:String, e:Expr):Expr
 		return macro @:pos(e.pos) $i{name};
@@ -617,7 +617,7 @@ class HaxeTarget implements Target<Expr> {
 
 	public function view(v:Planned<Expr>):Expr {
 		var holes = v.holes, body = v.body, renderer = v.renderer;
-		var parts = v.parts == null ? macro null : macro function():Array<Any> return ([$a{v.parts}] : Array<Any>);
+		var parts = v.parts == null ? macro null : macro function():Array<Null<Any>> return ([$a{v.parts}] : Array<Null<Any>>);
 		var line = MarkupMacro.lineOf(file, base);
 		var source = haxe.io.Path.withoutDirectory(file) + ":" + line;
 		// (a root's: its parts only, no code to mount)
@@ -629,7 +629,7 @@ class HaxeTarget implements Target<Expr> {
 			var key = HostMacro.id(file + ":" + base + ":" + v.at);
 			var decls = [
 				for (h in v.holeNames)
-					{expr: EVars([{name: h.name, type: h.factory ? macro :Void->Any : macro :Any, expr: null}]), pos: pos}
+					{expr: EVars([{name: h.name, type: h.factory ? macro :Void->Null<Any> : macro :Null<Any>, expr: null}]), pos: pos}
 			];
 			var only = own == null ? [] : [for (r in own.only) macro $v{r}];
 			if (cls == null) Context.error("markup: a literal outside a class", pos);
@@ -638,7 +638,7 @@ class HaxeTarget implements Target<Expr> {
 			var feature = m == null ? "" : c.pack.concat([c.name, m]).join(".");
 			c.meta.add(":helder.late", [macro $v{key}, macro $b{decls}, macro $b{body}, macro $a{only}, macro $v{feature}], pos);
 			var hs = [for (h in v.holeNames) macro $i{h.name}];
-			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View(0, null, $v{key}, ([$a{hs}] : Array<Any>), $parts, $v{source})])};
+			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View(0, null, $v{key}, ([$a{hs}] : Array<Null<Any>>), $parts, $v{source})])};
 		}
 		var info = HostMacro.reach(renderer);
 		var code = own != null && own.only.indexOf(renderer) < 0 ? [

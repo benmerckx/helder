@@ -76,7 +76,7 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 	public static inline function holdsText(el:Node):Bool
 		return false;
 
-	public static function setProperty(node:Node, name:String, v:Dynamic) {
+	public static function setProperty(node:Node, name:String, v:Null<Dynamic>) {
 		var el:Element = cast node;
 		if (Html.PROPERTIES.exists(name) && el.namespaceURI != Html.SVG_NS) {
 			var content = name == "innerHTML" || name == "textContent" || (name == "value" && el.localName == "textarea");
