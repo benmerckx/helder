@@ -10,7 +10,11 @@ package helder.gfx;
 // rasterizer's vertex stage too), in ms, and the GC bytes allocated
 // from its begin to its end (uiBytes: hxmc's; the painting's too), the
 // glyphs' texels it wrote (glyphTexels: the atlas's changed region, the
-// large glyphs drawn alone).
+// large glyphs drawn alone). And a 3D renderer's (helder.scene's Renderer)
+// draws of those, by pass: its main pass's (sceneDraws: renderer.draws),
+// its shadow maps' (shadowDraws: every cascade's, Shadows.draws) and its
+// post-processing's (postDraws: bloom, the composite, the stages;
+// PostProcess.draws), every renderer's summed.
 // Counted from the last reset: a headless run's --stats resets them at
 // each frame's start.
 class FrameCounts {
@@ -27,9 +31,13 @@ class FrameCounts {
 	public static var encodeMs = 0.0;
 	public static var uiBytes = 0.0;
 	public static var glyphTexels = 0;
+	public static var sceneDraws = 0;
+	public static var shadowDraws = 0;
+	public static var postDraws = 0;
 
 	public static function reset() {
 		passes = draws = quads = instances = pipelines = textures = buffers = uploaded = glyphTexels = 0;
+		sceneDraws = shadowDraws = postDraws = 0;
 		uiMs = uploadMs = encodeMs = uiBytes = 0;
 	}
 }

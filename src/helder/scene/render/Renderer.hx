@@ -69,9 +69,13 @@ class Renderer {
 	// GpuParticles; a material opts out with Material.fog
 	public var fog:Null<Fog> = null;
 	public var clearColor = new Color(0.07, 0.08, 0.1);
-	// the last draw's draws and primitives culled (statistics)
+	// the last draw's draws in its main pass and primitives culled
+	// (statistics); its shadow maps' draws (Shadows: every cascade's; 0
+	// without); every renderer's by pass in helder.gfx.FrameCounts
+	// (sceneDraws, shadowDraws, postDraws: PostProcess.draws)
 	public var draws(default, null) = 0;
 	public var culled(default, null) = 0;
+	public var shadowDraws(default, null) = 0;
 
 	final pipeline:Pipeline;
 	final doubleSided:Pipeline;
@@ -226,11 +230,15 @@ class Renderer {
 		frame.hdr = hdr;
 		frame.fog = fog;
 		frame.exposure = exposure;
+		shadowDraws = 0;
 		if (shadowSource != null) {
 			shadowSource.render(enc, world, toLight, skinSource, frame);
 			writeFrame(world, camera, viewProj, true);
+			shadowDraws = shadowSource.shadowFrame().draws;
+			FrameCounts.shadowDraws += shadowDraws;
 		}
 		record(enc);
+		FrameCounts.sceneDraws += draws;
 		for (f in hooks[AfterPass])
 			f(enc, frame);
 	}
