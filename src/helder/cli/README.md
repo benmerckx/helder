@@ -456,6 +456,10 @@ names (helder.run's first, when it has a run block, then each target's
   uploaded with its MD5, the upload's state read back. No Transporter.
   TestFlight lists the build once App Store Connect has processed it;
   its validation's errors come by email and on the build's page.
+  With **`--submit`**: the build waited for while App Store Connect
+  processes it (`HELDER_ASC_WAIT` seconds at most, 3600), put on the
+  editable App Store version and sent for App Review (a review
+  submission, its item, submitted).
 - **`--dry-run`**: built and signed, the token got, what is there read
   (the track's releases; the app's id), what would change printed;
   nothing uploaded, nothing committed (Play's edit deleted).
@@ -469,8 +473,18 @@ names (helder.run's first, when it has a run block, then each target's
   `bin/store/review.html`. The same stories are helder.run's screenshots
   (`--run`), so the stores and helder.run show the same moments.
 - **`--listing`** (with `--play` or `--testflight` for one store, else
-  both; `--locale`, en-US): the same screenshots against each store's
-  listing by hash, those not ours deleted and ours missing uploaded:
+  both; `--locale`, en-US): helder.json's `listing` (`Listing.hx`: a few
+  fields both stores share, mapped onto each one's; under `play` and
+  `appStore` the stores' resources by their API names, their attributes
+  sent as they are, so a field a store adds works without helder knowing
+  it; `locales` for other languages; `"${NAME}"` from the environment),
+  only what differs from the store's sent: Play's listing and details;
+  App Store Connect's app, app info (name, subtitle, privacy URL,
+  categories, the age rating: questions still unanswered named), the
+  version (made when there is none) and its listing, the review's
+  contact. Play's icon (the app's, 512 px) and feature graphic (the first
+  story with `feature: true`, 1024x500) go with the screenshots. And the
+  same screenshots against each store's listing by hash, those not ours deleted and ours missing uploaded:
   Google Play's image types (`phoneScreenshots`) in an edit, committed;
   App Store Connect's version being prepared, its localization's
   screenshot sets by display type (`APP_IPHONE_67`, `APP_IPHONE_65`,
