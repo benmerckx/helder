@@ -18,6 +18,12 @@
       "golf",
       "physics"
     ],
-    "source": "https://github.com/helder/helder/tree/main/examples/golf"
+    "source": "https://github.com/helder/helder/tree/main/examples/golf",
+    "screenshots": [
+      "screenshots/hole-4.png",
+      "screenshots/hole-9.png",
+      "screenshots/hole-2.png",
+      "screenshots/hole-6.png"
+    ]
   }
 }

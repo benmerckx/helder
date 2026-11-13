@@ -10,11 +10,24 @@ export default async function (host) {
 		const b = f instanceof ArrayBuffer ? f : await (await fetch(f)).arrayBuffer();
 		fonts.push(new Uint8Array(b));
 	}
+	const faces = new Map();
 	const hxmc_text = {
 		font_count: () => fonts.length,
 		font_size: (i) => fonts[i].length,
 		// (p: the module's memory, font_size(i) bytes)
 		font_read: (i, p) => host.bytes(p, fonts[i].length).set(fonts[i]),
+		// (a font the program added, or replaced: the page's FontFace too, so
+		// its text fields are set in it by the family's name)
+		font_face: (family, weight, italic, p, n) => {
+			if (!globalThis.document?.fonts) return;
+			const name = host.string(family), style = italic ? 'italic' : 'normal', key = `${name}|${weight}|${style}`;
+			const old = faces.get(key);
+			const face = new FontFace(name, host.bytes(p, n).slice(), { weight: String(weight), style });
+			faces.set(key, face);
+			if (face.status === 'error') return;
+			document.fonts.add(face);
+			if (old) document.fonts.delete(old);
+		},
 	};
 	return { hxmc_text };
 }

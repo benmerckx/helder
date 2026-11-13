@@ -150,6 +150,8 @@ class FontFile {
 		ys = other.ys;
 		glyphAt = other.glyphAt;
 		id = nextId++;
+		// (the page's FontFace too, in a browser: WebFonts)
+		#if (target.name == "hxmc") WebFonts.face(this); #end
 	}
 
 	// the face at index of a font file's bytes (a collection has several)

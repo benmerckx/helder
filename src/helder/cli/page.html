@@ -3,7 +3,11 @@
 <title>{{title}}</title>
 {{head}}
 <style>
+html, body { height: 100%; overflow: hidden; }
 body { margin: 0; background: #fff; }
+/* (the program draws its own focus: the canvas has it while it runs) */
+canvas { display: block; }
+canvas:focus { outline: none; }
 @media (prefers-color-scheme: dark) { body { background: #0b0b0c; } }
 {{style}}
 #hxmc-dev-overlay { position: fixed; inset: 0; z-index: 2147483647; display: none; overflow: auto; margin: 0; padding: 16px;

@@ -10,6 +10,7 @@ import hxmc.unsafe.*;
 	static function font_count():Int;
 	static function font_size(i:Int):Int;
 	static function font_read(i:Int, p:Ptr):Void;
+	static function font_face(family:Ptr, weight:Int, italic:Int, p:Ptr, n:Int):Void;
 }
 
 class WebFonts {
@@ -26,6 +27,19 @@ class WebFonts {
 			out.push(b);
 		}
 		return out;
+	}
+
+	// a font the program added (or one it replaced: the same family, weight
+	// and style, the page's face replaced too) given to
+	// the page too, as a FontFace: the page's own text fields
+	// (WebViews' editors) are set in it by its family's name
+	public static function face(f:FontFile) {
+		if (Mem.os() != 3) return;
+		var b = f.data;
+		Arena.scoped(a -> {
+			var p = BytesPtr.of(b, 0, b.length);
+			WebFontsImports.font_face(a.cstring(f.family), f.weight, f.italic ? 1 : 0, p, b.length);
+		});
 	}
 }
 #end

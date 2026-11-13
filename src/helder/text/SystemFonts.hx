@@ -71,6 +71,7 @@ class SystemFonts {
 			faces.insert(0, fi);
 			fallbackList = null;
 			out.push(f);
+			#if (target.name == "hxmc") WebFonts.face(f); #end
 		}
 		addedFiles.push({data: data, faces: out});
 		return out;
