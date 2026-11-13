@@ -156,9 +156,15 @@ class Run {
 		}
 	}
 
-	// the release's screenshots under _helder/: helder.json's run.screenshots,
-	// else one of the program taken headless (a phone's size when it is a
-	// portrait one), else none
+	// helder.run's page shows at most this many screenshots
+	public static inline var SCREENSHOTS = 8;
+
+	// the release's screenshots under _helder/: helder.json's run.screenshots
+	// (files named, an override), else the stories with store: true (the
+	// stores' screenshots, helder.story.StoreShots: the same stories at a
+	// window's size, 1280x800, or a phone's, 390x844 at 2x, when the app is
+	// portrait; no caption band; in their order, at most SCREENSHOTS), else
+	// one of the program taken headless (that size), else none
 	@:coroutine static function screenshots(o:Options, e:Entry, run:Null<HelderJson.RunConfig>, dir:String):Array<String> {
 		var named = run?.screenshots;
 		if (named != null) return [
@@ -172,6 +178,20 @@ class Run {
 		];
 		if (o.has("no-screenshot")) return [];
 		var portrait = (e.config?.orientation : Null<String>) == "portrait";
+		// (the stories, built for this machine)
+		var host = Entry.resolve(o.entry);
+		var stories = Shots.find(host, false);
+		if (stories.stores > 0) {
+			var at = Entry.clean('${e.root}/bin/shots/run');
+			var list = Shots.web(host, at, portrait ? 780 : 1280, portrait ? 1688 : 800, portrait ? 2 : 1, SCREENSHOTS);
+			var out = [for (k => s in list) {
+				var to = '_helder/shot-${k + 1}.png';
+				File.copy('$at/${s.file}', '$dir/$to');
+				to;
+			}];
+			Term.out(Style.status("screenshots", Info, '${out.length} of the stories' + Style.dim(Style.sep() + [for (s in list) s.story].join(", "))));
+			return out;
+		}
 		var file = '$dir/_helder/shot-1.png';
 		try {
 			var h = Options.parse("run", [o.entry ?? ".", "--headless", "--snap", file, "--at", "2", "--size", portrait ? "390x844" : "1280x800"].concat(portrait ? ["--scale", "2"] : []));
@@ -179,7 +199,7 @@ class Run {
 			Sys.putEnv("HELDER_CONTROLS", "none");
 			if (HeadlessCommand.run(h, Entry.of(h)) == 0 && FileSystem.exists(file)) return ["_helder/shot-1.png"];
 		} catch (err:Dynamic) {}
-		Term.err(Style.status("warning", Warn, "no screenshot of the program (its page shows its icon): name some in helder.json's run.screenshots"));
+		Term.err(Style.status("warning", Warn, "no screenshot of the program (its page shows its icon): mark stories store: true (helder.story) or name images in helder.json's run.screenshots"));
 		return [];
 	}
 

@@ -4,9 +4,6 @@ import haxe.io.Bytes;
 import haxe.io.Path;
 import helder.async.*;
 import helder.pack.Jwt;
-import helder.cli.TestCommand.Mapper;
-import helder.cli.TestCommand.Output;
-import helder.cli.TestCommand.Project;
 import helder.pack.apple.Identity.PrivateKey;
 import sys.FileSystem;
 import sys.io.File;
@@ -78,7 +75,7 @@ class Publish {
 		if (shots || listing) return try {
 			Term.out(Style.header("publish", ["store screenshots", e.main]));
 			var dir = "bin/store";
-			var list = screenshots(dir, App.android(e.name, e.config).orientation == "landscape");
+			var list = screenshots(e, dir, App.android(e.name, e.config).orientation == "landscape");
 			var changes = [];
 			if (listing) {
 				var both = !play && !testflight;
@@ -338,41 +335,10 @@ class Publish {
 		Term.out(Style.status("uploaded", Ok, '$bundleId $version ($build): App Store Connect\'s build upload ${upload.id}, ${haxe.Json.stringify(state.attributes?.state ?? "")}; TestFlight lists it once processed'));
 	}
 
-	// ---- store screenshots (helder.story.StoreShots)
+	// ---- store screenshots (helder.story.StoreShots, built and run by Shots)
 
-	// the project's story files built around StoreShots.main (as helder
-	// test links them), run (Linux: Mesa's software renderer), shots.json read
-	@:coroutine public static function screenshots(dir:String, landscape:Bool):Array<Dynamic> {
-		var p = new Project();
-		var files = p.testFiles().filter(f -> f.story == true);
-		if (files.length == 0) throw "store screenshots: no *.story.hx files (stories, one with store: true: helder.story)";
-		for (f in files) {
-			TestCommand.mkdirs(Path.directory(f.linked));
-			Link.make(f.real, f.linked);
-		}
-		var main = ["// `helder publish --screenshots`' program: the story files' stories, then StoreShots", "class HelderStoreMain {", "\tstatic function main() {"];
-		for (f in files)
-			main.push('\t\tfor (s in helder.story.Stories.of("${f.module}")) helder.story.Stories.add(s);');
-		main = main.concat(["\t\thelder.story.StoreShots.main();", "\t}", "}", ""]);
-		File.saveContent('${TestCommand.GEN}/HelderStoreMain.hx', main.join("\n"));
-		var cp = [];
-		for (c in p.classPaths(files).concat([TestCommand.GEN])) cp = cp.concat(["-cp", c]);
-		var exe = Sys.systemName() == "Windows" ? "bin/store/shots.exe" : "bin/store/shots";
-		TestCommand.mkdirs("bin/store");
-		var mode = Sys.systemName() == "Linux" ? ["-D", "hxmc.libc=glibc"] : [];
-		var map = new Mapper(files);
-		// (a program for this machine: its runtime objects hxmc's own, not
-		// HXMC_RT_DIR's, which names a phone's for the other builds)
-		var rt = Sys.getEnv("HXMC_RT_DIR");
-		if (rt != null) Sys.putEnv("HXMC_RT_DIR", "");
-		var b = Output.of(Compiler.tool(), cp.concat(["-main", "HelderStoreMain", "--custom-target", 'hxmc=$exe']).concat(mode), map, "building the store screenshots");
-		if (rt != null) Sys.putEnv("HXMC_RT_DIR", rt);
-		if (b.code != 0) throw "store screenshots: the build failed";
-		if (FileSystem.exists('$dir/shots.json')) FileSystem.deleteFile('$dir/shots.json');
-		if (Sys.systemName() == "Linux" && (Sys.getEnv("LIBGL_ALWAYS_SOFTWARE") ?? "") == "") Sys.putEnv("LIBGL_ALWAYS_SOFTWARE", "1");
-		var r = Output.of(exe, [dir, landscape ? "landscape" : "portrait"], map, "rendering the store screenshots");
-		if (r.code != 0 || !FileSystem.exists('$dir/shots.json')) throw "store screenshots: rendering failed (a GPU, or Mesa's llvmpipe, and fonts)";
-		var list:Array<Dynamic> = haxe.Json.parse(File.getContent('$dir/shots.json'));
+	@:coroutine public static function screenshots(e:Entry, dir:String, landscape:Bool):Array<Dynamic> {
+		var list = Shots.store(e, dir, landscape);
 		Term.out(Style.status("rendered", Ok, '${list.length} screenshots in $dir'));
 		return list;
 	}

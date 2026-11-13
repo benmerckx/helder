@@ -220,7 +220,7 @@ check("committed: uploaded, the file's MD5", asc.commit?.data?.attributes?.uploa
 
 // the store listings' screenshots (tests/story's store story rendered by
 // helder publish --screenshots: a GPU, or Mesa's llvmpipe; skipped without
-// one unless STORE_SHOTS_REQUIRE=1)
+// one unless STORE_SHOTS_REQUIRE=1), then helder.run's from the stories
 const both = { ...playEnv, ...ascEnv };
 calls = []; play = {}; asc = {}; parts = {};
 out = await publish(["--screenshots"], both, null);
@@ -246,6 +246,20 @@ else {
   check("App Store: each screenshot reserved, sent, committed with its MD5", asc.shots?.length === ios.length && asc.shots.every((s, i) =>
     asc.committed?.[s.id]?.uploaded === true && asc.committed[s.id].sourceFileChecksum === createHash("md5").update(parts[`/part/${s.id}`] ?? "").digest("hex")
     && ios.some((x) => x.md5 === asc.committed[s.id].sourceFileChecksum)));
+  // helder.run's screenshots: the same stories (examples/todo's store one), at a window's size, no caption band
+  const run = await new Promise((done) => {
+    const c = spawn(helder, ["share", "examples/todo", "--dry-run"], { env: base, stdio: ["ignore", "pipe", "pipe"] });
+    let o = "";
+    c.stdout.on("data", (d) => (o += d));
+    c.stderr.on("data", (d) => (o += d));
+    c.on("close", (code) => done({ code, out: o }));
+  });
+  process.stdout.write(run.out);
+  const web = JSON.parse(readFileSync("bin/shots/run/shots.json", "utf8"));
+  const shot = readFileSync(join("bin/shots/run", web[0]?.file ?? "shot-1.png"));
+  check("--run: the store stories as helder.run's screenshots, 1280x800, opaque RGB, uncaptioned", run.code === 0 && run.out.includes("1 of the stories")
+    && web.length === 1 && web[0].story === "Phone/Three items" && shot.readUInt32BE(16) === 1280 && shot.readUInt32BE(20) === 800 && shot[25] === 2,
+    `${run.code} ${web.map((w) => w.story)}`);
 }
 
 // missing credentials

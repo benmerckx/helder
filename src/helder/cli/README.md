@@ -390,10 +390,15 @@ helder logout
 ```
 
 - **What is uploaded**: the web build (`bin/run/<name>`: the module, its
-  assets, fonts, helder's runtime modules), the icon at 512 px, and
-  `run.screenshots`, else one screenshot of the program taken headless
-  (`helder run --headless`: a GPU or Mesa's llvmpipe; `--no-screenshot`:
-  none). Not the page: helder.run renders its own from the page's values
+  assets, fonts, helder's runtime modules), the icon at 512 px, and the
+  screenshots: `run.screenshots` when helder.json names images (an
+  override), else the project's stories with `store: true`, the stores'
+  own screenshots (helder.story's README), rendered as `--screenshots`
+  renders them but at a window's size, 1280x800 (a phone's, 390x844 at
+  2x, when `orientation` is `portrait`), without the caption band, in the
+  stories' order, at most 8 (`bin/shots/run`); else, with no store story,
+  one screenshot of the program taken headless (`helder run --headless`;
+  either way a GPU or Mesa's llvmpipe; `--no-screenshot`: none). Not the page: helder.run renders its own from the page's values
   (`Page.written`), and accepts only helder's own runtime modules (their
   hashes from helder's main), so only helder's runtime runs there; a
   runtime changed locally is refused. Files are content-addressed: what
@@ -447,10 +452,15 @@ names (helder.run's first, when it has a run block, then each target's
 - **`--dry-run`**: built and signed, the token got, what is there read
   (the track's releases; the app's id), what would change printed;
   nothing uploaded, nothing committed (Play's edit deleted).
-- **`--screenshots`**: the project's stories marked `.store()`
-  (helder.story's README) rendered at the stores' sizes into `bin/store`
-  (a program of the story files built for this machine and run: a GPU,
-  or Mesa's llvmpipe), with the review sheet `bin/store/review.html`.
+- **`--screenshots`**: the project's stories marked `store: true`
+  (helder.story's README) rendered at the stores' sizes with their
+  captions into `bin/store` (`helder.cli.Shots`: a program of the
+  entry's story files, `*.story.hx` or a TypeScript program's
+  `*.story.ts(x)`, built for this machine and run: a GPU, or Mesa's
+  llvmpipe; none under the entry's directory, the working directory's
+  as `helder test` finds them), with the review sheet
+  `bin/store/review.html`. The same stories are helder.run's screenshots
+  (`--run`), so the stores and helder.run show the same moments.
 - **`--listing`** (with `--play` or `--testflight` for one store, else
   both; `--locale`, en-US): the same screenshots against each store's
   listing by hash, those not ours deleted and ours missing uploaded:
