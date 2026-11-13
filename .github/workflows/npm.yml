@@ -1,6 +1,7 @@
 # helder's nightlies on npm (src/helder/cli/README.md, "From npm"):
 # `helder` and its platform packages @helder.build/<os>-<cpu> at
-# 0.1.0-nightly.<yyyymmdd>.<commit>, npm's tag next (latest untouched).
+# 0.1.0-nightly.<yyyymmdd>.<commit> (g<commit> when the hash is digits
+# alone), npm's tag next (latest untouched).
 # Nightly, when main has changed since the last published one (the commit
 # that ends `npm view helder@next version`), or by hand (workflow_dispatch).
 # - build: the packages by src/helder/cli/npm.mjs (the CLI and helder's
@@ -43,6 +44,9 @@ jobs:
         id: v
         run: |
           commit=$(git rev-parse --short=7 HEAD)
+          # (a hash of digits alone is a number to semver, and one with a
+          # leading zero no version at all: g before it, as git describe has)
+          case "$commit" in *[!0-9]*) ;; *) commit="g$commit" ;; esac
           v="$(node -p "require('./package.json').version")-nightly.$(date -u +%Y%m%d).$commit"
           last=$(npm view helder@next version 2>/dev/null || true)
           changed=true
