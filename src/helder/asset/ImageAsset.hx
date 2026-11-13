@@ -23,11 +23,10 @@ class ImageAsset {
 		var b = Files.readBuffer(key, file);
 		if (b.length >= 8 && b.get(0) == 0x89 && b.get(1) == 0x50 && b.get(2) == 0x4E && b.get(3) == 0x47) {
 			var p = helder.image.ImageJobs.pixels(b);
-			return new Image(p.width, p.height, p.rgba.view());
+			return new Image(p.width, p.height, helder.image.ImageJobs.keep(p.rgba));
 		}
-		var bytes = haxe.io.Bytes.alloc(b.length);
-		b.blitToBytes(0, bytes, 0, b.length);
-		b.free();
+		var bytes = b.getBytes(0, b.length);
+		b.close();
 		return Image.decode(bytes);
 		#else
 		return Image.decode(Files.read(key, file));
@@ -37,10 +36,13 @@ class ImageAsset {
 	#if (hxmc.target == "wasm32-wasi")
 	// the file fetched and decoded in the browser, premultiplied (what ui's
 	// and the sprites' textures are)
+	// (decode's file when it decodes a fetch's body: none)
+	static final NONE = haxe.io.Bytes.alloc(0);
+
 	@:coroutine static function browser(key:String):Image {
 		var f = helder.async.Fetch.fetched(AssetPath.url(AssetPath.bundled(key)), (loaded, total) -> Assets.progressed(key, loaded, total));
 		var n = helder.async.Web.fetch_length(f);
-		var h = helder.image.WebImages.decode(f, hxmc.unsafe.Ptr.nil(), 0, 1);
+		var h = helder.image.WebImages.decode(f, hxmc.ReadOnlySpan.ofBytes(NONE), 0, 1);
 		Assets.progressed(key, n, n);
 		var state = helder.async.Async.suspendCancellable(cont -> {
 			var done = false;
@@ -64,11 +66,8 @@ class ImageAsset {
 
 	static function file(h:Int):haxe.io.Bytes {
 		var n = helder.image.WebImages.file_length(h), b = haxe.io.Bytes.alloc(n);
-		take(h, b, n);
+		helder.image.WebImages.file_take(h, hxmc.Span.ofBytes(b));
 		return b;
 	}
-
-	@:hxmc.unsafe static function take(h:Int, b:haxe.io.Bytes, n:Int)
-		helder.image.WebImages.file_take(h, hxmc.unsafe.BytesPtr.of(b, 0, n));
 	#end
 }

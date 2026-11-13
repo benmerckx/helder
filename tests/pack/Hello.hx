@@ -7,7 +7,7 @@
 class Hello {
 	static function main() {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
-		helder.os.android.Activity.activity;
+		helder.os.android.Activity.link();
 		#end
 		// (the collector, a map, an exception: the runtime at work)
 		var squares = [for (i in 0...1000) Std.string(i * i)];

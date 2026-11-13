@@ -6,6 +6,7 @@ import hxmc.unsafe.*;
 // Metal's shapes of objc_msgSend (helder.os.objc.Sender; the names as in
 // helder.os.objc.Msg), the ones with Metal's structs
 @:build(helder.os.objc.Sender.build())
+@:hxmc.unsafe(gc)
 class MtlMsg {
 	static function idPtrPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Int64):Ptr;
 	static function vClear(self:Ptr, sel:Ptr, c:MTLClearColor):Void;

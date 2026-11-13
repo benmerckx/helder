@@ -26,7 +26,7 @@ class Term {
 		errColor = Style.wants(env, errTty);
 		tty = outTty && Sys.getEnv("TERM") != "dumb";
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (hxmc.unsafe.Mem.os() == 2) {
+		if (hxmc.Platform.os() == 2) {
 			// (a console without VT processing, before Windows 10: no escapes but forced ones, no spinner)
 			var forced = Sys.getEnv("FORCE_COLOR") != null;
 			if (!vt(-11)) {
@@ -107,9 +107,9 @@ class Term {
 
 	static function isTty(fd:Int):Bool {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (hxmc.unsafe.Mem.os() == 2) {
+		if (hxmc.Platform.os() == 2) {
 			var h = TermK32.GetStdHandle(fd == 1 ? -11 : -12);
-			return TermK32.GetFileType(h) == 2; // FILE_TYPE_CHAR
+			return hxmc.Handle.valid(h) && TermK32.GetFileType(h) == 2; // FILE_TYPE_CHAR
 		}
 		return hxmc.unsafe.Posix.isatty(fd) != 0;
 		#else
@@ -119,23 +119,25 @@ class Term {
 
 	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 	// (Windows: ENABLE_VIRTUAL_TERMINAL_PROCESSING on the console's handle; false where it has none)
-	@:hxmc.unsafe static function vt(which:Int):Bool {
-		var h = TermK32.GetStdHandle(which);
-		var mode = hxmc.unsafe.Mem.stack(8);
-		if (TermK32.GetConsoleMode(h, mode) == 0) return false;
-		var m = hxmc.unsafe.Mem.getI32(mode, 0);
-		return (m & 4) != 0 || TermK32.SetConsoleMode(h, m | 4) != 0;
+	static function vt(which:Int):Bool {
+		var h = TermK32.GetStdHandle(which), m = 0;
+		if (!hxmc.Handle.valid(h)) return false;
+		var got = TermK32.GetConsoleMode(h, hxmc.Span.of(m)) != 0;
+		return got && ((m & 4) != 0 || TermK32.SetConsoleMode(h, m | 4) != 0);
 	}
 	#end
 }
 
 #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-// (Windows: kernel32's console)
-@:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class TermK32 {
-	static function GetStdHandle(which:Int):hxmc.unsafe.Ptr;
-	static function GetFileType(h:hxmc.unsafe.Ptr):Int;
-	static function GetConsoleMode(h:hxmc.unsafe.Ptr, mode:hxmc.unsafe.Ptr):Int;
-	static function SetConsoleMode(h:hxmc.unsafe.Ptr, mode:Int):Int;
+// (Windows: a standard handle; NULL where the process has none)
+@:hxmc.handle(0) abstract StdHandle(hxmc.unsafe.Ptr) {}
+
+// (Windows: kernel32's console, typed: the mode read into a span of one)
+@:hxmc.c @:hxmc.fast @:hxmc.safe @:hxmc.lib("kernel32") extern class TermK32 {
+	static function GetStdHandle(which:Int):StdHandle;
+	static function GetFileType(h:StdHandle):Int;
+	@:hxmc.len(mode, 1) static function GetConsoleMode(h:StdHandle, mode:hxmc.Span<Int>):Int;
+	static function SetConsoleMode(h:StdHandle, mode:Int):Int;
 	static function GetConsoleOutputCP():Int;
 }
 #end

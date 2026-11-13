@@ -25,6 +25,7 @@ import hxmc.unsafe.*;
 // (UIAccessibilityLayoutChangedNotification, with the focused element: the
 // cursor moves there); a live region's change is an announcement
 // (UIAccessibilityAnnouncementNotification).
+@:hxmc.unsafe(gc)
 class IosAccess {
 	static var elementClass = Ptr.nil();
 	static final all:Array<IosAccess> = [];

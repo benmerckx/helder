@@ -17,7 +17,7 @@ using haxe.macro.TypeTools;
 //
 //   Int, Float, Bool, haxe.Int64      copied
 //   String, haxe.io.Bytes             copied (null too)
-//   hxmc.unsafe.IoBuffer              moved: natively its address, in a browser its bytes (the sender's freed)
+//   hxmc.Buffer                       moved: natively its memory, in a browser its bytes (closed for the sender)
 //   @:hxmc.struct classes             copied (their bytes)
 //   Null<T>, abstracts over a T       as T (enum abstracts included)
 //   { a:T, ... }, Array<T>            copied, field by field, element by element
@@ -71,10 +71,7 @@ class Sendable {
 			case BufferK: macro $w.buffer($v);
 			case StructK(c):
 				var ct = TypeTools.toComplexType(t), cls = classExpr(c);
-				macro {
-					var p:hxmc.unsafe.Ptr<$ct> = cast $w.reserve(hxmc.unsafe.Struct.sizeOf($cls));
-					p.value = $v;
-				};
+				macro $w.struct(($v : $ct), hxmc.unsafe.Struct.sizeOf($cls));
 			case ChannelK(_): macro $w.int($v.id);
 			case Nullable(i):
 				switch kind(i) {
@@ -124,10 +121,7 @@ class Sendable {
 			case BufferK: macro $r.buffer();
 			case StructK(c):
 				var cls = classExpr(c);
-				macro {
-					var p:hxmc.unsafe.Ptr<$ct> = cast $r.at(hxmc.unsafe.Struct.sizeOf($cls));
-					p.value;
-				};
+				macro ($r.struct(hxmc.unsafe.Struct.sizeOf($cls)) : $ct);
 			case ChannelK(c): macro ${classExpr(c)}.of($r.int());
 			case Nullable(i):
 				switch kind(i) {
@@ -176,8 +170,8 @@ class Sendable {
 					case "Bool": return BoolK;
 					case "haxe.Int64": return Int64K;
 					case "Null": return Nullable(params[0]);
-					case "hxmc.unsafe.IoBuffer": return BufferK;
-					case "hxmc.unsafe.Ptr": return Bad("an address (it means nothing in another instance: an IoBuffer moves)");
+					case "hxmc.unsafe.IoBuffer": return Bad("raw memory (an hxmc.Buffer moves)");
+					case "hxmc.unsafe.Ptr": return Bad("an address (it means nothing in another instance: an hxmc.Buffer moves)");
 					case "Void": return Bad("Void");
 					case "Dynamic", "Any": return Bad("dynamic");
 					case _:
@@ -190,6 +184,7 @@ class Sendable {
 				switch path {
 					case "String": return StringK;
 					case "haxe.io.Bytes": return BytesK;
+					case "hxmc.Buffer": return BufferK;
 					case "Array": return List(params[0]);
 					case _:
 				}
@@ -230,10 +225,9 @@ class Sendable {
 		var a = new JobAdapter(f);
 		// (static: a function named, checked by the kernel's adapter; its
 		// input and result Sendable, checked by the handler)
-		new JobDefinition().generate(a.node(f), a);
+		var free = new JobDefinition().generate(a.node(f), a).gcFree;
 		var c = a.c, cf = a.cf, args = a.args, ret = a.ret;
 		var fpath = field(classExpr(c), cf.name);
-		var free = cf.meta.has(":hxmc.unsafe");
 		var module = c.module, pack = module.split(".");
 		pack.pop();
 		var name = (StringTools.endsWith(c.name, "_Fields_") ? module.split(".").pop() : c.name) + "_" + cf.name + "_Job";
@@ -244,9 +238,13 @@ class Sendable {
 		var fields:Array<Field>;
 		if (free) {
 			fields = (macro class {
-				// (no input: none)
-				@:coroutine public function run(?input:hxmc.unsafe.IoBuffer):hxmc.unsafe.IoBuffer
-					return helder.jobs.Jobs.runFree(hxmc.unsafe.Callback.addr($fpath), input ?? cast hxmc.unsafe.Ptr.nil());
+				// (input moved in, closed for the caller; none: none)
+				@:coroutine public function run(?input:hxmc.Buffer):hxmc.Buffer
+					return helder.jobs.Jobs.runFree(fn(), input);
+
+				// (the job's address, as a number)
+				@:hxmc.unsafe static function fn():hxmc.I64
+					return hxmc.unsafe.Callback.addr($fpath).toI64();
 			}).fields;
 		} else {
 			var void = isVoid(ret);
@@ -262,19 +260,18 @@ class Sendable {
 				0;
 			}
 			var head = args.length == 1 ? macro var r = new helder.jobs.Wire.Reader(job.input) : macro {};
-			var entry = macro $p{pack.concat([name, "entry"])};
+			var fn = macro $p{pack.concat([name, "fn"])}();
 			var i = args.length == 1 ? macro {
 				var w = new helder.jobs.Wire.Writer();
 				${write(args[0].t, macro w, macro input)};
-				w.done();
-			} : macro cast hxmc.unsafe.Ptr.nil();
+				w;
+			} : macro null;
 			var it = args.length == 1 ? TypeTools.toComplexType(args[0].t) : null;
 			var rt = TypeTools.toComplexType(ret);
-			var run:Expr = void ? macro helder.jobs.Jobs.runGcVoid(hxmc.unsafe.Callback.addr($entry), $i) : macro {
-				var out = helder.jobs.Jobs.runGc(hxmc.unsafe.Callback.addr($entry), $i);
-				var r = new helder.jobs.Wire.Reader(out);
+			var run:Expr = void ? macro helder.jobs.Jobs.runGcVoid($fn, $i) : macro {
+				var r = helder.jobs.Jobs.runGc($fn, $i);
 				var v:$rt = ${read(ret, macro r)};
-				helder.jobs.Jobs.free(out);
+				r.free();
 				return v;
 			};
 			var runField:Field = {
@@ -285,13 +282,17 @@ class Sendable {
 				pos: f.pos
 			};
 			fields = (macro class {
-				@:hxmc.callback public static function entry(p:hxmc.unsafe.Ptr):Int {
-					var job:helder.jobs.Job = cast p;
+				@:hxmc.unsafe(gc) @:hxmc.callback public static function entry(p:hxmc.unsafe.Ptr):Int {
+					var job:helder.jobs.JobRecord = cast p;
 					return try {
 						$head;
 						$body;
 					} catch (e:Dynamic) helder.jobs.Jobs.failed(job, e);
 				}
+
+				// (the entry's address, as a number)
+				@:hxmc.unsafe static function fn():hxmc.I64
+					return hxmc.unsafe.Callback.addr(entry).toI64();
 			}).fields.concat([runField]);
 		}
 		var td = macro class $name {
@@ -347,16 +348,15 @@ class Sendable {
 				public function send(v:$ct):Void {
 					var w = new helder.jobs.Wire.Writer();
 					${write(t, macro w, macro v)};
-					push(w.done());
+					push(w);
 				}
 
 				// the next value, in order; null once closed and every value sent received
 				@:coroutine public function receive():Null<$ct> {
-					var b = take();
-					if (b == null) return null;
-					var r = new helder.jobs.Wire.Reader(b);
+					var r = take();
+					if (r == null) return null;
 					var v = ${read(t, macro r)};
-					b.free();
+					r.free();
 					return v;
 				}
 
@@ -375,7 +375,7 @@ class Sendable {
 }
 
 // job(f)'s Haxe adapter: f the static or module-level function named, its
-// signature from its type (a GC-free job's unchecked)
+// signature from its type (a GC-free job's: a kernel, which hxmc checks)
 private class JobAdapter extends helder.definition.HaxeAdapter implements helder.jobs.JobDefinition.JobAdapter {
 	public var c:ClassType;
 	public var cf:ClassField;
@@ -399,9 +399,6 @@ private class JobAdapter extends helder.definition.HaxeAdapter implements helder
 				return error("a job is a static or module-level function, named (Class.field, field)", f.pos);
 		}
 		if (cf.params.length > 0) error('${cf.name} has type parameters (its values\' types must be known)', f.pos);
-		var free = cf.meta.has(":hxmc.unsafe");
-		if (free && (!cf.meta.has(":hxmc.callback") || !Context.unify(cf.type, Context.resolveType(macro:helder.jobs.Job->Int, f.pos))))
-			error('a GC-free job is an @:hxmc.unsafe @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
 		switch Context.follow(cf.type) {
 			case TFun(x, r):
 				args = x;
@@ -409,6 +406,13 @@ private class JobAdapter extends helder.definition.HaxeAdapter implements helder
 			case _:
 				return error("a job is a function", f.pos);
 		}
+		// (GC-free: it takes a Job, which only the pool hands out)
+		var free = args.length == 1 && switch args[0].t {
+			case TAbstract(_.get() => {name: "Job", pack: ["helder", "jobs"]}, _): true;
+			case _: false;
+		}
+		if (free && (!cf.meta.has(":hxmc.kernel") || !cf.meta.has(":hxmc.callback") || !Context.unify(ret, Context.getType("Int"))))
+			error('a GC-free job is an @:hxmc.kernel @:hxmc.callback static function (job:helder.jobs.Job):Int (${cf.name})', f.pos);
 		@:privateAccess var void = Sendable.isVoid(ret);
 		return {
 			name: cf.name,

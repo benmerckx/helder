@@ -30,7 +30,7 @@ class Run {
 	// next one's display is not the last one's still letting go)
 	static final XVFB = "sh " + FileSystem.fullPath("tests/xvfb-run.sh");
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf", "syntax", "text-quality"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "header-check", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples", "viewer", "canvas", "pdf", "syntax", "text-quality"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -42,6 +42,7 @@ class Run {
 		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader definitions on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs they reject", run: gfxShader},
 		{name: "async", about: "helder.async on Eval and natively (the loop, TCP, processes, the watcher, HTTP and WebSocket; its tasks and timers are the test lane's), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
+		{name: "header-check", about: "helder's typed C bindings (@:hxmc.safe with @:hxmc.header: helder.async.Fds) against the C headers of each POSIX target: hxmc writes them as assertions (-D hxmc.header-check), zig compiles those (zig's musl and macOS headers; skipped without zig)", run: headerCheck},
 		{name: "jobs", about: "helder.jobs: the sendable check's rejections (tests/jobs/reject); the pool, cancellation, errors and channels are the test lane's (tests/jobs/Jobs.test.hx, natively and on wasm32-wasi with node's workers)", run: jobsLane},
 		{name: "jobs-web", about: "helder.jobs in headless Chromium: Web Workers instantiating the module, a cancelled one ended, the loop without frames (tests/jobs/JobsWeb.hx)", run: jobsWeb},
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
@@ -285,12 +286,31 @@ class Run {
 		run(exePath("bin/async/AsyncBench", HOST), []);
 	}
 
+	static function headerCheck() {
+		var zig = Sys.getEnv("ZIG") ?? "zig";
+		if ((try output(zig, ["version"], true) catch (_:Dynamic) null) == null) {
+			Sys.println("header-check: skipped (no zig)");
+			return;
+		}
+		var cp = cps(["src", "tests/async"]);
+		for (t => triple in ["linux-x86_64" => "x86_64-linux-musl", "linux-arm64" => "aarch64-linux-musl", "macos-x86_64" => "x86_64-macos", "macos-arm64" => "aarch64-macos"]) {
+			var out = 'bin/header-check/$t', cpp = '$out.cpp';
+			var b = build(cp.concat(["-main", "HeaderCheck", "-D", 'hxmc.target=$t', "-D", "hxmc.lower-only", "-D", 'hxmc.header-check=$cpp', "--custom-target", 'hxmc=$out']), '$out.log');
+			if (b.code != 0) throw new Failed('header-check $t: the build failed:\n' + b.log);
+			var asserts = File.getContent(cpp).split("\n").filter(l -> l.indexOf("src/helder/") >= 0).length;
+			run(zig, ["c++", "-target", triple, "-std=c++17", "-nostdinc++", "-c", "-o", '$out.o', "-x", "c++", cpp]);
+			Sys.println('header-check $t: $asserts assertions of helder\'s, ok');
+		}
+	}
+
 	// (the sendable check: a program it rejects, with the message expected)
 	static function jobsLane() {
 		var cp = cps(["src", "tests/jobs/reject"]);
 		for (r in [
 			{main: "NotSendable", want: "helder.jobs: count's input cannot be sent: .items[]: Item is a class"},
-			{main: "NotSendableChannel", want: "helder.jobs: a Channel's value cannot be sent: Int -> Void is a function"}
+			{main: "NotSendableChannel", want: "helder.jobs: a Channel's value cannot be sent: Int -> Void is a function"},
+			{main: "NotKernel", want: "a GC-free job is an @:hxmc.kernel @:hxmc.callback static function (job:helder.jobs.Job):Int (raw)"},
+			{main: "ReadsRaw", want: "Mem, Atomic and C functions need @:hxmc.unsafe"}
 		]) {
 			var b = build(cp.concat(["-main", r.main, "--custom-target", 'hxmc=bin/jobs/reject/${r.main}']), 'bin/jobs/reject/${r.main}.log');
 			if (b.code == 0 || !b.log.contains(r.want)) throw new Failed('${r.main}: expected the error "${r.want}":\n' + b.log);
@@ -1705,8 +1725,7 @@ class Run {
 	static function output(cmd:String, args:Array<String>, mayFail = false):Null<String> {
 		args = nodeArgs(cmd, args);
 		var p = new Process(cmd, args);
-		var out = p.stdout.readAll().toString();
-		p.stderr.readAll();
+		var out = drain(p).out;
 		var code = p.exitCode();
 		p.close();
 		if (code != 0 && mayFail) return null;
@@ -1759,14 +1778,22 @@ class Run {
 	static function build(args:Array<String>, log:String, ?tool:String):{code:Int, log:String, seconds:Float} {
 		var t0 = Sys.time();
 		var p = new Process(tool ?? TOOL, args);
-		// (the compiler's messages are on stderr: read first, its pipe would fill)
-		var err = p.stderr.readAll().toString();
-		var out = p.stdout.readAll().toString();
+		var r = drain(p), out = r.out, err = r.err;
 		var code = p.exitCode();
 		p.close();
 		mkdirs(Path.directory(log));
 		File.saveContent(log, out + err);
 		return {code: code, log: out + err, seconds: Sys.time() - t0};
+	}
+
+	// both pipes read at once: a program filling one while the other is read
+	// waits forever (helder build's warnings are on stdout, the compiler's on
+	// stderr)
+	static function drain(p:Process):{out:String, err:String} {
+		var err = new sys.thread.Deque<String>();
+		sys.thread.Thread.create(() -> err.add(p.stderr.readAll().toString()));
+		var out = p.stdout.readAll().toString();
+		return {out: out, err: err.pop(true)};
 	}
 
 	static function wasi(module:String)
@@ -1804,7 +1831,7 @@ class Run {
 			Sys.putEnv(k, v);
 		}
 		var p = new Process(cmd, args);
-		var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
+		var r = drain(p), out = r.out + r.err;
 		var code = p.exitCode();
 		p.close();
 		// (null: unset again, not left empty: the variables as they were before)

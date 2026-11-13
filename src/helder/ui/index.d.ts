@@ -375,27 +375,7 @@ export declare class WebResponse {
 // (helder.view's markup: its renderer, NodeRenderer)
 export declare class Node {
 	constructor(tag?: string);
-	// A node of the UI tree: a box laid out by its parent's flexbox (Layout),
-	// drawn by a renderer (Canvas) and receiving events (Ui). Its children are
-	// in drawing order (the last on top). x, y, width and height are the
-	// layout's result in pixels, relative to the parent's border box (rounded
-	// to whole pixels: absX, absY are the window's), valid after Ui.update. A
-	// change to the tree or to a layout property of the style marks the node
-	// and its ancestors for layout; a paint property asks only for a frame.
-	// Subclasses with content (TextNode) measure it (measureContent) and draw it
-	// (paintContent).
-	// (helder.view's markup: its renderer, NodeRenderer)
 	readonly style: unknown;
-	// A node of the UI tree: a box laid out by its parent's flexbox (Layout),
-	// drawn by a renderer (Canvas) and receiving events (Ui). Its children are
-	// in drawing order (the last on top). x, y, width and height are the
-	// layout's result in pixels, relative to the parent's border box (rounded
-	// to whole pixels: absX, absY are the window's), valid after Ui.update. A
-	// change to the tree or to a layout property of the style marks the node
-	// and its ancestors for layout; a paint property asks only for a frame.
-	// Subclasses with content (TextNode) measure it (measureContent) and draw it
-	// (paintContent).
-	// (helder.view's markup: its renderer, NodeRenderer)
 	readonly parent: Node | null;
 	// (a leaf's: one empty array shared by all, replaced by its own when a child comes)
 	readonly children: Node[];

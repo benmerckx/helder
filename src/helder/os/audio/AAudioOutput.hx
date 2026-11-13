@@ -21,6 +21,7 @@ import sys.thread.Thread;
 // to now (retrying every half a second while it cannot). Audio's
 // lifecycle hold (the activity paused: stop; resumed: start) is Audio's.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class AAudioOutput {
 	static var loaded:Null<String>;
 

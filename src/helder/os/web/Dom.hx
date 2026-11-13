@@ -34,7 +34,7 @@ import hxmc.unsafe.*;
 	static function clipboard_read():Void;
 	// a file given to the user: n bytes at p downloaded as name (the page's
 	// own download: a Blob's URL on a link clicked); nothing without a document
-	@:hxmc.fast static function download(name:CString, p:Ptr, n:Int, type:CString):Void;
+	@:hxmc.fast @:hxmc.len(data, n) static function download(name:CString, data:hxmc.ReadOnlySpan<UInt8>, n:Int, type:CString):Void;
 	// a vibration of ms (helder.os.Haptics: navigator.vibrate, nothing where there is none)
 	static function vibrate(ms:Int):Void;
 	// a string handle's UTF-8 length; its bytes into p (the handle freed)

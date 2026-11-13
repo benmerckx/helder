@@ -115,7 +115,7 @@ check "the screen's lines (tests/pack/screen.mjs)" $?
 
 # The golf example (examples/golf): built for the emulator, started, its
 # first frames drawn (its line), a screenshot kept in <out dir>/golf.png.
-gid=org.helder.golf
+gid=build.helder.golf  # (examples/golf/helder.json's id)
 "$helder" build examples/golf/Golf.hx --target android-x86_64 -o "$out/Golf.apk"
 check "helder build examples/golf" $?
 adb uninstall $gid > /dev/null 2>&1

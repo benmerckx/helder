@@ -290,7 +290,7 @@ class SystemFonts {
 		if (scanned) return;
 		scanned = true;
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 3) {
+		if (hxmc.Platform.os() == 3) {
 			for (b in WebFonts.all())
 				add(b);
 			return;

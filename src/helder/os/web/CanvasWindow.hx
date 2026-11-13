@@ -13,6 +13,7 @@ import hxmc.unsafe.*;
 // keys, their characters, the mouse and the wheel come from the canvas
 // (keys once it has the focus), touches and pens as pointers (Pointers).
 @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class CanvasWindow {
 	static final event = new Event();
 	static final open:Array<CanvasWindow> = [];

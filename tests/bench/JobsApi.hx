@@ -4,8 +4,7 @@ import helder.image.ImageJobs;
 import helder.image.PngDecoder;
 import helder.jobs.Job;
 import helder.jobs.Jobs;
-import hxmc.unsafe.IoBuffer;
-import hxmc.unsafe.Mem;
+import hxmc.Buffer;
 
 // Jobs.hx's measurement through helder.jobs' API (`bun run test
 // jobs-bench`): JobsFrame's frames at 60 fps, as a task on helder.async's
@@ -35,7 +34,7 @@ class JobsApi {
 	static inline var WINDOW = 90;
 	static inline var FRAME = 1 / 60;
 
-	@:hxmc.unsafe @:hxmc.callback static function empty(job:Job):Int
+	@:hxmc.kernel @:hxmc.callback static function empty(job:Job):Int
 		return 0;
 
 	static function emptyGc(x:Int):Int
@@ -85,7 +84,7 @@ class JobsApi {
 				JobsFrame.frame();
 				if (k == WARM && variant != "none") {
 					if (variant == "inline") Jobs.workers = 0;
-					var file = variant == "gc" ? null : IoBuffer.ofBytes(png);
+					var file = variant == "gc" ? null : bufferOf(png);
 					task.async(_ -> {
 						var d0 = haxe.Timer.stamp();
 						if (variant == "gc") {
@@ -95,9 +94,9 @@ class JobsApi {
 						} else {
 							var p = ImageJobs.pixels(file);
 							decode = (haxe.Timer.stamp() - d0) * 1000;
-							var px = p.rgba, ptr = px.ptr;
-							JobsFrame.check += sample(i -> Mem.getU8(ptr, i), px.length);
-							px.free();
+							var px = p.rgba;
+							JobsFrame.check += sample(i -> px.get(i), px.length);
+							px.close();
 						}
 						back = true;
 					});
@@ -123,6 +122,13 @@ class JobsApi {
 			return sorted[Std.int(Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1))];
 		Sys.println(["api", variant, Std.string(times.length), fixed(at(0.5)), fixed(at(0.99)), fixed(sorted[sorted.length - 1]),
 			fixed(pauses[pauses.length - 1]), fixed(decode), Std.string(Math.round(JobsFrame.check))].join(" "));
+	}
+
+	// (the file in a Buffer, for the job)
+	static function bufferOf(b:Bytes):Buffer {
+		var r = new Buffer(b.length);
+		r.blitFromBytes(0, b, 0, b.length);
+		return r;
 	}
 
 	static inline function sample(get:Int->Int, n:Int):Float {

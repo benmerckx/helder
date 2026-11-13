@@ -28,7 +28,7 @@ class Keymap {
 		#if (target.name == "hxmc" && hxmc.target == "wasm32-wasi")
 		return helder.os.web.Dom.apple() == 1;
 		#elseif (target.name == "hxmc")
-		return hxmc.unsafe.Mem.os() == 1;
+		return hxmc.Platform.os() == 1;
 		#else
 		return false;
 		#end

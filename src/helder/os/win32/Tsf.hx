@@ -28,6 +28,7 @@ import hxmc.unsafe.*;
 // an empty document, emptied again after each commit. Where TSF is not
 // there (CoCreateInstance fails) Win32Window keeps IMM32's own windows.
 @:allow(helder.os.win32)
+@:hxmc.unsafe(gc)
 class Tsf {
 	static inline var S_OK = 0;
 	static inline var E_NOINTERFACE = 0x80004002;
@@ -724,11 +725,13 @@ class Tsf {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IUnknownQi {
 	@:slot(0) static function QueryInterface(self:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ITfThreadMgr {
 	@:slot(3) static function Activate(self:Ptr, id:Ptr<Int32>):Int;
 	@:slot(4) static function Deactivate(self:Ptr):Int;
@@ -738,6 +741,7 @@ class ITfThreadMgr {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ITfDocumentMgr {
 	@:slot(3) static function CreateContext(self:Ptr, client:Int, flags:Int, punk:Ptr, out:Ptr<Ptr>, cookie:Ptr<Int32>):Int;
 	@:slot(4) static function Push(self:Ptr, context:Ptr):Int;
@@ -745,6 +749,7 @@ class ITfDocumentMgr {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ITextStoreACPSink {
 	@:slot(3) static function OnTextChange(self:Ptr, flags:Int, change:Ptr<Int32>):Int;
 	@:slot(4) static function OnSelectionChange(self:Ptr):Int;
@@ -753,18 +758,21 @@ class ITextStoreACPSink {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ITfCompositionView {
 	@:slot(4) static function GetRange(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 // (ITfRange's 22 methods after IUnknown, then ITfRangeACP's)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ITfRangeACP {
 	@:slot(25) static function GetExtent(self:Ptr, anchor:Ptr<Int32>, n:Ptr<Int32>):Int;
 }
 
 // (ITfContextComposition's four methods after IUnknown, then TerminateComposition)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ITfContextOwnerCompositionServices {
 	@:slot(7) static function TerminateComposition(self:Ptr, view:Ptr):Int;
 }

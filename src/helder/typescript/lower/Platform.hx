@@ -7,7 +7,7 @@ import helder.typescript.lower.Definitions.Scope;
 
 // helder/platform's `platform` (src/helder/platform/index.ts): the target a
 // program is built for, as constants folded where the program is compiled,
-// as Haxe's Mem.os() and Mem.target() are (hxmc.ir.Lower.targetConst):
+// as Haxe's Platform.os() and Platform.target() are (hxmc.ir.Lower.targetConst):
 // `platform.os`, `platform.target` and `platform.arm` are literals, and a
 // condition of them (=== and !== of literals, !, && and ||) is one too, so
 // an `if` or a `?:` on it lowers only the branch it takes: what only the
@@ -21,7 +21,7 @@ class Platform {
 	public final target:String;
 	public final arm:Bool;
 
-	// (hxmc's names of its targets by Mem.target()'s codes: the build's when -D hxmc.target is not given)
+	// (hxmc's names of its targets by Platform.target()'s codes: the build's when -D hxmc.target is not given)
 	static final names = ["linux-x86_64", "linux-arm64", "macos-x86_64", "macos-arm64", "windows-x86_64", "windows-arm64", "wasm32-wasi", "linux-x86_64", "linux-arm64",
 		"android-x86_64", "android-arm64"];
 

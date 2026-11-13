@@ -3,6 +3,7 @@ package helder.os;
 import helder.os.android.Haptic;
 import helder.os.uikit.UIKitWindow;
 import helder.os.web.Dom;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // A touch felt: tap, a light tick (something picked: a tab, a tile, a
@@ -38,7 +39,7 @@ class Haptics {
 	static function play(strong:Bool) {
 		if (!enabled) return;
 		if (strong) impacts++ else taps++;
-		if (Mem.platform() >= 1) UIKitWindow.haptic(strong) else if (Mem.os() == 3) Dom.vibrate(vibration(strong)) else if (Mem.target() >= 9)
+		if (Platform.apple() >= 1) UIKitWindow.haptic(strong) else if (Platform.os() == 3) Dom.vibrate(vibration(strong)) else if (Platform.target() >= 9)
 			Haptic.perform(strong);
 	}
 }

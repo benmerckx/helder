@@ -6,6 +6,7 @@ import hxmc.unsafe.*;
 // macOS's open panel (NSOpenPanel), modal (runModal): files of the filters'
 // extensions (setAllowedFileTypes:), one, not folders; its URL's path, null
 // when cancelled.
+@:hxmc.unsafe(gc)
 class OpenPanel {
 	// (made and set up, not shown: the tests' check)
 	public static function make(title:String, filters:Array<{name:String, extensions:Array<String>}>):Ptr {

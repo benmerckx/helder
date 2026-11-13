@@ -1,6 +1,6 @@
 package helder.os;
 
-import hxmc.unsafe.Mem;
+import hxmc.Platform;
 
 // The system's own dialog to pick a file to open, modal over a window:
 // Windows' IFileOpenDialog (COM), macOS's NSOpenPanel, Linux's
@@ -8,14 +8,15 @@ import hxmc.unsafe.Mem;
 // dialog: GTK's, KDE's). The path picked; null when cancelled or when the
 // system has none to show (no portal, the browser, phones: the caller's own
 // picker then: available says beforehand where it is known).
+@:hxmc.unsafe(gc)
 class FileDialog {
 	public static function open(window:Window, title:String, filters:Array<{name:String, extensions:Array<String>}>):Null<String>
 		// (a headless run: the script's answer, helder.headless)
-		return #if helder.headless helder.headless.Headless.run.fileDialog(title) #else if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) null else if (Mem.os() == 2)
-			helder.os.win32.FileOpenDialog.open(window.surface.handle, title, filters) else if (Mem.os() == 1) helder.os.cocoa.OpenPanel.open(title, filters) else
+		return #if helder.headless helder.headless.Headless.run.fileDialog(title) #else if (Platform.apple() >= 1 || Platform.os() == 3 || Platform.target() >= 9) null else if (Platform.os() == 2)
+			helder.os.win32.FileOpenDialog.open(window.surface.handle, title, filters) else if (Platform.os() == 1) helder.os.cocoa.OpenPanel.open(title, filters) else
 			portal(window, title, filters) #end;
 
-	// (POSIX's calls behind a constant condition: Mem.os(), the other branches not linked)
+	// (POSIX's calls behind a constant condition: Platform.os(), the other branches not linked)
 	static function portal(window:Window, title:String, filters:Array<{name:String, extensions:Array<String>}>):Null<String> {
 		var bus = helder.os.linux.DBus.session();
 		if (bus == null) return null;
@@ -27,7 +28,7 @@ class FileDialog {
 
 	// whether a dialog can be shown (Linux: a portal on the session bus)
 	public static function available():Bool
-		return #if helder.headless true #else if (Mem.platform() >= 1 || Mem.os() == 3 || Mem.target() >= 9) false else if (Mem.os() == 1 || Mem.os() == 2) true else portalUp() #end;
+		return #if helder.headless true #else if (Platform.apple() >= 1 || Platform.os() == 3 || Platform.target() >= 9) false else if (Platform.os() == 1 || Platform.os() == 2) true else portalUp() #end;
 
 	static function portalUp():Bool {
 		var bus = helder.os.linux.DBus.session();

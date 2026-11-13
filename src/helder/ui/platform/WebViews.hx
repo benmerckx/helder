@@ -26,6 +26,7 @@ import hxmc.unsafe.*;
 	static function editor_event(p:Ptr<Int32>):Int;
 }
 
+@:hxmc.unsafe(gc)
 class WebViews implements PlatformViews {
 	final canvas:Int;
 	final editors = new Map<Int, WebEditor>();
@@ -83,6 +84,7 @@ class WebViews implements PlatformViews {
 	}
 }
 
+@:hxmc.unsafe(gc)
 class WebEditor implements PlatformEditor {
 	final views:WebViews;
 	final h:Int;

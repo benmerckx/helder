@@ -2,6 +2,7 @@ import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.os.*;
 import helder.os.x11.Xlib;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 import BuiltinShader;
 import LitShader;
@@ -100,7 +101,7 @@ class GfxTest {
 			w.close();
 			w = new Window("GfxTest", Math.round(WIDTH / s), Math.round(HEIGHT / s));
 		}
-		if (Mem.os() == 1) CocoaTest.prepare(w);
+		if (Platform.os() == 1) CocoaTest.prepare(w);
 		var device = Device.create(w.surface);
 		var draw = Scene.make(name, device);
 		var back = Bytes.alloc(WIDTH * HEIGHT * 4);
@@ -115,9 +116,9 @@ class GfxTest {
 			draw(enc);
 			if (++n == frames) device.readPixels(back);
 			device.endFrame();
-			if (n == 2) Mem.os() == 1 ? CocoaTest.input(w) : Mem.os() == 2 ? WinTest.input(w) : sendInput(w);
+			if (n == 2) Platform.os() == 1 ? CocoaTest.input(w) : Platform.os() == 2 ? WinTest.input(w) : sendInput(w);
 			// then the window's close button (X11: the window manager's client message)
-			if (n == frames) Mem.os() == 1 ? CocoaTest.close(w) : Mem.os() == 2 ? WinTest.close(w) : sendClose(w);
+			if (n == frames) Platform.os() == 1 ? CocoaTest.close(w) : Platform.os() == 2 ? WinTest.close(w) : sendClose(w);
 		}, e -> {
 			events++;
 			if (e.kind == TextInput)
@@ -130,12 +131,12 @@ class GfxTest {
 				App.quit();
 			}
 		});
-		var shown = Mem.os() == 1 ? CocoaTest.capture(w, WIDTH, HEIGHT) : Mem.os() == 2 ? WinTest.capture(w, WIDTH, HEIGHT) : capture(w);
+		var shown = Platform.os() == 1 ? CocoaTest.capture(w, WIDTH, HEIGHT) : Platform.os() == 2 ? WinTest.capture(w, WIDTH, HEIGHT) : capture(w);
 		sys.io.File.saveBytes(out, Png.encode(shown != null ? shown : back, WIDTH, HEIGHT));
 		Sys.println('GfxTest: $n frames in a ${device.width}x${device.height} window, $events events' + (closed ? ", closed" : ", FAIL: no Close event"));
 		var size = device.width == WIDTH && device.height == HEIGHT;
 		if (!size) Sys.println('GfxTest: FAIL: not ${WIDTH}x${HEIGHT}');
-		var want = Mem.os() == 1 ? [0x61] : Mem.os() == 2 ? [0xE9, 0x1F600] : [0x61], wantWheel = Mem.os() == 1 ? 0 : 1;
+		var want = Platform.os() == 1 ? [0x61] : Platform.os() == 2 ? [0xE9, 0x1F600] : [0x61], wantWheel = Platform.os() == 1 ? 0 : 1;
 		var input = text.join(",") == want.join(",") && wheel == wantWheel;
 		Sys.println('GfxTest: input: characters [' + [for (c in text) StringTools.hex(c)].join(", ") + '], wheel $wheel' + (input ? "" : ', FAIL: not [' + [for (c in want) StringTools.hex(c)].join(", ") + '], $wantWheel'));
 		device.dispose();
@@ -146,7 +147,7 @@ class GfxTest {
 			Sys.println("GfxTest: window, screen pixels: skipped (no capture)");
 			return a && closed && size && input;
 		}
-		var b = compare(name + ", window, " + (Mem.os() == 1 ? "screen" : Mem.os() == 2 ? "GDI" : "X11") + " pixels", shown, golden);
+		var b = compare(name + ", window, " + (Platform.os() == 1 ? "screen" : Platform.os() == 2 ? "GDI" : "X11") + " pixels", shown, golden);
 		return a && b && closed && size && input;
 	}
 

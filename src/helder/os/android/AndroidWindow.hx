@@ -2,6 +2,7 @@ package helder.os.android;
 
 import helder.os.Event;
 import helder.os.android.Native;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // helder.os.Window on Android: the activity's one window (NativeActivity's
@@ -40,6 +41,7 @@ import hxmc.unsafe.*;
 @:build(helder.dev.HostedMacro.shared(40, 8))
 #end
 @:hxmc.android @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class AndroidWindow {
 	static var current:Null<AndroidWindow> = null;
 	static var queue:Ptr = Ptr.nil();
@@ -79,7 +81,7 @@ class AndroidWindow {
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		// (a constant test: Type.createInstance and reflection lower a class's
 		// methods on every target, and libandroid stays out of the others' links)
-		if (Mem.target() >= 9) {
+		if (Platform.target() >= 9) {
 			if (current != null) throw "helder.os: Android has one window, the activity's";
 			this.owner = owner;
 			// (the activity's window: the program waits for it, through the
@@ -153,7 +155,7 @@ class AndroidWindow {
 		#end
 		// (a constant test: kept by reflection, a method of this class is lowered
 		// on the other targets too, and libandroid stays out of their links)
-		if (Mem.target() >= 9)
+		if (Platform.target() >= 9)
 			if (Activity.destroyed == 0 && !Activity.activity.isNull()) Android.ANativeActivity_finish(Activity.activity);
 	}
 

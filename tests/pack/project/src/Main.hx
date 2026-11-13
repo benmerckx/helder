@@ -5,7 +5,7 @@
 class Main {
 	static function main() {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
-		helder.os.android.Activity.activity;
+		helder.os.android.Activity.link();
 		#end
 		#if helder.fullscreen
 		Sys.println("hello from the packed project (fullscreen)");

@@ -43,7 +43,7 @@ enum abstract OpKind(Int) {
 // descriptor: on POSIX polled like a socket, on Windows read and written by
 // threads; on Eval a stream, read and written by threads)
 class Handle {
-	public static final WINDOWS = #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi") hxmc.unsafe.Mem.os() == 2 #else Sys.systemName() == "Windows" #end;
+	public static final WINDOWS = #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi") hxmc.Platform.os() == 2 #else Sys.systemName() == "Windows" #end;
 
 	public final socket:Null<NetSocket>;
 	public final fd:Int;
@@ -169,6 +169,8 @@ class ReadyIo implements Backend {
 	function ask() {
 		var i = ops.length;
 		while (i-- > 0) {
+			// (an exit ends every wait for its process: ops may have shrunk past i)
+			if (i >= ops.length) continue;
 			var op = ops[i];
 			if (asks(op)) {
 				var c = op.process.poll();

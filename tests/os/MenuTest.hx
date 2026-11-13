@@ -5,6 +5,7 @@ import helder.ui.draw.UiWindow;
 import helder.ui.menu.DrawnMenu;
 import helder.ui.menu.Menu;
 import helder.ui.menu.Menus;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // helder.ui.menu in a real window (`bun run test window`): one model, its
@@ -31,7 +32,7 @@ class MenuTest {
 
 	static function main() {
 		var out = Sys.args().length > 0 ? Sys.args()[0] : "bin/os";
-		Keymap.mac = Mem.os() == 1;
+		Keymap.mac = Platform.os() == 1;
 		Menus.appName = "MenuTest";
 		actions("menutest", TestAction);
 		var k = Keymap.global;
@@ -60,7 +61,7 @@ class MenuTest {
 		w.onFrame = () -> {
 			frames++;
 			if (frames == 3) {
-				if (Mem.os() == 1) cocoa(w, bar) else if (Mem.os() == 2) win32(w, bar) else {
+				if (Platform.os() == 1) cocoa(w, bar) else if (Platform.os() == 2) win32(w, bar) else {
 					check("linux: drawn, not the platform's", !bar.native && bar.node.style.display != None);
 					check("linux: the bar's titles", [for (c in bar.node.children) c.children.length].length == 3);
 					w.ui.keyDown(Key.F10, 0);
@@ -72,12 +73,12 @@ class MenuTest {
 					w.ui.requestFrame();
 				}
 			}
-			if (Mem.os() == 0 && frames == 5) {
+			if (Platform.os() == 0 && frames == 5) {
 				pixels = haxe.io.Bytes.alloc(w.device.width * w.device.height * 4);
 				w.capture = pixels;
 				w.ui.requestFrame();
 			}
-			if (Mem.os() == 0 && frames == 6) {
+			if (Platform.os() == 0 && frames == 6) {
 				save(pixels, w, out + "/menus-linux.png");
 				w.ui.keyDown(Key.ENTER, 0);
 				check("linux: Enter dispatches Full Screen", log.join(",") == "Full", log.join(","));
@@ -89,7 +90,7 @@ class MenuTest {
 				w.capture = pixels;
 				w.ui.requestFrame();
 			}
-			if (Mem.os() == 0 && frames == 7) {
+			if (Platform.os() == 0 && frames == 7) {
 				save(pixels, w, out + "/menus-linux-context.png");
 				w.ui.keyDown(Key.ENTER, 0);
 				check("linux: the context menu's choice", log.join(",") == "Full,Tile", log.join(","));

@@ -12,6 +12,7 @@ class ViewporterProtocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract WpViewporter(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wp_viewporter";
 	public static inline var VERSION = 1;
@@ -47,6 +48,7 @@ enum abstract WpViewporterError(Int) from Int to Int {
 	var ViewportExists = 0;
 }
 
+@:hxmc.unsafe(gc)
 abstract WpViewport(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wp_viewport";
 	public static inline var VERSION = 1;

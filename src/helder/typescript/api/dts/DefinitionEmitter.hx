@@ -270,7 +270,11 @@ class Docs {
 		var j = k;
 		while (j >= 0 && StringTools.trim(lines[j]) != "" && !StringTools.startsWith(StringTools.trim(lines[j]), "//"))
 			j--;
-		if (j < k && (StringTools.startsWith(StringTools.trim(lines[j + 1]), "@:") || StringTools.startsWith(StringTools.trim(lines[j + 1]), "#"))) k = j;
+		// (not across another declaration: a class's first field under its metadata)
+		var decl = ~/^(?:(?:public|private|static|inline|override|extern|final|dynamic|macro) )*(?:class|interface|abstract|typedef|enum|function|var|final) /;
+		var start = j < k ? StringTools.trim(lines[j + 1]) : "";
+		if ((StringTools.startsWith(start, "@:") || StringTools.startsWith(start, "#"))
+			&& !Lambda.exists([for (i in j + 1...k + 1) lines[i]], l -> decl.match(StringTools.trim(l)))) k = j;
 		while (k >= 0) {
 			var l = StringTools.trim(lines[k]);
 			if (!StringTools.startsWith(l, "//")) break;

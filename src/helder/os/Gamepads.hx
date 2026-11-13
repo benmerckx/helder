@@ -2,6 +2,7 @@ package helder.os;
 
 import haxe.io.Bytes;
 #if !eval
+import hxmc.Platform;
 import hxmc.unsafe.*;
 #end
 
@@ -20,6 +21,7 @@ import hxmc.unsafe.*;
 // Android, iOS) none yet:
 // count() is 0. set() feeds a pad from a program (an on-screen stick, a
 // test), which poll then leaves alone.
+@:hxmc.unsafe(gc)
 class Gamepads {
 	public static inline var MAX = 4;
 	public static inline var BUTTONS = 17;
@@ -76,7 +78,7 @@ class Gamepads {
 		#if (hxmc.target == "wasm32-wasi")
 		pollWeb();
 		#elseif !eval
-		if (Mem.os() == 0) pollLinux() else if (Mem.os() == 2) pollWindows();
+		if (Platform.os() == 0) pollLinux() else if (Platform.os() == 2) pollWindows();
 		#end
 	}
 

@@ -2,6 +2,7 @@ package helder.story;
 
 #if !(hxmc.target == "wasm32-wasi")
 import haxe.io.Bytes;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // A frame's pixels in shared memory: a file (in /dev/shm on Linux) mapped
@@ -24,11 +25,11 @@ class FrameFile {
 	// (the host) a file of size bytes, mapped to write
 	public static function create(path:String, size:Int):FrameFile {
 		var f = new FrameFile(path, size);
-		if (Mem.os() == 2) {
+		if (Platform.os() == 2) {
 			sys.io.File.saveBytes(path, Bytes.alloc(size));
 			return f;
 		}
-		var fd = Arena.scopedValue(a -> Posix.open(a.cstring(path), O_RDWR | (Mem.os() == 1 ? 0x200 : 0x40), 384));
+		var fd = Arena.scopedValue(a -> Posix.open(a.cstring(path), O_RDWR | (Platform.os() == 1 ? 0x200 : 0x40), 384));
 		if (fd < 0) throw 'helder.story: cannot create $path';
 		// (its size: a byte written at its end)
 		Posix.lseek(fd, size - 1, 0);
@@ -46,7 +47,7 @@ class FrameFile {
 	// (the studio) the host's file, mapped to read (null: gone)
 	public static function open(path:String, size:Int):Null<FrameFile> {
 		var f = new FrameFile(path, size);
-		if (Mem.os() == 2) return sys.FileSystem.exists(path) ? f : null;
+		if (Platform.os() == 2) return sys.FileSystem.exists(path) ? f : null;
 		var fd = Arena.scopedValue(a -> Posix.open(a.cstring(path), 0, 0));
 		if (fd < 0) return null;
 		f.map = Posix.mmap(Ptr.nil(), size, 1, MAP_SHARED, fd, 0);
@@ -59,7 +60,7 @@ class FrameFile {
 
 	// n bytes of b into the file
 	public function write(b:Bytes, n:Int) {
-		if (Mem.os() == 2) {
+		if (Platform.os() == 2) {
 			var o = sys.io.File.write(path, true);
 			o.writeBytes(b, 0, n);
 			o.close();
@@ -70,7 +71,7 @@ class FrameFile {
 
 	// n bytes of the file into b
 	public function read(b:Bytes, n:Int) {
-		if (Mem.os() == 2) {
+		if (Platform.os() == 2) {
 			var i = sys.io.File.read(path, true);
 			i.readFullBytes(b, 0, n);
 			i.close();
@@ -80,7 +81,7 @@ class FrameFile {
 	}
 
 	public function close() {
-		if (Mem.os() == 2) return;
+		if (Platform.os() == 2) return;
 		if (mapped()) Posix.munmap(map, size);
 		map = Ptr.nil();
 	}
@@ -88,7 +89,7 @@ class FrameFile {
 	// (the studio, once mapped) its name removed: the memory stays both
 	// processes' mappings' until they let go (POSIX; Windows reads it by its name)
 	public function unlink() {
-		if (Mem.os() != 2) try sys.FileSystem.deleteFile(path) catch (_:Dynamic) {}
+		if (Platform.os() != 2) try sys.FileSystem.deleteFile(path) catch (_:Dynamic) {}
 	}
 
 	// (the host) unmapped and gone

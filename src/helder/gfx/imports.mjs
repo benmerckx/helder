@@ -192,7 +192,8 @@ export default async function (host) {
 		width: (h) => images.get(h).width,
 		height: (h) => images.get(h).height,
 		file_length: (h) => images.get(h).file.length,
-		file_take: (h, p) => host.bytes(p, images.get(h).file.length).set(images.get(h).file),
+		// (into a span: its address and length; no more than the length)
+		file_take: (h, p, n) => host.bytes(p, Math.min(n, images.get(h).file.length)).set(images.get(h).file.subarray(0, n)),
 		close(h) {
 			const im = images.get(h);
 			im.bitmap?.close();

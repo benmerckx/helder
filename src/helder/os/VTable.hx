@@ -13,6 +13,7 @@ import haxe.macro.Expr;
 // @:hxmc.indirect: in a safe region, since methods may block or call back)
 // and an inline wrapper of the declared name that reads the slot from the
 // object's table.
+@:hxmc.unsafe(gc)
 class VTable {
 	public static function build():Array<Field> {
 		var out:Array<Field> = [];
@@ -49,7 +50,7 @@ import hxmc.unsafe.*;
 
 class VTable {
 	// the function at a slot of an object's table
-	public static inline function method(self:Ptr, slot:Int):Ptr {
+	@:hxmc.unsafe public static inline function method(self:Ptr, slot:Int):Ptr {
 		var vtable:Ptr<Ptr> = (self : Ptr<Ptr>).value;
 		return vtable[slot];
 	}

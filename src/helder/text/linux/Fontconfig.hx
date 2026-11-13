@@ -8,6 +8,7 @@ import hxmc.unsafe.*;
 // charset, the configuration's and the defaults' substitutions,
 // FcFontMatch; the match kept only when it has the character), and a
 // family's face closest to a weight and style.
+@:hxmc.unsafe(gc)
 class Fontconfig {
 	static var ready = 0; // (0: not tried, 1: there, -1: none)
 
@@ -70,6 +71,7 @@ class Fontconfig {
 }
 
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Fc {
 	static function FcInit():Int;
 	static function FcPatternCreate():Ptr;

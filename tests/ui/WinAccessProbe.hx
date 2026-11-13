@@ -60,10 +60,18 @@ class WinAccessProbe {
 	static var any = Ptr.nil();
 
 	// what the event handlers saw (written on UI Automation's threads: no
-	// allocation there, a count per kind in native memory): focus, property
-	// changes (by the property: name, toggle state, expand state, selected,
-	// range value), structure changes, text selection changes
-	static final seen:Ptr<Int32> = LibC.malloc(64);
+	// allocation there, a count per kind in each handler's own memory, see
+	// handler): focus, property changes (by the property: name, toggle
+	// state, expand state, selected, range value), structure changes, text
+	// selection changes
+	static final handlers:Array<Ptr> = [];
+
+	static function seen(k:Int):Int {
+		var n = 0;
+		for (h in handlers)
+			n += Mem.getI32(h, 4 * (2 + k));
+		return n;
+	}
 
 	static function bstr(p:Ptr):String {
 		if (p.isNull()) return "";
@@ -261,54 +269,61 @@ class WinAccessProbe {
 
 	// --- the event handlers: COM objects of a vtable each, on UI Automation's threads ---
 
+	// a handler: its vtable, then (as Ints, the callbacks' span of it) its
+	// counts (2-17), the interfaces it answers (18-37: IUnknown, the four
+	// handlers', two words each) and its own address (38-39), zeroed first
+	static inline var HANDLER = 4 * 40;
+
 	static function handler(method:Ptr):Ptr {
 		var t:Ptr<Ptr> = LibC.malloc(32);
 		t[0] = Callback.addr(hQuery);
 		t[1] = Callback.addr(hAddRef);
 		t[2] = Callback.addr(hRelease);
 		t[3] = method;
-		var o:Ptr<Ptr> = LibC.malloc(8);
+		var o:Ptr<Ptr> = LibC.malloc(HANDLER);
+		LibC.memset(cast o, 0, HANDLER);
 		o[0] = cast t;
+		var at = 4 * 18;
+		for (g in ["00000000-0000-0000-c000-000000000046", "146c3c17-f12e-4e22-8c27-f894b9b79c69", "40cd37d4-c756-4b0c-8c6f-bddfeeb13b50",
+			"e81d1b4e-11c5-42f8-9754-e7036c79f054", "c270f6b5-5c69-4290-9745-7a7f97169468"]) {
+			LibC.memcpy((cast o : Ptr).add(at), guid(g), 16);
+			at += 16;
+		}
+		Mem.setI64(cast o, 4 * 38, (cast o : Ptr).toI64());
+		handlers.push(cast o);
 		return cast o;
 	}
 
-	// the interfaces a handler answers: IUnknown, the four handlers' (two Int64 each)
-	static final handlerIids:Ptr<Int64> = {
-		var t:Ptr<Int64> = LibC.malloc(80);
-		var k = 0;
-		for (g in ["00000000-0000-0000-c000-000000000046", "146c3c17-f12e-4e22-8c27-f894b9b79c69", "40cd37d4-c756-4b0c-8c6f-bddfeeb13b50",
-			"e81d1b4e-11c5-42f8-9754-e7036c79f054", "c270f6b5-5c69-4290-9745-7a7f97169468"]) {
-			var p:Ptr<Int64> = cast guid(g);
-			t[k++] = p[0];
-			t[k++] = p[1];
-		}
-		t;
-	}
-
-	@:hxmc.callback @:hxmc.unsafe static function hQuery(self:Ptr, iid:Ptr, o:Ptr<Ptr>):Int {
+	// (the handlers' methods: checked kernels over the handler's memory, C's
+	// pointers spans of their size: hxmc's typed callbacks)
+	@:hxmc.callback @:hxmc.kernel @:hxmc.len(self, 40) @:hxmc.len(iid, 4) @:hxmc.len(o, 1)
+	static function hQuery(self:hxmc.Span<Int>, iid:hxmc.ReadOnlySpan<Int>, o:hxmc.Span<hxmc.I64>):Int {
 		// (IUnknown or a handler's: the one object; anything else, IMarshal's, not)
-		var g:Ptr<Int64> = cast iid;
-		for (k in 0...5)
-			if (g[0] == handlerIids[2 * k] && g[1] == handlerIids[2 * k + 1]) {
-				o.value = self;
+		for (k in 0...5) {
+			var at = 18 + 4 * k;
+			if (iid[0] == self[at] && iid[1] == self[at + 1] && iid[2] == self[at + 2] && iid[3] == self[at + 3]) {
+				o[0] = self.getI64(38);
 				return 0;
 			}
-		o.value = Ptr.nil();
+		}
+		o[0] = 0;
 		return 0x80004002;
 	}
 
-	@:hxmc.callback @:hxmc.unsafe static function hAddRef(self:Ptr):Int
+	@:hxmc.callback @:hxmc.kernel static function hAddRef(self:hxmc.I64):Int
 		return 2;
 
-	@:hxmc.callback @:hxmc.unsafe static function hRelease(self:Ptr):Int
+	@:hxmc.callback @:hxmc.kernel static function hRelease(self:hxmc.I64):Int
 		return 1;
 
-	@:hxmc.callback @:hxmc.unsafe static function onFocus(self:Ptr, sender:Ptr):Int {
-		seen[0] = seen[0] + 1;
+	@:hxmc.callback @:hxmc.kernel @:hxmc.len(self, 40)
+	static function onFocus(self:hxmc.Span<Int>, sender:hxmc.I64):Int {
+		self[2] += 1;
 		return 0;
 	}
 
-	@:hxmc.callback @:hxmc.unsafe static function onProperty(self:Ptr, sender:Ptr, id:Int, value:Ptr):Int {
+	@:hxmc.callback @:hxmc.kernel @:hxmc.len(self, 40)
+	static function onProperty(self:hxmc.Span<Int>, sender:hxmc.I64, id:Int, value:hxmc.I64):Int {
 		var k = switch id {
 			case 30005: 1; // Name
 			case 30086: 2; // ToggleState
@@ -318,23 +333,25 @@ class WinAccessProbe {
 			case 30045: 6; // Value.Value
 			case _: 15;
 		}
-		seen[k] = seen[k] + 1;
+		self[2 + k] += 1;
 		return 0;
 	}
 
-	@:hxmc.callback @:hxmc.unsafe static function onStructure(self:Ptr, sender:Ptr, change:Int, runtimeId:Ptr):Int {
-		seen[7] = seen[7] + 1;
+	@:hxmc.callback @:hxmc.kernel @:hxmc.len(self, 40)
+	static function onStructure(self:hxmc.Span<Int>, sender:hxmc.I64, change:Int, runtimeId:hxmc.I64):Int {
+		self[9] += 1;
 		return 0;
 	}
 
-	@:hxmc.callback @:hxmc.unsafe static function onEvent(self:Ptr, sender:Ptr, id:Int):Int {
+	@:hxmc.callback @:hxmc.kernel @:hxmc.len(self, 40)
+	static function onEvent(self:hxmc.Span<Int>, sender:hxmc.I64, id:Int):Int {
 		var k = switch id {
 			case 20014: 8; // Text_TextSelectionChanged
 			case 20015: 9; // Text_TextChanged
 			case 20012: 10; // SelectionItem_ElementSelected
 			case _: 14;
 		}
-		seen[k] = seen[k] + 1;
+		self[2 + k] += 1;
 		return 0;
 	}
 
@@ -367,8 +384,6 @@ class WinAccessProbe {
 
 	static function fixture() {
 		if (Sys.getEnv("HELDER_UNDER_WINE") != null) return wineFixture();
-		for (k in 0...16)
-			seen[k] = 0;
 		// the handlers, on the window's subtree (TreeScope_Subtree: 7)
 		var top = elements[0].e;
 		// (Wine's UI Automation hangs adding a focus handler: the events checked on Windows)
@@ -506,7 +521,7 @@ class WinAccessProbe {
 		check("its state after", i32.value == 1);
 		// the events (handlers on UI Automation's threads: given a moment)
 		Sys.sleep(1);
-		var saw = [for (k in 0...11) seen[k]];
+		var saw = [for (k in 0...11) seen(k)];
 		// (the focus's handler gets ours; the scoped ones, property, structure
 		// and automation events under the window's element, get none on
 		// CI's Windows though WinAccess raises them, each S_OK: AccessApp's

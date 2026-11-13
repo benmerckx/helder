@@ -18,6 +18,7 @@ import hxmc.unsafe.*;
 // by a swipe for a while; API 29: the immersive sticky flags) and the
 // window into the cutout's edges (layoutInDisplayCutoutMode SHORT_EDGES).
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class Insets {
 	static final lock = new sys.thread.Mutex();
 	// left, top, right, bottom in pixels: the last measured (under the lock)

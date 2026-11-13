@@ -12,6 +12,7 @@ import hxmc.unsafe.*;
 // AVAudioSessionInterruptionNotification, observed by a class made at run
 // time) stop the output units; when one ends the session is made active
 // again and the outputs that were running start again (Audio.interrupted).
+@:hxmc.unsafe(gc)
 class AudioSession {
 	static var ready = false;
 	static var observer = Ptr.nil();
@@ -61,6 +62,7 @@ class AudioSession {
 }
 
 @:build(helder.os.objc.Sender.build())
+@:hxmc.unsafe(gc)
 class SessionMsg {
 	static function bPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Bool;
 	static function bFloatPtr(self:Ptr, sel:Ptr, a:Float, b:Ptr):Bool;

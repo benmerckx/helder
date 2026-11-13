@@ -30,6 +30,7 @@ import hxmc.unsafe.*;
 // asked: the window's content changed (TYPE_WINDOW_CONTENT_CHANGED), the
 // focus moved (TYPE_VIEW_FOCUSED), a live region's text announced.
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class AndroidAccess {
 	static inline var HOST = -1;
 	static var current:Null<AndroidAccess> = null;
@@ -443,6 +444,7 @@ class AndroidAccess {
 
 // JNI's int arrays (jni.h's NewIntArray, GetIntArrayRegion)
 @:build(helder.os.VTable.build())
+@:hxmc.unsafe(gc)
 class JniArrays {
 	@:slot(179) static function NewIntArray(env:Ptr, length:Int):Ptr;
 	@:slot(203) static function GetIntArrayRegion(env:Ptr, a:Ptr, start:Int, length:Int, buf:Ptr):Void;

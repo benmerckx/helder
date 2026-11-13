@@ -12,6 +12,7 @@ import hxmc.unsafe.*;
 // (the main thread busy) is silence. In an OfflineAudioContext (browser.mjs's
 // option audioContext: tests) start fills its whole length at once.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class WebAudioOutput {
 	static final open:Array<WebAudioOutput> = [];
 

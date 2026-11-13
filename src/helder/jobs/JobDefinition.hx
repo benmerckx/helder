@@ -11,7 +11,7 @@ import helder.definition.Kernel;
 //
 //   Int, Float, Bool, haxe.Int64 (number, boolean)          copied
 //   String, haxe.io.Bytes (string, Uint8Array)               copied (null too)
-//   hxmc.unsafe.IoBuffer                                     moved
+//   hxmc.Buffer                                              moved (closed for the sender)
 //   @:hxmc.struct classes                                    copied (their bytes)
 //   Null<T> (T | null, T | undefined), abstracts over a T    as T
 //   { a:T, ... }, Array<T>                                   copied, field by field, element by element
@@ -20,7 +20,7 @@ import helder.definition.Kernel;
 // Not: classes and interfaces (shared mutable state), enums, functions,
 // dynamic values, addresses, type parameters, maps, recursive types.
 class JobDefinition implements Definition<JobAdapter, JobSignature> {
-	public static inline var WHAT = "flat values, String, Bytes, IoBuffer, hxmc structs, and anonymous structures, Arrays and Channels of these";
+	public static inline var WHAT = "flat values, String, Bytes, hxmc.Buffer, hxmc structs, and anonymous structures, Arrays and Channels of these";
 
 	public final name = "job";
 
@@ -71,7 +71,7 @@ class JobDefinition implements Definition<JobAdapter, JobSignature> {
 
 // What a job's adapter tells of its function: its name, its inputs' and
 // result's types (null: Void), the constants it reads, whether it is a
-// GC-free job (Haxe's @:hxmc.unsafe callback, which takes a Job: unchecked)
+// GC-free job (Haxe's kernel callback, which takes a Job: hxmc checks it)
 typedef JobSignature = {
 	name:String,
 	inputs:Array<SendType>,

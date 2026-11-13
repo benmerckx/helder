@@ -14,8 +14,8 @@ export default async function (host) {
 	const hxmc_text = {
 		font_count: () => fonts.length,
 		font_size: (i) => fonts[i].length,
-		// (p: the module's memory, font_size(i) bytes)
-		font_read: (i, p) => host.bytes(p, fonts[i].length).set(fonts[i]),
+		// (into a span: its address and length; no more than the length)
+		font_read: (i, p, n) => host.bytes(p, Math.min(n, fonts[i].length)).set(fonts[i].subarray(0, n)),
 		// (a font the program added, or replaced: the page's FontFace too, so
 		// its text fields are set in it by the family's name)
 		font_face: (family, weight, italic, p, n) => {

@@ -6,6 +6,7 @@ import helder.os.App;
 import helder.os.Event as OsEvent;
 import helder.os.TitleBar;
 import helder.ui.*;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 import helder.ui.view.UiView;
 import helder.view.graph.Graph;
@@ -67,6 +68,7 @@ typedef SurfaceProps = {
 //
 // In a page's markup (helder.web's DOM or static renderer) a <Surface> is
 // helder.web's: a canvas running a wasm program whose root is this one.
+@:hxmc.unsafe(gc)
 class UiWindow {
 	public final window:helder.os.Window;
 	public final device:Device;
@@ -117,7 +119,7 @@ class UiWindow {
 	public function new(title:String, width:Int, height:Int, ?text:TextEngine, antialias = true, titlebar:helder.os.TitleBar = Standard) {
 		window = new helder.os.Window(title, width, height, titlebar);
 		// (Android: text fields get the soft keyboard and the input method)
-		if (Mem.target() >= 9) helder.os.android.TextInput.enable();
+		if (Platform.target() >= 9) helder.os.android.TextInput.enable();
 		device = Device.create(window.surface, {antialias: antialias});
 		renderer = new Renderer(device);
 		renderer.steps = true;
@@ -130,11 +132,11 @@ class UiWindow {
 		// (a touch drag the program's where it scrolls something: the page's otherwise)
 		window.scrollsAt = (x, y, dx, dy) -> ui.scrollsAt(x / renderer.scale, y / renderer.scale, dx / renderer.scale, dy / renderer.scale);
 		// (the browser's own views: native text editors over the canvas)
-		if (Mem.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
+		if (Platform.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
 		// (Windows': EDIT controls over the window)
-		else if (Mem.os() == 2) ui.platform = new WinViews(window.surface.handle, ui, () -> renderer.scale);
-		// (macOS': NSTextFields over the window; not iOS's, whose Mem.os() is macOS's too: no AppKit there)
-		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
+		else if (Platform.os() == 2) ui.platform = new WinViews(window.surface.handle, ui, () -> renderer.scale);
+		// (macOS': NSTextFields over the window; not iOS's, whose Platform.os() is macOS's too: no AppKit there)
+		else if (Platform.apple() >= 1) {} else if (Platform.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
 		open.push(this);
 		#if helder.headless
 		// (a headless run: the ui's events and clock the run's virtual time, the first window's nodes its tree)
@@ -176,13 +178,13 @@ class UiWindow {
 	// code, which the host unloads; the next build makes its own
 	function handOver() {
 		handedOver = true;
-		if (Mem.platform() >= 1) {
+		if (Platform.apple() >= 1) {
 			if (iosAccess != null) (cast iosAccess : IosAccess).dispose();
-		} else if (Mem.os() == 1) {
+		} else if (Platform.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 			if (ui.platform != null) (cast ui.platform : MacViews).dispose();
 		}
-		if (Mem.os() == 2) {
+		if (Platform.os() == 2) {
 			if (winAccess != null) (cast winAccess : WinAccess).dispose();
 			if (ui.platform != null) (cast ui.platform : WinViews).dispose();
 		}
@@ -331,15 +333,15 @@ class UiWindow {
 
 	// whether an adapter has a client: what it reads changing is then worth a frame
 	function accessListening():Bool {
-		if (Mem.os() == 3) return access != null;
-		else if (Mem.platform() >= 1) {
+		if (Platform.os() == 3) return access != null;
+		else if (Platform.apple() >= 1) {
 			return iosAccess != null && (cast iosAccess : IosAccess).listening();
-		} else if (Mem.os() == 1) {
+		} else if (Platform.os() == 1) {
 			return macAccess != null && (cast macAccess : MacAccess).listening();
-		} else if (Mem.os() == 2) {
+		} else if (Platform.os() == 2) {
 			return winAccess != null && (cast winAccess : WinAccess).listening();
-		} else if (Mem.os() == 0) {
-			if (Mem.target() < 9) return linuxAccess != null && LinuxAccess.listening() else return androidAccess != null
+		} else if (Platform.os() == 0) {
+			if (Platform.target() < 9) return linuxAccess != null && LinuxAccess.listening() else return androidAccess != null
 				&& (cast androidAccess : AndroidAccess).listening();
 		}
 		return false;
@@ -348,8 +350,8 @@ class UiWindow {
 	// whether an adapter was asked for a tree it has not had (Android's: its
 	// provider answers on another thread, from what the last frame published)
 	function accessPending():Bool {
-		if (Mem.os() == 0) {
-			if (Mem.target() >= 9) return androidAccess != null && AndroidAccess.pending;
+		if (Platform.os() == 0) {
+			if (Platform.target() >= 9) return androidAccess != null && AndroidAccess.pending;
 		}
 		return false;
 	}
@@ -359,23 +361,23 @@ class UiWindow {
 	// imports must stay out of the other targets)
 	function sendAccess() {
 		accessSent = Ui.accessEpoch;
-		if (Mem.os() == 3) {
+		if (Platform.os() == 3) {
 			var t = ui.accessTree();
 			var json = t.changesJson(access);
 			access = t;
 			if (json != null) WebMirror.send(window.surface.handle.toI64().toInt(), json);
-		} else if (Mem.platform() >= 1) {
+		} else if (Platform.apple() >= 1) {
 			if (iosAccess == null) iosAccess = new IosAccess(window, ui);
 			(cast iosAccess : IosAccess).update();
-		} else if (Mem.os() == 1) {
+		} else if (Platform.os() == 1) {
 			if (macAccess == null) macAccess = new MacAccess(window, ui);
 			(cast macAccess : MacAccess).update();
-		} else if (Mem.os() == 2) {
+		} else if (Platform.os() == 2) {
 			if (winAccess == null) winAccess = new WinAccess(window, ui);
 			(cast winAccess : WinAccess).update();
-		} else if (Mem.os() == 0) {
+		} else if (Platform.os() == 0) {
 			// (not Android's: AT-SPI is the Linux desktop's)
-			if (Mem.target() < 9) {
+			if (Platform.target() < 9) {
 				if (linuxAccess == null) linuxAccess = new LinuxAccess(window, ui);
 				(cast linuxAccess : LinuxAccess).update();
 			} else {
@@ -387,10 +389,10 @@ class UiWindow {
 
 	// the actions assistive technology asked for (the browser's), done
 	function pollAccess() {
-		if (Mem.os() == 3) {
+		if (Platform.os() == 3) {
 			if (access != null) WebMirror.poll(ui);
-		} else if (Mem.os() == 0) {
-			if (Mem.target() < 9) {
+		} else if (Platform.os() == 0) {
+			if (Platform.target() < 9) {
 				if (linuxAccess != null) LinuxAccess.dispatch();
 			} else if (androidAccess != null) AndroidAccess.dispatch();
 		}
@@ -466,16 +468,16 @@ class UiWindow {
 		if (handedOver) return;
 		#end
 		// (nested: only a constant condition drops the branch)
-		if (Mem.platform() >= 1) {
+		if (Platform.apple() >= 1) {
 			if (iosAccess != null) (cast iosAccess : IosAccess).dispose();
-		} else if (Mem.os() == 1) {
+		} else if (Platform.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 		}
-		if (Mem.os() == 2) {
+		if (Platform.os() == 2) {
 			if (winAccess != null) (cast winAccess : WinAccess).dispose();
 		}
-		if (Mem.os() == 0) {
-			if (Mem.target() < 9) {
+		if (Platform.os() == 0) {
+			if (Platform.target() < 9) {
 				if (linuxAccess != null) (cast linuxAccess : LinuxAccess).dispose();
 			} else if (androidAccess != null) (cast androidAccess : AndroidAccess).dispose();
 		}
@@ -516,7 +518,7 @@ class UiWindow {
 
 	// <Surface>: a window (a canvas on the web), its children rendered into its ui's root; closed with its owner
 	@:typescript public static function Surface(props:SurfaceProps):RootView {
-		var web = Mem.os() == 3;
+		var web = Platform.os() == 3;
 		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
 		var title:Null<String> = Render.read(props.title);
 		var w = new UiWindow(title ?? "helder", width ?? (web ? 0 : 800), height ?? (web ? 0 : 600), null, props.antialias != false,
@@ -568,9 +570,9 @@ class OsWindow implements WindowHost {
 
 	public function controls():String {
 		var win = w.window;
-		if (win.titlebar != Inset || win.fullscreen || Mem.os() == 3 || Mem.platform() >= 1 || Mem.target() >= 9) return "none";
-		if (Mem.os() == 1) return "system";
-		return Mem.os() == 2 ? "windows" : "linux";
+		if (win.titlebar != Inset || win.fullscreen || Platform.os() == 3 || Platform.apple() >= 1 || Platform.target() >= 9) return "none";
+		if (Platform.os() == 1) return "system";
+		return Platform.os() == 2 ? "windows" : "linux";
 	}
 
 	public function systemControls():Null<Bounds> {
@@ -616,6 +618,7 @@ class SystemClipboard implements ClipboardHost {
 
 // the browser's accessibility mirror (WebAccess), apart: its imports are
 // reached only from the browser's branches
+@:hxmc.unsafe(gc)
 class WebMirror {
 	public static function views(canvas:Int):PlatformViews
 		return new WebViews(canvas);

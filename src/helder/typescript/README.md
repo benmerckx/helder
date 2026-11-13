@@ -221,7 +221,7 @@ constants: `platform.os` (linux, macos, windows, wasi, android, ios),
 `platform.target` (hxmc's name) and `platform.arm` are literals where they
 are read, and so is a condition of them (`===`, `!==`, `!`, `&&`, `||`):
 an `if` or a `?:` on one lowers only the branch it takes (`lower/Platform.hx`),
-as hxmc folds Haxe's `Mem.os()`. A function the program only calls by its
+as hxmc folds Haxe's `Platform.os()`. A function the program only calls by its
 name (not exported, never a value) has no function object, so what only
 the other branch calls is not reached and not linked (tests/typescript/platform:
 a Windows branch's kernel32 import absent from the Linux and WASI builds,

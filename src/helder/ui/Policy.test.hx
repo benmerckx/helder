@@ -39,7 +39,7 @@ function tests() {
 			ui.root.append(a);
 			var desktop = Ui.desktop();
 			#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-			equals(desktop, hxmc.unsafe.Mem.platform() == 0 && hxmc.unsafe.Mem.target() < 9);
+			equals(desktop, hxmc.Platform.apple() == 0 && hxmc.Platform.target() < 9);
 			#else
 			equals(desktop, false);
 			#end

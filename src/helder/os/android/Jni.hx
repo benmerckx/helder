@@ -13,6 +13,7 @@ import hxmc.unsafe.*;
 // described in logcat, cleared and thrown again as a Haxe one with its text
 // (a JNI call with one pending aborts the app), strings copied as UTF-16.
 @:build(helder.os.VTable.build())
+@:hxmc.unsafe(gc)
 class JniEnv {
 	@:slot(6) static function FindClass(env:Ptr, name:Ptr):Ptr;
 	@:slot(15) static function ExceptionOccurred(env:Ptr):Ptr;
@@ -55,6 +56,7 @@ class JniEnv {
 }
 
 @:build(helder.os.VTable.build())
+@:hxmc.unsafe(gc)
 class JavaVm {
 	@:slot(4) static function AttachCurrentThread(vm:Ptr, env:Ptr<Ptr>, args:Ptr):Int;
 	@:slot(5) static function DetachCurrentThread(vm:Ptr):Int;
@@ -62,6 +64,7 @@ class JavaVm {
 }
 
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class Jni {
 	// the main thread's JNIEnv (ANativeActivity.env), the activity (.clazz: a global reference)
 	public static var env(get, never):Ptr;

@@ -329,7 +329,7 @@ class Ui {
 	// browser, Android or iOS; nor Eval and JavaScript, as a browser's)
 	public static function desktop():Bool {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		return hxmc.unsafe.Mem.platform() == 0 && hxmc.unsafe.Mem.target() < 9 && hxmc.unsafe.Mem.os() != 3;
+		return hxmc.Platform.apple() == 0 && hxmc.Platform.target() < 9 && hxmc.Platform.os() != 3;
 		#else
 		return false;
 		#end

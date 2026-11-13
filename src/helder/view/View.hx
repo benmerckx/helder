@@ -36,11 +36,11 @@ class View {
 	public final mount:Null<(parent:Dynamic, before:Dynamic, out:Dynamic) -> Void>;
 	// an agnostic literal's key and the values of its holes
 	public final key:Int;
-	public final holes:Null<Array<Any>>;
+	public final holes:Null<Array<Null<Any>>>;
 	// content of components, holes and fragments only (a Switch's Match
 	// cases): its parts as values, components called (null: it has elements
 	// or text)
-	public final parts:Null<Void->Array<Any>>;
+	public final parts:Null<Void->Array<Null<Any>>>;
 	// where the literal is: file:line
 	public final source:String;
 

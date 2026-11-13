@@ -1,5 +1,7 @@
 package helder.dev;
 
+import hxmc.Platform;
+
 import hxmc.unsafe.*;
 
 // The dev host (helder dev natively, no reloads): one process
@@ -54,16 +56,16 @@ class DevHost {
 
 	// (Windows: the path as UTF-16, a user's directory not in the ANSI code page too)
 	static function open(path:String):Ptr
-		return Arena.scopedValue(a -> Mem.os() == 2 ? DevK32.LoadLibraryW(a.wstring(path)) : Posix.dlopen(a.cstring(path), 2)); // (RTLD_NOW)
+		return Arena.scopedValue(a -> Platform.os() == 2 ? DevK32.LoadLibraryW(a.wstring(path)) : Posix.dlopen(a.cstring(path), 2)); // (RTLD_NOW)
 
 	static function close(lib:Ptr)
-		if (Mem.os() == 2) DevK32.FreeLibrary(lib) else Posix.dlclose(lib);
+		if (Platform.os() == 2) DevK32.FreeLibrary(lib) else Posix.dlclose(lib);
 
 	static function sym(lib:Ptr, name:String):Ptr
-		return Arena.scopedValue(a -> Mem.os() == 2 ? DevK32.GetProcAddress(lib, a.cstring(name)) : Posix.dlsym(lib, a.cstring(name)));
+		return Arena.scopedValue(a -> Platform.os() == 2 ? DevK32.GetProcAddress(lib, a.cstring(name)) : Posix.dlsym(lib, a.cstring(name)));
 
 	static function error():String
-		return Mem.os() == 2 ? "error " + DevK32.GetLastError() : (cast Posix.dlerror() : CString).toString();
+		return Platform.os() == 2 ? "error " + DevK32.GetLastError() : (cast Posix.dlerror() : CString).toString();
 }
 
 // (Windows: kernel32's loader)

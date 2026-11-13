@@ -1,6 +1,7 @@
 package helder.dev;
 
 #if (hxmc.dev_host && !macro)
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // A program run by a dev host (helder dev natively, no reloads): built as a shared library (-D hxmc.shared -D hxmc.dev_host:
@@ -66,7 +67,7 @@ class Hosted {
 
 	// this process's id
 	public static function pid():Int
-		return Mem.os() == 2 ? HostK32.GetCurrentProcessId() : HostThreads.getpid();
+		return Platform.os() == 2 ? HostK32.GetCurrentProcessId() : HostThreads.getpid();
 
 	// the state block; made (zeroed) by the first build when no host gave one
 	// (Android: the APK's own library is the host, its activity glue the
@@ -99,7 +100,7 @@ class Hosted {
 		// (Android: on the calling thread, the program's, whose looper the
 		// activity's glue watches; iOS: the main thread, UIKit's)
 		// (Windows: the thread that made the window, whose messages it gets)
-		if (Mem.target() >= 9 || Mem.os() == 1 || Mem.os() == 2) {
+		if (Platform.target() >= 9 || Platform.os() == 1 || Platform.os() == 2) {
 			thread(Ptr.nil());
 			return 0;
 		}
@@ -119,7 +120,7 @@ class Hosted {
 		// (the heap given back: the host closes the library next; on Android
 		// the library stays loaded and its heap kept: callbacks it gave the
 		// system's UI thread, a looper's or a frame's, may still come once)
-		if (Mem.target() < 9 && Mem.platform() == 0) hxmc.rt.Gc.releaseHeap();
+		if (Platform.target() < 9 && Platform.apple() == 0) hxmc.rt.Gc.releaseHeap();
 		return Ptr.nil();
 	}
 }

@@ -15,6 +15,7 @@ class XdgShellProtocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract XdgWmBase(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "xdg_wm_base";
 	public static inline var VERSION = 7;
@@ -67,6 +68,7 @@ abstract XdgWmBase(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class XdgWmBaseEvents implements Proxy.Dispatcher {
 	public var ping:Null<(serial:Int) -> Void> = null;
 
@@ -90,6 +92,7 @@ enum abstract XdgWmBaseError(Int) from Int to Int {
 	var Unresponsive = 6;
 }
 
+@:hxmc.unsafe(gc)
 abstract XdgPositioner(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "xdg_positioner";
 	public static inline var VERSION = 7;
@@ -226,6 +229,7 @@ enum abstract XdgPositionerConstraintAdjustment(Int) from Int to Int {
 	var ResizeY = 32;
 }
 
+@:hxmc.unsafe(gc)
 abstract XdgSurface(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "xdg_surface";
 	public static inline var VERSION = 7;
@@ -290,6 +294,7 @@ abstract XdgSurface(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class XdgSurfaceEvents implements Proxy.Dispatcher {
 	public var configure:Null<(serial:Int) -> Void> = null;
 
@@ -312,6 +317,7 @@ enum abstract XdgSurfaceError(Int) from Int to Int {
 	var DefunctRoleObject = 6;
 }
 
+@:hxmc.unsafe(gc)
 abstract XdgToplevel(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "xdg_toplevel";
 	public static inline var VERSION = 7;
@@ -445,6 +451,7 @@ abstract XdgToplevel(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class XdgToplevelEvents implements Proxy.Dispatcher {
 	public var configure:Null<(width:Int, height:Int, states:Ptr) -> Void> = null;
 	public var close:Null<() -> Void> = null;
@@ -505,6 +512,7 @@ enum abstract XdgToplevelWmCapabilities(Int) from Int to Int {
 	var Minimize = 4;
 }
 
+@:hxmc.unsafe(gc)
 abstract XdgPopup(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "xdg_popup";
 	public static inline var VERSION = 7;
@@ -548,6 +556,7 @@ abstract XdgPopup(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class XdgPopupEvents implements Proxy.Dispatcher {
 	public var configure:Null<(x:Int, y:Int, width:Int, height:Int) -> Void> = null;
 	public var popupDone:Null<() -> Void> = null;

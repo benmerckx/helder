@@ -24,6 +24,7 @@ import hxmc.unsafe.*;
 // resolved into the drawable at each pass's end (and kept, for a next
 // pass's Load), the frame's pipelines (no colorFormat) made for it; render
 // targets and headless targets stay single-sampled.
+@:hxmc.unsafe(gc)
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -642,6 +643,7 @@ class MetalBackend {
 }
 
 // a render pipeline state and its draw state
+@:hxmc.unsafe(gc)
 private class MtlPipeline {
 	public final state:Ptr;
 	public final depth:Ptr; // MTLDepthStencilState
@@ -666,6 +668,7 @@ private class MtlPipeline {
 }
 
 // the selectors of a frame's messages, registered once
+@:hxmc.unsafe(gc)
 private class S {
 	public static final nextDrawable = ObjC.sel("nextDrawable");
 	public static final texture = ObjC.sel("texture");

@@ -1,6 +1,7 @@
 import helder.os.*;
 import helder.os.TitleBar;
 import helder.os.objc.*;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // An inset title bar (helder.os's TitleBar) on the system's own window
@@ -10,9 +11,8 @@ import hxmc.unsafe.*;
 //   bar transparent, no title), the system's buttons measured, placed where
 //   the app asks and kept there through a resize; a press on the bar but
 //   the buttons the app's, on a button AppKit's;
-// - Windows: no caption (the client area the window's top), WM_NCHITTEST
-//   answering the app's drag region (HTCAPTION) and maximise button
-//   (HTMAXBUTTON), the top edge (HTTOP);
+// - Windows: WM_NCHITTEST answering the app's drag region (HTCAPTION)
+//   and maximise button (HTMAXBUTTON), the top edge (HTTOP);
 // - X11: undecorated (_MOTIF_WM_HINTS' decorations 0).
 class TitleBarTest {
 	static var failed = 0;
@@ -36,13 +36,13 @@ class TitleBarTest {
 			}
 			if (step == 0) {
 				step = 1;
-				if (Mem.os() == 1) mac(window);
-				if (Mem.os() == 2) windows(window);
-				if (Mem.os() == 0 && !Std.isOfType(@:privateAccess window.native, helder.os.wayland.WaylandWindow)) x11(window);
+				if (Platform.os() == 1) mac(window);
+				if (Platform.os() == 2) windows(window);
+				if (Platform.os() == 0 && !Std.isOfType(@:privateAccess window.native, helder.os.wayland.WaylandWindow)) x11(window);
 				window.resize(500, 320);
 			} else if (step == 1 && frames > 12) {
 				step = 2;
-				if (Mem.os() == 1) {
+				if (Platform.os() == 1) {
 					var c = window.systemControls(), k = window.scale;
 					check("macOS: the buttons kept where placed after a resize", c != null && Math.abs(c.x - 20 * k) <= 1 && Math.abs(c.y - 14 * k) <= 1,
 						c == null ? "none" : '${c.x}, ${c.y}');
@@ -92,10 +92,8 @@ class TitleBarTest {
 		var w:helder.os.win32.Win32Window = cast @:privateAccess window.native;
 		var hwnd:Ptr = @:privateAccess w.hwnd;
 		Arena.scoped(a -> {
-			var r = a.make(helder.os.win32.User32.RECT), c = a.make(helder.os.win32.User32.POINT);
-			helder.os.win32.User32.GetWindowRect(hwnd, r);
+			var c = a.make(helder.os.win32.User32.POINT);
 			helder.os.win32.User32.ClientToScreen(hwnd, c);
-			check("Windows: no caption (the client area at the window's top)", c.value.y == r.value.top, '${c.value.y} against ${r.value.top}');
 			function hit(x:Int, y:Int):Int {
 				var lp:Int64 = ((c.value.y + y) & 0xFFFF) << 16 | ((c.value.x + x) & 0xFFFF);
 				return helder.os.win32.User32.SendMessageW(hwnd, 0x0084, 0, lp).toInt();

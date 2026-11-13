@@ -41,6 +41,7 @@ import hxmc.unsafe.*;
 	static function SetBkColor(dc:Ptr, color:Int):Int;
 }
 
+@:hxmc.unsafe(gc)
 class WinViews implements PlatformViews {
 	static final editors:Array<WinEditor> = [];
 
@@ -206,6 +207,7 @@ class WinViews implements PlatformViews {
 	}
 }
 
+@:hxmc.unsafe(gc)
 class WinEditor implements PlatformEditor {
 	final views:WinViews;
 	var hwnd:Ptr;

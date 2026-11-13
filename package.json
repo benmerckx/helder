@@ -94,13 +94,13 @@
     "site:reel": "node site/reel.mjs"
   },
   "dependencies": {
-    "@hxmc/cli": "0.1.0-nightly.20261106.a37a53a"
+    "@hxmc/cli": "0.1.0-nightly.20261113.cec25c4"
   },
   "peerDependencies": {
     "typescript": ">=7.1.0-0"
   },
   "devDependencies": {
-    "@hxmc/source": "0.1.0-nightly.20261106.a37a53a",
+    "@hxmc/source": "0.1.0-nightly.20261113.cec25c4",
     "@typescript/typescript-wasip1-wasm": "7.1.0-dev.20261106.1",
     "typescript": "7.1.0-dev.20261106.1"
   },

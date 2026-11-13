@@ -15,6 +15,7 @@ import sys.thread.Thread;
 // (Audio.frames), about a period each time. COM runs multithreaded on the
 // threads that call it.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class WasapiOutput {
 	final owner:Audio;
 	var enumerator = Ptr.nil();

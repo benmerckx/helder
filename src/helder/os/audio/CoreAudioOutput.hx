@@ -1,6 +1,7 @@
 package helder.os.audio;
 
 import helder.os.audio.CoreAudio;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 import sys.thread.Lock;
 import sys.thread.Thread;
@@ -21,6 +22,7 @@ import sys.thread.Thread;
 // it waits for a period in the ring rather than render silence, so the
 // file holds what the callback gave, whatever the machine's load.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class CoreAudioOutput {
 	// the ring's header (native memory, the render callback's refCon)
 	static inline var DATA = 0; // Ptr<Float32>
@@ -47,7 +49,7 @@ class CoreAudioOutput {
 		path = device != null && StringTools.startsWith(device, "file:") ? device.substr(5) : null;
 		if (device != null && path == null) throw "helder.os.audio: CoreAudio plays on the default output only (device " + device + ")";
 		// (iOS: RemoteIO, the session's route; its category first)
-		if (Mem.platform() >= 1) AudioSession.setup(owner.session, owner.sampleRate, owner.frames) else if (path == null) {
+		if (Platform.apple() >= 1) AudioSession.setup(owner.session, owner.sampleRate, owner.frames) else if (path == null) {
 			// (no default device: a Mac mini without speakers, a CI runner)
 			var id = Arena.scopedValue(a -> {
 				var addr = a.make(AudioObjectPropertyAddress);
@@ -75,7 +77,7 @@ class CoreAudioOutput {
 		Arena.scoped(a -> {
 			var desc = a.make(AudioComponentDescription);
 			desc.value.componentType = CA.kAudioUnitType_Output;
-			desc.value.componentSubType = path != null ? CA.kAudioUnitSubType_GenericOutput : Mem.platform() >= 1 ? CA.kAudioUnitSubType_RemoteIO : CA.kAudioUnitSubType_DefaultOutput;
+			desc.value.componentSubType = path != null ? CA.kAudioUnitSubType_GenericOutput : Platform.apple() >= 1 ? CA.kAudioUnitSubType_RemoteIO : CA.kAudioUnitSubType_DefaultOutput;
 			desc.value.componentManufacturer = CA.kAudioUnitManufacturer_Apple;
 			var component = AudioToolbox.AudioComponentFindNext(Ptr.nil(), desc);
 			if (component.isNull()) fail("no output unit (AudioComponentFindNext)");

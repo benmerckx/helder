@@ -6,6 +6,7 @@ import hxmc.unsafe.*;
 // the filters (COMDLG_FILTERSPEC), the title, Show over the owner window
 // (modal: Windows' own loop meanwhile), the result's file system path
 // (IShellItem.GetDisplayName). null: cancelled, or no dialog.
+@:hxmc.unsafe(gc)
 class FileOpenDialog {
 	static final CLSID = Com.guid(0xDC1C5A9C, 0xE88A, 0x4DDE, [0xA5, 0xA1, 0x60, 0xF8, 0x2A, 0x20, 0xAE, 0xF7]);
 	static final IID = Com.guid(0xD57C7288, 0xD4AD, 0x4768, [0xBE, 0x02, 0x9D, 0x96, 0x95, 0x32, 0xD9, 0x60]);
@@ -72,6 +73,7 @@ class FileOpenDialog {
 
 // (IUnknown 0-2, IModalWindow's Show 3, then IFileDialog's)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IFileOpenDialog {
 	@:slot(3) static function Show(self:Ptr, owner:Ptr):Int;
 	@:slot(4) static function SetFileTypes(self:Ptr, count:Int, specs:Ptr):Int;
@@ -80,6 +82,7 @@ class IFileOpenDialog {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IShellItem {
 	@:slot(5) static function GetDisplayName(self:Ptr, sigdn:Int, name:Ptr<Ptr>):Int;
 }

@@ -18,6 +18,7 @@ import hxmc.unsafe.*;
 // offsets into one ring buffer, written each frame before the submit). A
 // pass into a texture renders into its first level's view; generateMips is
 // a pass per level on the JavaScript side.
+@:hxmc.unsafe(gc)
 class WebGPUBackend {
 	public final backend = Backend.WebGPU;
 	public var width(default, null) = 0;

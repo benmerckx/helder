@@ -117,7 +117,7 @@ check "the screen's lines (tests/pack/screen.mjs)" $?
 
 # The golf example (examples/golf): built for the simulator, launched, its
 # first frames drawn (its line), a screenshot kept in <out dir>/golf.png.
-gid=org.helder.Golf
+gid=build.helder.golf  # (examples/golf/helder.json's id)
 "$helder" build examples/golf/Golf.hx --target ios-sim -o "$out/Golf.app"
 check "helder build examples/golf --target ios-sim" $?
 xcrun simctl install "$udid" "$out/Golf.app"

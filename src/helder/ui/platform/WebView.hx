@@ -18,6 +18,7 @@ import helder.ui.platform.PlatformWebView;
 // Messages: post(text), postJson(value), postBytes(bytes) to the page's
 // helder.onmessage; the page's helder.post(...) to onMessage (WebBridge).
 // Its handlers run on the program's thread before the next layout.
+@:hxmc.unsafe(gc)
 class WebView extends Node implements WebViewListener {
 	public var src(default, set):Null<String> = null;
 	public var html(default, set):Null<String> = null;

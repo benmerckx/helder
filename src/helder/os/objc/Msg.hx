@@ -9,6 +9,7 @@ import hxmc.unsafe.*;
 // structs by value; x86-64 would need objc_msgSend_stret for results over
 // 16 bytes).
 @:build(helder.os.objc.Sender.build())
+@:hxmc.unsafe(gc)
 class Msg {
 	// objc_msgSend's address (libobjc is loaded: Runtime imports from it)
 	public static final send:Ptr = Posix.dlsym(Ptr.ofI64(-2), Mem.cstr("objc_msgSend")); // (RTLD_DEFAULT)

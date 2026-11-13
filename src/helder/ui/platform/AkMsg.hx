@@ -7,6 +7,7 @@ import hxmc.unsafe.*;
 // named by the result (id, v: void, i: an integer, b: BOOL, f: a double,
 // or a struct), then the arguments.
 @:build(helder.os.objc.Sender.build())
+@:hxmc.unsafe(gc)
 class AkMsg {
 	static function id(self:Ptr, sel:Ptr):Ptr;
 	static function idPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64):Ptr;

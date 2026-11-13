@@ -25,6 +25,7 @@ import hxmc.unsafe.*;
 // the application's menu, their items' action hxmcBarPick:, queued (their
 // key equivalents taken by the menu bar before the window, as the
 // system's).
+@:hxmc.unsafe(gc)
 class MacViews implements PlatformViews {
 	// an NSFont for a ui Font (its family, else the system's; bold from 600, italic)
 	@:allow(helder.ui.platform) static function nsFont(f:Font):Ptr {
@@ -416,6 +417,7 @@ class MacViews implements PlatformViews {
 	}
 }
 
+@:hxmc.unsafe(gc)
 class MacEditor implements PlatformEditor {
 	final views:MacViews;
 	var field:Ptr;
@@ -512,6 +514,7 @@ class MacEditor implements PlatformEditor {
 }
 
 // (a text area's editor: its NSTextView the field, placed by its scroll view)
+@:hxmc.unsafe(gc)
 class MacAreaEditor extends MacEditor {
 	final scroll:Ptr;
 

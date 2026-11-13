@@ -30,6 +30,7 @@ import hxmc.unsafe.*;
 // without overwriting (discarded at the frame's first block), else a
 // dynamic constant buffer per slot, discarded at each setUniforms
 // (HXMC_GFX_D3D11_NO_OFFSETS=1 forces that).
+@:hxmc.unsafe(gc)
 class D3D11Backend {
 	public final backend = Backend.D3D11;
 	public var width(default, null) = 0;
@@ -984,6 +985,7 @@ class D3D11Backend {
 
 // a compiled shader (ID3D11VertexShader or ID3D11PixelShader) and, for a
 // vertex shader, its code (an ID3DBlob)
+@:hxmc.unsafe(gc)
 private class D3DShader {
 	public final shader:Ptr;
 	public final code:Ptr;
@@ -996,6 +998,7 @@ private class D3DShader {
 
 // a texture, its shader resource view and, a render target, its render
 // target view or depth-stencil view
+@:hxmc.unsafe(gc)
 private class D3DTexture {
 	public final texture:Ptr;
 	public final info:TextureInfo;
@@ -1021,6 +1024,7 @@ private class D3DTexture {
 }
 
 // the state objects a pipeline sets, and its vertex buffers' strides
+@:hxmc.unsafe(gc)
 private class D3DPipeline {
 	public final vs:Ptr;
 	public final ps:Ptr;

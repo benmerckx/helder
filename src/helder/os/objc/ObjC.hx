@@ -4,6 +4,7 @@ import hxmc.unsafe.*;
 
 // Shorthands over Runtime and Msg: classes and selectors by name (a string
 // literal: its C string is in read-only data), NSString in and out.
+@:hxmc.unsafe(gc)
 class ObjC {
 	public static inline function cls(name:String):Ptr
 		return Runtime.objc_getClass(Mem.cstr(name));

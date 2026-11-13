@@ -8,6 +8,7 @@ import helder.text.Shaping;
 // coverage bitmap (FT_RENDER_MODE_NORMAL, unhinted, as helder's own
 // rasterizer draws it: the glyphs' places are the layout's). A colour
 // glyph (an emoji's bitmap) is left to helder's own colour path.
+@:hxmc.unsafe(gc)
 class FreeType {
 	static var ready = 0;
 	static var library = Ptr.nil();
@@ -71,6 +72,7 @@ class FreeType {
 }
 
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class FT {
 	static function FT_Init_FreeType(library:Ptr):Int;
 	static function FT_New_Memory_Face(library:Ptr, data:Ptr, size:hxmc.I64, index:hxmc.I64, face:Ptr):Int;

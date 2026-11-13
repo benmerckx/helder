@@ -12,6 +12,7 @@ class CursorShapeV1Protocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract WpCursorShapeManagerV1(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wp_cursor_shape_manager_v1";
 	public static inline var VERSION = 2;
@@ -53,6 +54,7 @@ abstract WpCursorShapeManagerV1(Ptr) from Ptr to Ptr {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WpCursorShapeDeviceV1(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wp_cursor_shape_device_v1";
 	public static inline var VERSION = 2;

@@ -32,6 +32,7 @@ class WaylandProtocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract WlDisplay(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_display";
 	public static inline var VERSION = 1;
@@ -68,6 +69,7 @@ abstract WlDisplay(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlDisplayEvents implements Proxy.Dispatcher {
 	public var error:Null<(objectId:Ptr, code:Int, message:Null<String>) -> Void> = null;
 	public var deleteId:Null<(id:Int) -> Void> = null;
@@ -90,6 +92,7 @@ enum abstract WlDisplayError(Int) from Int to Int {
 	var Implementation = 3;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlRegistry(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_registry";
 	public static inline var VERSION = 1;
@@ -120,6 +123,7 @@ abstract WlRegistry(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlRegistryEvents implements Proxy.Dispatcher {
 	public var global:Null<(name:Int, interface_:Null<String>, version:Int) -> Void> = null;
 	public var globalRemove:Null<(name:Int) -> Void> = null;
@@ -135,6 +139,7 @@ class WlRegistryEvents implements Proxy.Dispatcher {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlCallback(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_callback";
 	public static inline var VERSION = 1;
@@ -153,6 +158,7 @@ abstract WlCallback(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlCallbackEvents implements Proxy.Dispatcher {
 	public var done:Null<(callbackData:Int) -> Void> = null;
 
@@ -166,6 +172,7 @@ class WlCallbackEvents implements Proxy.Dispatcher {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlCompositor(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_compositor";
 	public static inline var VERSION = 6;
@@ -198,6 +205,7 @@ abstract WlCompositor(Ptr) from Ptr to Ptr {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlShmPool(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_shm_pool";
 	public static inline var VERSION = 1;
@@ -241,6 +249,7 @@ abstract WlShmPool(Ptr) from Ptr to Ptr {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlShm(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_shm";
 	public static inline var VERSION = 1;
@@ -270,6 +279,7 @@ abstract WlShm(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlShmEvents implements Proxy.Dispatcher {
 	public var format:Null<(format:Int) -> Void> = null;
 
@@ -400,6 +410,7 @@ enum abstract WlShmFormat(Int) from Int to Int {
 	var Abgr16161616 = 0x38344241;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlBuffer(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_buffer";
 	public static inline var VERSION = 1;
@@ -425,6 +436,7 @@ abstract WlBuffer(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlBufferEvents implements Proxy.Dispatcher {
 	public var release:Null<() -> Void> = null;
 
@@ -438,6 +450,7 @@ class WlBufferEvents implements Proxy.Dispatcher {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlDataOffer(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_data_offer";
 	public static inline var VERSION = 3;
@@ -497,6 +510,7 @@ abstract WlDataOffer(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlDataOfferEvents implements Proxy.Dispatcher {
 	public var offer:Null<(mimeType:Null<String>) -> Void> = null;
 	public var sourceActions:Null<(sourceActions:Int) -> Void> = null;
@@ -521,6 +535,7 @@ enum abstract WlDataOfferError(Int) from Int to Int {
 	var InvalidOffer = 3;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlDataSource(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_data_source";
 	public static inline var VERSION = 3;
@@ -562,6 +577,7 @@ abstract WlDataSource(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlDataSourceEvents implements Proxy.Dispatcher {
 	public var target:Null<(mimeType:Null<String>) -> Void> = null;
 	public var send:Null<(mimeType:Null<String>, fd:Int) -> Void> = null;
@@ -590,6 +606,7 @@ enum abstract WlDataSourceError(Int) from Int to Int {
 	var InvalidSource = 1;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlDataDevice(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_data_device";
 	public static inline var VERSION = 3;
@@ -635,6 +652,7 @@ abstract WlDataDevice(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlDataDeviceEvents implements Proxy.Dispatcher {
 	public var dataOffer:Null<(id:helder.os.wayland.protocol.WaylandProtocol.WlDataOffer) -> Void> = null;
 	public var enter:Null<(serial:Int, surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface, x:Float, y:Float, id:helder.os.wayland.protocol.WaylandProtocol.WlDataOffer) -> Void> = null;
@@ -662,6 +680,7 @@ enum abstract WlDataDeviceError(Int) from Int to Int {
 	var Role = 0;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlDataDeviceManager(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_data_device_manager";
 	public static inline var VERSION = 3;
@@ -702,6 +721,7 @@ enum abstract WlDataDeviceManagerDndAction(Int) from Int to Int {
 	var Ask = 4;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlShell(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_shell";
 	public static inline var VERSION = 1;
@@ -730,6 +750,7 @@ enum abstract WlShellError(Int) from Int to Int {
 	var Role = 0;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlShellSurface(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_shell_surface";
 	public static inline var VERSION = 1;
@@ -840,6 +861,7 @@ abstract WlShellSurface(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlShellSurfaceEvents implements Proxy.Dispatcher {
 	public var ping:Null<(serial:Int) -> Void> = null;
 	public var configure:Null<(edges:Int, width:Int, height:Int) -> Void> = null;
@@ -880,6 +902,7 @@ enum abstract WlShellSurfaceFullscreenMethod(Int) from Int to Int {
 	var Fill = 3;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlSurface(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_surface";
 	public static inline var VERSION = 6;
@@ -994,6 +1017,7 @@ abstract WlSurface(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlSurfaceEvents implements Proxy.Dispatcher {
 	public var enter:Null<(output:helder.os.wayland.protocol.WaylandProtocol.WlOutput) -> Void> = null;
 	public var leave:Null<(output:helder.os.wayland.protocol.WaylandProtocol.WlOutput) -> Void> = null;
@@ -1021,6 +1045,7 @@ enum abstract WlSurfaceError(Int) from Int to Int {
 	var DefunctRoleObject = 4;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlSeat(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_seat";
 	public static inline var VERSION = 9;
@@ -1073,6 +1098,7 @@ abstract WlSeat(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlSeatEvents implements Proxy.Dispatcher {
 	public var capabilities:Null<(capabilities:Int) -> Void> = null;
 	public var name:Null<(name:Null<String>) -> Void> = null;
@@ -1098,6 +1124,7 @@ enum abstract WlSeatError(Int) from Int to Int {
 	var MissingCapability = 0;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlPointer(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_pointer";
 	public static inline var VERSION = 9;
@@ -1134,6 +1161,7 @@ abstract WlPointer(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlPointerEvents implements Proxy.Dispatcher {
 	public var enter:Null<(serial:Int, surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface, surfaceX:Float, surfaceY:Float) -> Void> = null;
 	public var leave:Null<(serial:Int, surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface) -> Void> = null;
@@ -1193,6 +1221,7 @@ enum abstract WlPointerAxisRelativeDirection(Int) from Int to Int {
 	var Inverted = 1;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlKeyboard(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_keyboard";
 	public static inline var VERSION = 9;
@@ -1218,6 +1247,7 @@ abstract WlKeyboard(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlKeyboardEvents implements Proxy.Dispatcher {
 	public var keymap:Null<(format:Int, fd:Int, size:Int) -> Void> = null;
 	public var enter:Null<(serial:Int, surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface, keys:Ptr) -> Void> = null;
@@ -1251,6 +1281,7 @@ enum abstract WlKeyboardKeyState(Int) from Int to Int {
 	var Pressed = 1;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlTouch(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_touch";
 	public static inline var VERSION = 9;
@@ -1276,6 +1307,7 @@ abstract WlTouch(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlTouchEvents implements Proxy.Dispatcher {
 	public var down:Null<(serial:Int, time:Int, surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface, id:Int, x:Float, y:Float) -> Void> = null;
 	public var up:Null<(serial:Int, time:Int, id:Int) -> Void> = null;
@@ -1301,6 +1333,7 @@ class WlTouchEvents implements Proxy.Dispatcher {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlOutput(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_output";
 	public static inline var VERSION = 4;
@@ -1326,6 +1359,7 @@ abstract WlOutput(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WlOutputEvents implements Proxy.Dispatcher {
 	public var geometry:Null<(x:Int, y:Int, physicalWidth:Int, physicalHeight:Int, subpixel:Int, make:Null<String>, model:Null<String>, transform:Int) -> Void> = null;
 	public var mode:Null<(flags:Int, width:Int, height:Int, refresh:Int) -> Void> = null;
@@ -1374,6 +1408,7 @@ enum abstract WlOutputMode(Int) from Int to Int {
 	var Preferred = 0x2;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlRegion(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_region";
 	public static inline var VERSION = 1;
@@ -1417,6 +1452,7 @@ abstract WlRegion(Ptr) from Ptr to Ptr {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract WlSubcompositor(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_subcompositor";
 	public static inline var VERSION = 1;
@@ -1454,6 +1490,7 @@ enum abstract WlSubcompositorError(Int) from Int to Int {
 	var BadParent = 1;
 }
 
+@:hxmc.unsafe(gc)
 abstract WlSubsurface(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wl_subsurface";
 	public static inline var VERSION = 1;

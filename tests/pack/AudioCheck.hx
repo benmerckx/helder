@@ -13,7 +13,7 @@ class AudioCheck {
 
 	static function main() {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
-		helder.os.android.Activity.activity;
+		helder.os.android.Activity.link();
 		#end
 		var out = try helder.os.audio.Audio.open({sampleRate: 48000, channels: 2, frames: 256}, (buffer, n) -> {
 			calls++;

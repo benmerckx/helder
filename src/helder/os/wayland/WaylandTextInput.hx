@@ -20,6 +20,7 @@ import hxmc.unsafe.*;
 // new composition shown (preedit_string: TextEditing, its caret in UTF-16).
 // Requests and events go through Proxy (its recorder in the tests:
 // WaylandTextInput.test.hx).
+@:hxmc.unsafe(gc)
 class WaylandTextInput {
 	public final input:ZwpTextInputV3;
 	// a window event: kind, text, x, y, the surface it is for

@@ -35,8 +35,8 @@ class Spell {
 	public static function platform(lang:String):Null<SpellChecker> {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		// (constant conditions: no other system's links)
-		if (hxmc.unsafe.Mem.platform() == 0) {
-			if (hxmc.unsafe.Mem.os() == 0 && hxmc.unsafe.Mem.target() < 9) {
+		if (hxmc.Platform.apple() == 0) {
+			if (hxmc.Platform.os() == 0 && hxmc.Platform.target() < 9) {
 				// (Enchant and Hunspell loaded at run time: the dynamic glibc mode; a static musl build links no dlopen)
 				#if (hxmc.libc == "glibc")
 				return helder.text.linux.LinuxSpell.create(lang);
@@ -44,8 +44,8 @@ class Spell {
 				return null;
 				#end
 			}
-			else if (hxmc.unsafe.Mem.os() == 2) return helder.text.windows.WinSpell.create(lang);
-			else if (hxmc.unsafe.Mem.os() == 1) return helder.text.mac.MacSpell.create(lang);
+			else if (hxmc.Platform.os() == 2) return helder.text.windows.WinSpell.create(lang);
+			else if (hxmc.Platform.os() == 1) return helder.text.mac.MacSpell.create(lang);
 		}
 		#end
 		return null;

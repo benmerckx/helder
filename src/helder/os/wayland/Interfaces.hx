@@ -10,6 +10,7 @@ typedef InterfaceDef = {name:String, version:Int, requests:Array<MessageDef>, ev
 // kept for the process: wl_interface { name, version, method_count,
 // methods, event_count, events } (40 bytes), wl_message { name, signature,
 // types } (24); an argument's interface not among them is null (any).
+@:hxmc.unsafe(gc)
 class Interfaces {
 	static final defs:Map<String, InterfaceDef> = [];
 	static final made:Map<String, Ptr> = [];

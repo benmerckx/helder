@@ -27,6 +27,7 @@ import hxmc.unsafe.*;
 // AXSelectedChildrenChanged, AXRowCountChanged, AXRowExpanded and
 // AXRowCollapsed, AXCreated, AXUIElementDestroyed, AXLayoutChanged); a
 // live region's change is an announcement (AXAnnouncementRequested).
+@:hxmc.unsafe(gc)
 class MacAccess {
 	static var elementClass = Ptr.nil();
 	static var viewClass = Ptr.nil();

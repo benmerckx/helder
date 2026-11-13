@@ -47,14 +47,14 @@ class ViewRuntime {
 	}
 
 	// inserts content into parent before a node (null: at the end); the nodes made
-	public static function insert(content:Any, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
+	public static function insert(content:Null<Any>, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
 		var out:Array<HostNode> = [];
 		add(content, parent, before, out);
 		return out;
 	}
 
 	// as insert, the nodes made pushed to out as they are (those made before an error too)
-	public static function insertTo(content:Any, parent:HostNode, before:Null<HostNode>, out:Array<HostNode>)
+	public static function insertTo(content:Null<Any>, parent:HostNode, before:Null<HostNode>, out:Array<HostNode>)
 		add(content, parent, before, out);
 
 	// (end: v is its parent's last child, nothing put after it: a region of it needs no marker)
@@ -87,7 +87,7 @@ class ViewRuntime {
 
 	// the agnostic literals' code for this renderer (by key: their holes'
 	// values), made after typing (HostMacro.late), set by its __init__
-	public static var late:Null<(Int, Array<Any>, HostNode, Null<HostNode>, Null<Array<HostNode>>) -> Void>;
+	public static var late:Null<(Int, Array<Null<Any>>, HostNode, Null<HostNode>, Null<Array<HostNode>>) -> Void>;
 
 	static inline function mounted(nodes:Array<HostNode>, out:Null<Array<HostNode>>)
 		if (out != null)
@@ -214,7 +214,7 @@ class ViewRuntime {
 	// an element's children, text and holes only: its own text when it holds
 	// text (a hole of null none, as a run's; one whose value is not text, nor
 	// reactive, an error naming what it is), else a run
-	public static function flat(el:HostNode, tag:String, parts:Array<Any>) {
+	public static function flat(el:HostNode, tag:String, parts:Array<Null<Any>>) {
 		if (!Host.holdsText(el)) {
 			run(el, null, null, parts, false, true);
 			return;
@@ -254,7 +254,7 @@ class ViewRuntime {
 
 	// a run of text and holes: those whose values are text joined into text
 	// nodes, the others content between them
-	public static function run(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, parts:Array<Any>, span:Bool, end = false) {
+	public static function run(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, parts:Array<Null<Any>>, span:Bool, end = false) {
 		var run:Array<Dynamic> = [];
 		function flush() {
 			if (run.length == 0) return;
@@ -339,13 +339,13 @@ class ViewRuntime {
 	}
 
 	// a property's value, bound when reactive
-	public static function prop(n:HostNode, name:String, v:Dynamic) {
+	public static function prop(n:HostNode, name:String, v:Null<Dynamic>) {
 		if (helder.view.Render.isReactive(v)) helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(v), (x:Dynamic) -> Host.setProperty(n, name, x));
 		else Host.setProperty(n, name, constant(v));
 	}
 
 	// (the same with the renderer's function for the name: Renders' setter)
-	public static function propWith(n:HostNode, name:String, v:Dynamic, set:(HostNode, String, Dynamic) -> Void) {
+	public static function propWith(n:HostNode, name:String, v:Null<Dynamic>, set:(HostNode, String, Null<Dynamic>) -> Void) {
 		if (helder.view.Render.isReactive(v)) helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(v), (x:Dynamic) -> set(n, name, x));
 		else set(n, name, constant(v));
 	}

@@ -20,6 +20,7 @@ import helder.os.win32.Com.IUnknown;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ID3D11Device {
 	@:slot(3) static function CreateBuffer(self:Ptr, desc:Ptr<D3D11_BUFFER_DESC>, data:Ptr<D3D11_SUBRESOURCE_DATA>, out:Ptr<Ptr>):Int;
 	@:slot(5) static function CreateTexture2D(self:Ptr, desc:Ptr<D3D11_TEXTURE2D_DESC>, data:Ptr, out:Ptr<Ptr>):Int;
@@ -41,6 +42,7 @@ class ID3D11Device {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ID3D11DeviceContext {
 	@:slot(7) static function VSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
 	@:slot(8) static function PSSetShaderResources(self:Ptr, start:Int, count:Int, views:Ptr<Ptr>):Void;
@@ -77,12 +79,14 @@ class ID3D11DeviceContext {
 
 // (Direct3D 11.1: constant buffers at offsets, in 16-byte constants, 16 of them at a time)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ID3D11DeviceContext1 {
 	@:slot(119) static function VSSetConstantBuffers1(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>, first:Ptr<Int32>, num:Ptr<Int32>):Void;
 	@:slot(123) static function PSSetConstantBuffers1(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>, first:Ptr<Int32>, num:Ptr<Int32>):Void;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ID3DBlob {
 	@:slot(3) static function GetBufferPointer(self:Ptr):Ptr;
 	@:slot(4) static function GetBufferSize(self:Ptr):Int64;
@@ -90,28 +94,33 @@ class ID3DBlob {
 
 // (shared textures: a texture's legacy shared handle, its keyed mutex)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDXGIResource {
 	@:slot(8) static function GetSharedHandle(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDXGIKeyedMutex {
 	@:slot(8) static function AcquireSync(self:Ptr, key:Int64, ms:Int):Int;
 	@:slot(9) static function ReleaseSync(self:Ptr, key:Int64):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDXGIDevice {
 	@:slot(7) static function GetAdapter(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 // (IDXGIObject::GetParent: the adapter's factory)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDXGIAdapter {
 	@:slot(6) static function GetParent(self:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDXGIFactory2 {
 	@:slot(8) static function MakeWindowAssociation(self:Ptr, hwnd:Ptr, flags:Int):Int;
 	@:slot(15) static function CreateSwapChainForHwnd(self:Ptr, device:Ptr, hwnd:Ptr, desc:Ptr<DXGI_SWAP_CHAIN_DESC1>, fullscreen:Ptr, output:Ptr,
@@ -119,6 +128,7 @@ class IDXGIFactory2 {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDXGISwapChain1 {
 	@:slot(8) static function Present(self:Ptr, interval:Int, flags:Int):Int;
 	@:slot(9) static function GetBuffer(self:Ptr, index:Int, iid:Ptr, out:Ptr<Ptr>):Int;
@@ -218,6 +228,7 @@ class D3D {
 }
 
 // the interface ids the back end asks for, as the headers write them
+@:hxmc.unsafe(gc)
 class IID {
 	public static final ID3D11Texture2D = guid(0x6f15aaf2, 0xd208, 0x4e89, [0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c]);
 	public static final IDXGIDevice = guid(0x54ec77fa, 0x1377, 0x44e6, [0x8c, 0x32, 0x88, 0xfd, 0x5f, 0x44, 0xc8, 0x4c]);

@@ -35,6 +35,7 @@ import hxmc.unsafe.*;
 // client first asks for something. Without a session bus or an
 // accessibility bus there is no adapter (and nothing to adapt to). Messages
 // are answered at each turn of the loop (dispatch: UiWindow.pollAccess).
+@:hxmc.unsafe(gc)
 class LinuxAccess {
 	static inline var ROOT = "/org/a11y/atspi/accessible/root";
 	static inline var PREFIX = "/org/a11y/atspi/accessible/";

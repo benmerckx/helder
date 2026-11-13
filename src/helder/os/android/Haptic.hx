@@ -7,6 +7,7 @@ import hxmc.unsafe.*;
 // on the main thread (MainThread.post: views are Java's there; the
 // program's thread does not wait for it)
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class Haptic {
 	public static function perform(strong:Bool)
 		MainThread.post(() -> {
