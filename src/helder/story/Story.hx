@@ -103,7 +103,10 @@ typedef StoryDef = {
 // A story's controls: each a signal its view reads, recorded with its name
 // and kind for an editor (the values a store screenshot uses are their
 // defaults); random, a generator of the story's seed; settled, false while
-// the scene is not ready (a store screenshot waits for it)
+// the scene is not ready (a store screenshot waits for it); play, a story
+// that runs to a moment (a game mid-play): unsettled until its clock has
+// run that long, the renderers running its frames on a virtual clock;
+// onDispose, what to let go with the story
 class Controls {
 	public final seed:Int;
 	public final list:Array<{name:String, kind:String, value:Dynamic, ?options:Array<String>}> = [];
@@ -143,6 +146,33 @@ class Controls {
 	// 0xAARRGGBB
 	public function color(name:String, value:Int):Signal<Int>
 		return add(name, "color", value);
+
+	// the story plays for seconds of its clock, then is settled: what runs
+	// on the clock (helder.ui's Clock: a game's frame, its physics, the
+	// transitions) gets there frame by frame, Stories.FPS a second, whatever
+	// the machine's speed (Stories.settle; a store screenshot, helder.run's,
+	// a test's tree: that moment). In the studio it runs live, as it would.
+	// Called while the story renders (its render function): its clock's
+	public function play(seconds:Float) {
+		settled(false);
+		helder.ui.Clock.after(seconds, () -> settled(true));
+	}
+
+	// f called when the story is let go (a renderer done with it: a store
+	// screenshot taken, a test's tree read): what it made that outlives its
+	// view, a game's scene world, its GPU resources
+	public function onDispose(f:Void->Void)
+		disposers.push(f);
+
+	// (the renderer's: the story let go, onDispose's in their order)
+	public function dispose() {
+		var fs = disposers.copy();
+		disposers.resize(0);
+		for (f in fs)
+			f();
+	}
+
+	final disposers:Array<Void->Void> = [];
 
 	// the next of the seed's numbers in [0, 1) (xorshift32): the same story, the same scene
 	public function random():Float {

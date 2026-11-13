@@ -25,7 +25,7 @@ using StringTools;
 //       "kind": "game",                    game, app or tool
 //       "tags": ["sports"],
 //       "source": "https://github.com/...",
-//       "screenshots": ["shots/1.png"]     (else one of the program, taken headless at publish)
+//       "screenshots": ["shots/1.png"]     (an override; else the stories with store: true, else one of the program)
 //     },
 //     "targets": {
 //       "android": {"package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount",

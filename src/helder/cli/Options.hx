@@ -171,7 +171,7 @@ class Options {
 				{key: "screenshots", names: ["--screenshots"], about: "the stories with store: true rendered at the stores' sizes, the review sheet (bin/store)"},
 				{key: "listing", names: ["--listing"], about: "the screenshots to the stores' listings (--play, --testflight: one; else both), the changed ones by hash"},
 				{key: "locale", names: ["--locale"], value: "<l>", about: "the listing's language (en-US)"},
-				{key: "no-screenshot", names: ["--no-screenshot"], about: "--run: no screenshot taken of the program when helder.json's run.screenshots names none"},
+				{key: "no-screenshot", names: ["--no-screenshot"], about: "--run: no screenshots rendered (the store stories, or one of the program) when helder.json's run.screenshots names none"},
 			],
 			notes: [
 				"with no destination, each one helder.json names: helder.run when it has a run block,",
@@ -185,7 +185,7 @@ class Options {
 			entry: true,
 			common: [],
 			own: [
-				{key: "no-screenshot", names: ["--no-screenshot"], about: "no screenshot taken of the program for its page"},
+				{key: "no-screenshot", names: ["--no-screenshot"], about: "no screenshots rendered for its page (the store stories, or one of the program)"},
 				{key: "dry-run", names: ["--dry-run"], about: "built, what would be uploaded printed; nothing uploaded"},
 			],
 		},

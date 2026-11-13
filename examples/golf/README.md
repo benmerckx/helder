@@ -104,11 +104,10 @@ hole has a recorded round at or under par (GolfReplay).
   (`Particles.hx`: one InstancedMesh a pool: dust, a trail, splashes,
   sparks, confetti, fireflies at dusk), ripples, lanterns, a squash
   along each hit, a shake on hard ones, slow motion. A frame of play
-  allocates nothing (`GOLF_DEMO=<hole>` plays the recorded round and prints
-  the frames' GcStats and draw count natively; `GOLF_PLAY=<hole>` starts a
-  hole, `GOLF_AIM=<hole>,<dx>,<dz>,<power>` holds an aim on it, the
-  preview shown and the frames' GcStats printed, `GOLF_MENU` opens the
-  scorecard, `GOLF_QUALITY=0..2` holds the diorama's quality).
+  allocates nothing (`GOLF_STATS=1` prints the frames' GcStats and draw
+  count natively while a story plays a recorded round or holds an aim;
+  `GOLF_MENU` opens the scorecard, `GOLF_QUALITY=0..2` holds the
+  diorama's quality).
 - The diorama look: each hole a model on a table of cloud, seen through a
   tilted lens. Each island has a warm key (the sun) and a cool fill (a far
   light across from it) and its own grade (`Course.worlds`: saturation,
@@ -161,6 +160,15 @@ hole has a recorded round at or under par (GolfReplay).
   title and the holes' names in Fredoka at a medium weight (fonts/, both
   SIL Open Font License), embedded. Nunito is its variable font cut to
   Latin, its legacy family name set to "Nunito".
+- `Golf.story.hx`: the screenshots, for the stores and helder.run alike:
+  a story with `store: true` and a short caption for each showcase moment
+  (holes 8, 16, 10, 18, 4 and 13 with their recorded rounds played, and
+  an aim held on hole 12, its path shown), each the game's own screen
+  (`Golf.view`) stepped on the story's clock to 4 s into the hole
+  (`Controls.play`), then settled. `helder publish examples/golf
+  --screenshots` renders them at the stores' sizes with their captions
+  (`bin/store`), `helder publish examples/golf --run` at 1280x800 without
+  (`bin/shots/run`).
 - `Sounds.hx`: a tock, knocks, a thud, a boing, a warp, a click and a
   rumble, a crumble, a splash, a whoosh, the cup's plunk and a chime, all
   made procedurally and mixed by helder.os's `Sfx` (desktop and the web).
