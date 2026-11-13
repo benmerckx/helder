@@ -91,7 +91,19 @@ typedef World = {
 	fog:Int,
 	exposure:Float,
 	// fireflies and lanterns (the dusk's)
-	night:Bool
+	night:Bool,
+	// the diorama's light: a cool fill from across the sun (its colour, strength),
+	// the cloud sea's lit and shaded tints, the contact shadows' tint
+	fill:Int,
+	fillPower:Float,
+	cloud:Int,
+	cloudShade:Int,
+	shade:Int,
+	// the grade (PostProcess): saturation, contrast, vignette, lift (rgb, added to
+	// the shadows: cool) and gain (rgb: warm)
+	grade:Array<Float>,
+	lift:Array<Float>,
+	gain:Array<Float>
 }
 
 class Course {
@@ -131,7 +143,15 @@ class Course {
 			ambientGround: 0x6d5a4a,
 			fog: 0xd8e8ff,
 			exposure: 0.95,
-			night: false
+			night: false,
+			fill: 0x9db8ff,
+			fillPower: 0.5,
+			cloud: 0xfdfbff,
+			cloudShade: 0xdcd2f0,
+			shade: 0x2c3a6e,
+			grade: [0.95, 1.03, 0.12],
+			lift: [0.006, 0.012, 0.03],
+			gain: [1.02, 1.0, 0.97]
 		},
 		{
 			name: "Copperwind Cliffs",
@@ -151,7 +171,15 @@ class Course {
 			ambientGround: 0x7a4a3a,
 			fog: 0xffd8b8,
 			exposure: 0.95,
-			night: false
+			night: false,
+			fill: 0x9aa6e8,
+			fillPower: 0.45,
+			cloud: 0xfff0e4,
+			cloudShade: 0xe0a6a8,
+			shade: 0x4a2c52,
+			grade: [0.94, 1.03, 0.14],
+			lift: [0.01, 0.008, 0.028],
+			gain: [1.03, 0.99, 0.95]
 		},
 		{
 			name: "Lanternwater",
@@ -171,7 +199,15 @@ class Course {
 			ambientGround: 0x3a2f5a,
 			fog: 0x6a5a9a,
 			exposure: 1.05,
-			night: true
+			night: true,
+			fill: 0x7d8cff,
+			fillPower: 0.55,
+			cloud: 0xe7c4dc,
+			cloudShade: 0x9c6c9e,
+			shade: 0x1a1640,
+			grade: [0.96, 1.04, 0.2],
+			lift: [0.012, 0.01, 0.035],
+			gain: [1.02, 0.98, 1.0]
 		}
 	];
 

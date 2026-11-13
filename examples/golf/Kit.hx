@@ -1,5 +1,7 @@
 import Course.World;
+import haxe.io.Bytes;
 import helder.gfx.Device;
+import helder.gfx.Texture;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 import helder.scene.render.Material;
@@ -83,6 +85,30 @@ class Kit {
 	public final puff:Mesh;
 	public final confetti:Mesh;
 	public final mote:Mesh;
+	// the diorama's: the cloud sea's soft puffs (smooth, flattened, lit
+	// low: their emissive the island's shade), the contact shadows (a soft
+	// disc, a ramp along a wall's foot: see-through, the island's cool
+	// shade, never black), the lanterns' halo (added light), the
+	// islands' undersides darker toward the bottom (a ramp on the rock)
+	public final cloudPuff:Mesh;
+	public final cloudSeaMat:Material;
+	public final blobMat:Material;
+	public final skirtMat:Material;
+	public final blob:Mesh;
+	public final glowMat:Material;
+	public final glow:Mesh;
+	public final rockBoxMat:Material;
+	// the creatures: a bird's body and its wing (an inner panel and a swept
+	// tip, bent; tinted per instance), a moth, the heron (body, neck and
+	// head, beak, legs)
+	public final birdBody:Mesh;
+	public final wingIn:Mesh;
+	public final wingTip:Mesh;
+	public final moth:Mesh;
+	public final heronBody:Mesh;
+	public final heronNeck:Mesh;
+	public final heronBeak:Mesh;
+	public final heronLegs:Mesh;
 
 	// the switches' and gates' colours, by group
 	public static final GROUPS = [0xffc857, 0x5ad1ff, 0xff7bd5];
@@ -109,6 +135,9 @@ class Kit {
 		this.device = device;
 		grassMat = mat(0x74d27c);
 		grassDarkMat = mat(0x66c470);
+		// (mown in stripes: Turf)
+		grassMat.shader = Turf.TurfShader;
+		grassDarkMat.shader = Turf.TurfShader;
 		rockMat = mat(0xf2d4b0);
 		rockDarkMat = mat(0xd9b8e8);
 		railMat = mat(0xfff6e8, 0.55);
@@ -118,7 +147,8 @@ class Kit {
 		rock = frustum(rockMat, 8);
 		rockDark = frustum(rockDarkMat, 8);
 		rail = box(railMat);
-		rockBox = box(rockDarkMat);
+		rockBoxMat = mat(0xd9b8e8);
+		rockBox = box(rockBoxMat);
 		accentBox = box(accentMat);
 		accentCylinder = cylinder(accentMat, 16, false);
 		post = cylinder(mat(0xfff6e8, 0.5), 12, false);
@@ -194,7 +224,188 @@ class Kit {
 		var moteMat = mat(0xffffff, 0.5, 1, 2.5);
 		moteMat.castShadows = false;
 		mote = Shapes.sphere(device, moteMat, 0.5, 6, 4);
+
+		// --- the diorama's
+		var clamp = device.createSampler({filter: Linear, wrap: Clamp});
+		var under = texture(4, 64, (x, y) -> {
+			// (white at the top, a cool shade by the bottom: the rock's colour times it)
+			var k = y * y;
+			return [255 - 110 * k, 255 - 108 * k, 255 - 80 * k, 255];
+		});
+		for (m in [rockMat, rockDarkMat]) {
+			m.baseColorTexture = under;
+			m.sampler = clamp;
+		}
+		cloudSeaMat = mat(0xffffff, 1);
+		cloudSeaMat.castShadows = false;
+		cloudPuff = ellipsoid(cloudSeaMat, 20, 10);
+		var soft = texture(64, 64, (x, y) -> {
+			var dx = x * 2 - 1, dy = y * 2 - 1, r = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+			var a = Math.exp(-r * r * 3.2) * (1 - r * r);
+			return [255, 255, 255, 255 * a];
+		});
+		blobMat = mat(0x2c3a6e, 1, 0.3);
+		blobMat.baseColorTexture = soft;
+		blobMat.sampler = clamp;
+		blobMat.castShadows = false;
+		blob = quad(blobMat, false);
+		skirtMat = mat(0x2c3a6e, 1, 0.24);
+		skirtMat.baseColorTexture = texture(4, 64, (x, y) -> [255, 255, 255, 255 * (1 - y) * (1 - y)]);
+		skirtMat.sampler = clamp;
+		skirtMat.castShadows = false;
+		var light = texture(64, 64, (x, y) -> {
+			var dx = x * 2 - 1, dy = y * 2 - 1, r = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+			// (its falloff in alpha: the light added fades by it, and over the
+			// sky behind the scene its coverage is as soft as its light)
+			var v = Math.pow(1 - r, 2.6) * 0.7 + Math.exp(-r * r * 30) * 0.3;
+			return [255, 255, 255, 255 * v];
+		});
+		glowMat = new Material("glow", rgb(0x000000), 0, 1, rgb3(0xffc98a, 1.4));
+		glowMat.emissiveTexture = light;
+		glowMat.baseColorTexture = light;
+		glowMat.sampler = clamp;
+		glowMat.blend = true;
+		glowMat.blending = Additive;
+		glowMat.castShadows = false;
+		glowMat.fog = false;
+		glow = quad(glowMat, true);
+		var creature = mat(0xffffff, 0.9);
+		creature.castShadows = false;
+		creature.doubleSided = true;
+		birdBody = birdShape(creature);
+		var feather = mat(0xffffff, 0.9);
+		feather.castShadows = false;
+		feather.doubleSided = true;
+		wingIn = made([0, 0, -0.16, 0.52, 0.07, -0.13, 0.5, 0.07, 0.1, 0, 0, -0.16, 0.5, 0.07, 0.1, 0, 0, 0.14], feather);
+		wingTip = made([0.52, 0.07, -0.13, 1.0, -0.05, 0.12, 0.5, 0.07, 0.1], feather);
+		var mothMat = mat(0xfff0c8, 0.6, 1, 1.6);
+		mothMat.castShadows = false;
+		mothMat.doubleSided = true;
+		moth = made([0, 0, 0, -0.5, 0.1, -0.35, -0.42, -0.05, 0.3, 0, 0, 0, 0.5, 0.1, -0.35, 0.42, -0.05, 0.3], mothMat);
+		heronBody = heronShape(mat(0x7f8fb8, 0.85), 0);
+		heronNeck = heronShape(mat(0xd8dcef, 0.85), 1);
+		heronBeak = heronShape(mat(0xf2b13c, 0.6), 2);
+		heronLegs = heronShape(mat(0x2b2d4a, 0.8), 3);
 	}
+
+	// a texture of width by height texels from f(u, v) (0..1 across): its rgba 0..255 (sRGB)
+	function texture(width:Int, height:Int, f:(Float, Float) -> Array<Float>):Texture {
+		var b = Bytes.alloc(width * height * 4);
+		for (y in 0...height)
+			for (x in 0...width) {
+				var c = f((x + 0.5) / width, (y + 0.5) / height), o = (y * width + x) * 4;
+				for (k in 0...4)
+					b.set(o + k, Std.int(Math.max(0, Math.min(255, c[k]))));
+			}
+		return device.createTexture({width: width, height: height, data: b});
+	}
+
+	// a unit square (-0.5..0.5), lying on xz facing up, or standing in xy facing +z; uv 0..1 across
+	function quad(m:Material, standing:Bool):Mesh {
+		var p = standing ? [-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0] : [-0.5, 0, 0.5, 0.5, 0, 0.5, 0.5, 0, -0.5, -0.5, 0, -0.5];
+		var n = standing ? [0.0, 0, 1] : [0.0, 1, 0];
+		var mesh = new Mesh();
+		mesh.add(device, p, n.concat(n).concat(n).concat(n), [0, 1, 1, 1, 1, 0, 0, 0], [0, 1, 2, 0, 2, 3], m);
+		return mesh;
+	}
+
+	// a smooth ball of radius 0.5 squashed to a cloud's puff: its top rounded, its bottom flat
+	function ellipsoid(m:Material, segments:Int, rings:Int):Mesh {
+		var p = [], idx = [];
+		for (r in 0...rings + 1) {
+			var a = Math.PI * r / rings, y = Math.cos(a) * 0.5, s = Math.sin(a) * 0.5;
+			for (k in 0...segments + 1) {
+				var b = 2 * Math.PI * (k % segments) / segments;
+				p.push(Math.cos(b) * s);
+				p.push(y > 0 ? y * 0.62 : y * 0.22);
+				p.push(-Math.sin(b) * s);
+			}
+		}
+		for (r in 0...rings)
+			for (k in 0...segments) {
+				var a = r * (segments + 1) + k, b = a + segments + 1;
+				for (i in [a, b, a + 1, a + 1, b, b + 1])
+					idx.push(i);
+			}
+		var mesh = new Mesh();
+		mesh.add(device, p, null, null, idx, m);
+		return mesh;
+	}
+
+	// a bird's body, a unit long, its beak toward -z: a diamond with a forked tail
+	function birdShape(m:Material):Mesh {
+		var p = [];
+		var nose = new Vec3(0, 0.04, -0.5), top = new Vec3(0, 0.17, -0.12), belly = new Vec3(0, -0.14, -0.06);
+		var l = new Vec3(-0.15, 0.02, -0.1), r = new Vec3(0.15, 0.02, -0.1), tail = new Vec3(0, 0.03, 0.28);
+		var tl = new Vec3(-0.13, 0.04, 0.55), tr = new Vec3(0.13, 0.04, 0.55), notch = new Vec3(0, 0.03, 0.42);
+		tri(p, nose, l, top);
+		tri(p, nose, top, r);
+		tri(p, nose, belly, l);
+		tri(p, nose, r, belly);
+		tri(p, top, l, tail);
+		tri(p, top, tail, r);
+		tri(p, belly, tail, l);
+		tri(p, belly, r, tail);
+		tri(p, tail, tl, notch);
+		tri(p, tail, notch, tr);
+		return made(p, m);
+	}
+
+	// the heron's parts, about a metre tall at scale 1, facing -z: 0 the
+	// body and tail, 1 the neck and head (turning about the neck's foot,
+	// its origin: the node's), 2 the beak (on the neck's node), 3 the legs
+	function heronShape(m:Material, part:Int):Mesh {
+		m.castShadows = false;
+		m.doubleSided = true;
+		var p = [];
+		inline function v(x:Float, y:Float, z:Float)
+			return new Vec3(x, y, z);
+		switch part {
+			case 0:
+				var front = v(0, 0.62, -0.2), back = v(0, 0.66, 0.28), top = v(0, 0.78, 0.02), bottom = v(0, 0.52, 0.0);
+				var l = v(-0.11, 0.66, 0.02), r = v(0.11, 0.66, 0.02), tail = v(0, 0.58, 0.42);
+				tri(p, front, l, top);
+				tri(p, front, top, r);
+				tri(p, front, bottom, l);
+				tri(p, front, r, bottom);
+				tri(p, top, l, back);
+				tri(p, top, back, r);
+				tri(p, bottom, back, l);
+				tri(p, bottom, r, back);
+				tri(p, back, l, tail);
+				tri(p, back, tail, r);
+			case 1:
+				// (an S: up and forward from the shoulders to the head, four-sided)
+				var pts = [v(0, 0, 0), v(0, 0.14, -0.05), v(0, 0.26, 0.01), v(0, 0.36, -0.04)];
+				var w = [0.06, 0.035, 0.03, 0.04];
+				for (i in 0...pts.length - 1) {
+					var a = pts[i], b = pts[i + 1], wa = w[i], wb = w[i + 1];
+					var ring0 = [v(a.x - wa, a.y, a.z), v(a.x, a.y, a.z - wa), v(a.x + wa, a.y, a.z), v(a.x, a.y, a.z + wa)];
+					var ring1 = [v(b.x - wb, b.y, b.z), v(b.x, b.y, b.z - wb), v(b.x + wb, b.y, b.z), v(b.x, b.y, b.z + wb)];
+					for (k in 0...4) {
+						var k1 = (k + 1) % 4;
+						tri(p, ring0[k], ring1[k], ring0[k1]);
+						tri(p, ring0[k1], ring1[k], ring1[k1]);
+					}
+				}
+				// (the head, a crest behind it)
+				tri(p, v(-0.04, 0.36, -0.02), v(0, 0.42, -0.04), v(0, 0.37, -0.11));
+				tri(p, v(0.04, 0.36, -0.02), v(0, 0.37, -0.11), v(0, 0.42, -0.04));
+				tri(p, v(-0.04, 0.36, -0.02), v(0.04, 0.36, -0.02), v(0, 0.42, -0.04));
+				tri(p, v(0, 0.42, -0.04), v(-0.01, 0.39, 0.07), v(0.01, 0.4, 0.07));
+			case 2:
+				tri(p, v(-0.015, 0.39, -0.08), v(0, 0.375, -0.24), v(0.015, 0.39, -0.08));
+				tri(p, v(-0.015, 0.39, -0.08), v(0.015, 0.39, -0.08), v(0, 0.365, -0.09));
+			case _:
+				for (s in [-1.0, 1.0]) {
+					var x = s * 0.04;
+					tri(p, v(x - 0.012, 0.56, 0.02), v(x, 0, 0), v(x + 0.012, 0.56, 0.02));
+					tri(p, v(x, 0, 0), v(x, 0.005, -0.08), v(x + 0.004, 0.006, 0));
+				}
+		}
+		return made(p, m);
+	}
+
 
 	// the island's colours on the materials
 	public function theme(w:World) {
@@ -202,6 +413,15 @@ class Kit {
 		grassDarkMat.baseColor = rgb(w.grassDark);
 		rockMat.baseColor = rgb(w.rock);
 		rockDarkMat.baseColor = rgb(w.rockDark);
+		rockBoxMat.baseColor = rgb(w.rockDark);
+		// (the diorama's: the cloud sea lit low, its shade the island's; the contact shadows in the island's cool shade)
+		// (lit from above: the sun's side the cloud's colour, the rest falling into the island's shade, never dark)
+		var lit = rgb(w.cloud), shade = rgb(w.cloudShade), k = w.night ? 0.5 : 0.72;
+		cloudSeaMat.baseColor = new Vec4(lit.x * 0.75, lit.y * 0.75, lit.z * 0.75, 1);
+		cloudSeaMat.emissive = new Vec3(shade.x * k, shade.y * k, shade.z * k);
+		var sh = rgb(w.shade);
+		blobMat.baseColor = new Vec4(sh.x, sh.y, sh.z, w.night ? 0.42 : 0.32);
+		skirtMat.baseColor = new Vec4(sh.x, sh.y, sh.z, w.night ? 0.32 : 0.26);
 		railMat.baseColor = rgb(w.rail);
 		accentMat.baseColor = rgb(w.accent);
 		flagMat.baseColor = rgb(w.accent);
@@ -215,9 +435,9 @@ class Kit {
 		return Shapes.box(device, m, 1, 1, 1);
 
 	// (triangles of their own vertices: flat shaded, normals from the faces)
-	function made(p:Array<Float>, m:Material):Mesh {
+	function made(p:Array<Float>, m:Material, ?uvs:Array<Float>):Mesh {
 		var mesh = new Mesh();
-		mesh.add(device, p, null, null, null, m);
+		mesh.add(device, p, null, uvs, null, m);
 		return mesh;
 	}
 
@@ -251,7 +471,8 @@ class Kit {
 			tri(p, m0, b1, b0);
 			tri(p, new Vec3(0, -1.05, 0), b0, b1);
 		}
-		return made(p, m);
+		// (v down its height: the darker ramp toward the bottom)
+		return made(p, m, [for (i in 0...Std.int(p.length / 3)) for (k in 0...2) k == 0 ? 0.5 : Math.min(1, -p[i * 3 + 1])]);
 	}
 
 	// a unit cylinder (radius 0.5, y from 0 to 1), n sides; open: no caps (a ring)

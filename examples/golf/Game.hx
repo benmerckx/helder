@@ -111,11 +111,29 @@ class Game {
 	final lights:Array<Node> = [];
 	final clouds:Array<Node> = [];
 	final cloudBase:Array<Vec3> = [];
-	final birds:Array<Node> = [];
-	final wings:Array<Node> = [];
 	var decorRoot = Node.NONE;
 	final sun:Node;
 	final sunLight:Light;
+	// the diorama: the cool fill (a far light across from the sun), the
+	// dressing (cloud sea, contact shadows, lantern glow), the creatures,
+	// the tilt-shift lens (null without a post chain)
+	final fill:Node;
+	final fillLight:Light;
+	var dressing:Null<Dressing>;
+	var creatures:Null<Creatures>;
+	var tilt:Null<TiltShift>;
+	// (the lanterns' places: x, y, z each)
+	final lanterns:Array<Float> = [];
+	// the focus band's ease (the frame's 0..1 rows) and the blur's
+	var focusTop = 0.3;
+	var focusBottom = 0.7;
+	var blurEase = 0.0;
+	// the quality: 2 all of it, 1 the blur on and a thinner sea, 0 no blur
+	// (GOLF_QUALITY=0..2; else dropped a step when frames run long)
+	public var quality(default, null) = 2;
+	var fixedQuality = false;
+	var lagTime = 0.0;
+	var frameAvg = 1 / 60;
 	var puffs:Null<Particles>;
 	var bits:Null<Particles>;
 	var motes:Null<Particles>;
@@ -183,6 +201,8 @@ class Game {
 		camera = Camera.attach(eye, Camera.perspective(1.0, 0.1, 200));
 		sun = world.node("sun");
 		sunLight = Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.86), 2.4));
+		fill = world.node("fill");
+		fillLight = Light.attach(fill, Light.pointLight(new Vec3(0.6, 0.7, 1), 0, 400));
 		ball = world.node("ball");
 		squash = world.node("squash", ball);
 		unsquash = world.node("unsquash", squash);
@@ -242,11 +262,11 @@ class Game {
 			post.bloom = 0.045;
 			post.levels = 4;
 			post.base = 2;
-			post.saturation = 1.06;
-			post.contrast = 1.04;
-			post.vignette = 0.18;
 		}
+		// (the lens: a stage of the post chain, made for each renderer)
+		tilt = post != null ? new TiltShift(post) : null;
 		lightUp();
+		setQuality(quality);
 		// (a renderer made again: the <Scene> without multisampling or half floats on a GPU that had none; the meshes kept)
 		if (kit != null) return;
 		kit = new Kit(r.device);
@@ -269,6 +289,9 @@ class Game {
 		ring = world.node("ring");
 		MeshRenderer.attach(ring, k.ring);
 		ring.visible = false;
+		dressing = new Dressing(world, k);
+		creatures = new Creatures(world, k);
+		setQuality(quality);
 		k.theme(Course.worlds[sim.hole.world]);
 		build();
 	}
@@ -298,6 +321,18 @@ class Game {
 		r.ground = Kit.rgb3(w.ambientGround, 0.4);
 		r.exposure = w.exposure;
 		r.rim = Kit.rgb3(w.sunColor, w.night ? 0.35 : 0.18);
+		// (the cool fill: far across from the sun, low; a point light so far off it shines as one from a direction)
+		fill.position = new Vec3(-d.x * 40, d.y * 18 + 6, -d.z * 40);
+		fillLight.color = Kit.rgb3(w.fill);
+		fillLight.intensity = w.fillPower * 1600;
+		var post = r.post;
+		if (post != null) {
+			post.saturation = w.grade[0];
+			post.contrast = w.grade[1];
+			post.vignette = w.grade[2];
+			post.lift = new Vec3(w.lift[0], w.lift[1], w.lift[2]);
+			post.gain = new Vec3(w.gain[0], w.gain[1], w.gain[2]);
+		}
 		var fog = new Fog(Kit.rgb3(w.fog), 0.025);
 		fog.start = 11;
 		fog.max = 0.6;
@@ -390,8 +425,10 @@ class Game {
 			moverNodes, pistonNodes, spinnerNodes, bumperNodes, chevrons, ripples, portalRings, plateNodes, plateLitNodes, gateNodes, arrows, tileNodes, lights
 		])
 			a.resize(0);
-		for (a in [tileY, bumperPulse, bumperSize, chevronPath, rippleArea, rippleAge, plateFlash, arrowBase, windAreas])
+		for (a in [tileY, bumperPulse, bumperSize, chevronPath, rippleArea, rippleAge, plateFlash, arrowBase, windAreas, lanterns])
 			a.resize(0);
+		var cr = creatures;
+		if (cr != null) cr.clear();
 		var h = sim.hole, i = 0;
 		minX = minZ = 1e9;
 		maxX = maxZ = -1e9;
@@ -418,12 +455,22 @@ class Game {
 					// (a stripe of the island's colour along its top)
 					part(k.accentBox, new Vec3((lx + hx) / 2, y + Sim.RAIL_HEIGHT + 0.006, (lz + hz) / 2),
 						new Vec3(Math.max(0.02, hx - lx - 0.06), 0.012, Math.max(0.02, hz - lz - 0.06)));
+					// (perches along its top, a bird facing across it)
+					if (cr != null) {
+						var alongX = hx - lx > hz - lz, len = Math.max(hx - lx, hz - lz), n = Std.int(len / 0.6);
+						for (j in 0...n) {
+							var t = (j + 0.5) / n;
+							cr.perch(alongX ? lx + (hx - lx) * t : (lx + hx) / 2, y + Sim.RAIL_HEIGHT + 0.012, alongX ? (lz + hz) / 2 : lz + (hz - lz) * t,
+								(alongX ? 0 : Math.PI / 2) + (j % 2) * Math.PI);
+						}
+					}
 				case Block(x0, z0, x1, z1, y0, y1):
 					var lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
 					part(k.rail, new Vec3((lx + hx) / 2, (y0 + y1) / 2, (lz + hz) / 2), new Vec3(hx - lx, y1 - y0, hz - lz));
 				case Post(x, z, r, y):
 					part(k.post, new Vec3(x, y, z), new Vec3(2 * r, Sim.RAIL_HEIGHT + r, 2 * r));
 					part(k.accentCylinder, new Vec3(x, y + Sim.RAIL_HEIGHT + r, z), new Vec3(2 * r * 0.8, 0.03, 2 * r * 0.8));
+					if (cr != null) cr.perch(x, y + Sim.RAIL_HEIGHT + r + 0.03, z, i * 1.3);
 				case Bumper(x, z, r, y):
 					var n = part(k.bumper, new Vec3(x, y, z), new Vec3(2 * r, Sim.RAIL_HEIGHT + 0.04, 2 * r));
 					var cap = world.node("cap", n);
@@ -431,6 +478,7 @@ class Game {
 					cap.position = new Vec3(0, 1, 0);
 					cap.scale = new Vec3(0.75, 0.15, 0.75);
 					bumperNodes.push(n);
+					if (cr != null) cr.perch(x, y + (Sim.RAIL_HEIGHT + 0.04) * 1.15, z, i * 0.9);
 					bumperPulse.push(0);
 					bumperSize.push(2 * r);
 				case Mover(x, z, w, d, y, _, _, _, _):
@@ -584,6 +632,18 @@ class Game {
 			lantern(k, c.x + 0.55, c.y, c.z - 0.35, 0xffd9a0);
 		}
 		decor(k);
+		// (the diorama's dressing and creatures, from the hole's pieces)
+		var dr = dressing;
+		if (dr != null) dr.build(sim.hole, course, minX, maxX, minZ, maxZ, lanterns, w.night);
+		if (cr != null) {
+			var i = 0;
+			while (i < lanterns.length) {
+				cr.lamp(lanterns[i], lanterns[i + 1] + 0.6, lanterns[i + 2]);
+				cr.perch(lanterns[i], lanterns[i + 1] + 0.68, lanterns[i + 2], i);
+				i += 3;
+			}
+			cr.populate(holeIndex.peek(), sim.hole.world, minX, maxX, minZ, maxZ, sim.hole.tee.y, new Vec3(t.x, t.y, t.z), new Vec3(c.x, c.y, c.z));
+		}
 		syncBall(0);
 	}
 
@@ -606,10 +666,13 @@ class Game {
 	function lantern(k:Kit, x:Float, y:Float, z:Float, color:Int) {
 		part(k.pole, new Vec3(x, y, z), new Vec3(0.04, 0.55, 0.04));
 		var n = part(k.lantern, new Vec3(x, y + 0.6, z), new Vec3(0.12, 0.14, 0.12));
+		for (v in [x, y, z])
+			lanterns.push(v);
 		if (lights.length < 3) {
 			var l = world.node("lamp", course);
 			l.position = new Vec3(x, y + 0.7, z);
-			Light.attach(l, Light.pointLight(Kit.rgb3(color), 3.0, 3.2));
+			// (the lantern's pool of light on the green: the cup's a little dimmer, so the cup stays dark)
+			Light.attach(l, Light.pointLight(Kit.rgb3(color), lights.length == 0 ? 3.2 : 2.4, 3.2));
 			lights.push(l);
 		}
 	}
@@ -632,8 +695,6 @@ class Game {
 	function decor(k:Kit) {
 		clouds.resize(0);
 		cloudBase.resize(0);
-		birds.resize(0);
-		wings.resize(0);
 		var root = world.node("decor", course);
 		var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
 		var rx = (maxX - minX) / 2 + 4, rz = (maxZ - minZ) / 2 + 4;
@@ -691,18 +752,6 @@ class Game {
 			clouds.push(c);
 			cloudBase.push(c.position);
 		}
-		// (birds by day, circling high over the hole)
-		if (!w.night)
-			for (b in 0...4) {
-				var bird = world.node("bird", root);
-				for (side in 0...2) {
-					var wing = world.node("wing", bird);
-					MeshRenderer.attach(wing, k.wing);
-					wing.scale = new Vec3(side == 0 ? 0.32 : -0.32, 0.12, 1);
-					wings.push(wing);
-				}
-				birds.push(bird);
-			}
 	}
 
 	// --- the shot
@@ -841,6 +890,8 @@ class Game {
 		if (bits != null) bits.update(gameDt, realTime);
 		if (motes != null) motes.update(gameDt, realTime);
 		follow(dt);
+		focus(dt);
+		watch(dt);
 		transition(dt);
 		frames++;
 		if (frames == 1) Sys.println('floating greens: ${Course.holes.length} holes, drawing');
@@ -1387,16 +1438,14 @@ class Game {
 			var b = cloudBase[i];
 			clouds[i].position = new Vec3(b.x + Math.sin(realTime * 0.05 + i) * 0.6, b.y + Math.sin(realTime * 0.6 + i * 1.7) * 0.12, b.z);
 		}
-		var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-		for (i in 0...birds.length) {
-			var a = realTime * 0.18 + i * 0.5, r = 13 + i * 0.7;
-			var bird = birds[i];
-			bird.position = new Vec3(cx + Math.cos(a) * r + (i % 2) * 0.5, 6.5 + i * 0.4 + Math.sin(realTime * 0.8 + i) * 0.2, cz + Math.sin(a) * r);
-			// (facing along the circle, the wings flapping)
-			bird.rotation = Quat.axisAngle(new Vec3(0, 1, 0), -a);
-			var flap = Math.sin(realTime * 9 + i * 1.7) * 0.6;
-			wings[i * 2].rotation = Quat.axisAngle(new Vec3(0, 0, 1), flap);
-			wings[i * 2 + 1].rotation = Quat.axisAngle(new Vec3(0, 0, 1), -flap);
+		// (the dressing and the creatures: the view's clock, the ball only read)
+		var dr = dressing;
+		var o = orbit;
+		if (dr != null) dr.update(realTime, ball.position, sim.grounded || sim.resting, sinkTime >= 0, eye.rotation, o != null ? o.target : ball.position, eye.position);
+		var cr = creatures;
+		if (cr != null) {
+			var v = sim.ball.velocity, on = aimPower > 0 && (shot.active || held) && sim.resting;
+			cr.update(dt, ball.position, Math.sqrt(v.x * v.x + v.z * v.z), on, aimDir.x, aimDir.z, on ? Math.max(1.5, preview.length) : 0);
 		}
 		var m = motes;
 		if (m != null && Course.worlds[sim.hole.world].night) {
@@ -1408,6 +1457,99 @@ class Game {
 					0, 0, 0xffe48a);
 			}
 		}
+	}
+
+	// --- the lens: the tilt-shift's sharp band and its strength
+
+	// (the point p's row on the frame, 0 its top; false behind the camera)
+	var rowY = 0.0;
+
+	function row(p:Vec3, aspect:Float):Bool {
+		var q = MathTools.transformPoint(camera.viewProjection(aspect), p);
+		var w = MathTools.transformPoint(camera.view(), p);
+		if (w.z > -0.05) return false;
+		rowY = Math.max(0, Math.min(1, (1 - q.y) / 2));
+		return true;
+	}
+
+	// the band holds the ball, the cup and, aiming, the path's first bounce;
+	// at least BAND tall; the blur eased off while aiming, flying over, on the title
+	static inline var BAND = 0.36;
+	static inline var EDGE = 0.07;
+
+	function focus(dt:Float) {
+		var t = tilt, b = box;
+		if (t == null || b == null) return;
+		var aspect = Math.max(1, b.width) / Math.max(1, b.height);
+		var lo = 1.0, hi = 0.0;
+		inline function hold(p:Vec3) {
+			if (row(p, aspect)) {
+				lo = Math.min(lo, rowY);
+				hi = Math.max(hi, rowY);
+			}
+		}
+		var s = screen.peek();
+		var title = s == "title" || (s == "menu" && back == "title");
+		hold(ball.position);
+		var c = sim.cup;
+		hold(new Vec3(c.x, c.y, c.z));
+		var aimingNow = aimPower > 0 && (shot.active || held) && sim.resting && !sim.sunk;
+		if (aimingNow && preview.bounce >= 0 && preview.bounce <= preview.length) {
+			preview.at(preview.bounce);
+			hold(new Vec3(preview.px, preview.py, preview.pz));
+		}
+		if (hi < lo) {
+			lo = 0.4;
+			hi = 0.6;
+		}
+		lo -= EDGE;
+		hi += EDGE;
+		if (hi - lo < BAND) {
+			var m = (lo + hi) / 2;
+			lo = m - BAND / 2;
+			hi = m + BAND / 2;
+		}
+		// (eased: the band follows, not jumps; at once on a new hole)
+		var e = Math.min(1, dt * 4);
+		if (introTime >= 0 || dt == 0) e = 1;
+		focusTop += (lo - focusTop) * e;
+		focusBottom += (hi - focusBottom) * e;
+		var want = title ? 0.6 : introTime >= 0 ? 0.35 : aimingNow ? 0.3 : 1.0;
+		blurEase += (want - blurEase) * Math.min(1, dt * 3);
+		t.top = Math.min(focusTop, lo);
+		t.bottom = Math.max(focusBottom, hi);
+		t.amount = blurEase;
+	}
+
+	// the quality: set (the lens, the sea's puffs), and dropped a step after
+	// two seconds of frames slower than 40 a second (natively and on the web; not in a demo)
+	function setQuality(level:Int) {
+		quality = level;
+		var t = tilt;
+		if (t != null) t.enabled = level >= 1;
+		var d = dressing;
+		if (d != null) d.quality(level);
+	}
+
+	function watch(dt:Float) {
+		if (fixedQuality || demoShots != null || held || dt <= 0 || quality == 0) return;
+		frameAvg += (dt - frameAvg) * 0.05;
+		if (frameAvg > 1 / 40 && screen.peek() == "play") {
+			lagTime += dt;
+			if (lagTime > 2) {
+				lagTime = 0;
+				frameAvg = 1 / 60;
+				setQuality(quality - 1);
+				Sys.println('golf: quality ${quality} (frames slow)');
+			}
+		} else
+			lagTime = Math.max(0, lagTime - dt * 0.5);
+	}
+
+	// a quality held (GOLF_QUALITY)
+	public function fixQuality(level:Int) {
+		fixedQuality = true;
+		setQuality(Std.int(Math.max(0, Math.min(2, level))));
 	}
 
 	// --- the camera

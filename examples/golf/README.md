@@ -102,13 +102,50 @@ hole has a recorded round at or under par (GolfReplay).
   the fly-over, following, facing the cup, in close round the cup on a
   hole-in), the pieces' motion between steps, and the juice: particles
   (`Particles.hx`: one InstancedMesh a pool: dust, a trail, splashes,
-  sparks, confetti, fireflies at dusk), ripples, birds, lanterns, a squash
+  sparks, confetti, fireflies at dusk), ripples, lanterns, a squash
   along each hit, a shake on hard ones, slow motion. A frame of play
   allocates nothing (`GOLF_DEMO=<hole>` plays the recorded round and prints
   the frames' GcStats and draw count natively; `GOLF_PLAY=<hole>` starts a
   hole, `GOLF_AIM=<hole>,<dx>,<dz>,<power>` holds an aim on it, the
   preview shown and the frames' GcStats printed, `GOLF_MENU` opens the
-  scorecard).
+  scorecard, `GOLF_QUALITY=0..2` holds the diorama's quality).
+- The diorama look: each hole a model on a table of cloud, seen through a
+  tilted lens. Each island has a warm key (the sun) and a cool fill (a far
+  light across from it) and its own grade (`Course.worlds`: saturation,
+  contrast, a cool lift, a warm gain, a light vignette); the sky is the
+  CSS gradient behind the scene, never graded.
+  - `TiltShift.hx`: a screen-space tilt-shift depth of field, a stage of
+    the post chain. Its half-size blur is made in the stage's `prepare`
+    from the scene's light (`post.source`, before bloom and the tone
+    curve), and the frame is mixed with it outside a sharp band. The game
+    keeps the ball, the cup and the aim's first bounce in the band (at
+    least 36% of the frame), eases the blur off while aiming, during the
+    fly-over and on the title, and the HUD (ui's) is never blurred. The
+    scene's alpha over the sky is blurred with its colour, so edges soften
+    without a halo. `TiltShift.STRENGTH` is its one constant, lighter than
+    the mockups.
+  - `Dressing.hx`: the cloud sea (cumulus clusters on two layers below the
+    islands, one instanced draw, centred a little behind what the camera
+    looks at, drifting, shrinking away at its rim and under the camera), the
+    contact shadows (a soft skirt along each rail's foot on green, a soft
+    disc under posts, bumpers, hubs, lanterns and the cup, in the island's
+    cool shade: one mesh a hole; a disc under the ball), and the lanterns'
+    halos at dusk (their pool on the green is the lantern's light, the
+    cup's lantern dimmer). The islands' undersides darken toward the bottom
+    (a ramp texture on the rock).
+  - `Creatures.hx`: birds perched on rails, bumpers, posts and lanterns
+    (Meadowdrift's finches and tits, Copperwind's gulls, Lanternwater's
+    heron) scatter when the ball comes fast or close and land again on a
+    perch far from it; swallows and gliding gulls circle beside the course
+    and are pushed off the aim's line; a far flock (swallows, swifts), bats
+    at dusk, moths round the lanterns. They run on the view's clock and
+    their own random stream and only read the simulation, so recorded
+    rounds replay bit for bit. Four instanced draws for all of them.
+  - `Turf.hx`: the greens mown in stripes (a MaterialShader colour slot
+    from world position, 3 to 4% on screen).
+  - The quality switch (`Game.quality`): 2 everything, 1 a thinner cloud
+    sea, 0 no blur; dropped a step after two seconds of frames slower than
+    40 a second (not in a demo or a held aim).
 - `Golf.hx`: the window (`<Surface>`, the island's sky), a `<Scene hdr>`
   (bloom, a light vignette: emissive portals, switches and lanterns glow)
   and the title, hole card, HUD, card and scorecard in ui's markup, clear
