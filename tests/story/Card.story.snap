@@ -1,5 +1,11 @@
 // helder.test snapshots: `helder test -u` rewrites them
 
+--- story Card/launch: Card/launch (4 lines)
+Node#root 0,0 390x844
+  Node#view 0,0 390x844
+    TextNode#title 24,24 342x35 "Launching"
+    TextNode#ships 24,71 342x20 "60 ships"
+
 --- story Card/many: Card/many (5 lines)
 Node#root 0,0 390x844
   Node#view 0,0 390x844
