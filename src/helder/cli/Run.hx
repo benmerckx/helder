@@ -145,6 +145,8 @@ class Run {
 			var done = call("POST", '/api/publish/${start.release}/commit', upload, {});
 			Term.out(Style.status("uploaded", Info, mb(sent) + Style.dim(Style.sep() + 'the rest helder.run had')));
 			Term.out(Style.status(anonymous ? "shared" : "published", Ok, '${done.url}' + (done.version != null ? Style.dim(Style.sep() + 'v${done.version}') : "")));
+			// (the page about it: helder.build/<name>)
+			if (done.page != null) Term.out(Style.status("page", Info, '${done.page}'));
 			if (done.expires != null) Term.out(Style.status("expires", Info, '${done.expires}' + Style.dim(Style.sep() + "a share lasts a week")));
 			if (done.listed == false && !anonymous && run?.listed == true) Term.out(Style.status("listing", Info, Std.string(done.listing ?? "not listed yet")));
 			return 0;

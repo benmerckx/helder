@@ -373,16 +373,17 @@ browser extensions and PWA tools each claim.
 
 ## helder.run
 
-`helder publish --run` puts the web build on helder.run, at
-`<run.name>.helder.run` (`Run.hx`): a page of its own (its name, a
-screenshot, Play, its stores' links, a QR code, what it can access) and the
-program at `/play/`, on helder.run's own page. helder.build lists it on
-https://helder.build/explore when `run.listed` is true. `helder share`
-does the same without an account: unlisted, at a random address, for a week.
+`helder publish --run` puts the web build on helder.run (`Run.hx`): the
+app itself at `<run.name>.helder.run`, full screen on helder.run's own page
+and on an origin of its own, and its page at `helder.build/<run.name>` (its
+name, screenshots, Play or Open, its stores' links, a QR code, what it can
+access). helder.build lists it on https://helder.build/explore when
+`run.listed` is true. `helder share` does the same without an account:
+unlisted, at a random name, for a week.
 
 ```sh
 helder login                         # GitHub, through helder.build (its device flow); the token in helder's config directory
-helder publish --run                 # this project's run block: <run.name>.helder.run, a new version
+helder publish --run                 # this project's run block: <run.name>.helder.run and helder.build/<run.name>, a new version
 helder publish examples/golf --run --dry-run   # built, what would be uploaded printed
 helder share examples/golf           # anonymous: https://quiet-otter-k7m2.helder.run, for a week
 helder logout
