@@ -126,12 +126,12 @@ check "simctl install Golf.app" $?
 xcrun simctl launch --console-pty --terminate-running-process "$udid" $gid > "$out/golf.txt" 2>&1 &
 console=$!
 i=0
-while [ $i -lt 60 ] && ! grep -q "floating greens: 9 holes, drawing" "$out/golf.txt"; do
+while [ $i -lt 60 ] && ! grep -q "floating greens: 18 holes, drawing" "$out/golf.txt"; do
 	sleep 1
 	i=$((i + 1))
 done
 tail -20 "$out/golf.txt"
-grep -q "floating greens: 9 holes, drawing" "$out/golf.txt"
+grep -q "floating greens: 18 holes, drawing" "$out/golf.txt"
 check "golf: its first frames" $?
 sleep 3
 ! grep -q "Uncaught exception" "$out/golf.txt"

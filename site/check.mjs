@@ -156,11 +156,21 @@ async function phone(page, shots) {
 	});
 	check(ex.expanded && !ex.full && Math.round(box.width) === 390 && Math.round(box.height) === 844, `golf expanded: over the viewport, ${Math.round(box.width)}x${Math.round(box.height)}`);
 	check(ex.touch === 'none', `golf expanded: the canvas's touch-action ${ex.touch}`);
-	check(/STROKES0/.test(ex.text), 'golf expanded: no stroke yet (the mirror)');
 	if (shots) await page.screenshot({ path: path.join(shots, 'golf-expanded.png') });
-	// (a finger: from the ball, back down, let go; the DevTools protocol's touches)
+	// (a finger: the title's Play, a tap skipping the fly-over, then from the ball, back down, let go; the DevTools protocol's touches)
 	const cdp = await page.context().newCDPSession(page);
 	const at = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+	const tap = async (x, y) => {
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(x, y) });
+		await page.waitForTimeout(60);
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		await page.waitForTimeout(600);
+	};
+	check(/Play/.test(ex.text), 'golf expanded: the title (the mirror)');
+	await tap(box.x + box.width / 2, box.y + box.height * 683 / 844);
+	await tap(box.x + box.width / 2, box.y + box.height * 300 / 844);
+	const started = await page.evaluate(() => document.querySelector('#play-golf canvas').textContent);
+	check(/STROKES0/.test(started), 'golf expanded: Play pressed, no stroke yet (the mirror)');
 	const x = box.x + box.width / 2, y0 = box.y + box.height * 597 / 844;
 	await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(x, y0) });
 	for (let i = 1; i <= 12; i++) {

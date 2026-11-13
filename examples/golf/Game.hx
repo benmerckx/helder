@@ -128,6 +128,8 @@ class Game {
 	static inline var HANDS_OFF = 1.2;
 	// the fly-over's length (s)
 	static inline var INTRO = 3.4;
+	// the hole behind the title
+	static inline var TITLE = 7;
 	var aimDir = new Vec3(0, 0, -1);
 	var aimPower = 0.0;
 	var rollQ = Quat.identity();
@@ -166,7 +168,7 @@ class Game {
 		save = new Save();
 		best = signal(save.best(Course.holes.length));
 		eye = world.node("eye");
-		camera = Camera.attach(eye, Camera.perspective(0.95, 0.1, 200));
+		camera = Camera.attach(eye, Camera.perspective(1.0, 0.1, 200));
 		sun = world.node("sun");
 		sunLight = Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.86), 2.4));
 		ball = world.node("ball");
@@ -180,12 +182,13 @@ class Game {
 		while (first < b.length - 1 && b[first] > 0)
 			first++;
 		holeIndex = signal(first);
-		sim = new Sim(Course.holes[first]);
+		// (the title's backdrop: a hole with something moving on it)
+		sim = new Sim(Course.holes[TITLE]);
 		sky = signal(gradient(Course.worlds[sim.hole.world]));
 		stepFn = stepSim;
 		shot.within = nearBall;
 		shot.onGesture = g -> aim();
-		theme(Course.worlds[Course.holes[first].world]);
+		theme(Course.worlds[sim.hole.world]);
 	}
 
 	// --- set up by the <Scene>: its box, its renderer, its controls
@@ -321,12 +324,9 @@ class Game {
 		place(true);
 	}
 
-	// from the title: the hole under it
-	public function start() {
-		screen("play");
-		back = "play";
-		startIntro();
-	}
+	// from the title: the first hole not yet finished
+	public function start()
+		go(holeIndex.peek());
 
 	// the holes' menu over the game, and back to where it was
 	var back = "play";
@@ -874,7 +874,7 @@ class Game {
 			if (frameBytes > statMax) statMax = frameBytes;
 		}
 		if (statFrames % 60 == 0)
-			Sys.println('golf: $statFrames frames, $statAllocating allocated ($statBytes bytes, at most $statMax), strokes ${sim.strokes}${sim.sunk ? ", holed" : ""}');
+			Sys.println('golf: $statFrames frames, $statAllocating allocated ($statBytes bytes, at most $statMax), strokes ${sim.strokes}${sim.sunk ? ", holed" : ""}, ${renderer != null ? renderer.draws : 0} draws');
 	}
 
 	// the simulation's events: hits (squash, shake, a sound), kicks, portals, switches, tiles, a fall or a splash, a hole-in
@@ -1230,16 +1230,18 @@ class Game {
 		if (pf != null)
 			for (i in 0...Std.int(windAreas.length / 7)) {
 				var o = i * 7;
-				if (pf.random() > dt * 14) continue;
+				if (pf.random() > dt * 9) continue;
 				var x = windAreas[o], z = windAreas[o + 1], w = windAreas[o + 2], d = windAreas[o + 3], y = windAreas[o + 4];
 				var ax = windAreas[o + 5], az = windAreas[o + 6], l = Math.sqrt(ax * ax + az * az);
 				var hx = ax / l, hz = az / l;
 				// (from the upwind edge, anywhere along it)
 				var sx = x - hx * w / 2 + (1 - Math.abs(hx)) * (pf.random() - 0.5) * w;
 				var sz = z - hz * d / 2 + (1 - Math.abs(hz)) * (pf.random() - 0.5) * d;
-				var speed = 2.5 + pf.random();
-				pf.emit(sx, y + 0.1 + pf.random() * 0.8, sz, hx * speed, 0, hz * speed, Math.max(w * Math.abs(hx), d * Math.abs(hz)) / speed, 0.035, 0, 0,
-					0xffffff);
+				var speed = 2.8 + pf.random(), sy = y + 0.08 + pf.random() * 0.7;
+				var life = Math.max(w * Math.abs(hx), d * Math.abs(hz)) / speed;
+				// (a streak: a few specks one behind the other, the front one biggest)
+				for (k in 0...6)
+					pf.emit(sx - hx * k * 0.045, sy, sz - hz * k * 0.045, hx * speed, 0, hz * speed, life, 0.048 - k * 0.006, 0, 0, 0xffffff);
 			}
 	}
 
@@ -1274,9 +1276,9 @@ class Game {
 		}
 		var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
 		for (i in 0...birds.length) {
-			var a = realTime * 0.25 + i * 0.5, r = 7 + i * 0.6;
+			var a = realTime * 0.18 + i * 0.5, r = 13 + i * 0.7;
 			var bird = birds[i];
-			bird.position = new Vec3(cx + Math.cos(a) * r + (i % 2) * 0.5, 4.5 + i * 0.3 + Math.sin(realTime * 0.8 + i) * 0.2, cz + Math.sin(a) * r);
+			bird.position = new Vec3(cx + Math.cos(a) * r + (i % 2) * 0.5, 6.5 + i * 0.4 + Math.sin(realTime * 0.8 + i) * 0.2, cz + Math.sin(a) * r);
 			// (facing along the circle, the wings flapping)
 			bird.rotation = Quat.axisAngle(new Vec3(0, 1, 0), -a);
 			var flap = Math.sin(realTime * 9 + i * 1.7) * 0.6;
@@ -1317,7 +1319,7 @@ class Game {
 		target = restTarget;
 		o.target = target;
 		o.pitch = 0.78;
-		o.distance = wide.peek() ? 6.0 : 6.8;
+		o.distance = wide.peek() ? 6.0 : 6.5;
 		o.apply();
 		turning = false;
 	}
@@ -1400,12 +1402,14 @@ class Game {
 		var c = sim.cup;
 		var size = Math.max(maxX - minX, maxZ - minZ);
 		var from = new Vec3(c.x, c.y, c.z);
-		var endDistance = wide.peek() ? 6.0 : 6.8;
+		var endDistance = wide.peek() ? 6.0 : 6.5;
 		var startYaw = restYaw + 1.1 - u * 0.4;
+		// (a tall screen sees less across: from farther)
+		var far = Math.max(5, size * 0.6 + 3) * (wide.peek() ? 1 : 1.35);
 		o.target = from + (restTarget - from) * e;
 		o.yaw = startYaw + wrap(restYaw - startYaw) * e;
-		o.pitch = 1.05 + (0.78 - 1.05) * e;
-		o.distance = Math.max(5, size * 0.55 + 3) + (endDistance - Math.max(5, size * 0.55 + 3)) * e;
+		o.pitch = 1.15 + (0.78 - 1.15) * e;
+		o.distance = far + (endDistance - far) * e;
 		target = o.target;
 		ahead = AHEAD;
 		o.apply();

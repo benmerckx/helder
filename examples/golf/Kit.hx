@@ -133,7 +133,7 @@ class Kit {
 		boost = box(mat(0xff8f3f, 0.4, 1, 0.35));
 		chevronMat = mat(0xfff0c0, 0.4, 1, 1.4);
 		chevron = arrowHead(chevronMat);
-		sand = box(mat(0xf3d9a4, 1));
+		sand = box(mat(0xe9c47e, 1));
 		var iceMat = mat(0xd8f3ff, 0.08, 0.92);
 		iceMat.clearcoat = 1;
 		ice = box(iceMat);
