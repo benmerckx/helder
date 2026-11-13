@@ -11,7 +11,7 @@ import hxmc.unsafe.UInt8;
 // length), so that their callers (Loop's wake pipe, Signals' handler) are
 // checked kernels over scratch in their frame; checked against unistd.h
 // (-D hxmc.header-check). Not on Windows: the callers' branch for it is
-// another (Mem.os(), known when compiling, so these are not linked there).
+// another (Platform.os(), known when compiling, so these are not linked there).
 @:hxmc.c @:hxmc.fast @:hxmc.safe @:hxmc.header("unistd.h")
 extern class Fds {
 	static function read(fd:Int, buf:Span<UInt8>):I64;

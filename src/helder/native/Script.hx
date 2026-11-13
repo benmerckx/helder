@@ -102,7 +102,7 @@ class Script {
 	// in process or local; a failure thrown with its HRESULT)
 	public static function comCreate(clsid:Float, iid:Float):Float {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 2) {
+		if (hxmc.Platform.os() == 2) {
 			if (!comReady) {
 				ScriptCom.CoInitializeEx(hxmc.unsafe.Ptr.nil(), 2);
 				comReady = true;
@@ -127,7 +127,7 @@ class Script {
 	// thread attached to the activity's VM: ScriptJni)
 	public static function jniEnv():Float {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.target() >= 9) return address(ScriptJni.env());
+		if (hxmc.Platform.target() >= 9) return address(ScriptJni.env());
 		#end
 		throw "helder/native: JNI is Android's";
 	}
@@ -136,7 +136,7 @@ class Script {
 	// kept for the process
 	public static function jniClass(name:String):Float {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.target() >= 9) return address(ScriptJni.cls(name));
+		if (hxmc.Platform.target() >= 9) return address(ScriptJni.cls(name));
 		#end
 		throw "helder/native: JNI is Android's";
 	}
@@ -146,7 +146,7 @@ class Script {
 	// missing one thrown
 	public static function jniMember(cls:Float, name:String, descriptor:String, kind:Int):Float {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.target() >= 9) return address(ScriptJni.member(pointer(cls), name, descriptor, kind));
+		if (hxmc.Platform.target() >= 9) return address(ScriptJni.member(pointer(cls), name, descriptor, kind));
 		#end
 		throw "helder/native: JNI is Android's";
 	}
@@ -184,14 +184,14 @@ class Script {
 	// after a JNI call: a pending Java exception thrown (its text), cleared
 	public static function jniCheck() {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.target() >= 9) ScriptJni.check();
+		if (hxmc.Platform.target() >= 9) ScriptJni.check();
 		#end
 	}
 
 	// a java.lang.String of s (a local reference; 0 for null)
 	public static function jniString(s:Null<String>):Float {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.target() >= 9) return s == null ? 0 : address(ScriptJni.string(s));
+		if (hxmc.Platform.target() >= 9) return s == null ? 0 : address(ScriptJni.string(s));
 		#end
 		throw "helder/native: JNI is Android's";
 	}
@@ -199,7 +199,7 @@ class Script {
 	// a java.lang.String's text (null for 0), its local reference deleted
 	public static function jniText(at:Float):Null<String> {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.target() >= 9) return at == 0 ? null : ScriptJni.text(pointer(at));
+		if (hxmc.Platform.target() >= 9) return at == 0 ? null : ScriptJni.text(pointer(at));
 		#end
 		throw "helder/native: JNI is Android's";
 	}

@@ -3,6 +3,7 @@ package helder.ui.platform;
 import helder.os.objc.*;
 import helder.ui.platform.PlatformWebView;
 import helder.ui.platform.WkMsg;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // A WKWebView (WebKit), the same on iOS and macOS: a subview of the
@@ -58,7 +59,7 @@ class AppleWebView implements PlatformWebView {
 	// a web view in parent (iOS: the window's UIView; macOS: its NSView,
 	// whose window's content view takes it); queued: an event waits for poll
 	public function new(parent:Ptr, options:WebViewOptions, queued:Void->Void, fullScreen = false) {
-		this.ios = Mem.platform() >= 1;
+		this.ios = Platform.apple() >= 1;
 		this.options = options;
 		this.content = options.content;
 		this.queued = queued;
@@ -468,7 +469,7 @@ class AppleWebView implements PlatformWebView {
 			done(null);
 			return;
 		}
-		var cg = Mem.platform() >= 1 ? Msg.id(image, ObjC.sel("CGImage")) : Msg.idPtrPtrPtr(image, ObjC.sel("CGImageForProposedRect:context:hints:"), Ptr.nil(),
+		var cg = Platform.apple() >= 1 ? Msg.id(image, ObjC.sel("CGImage")) : Msg.idPtrPtrPtr(image, ObjC.sel("CGImageForProposedRect:context:hints:"), Ptr.nil(),
 			Ptr.nil(), Ptr.nil());
 		done(cg.isNull() ? null : pixels(cg));
 	}

@@ -22,7 +22,7 @@ import viewer.ViewerActions;
 // folder watched every second.
 class Shell implements Markup {
 	public static function main(args:Array<String>) {
-		var mac = hxmc.unsafe.Mem.os() == 1;
+		var mac = hxmc.Platform.os() == 1;
 		var store = try helder.os.Store.open("helder-viewer") catch (_:Dynamic) null;
 		inline function num(k:String, d:Int):Int {
 			var v = store == null ? null : Std.parseInt(store.get(k) ?? "");

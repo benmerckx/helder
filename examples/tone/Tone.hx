@@ -3,6 +3,7 @@
 // tags: os, audio
 // demo: sound
 import helder.os.audio.Audio;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // A 440 Hz sine for two seconds, on the default output:
@@ -42,12 +43,12 @@ class Tone {
 		played += frames;
 		// (the browser's callback runs on the main thread: it may close the
 		// output; a native one must not, close waits for the audio thread)
-		if (Mem.os() == 3 && played >= SECONDS * out.sampleRate) out.close();
+		if (Platform.os() == 3 && played >= SECONDS * out.sampleRate) out.close();
 	}
 
 	static function main() {
 		var tone = new Tone();
-		if (Mem.os() == 3) return;
+		if (Platform.os() == 3) return;
 		Sys.sleep(SECONDS);
 		tone.out.close();
 	}

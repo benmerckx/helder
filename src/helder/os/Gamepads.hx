@@ -2,6 +2,7 @@ package helder.os;
 
 import haxe.io.Bytes;
 #if !eval
+import hxmc.Platform;
 import hxmc.unsafe.*;
 #end
 
@@ -76,7 +77,7 @@ class Gamepads {
 		#if (hxmc.target == "wasm32-wasi")
 		pollWeb();
 		#elseif !eval
-		if (Mem.os() == 0) pollLinux() else if (Mem.os() == 2) pollWindows();
+		if (Platform.os() == 0) pollLinux() else if (Platform.os() == 2) pollWindows();
 		#end
 	}
 

@@ -2,6 +2,7 @@ import helder.os.*;
 import helder.os.objc.*;
 import helder.os.x11.Xlib;
 import helder.os.win32.User32;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // helder.os's windows given a title, a size and a minimum size, each read
@@ -31,9 +32,9 @@ class WindowTest {
 		w.setMinSize(120, 80);
 		var frames = 0, resized = false, closes = 0;
 		App.run(() -> {
-			if (Mem.os() == 1 && frames == 5) quit(w);
-			if (++frames > 20 && resized && (Mem.os() != 1 || closes > 0) || frames > 400) {
-				if (Mem.os() == 0) x11(w, title) else if (Mem.os() == 2) win32(w, title) else if (Mem.os() == 1) cocoa(w, title);
+			if (Platform.os() == 1 && frames == 5) quit(w);
+			if (++frames > 20 && resized && (Platform.os() != 1 || closes > 0) || frames > 400) {
+				if (Platform.os() == 0) x11(w, title) else if (Platform.os() == 2) win32(w, title) else if (Platform.os() == 1) cocoa(w, title);
 				w.close();
 			}
 			App.wait(0.01);
@@ -43,7 +44,7 @@ class WindowTest {
 			case _:
 		});
 		check("a Resize event", resized);
-		if (Mem.os() == 1) check("cocoa: Command-Q asks the window to close", closes == 1, '$closes');
+		if (Platform.os() == 1) check("cocoa: Command-Q asks the window to close", closes == 1, '$closes');
 		Sys.println('WindowTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -101,7 +102,7 @@ class WindowTest {
 	// a Command-Q key press posted to the application
 	static function quit(w:Window) {
 		// (macOS only: Msg's struct arguments are arm64 calls)
-		if (Mem.os() == 1) {
+		if (Platform.os() == 1) {
 			var window = Msg.id(w.surface.handle, ObjC.sel("window")), q = ObjC.str("q");
 			var ev = Msg.idIntPointIntFloatIntPtrPtrPtrBoolU16(ObjC.cls("NSEvent"),
 				ObjC.sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"), 10,

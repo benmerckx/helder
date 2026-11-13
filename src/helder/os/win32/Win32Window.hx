@@ -3,6 +3,7 @@ package helder.os.win32;
 import helder.os.Event;
 import helder.os.TitleBar;
 import helder.os.win32.User32;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // helder.os.Window on Windows: one window class for the process, registered
@@ -167,7 +168,7 @@ class Win32Window {
 
 	function destroy() {
 		open.remove(this);
-		if (Mem.os() == 2 && tsf != null) {
+		if (Platform.os() == 2 && tsf != null) {
 			(cast tsf : Tsf).dispose();
 			tsf = null;
 		}
@@ -300,12 +301,12 @@ class Win32Window {
 	}
 
 	// text input through TSF (null: not made yet, or TSF not there)
-	// (a Tsf; Any, and each use under Mem.os() == 2: the other targets never
+	// (a Tsf; Any, and each use under Platform.os() == 2: the other targets never
 	// reach its type, nor link its libraries)
 	var tsf:Any = null;
 
 	function textInputTsf(x:Int, y:Int, width:Int, height:Int):Bool {
-		if (Mem.os() == 2) {
+		if (Platform.os() == 2) {
 			if (tsf == null && Tsf.available()) tsf = new Tsf(hwnd, tsfEvent);
 			if (tsf != null) {
 				(cast tsf : Tsf).area(x, y, width, height);
@@ -358,10 +359,10 @@ class Win32Window {
 	}
 
 	function stopTextInput()
-		if (Mem.os() == 2 && tsf != null) (cast tsf : Tsf).focus(false);
+		if (Platform.os() == 2 && tsf != null) (cast tsf : Tsf).focus(false);
 
 	function textContext(text:String, start:Int, end:Int)
-		if (Mem.os() == 2 && tsf != null) (cast tsf : Tsf).textContext(text, start, end);
+		if (Platform.os() == 2 && tsf != null) (cast tsf : Tsf).textContext(text, start, end);
 
 	// the clipboard's text: UTF-16 in movable global memory (CF_UNICODETEXT),
 	// which the clipboard owns once set

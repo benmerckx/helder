@@ -50,13 +50,13 @@ class Signals {
 		}
 		if (caught.contains(s)) return;
 		caught.push(s);
-		if (hxmc.unsafe.Mem.os() == 2) {} else hxmc.unsafe.Posix.signal(s, hxmc.unsafe.Callback.addr(onSignal));
+		if (hxmc.Platform.os() == 2) {} else hxmc.unsafe.Posix.signal(s, hxmc.unsafe.Callback.addr(onSignal));
 	}
 
 	// (the pipe: its read end, the write end in writeFd; -1 on a failure)
 	// (Windows: none, POSIX's calls not linked there: a constant condition)
 	static function pipe():Int
-		return if (hxmc.unsafe.Mem.os() == 2) -1 else posixPipe();
+		return if (hxmc.Platform.os() == 2) -1 else posixPipe();
 
 	@:hxmc.kernel static function posixPipe():Int {
 		var fds:hxmc.Span<Int> = hxmc.Span.stack(2);
@@ -70,7 +70,7 @@ class Signals {
 	@:hxmc.callback @:hxmc.kernel static function onSignal(sig:Int):Void {
 		var b:hxmc.Span<hxmc.unsafe.UInt8> = hxmc.Span.stack(1);
 		b[0] = sig;
-		if (hxmc.unsafe.Mem.os() == 2) {} else Fds.write(writeFd, b);
+		if (hxmc.Platform.os() == 2) {} else Fds.write(writeFd, b);
 	}
 	#end
 }

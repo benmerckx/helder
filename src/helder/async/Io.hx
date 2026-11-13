@@ -43,7 +43,7 @@ enum abstract OpKind(Int) {
 // descriptor: on POSIX polled like a socket, on Windows read and written by
 // threads; on Eval a stream, read and written by threads)
 class Handle {
-	public static final WINDOWS = #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi") hxmc.unsafe.Mem.os() == 2 #else Sys.systemName() == "Windows" #end;
+	public static final WINDOWS = #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi") hxmc.Platform.os() == 2 #else Sys.systemName() == "Windows" #end;
 
 	public final socket:Null<NetSocket>;
 	public final fd:Int;

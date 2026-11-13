@@ -26,7 +26,7 @@ class Term {
 		errColor = Style.wants(env, errTty);
 		tty = outTty && Sys.getEnv("TERM") != "dumb";
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (hxmc.unsafe.Mem.os() == 2) {
+		if (hxmc.Platform.os() == 2) {
 			// (a console without VT processing, before Windows 10: no escapes but forced ones, no spinner)
 			var forced = Sys.getEnv("FORCE_COLOR") != null;
 			if (!vt(-11)) {
@@ -107,7 +107,7 @@ class Term {
 
 	static function isTty(fd:Int):Bool {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (hxmc.unsafe.Mem.os() == 2) {
+		if (hxmc.Platform.os() == 2) {
 			var h = TermK32.GetStdHandle(fd == 1 ? -11 : -12);
 			return TermK32.GetFileType(h) == 2; // FILE_TYPE_CHAR
 		}

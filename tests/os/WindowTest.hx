@@ -2,6 +2,7 @@ import helder.os.*;
 import helder.os.objc.*;
 import helder.os.win32.User32;
 import helder.os.x11.Xlib;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // helder.os's windows (`bun run test window`; Linux: Xvfb, Windows: also
@@ -29,7 +30,7 @@ class WindowTest {
 		var start = haxe.Timer.stamp(), step = 0, frames = 0;
 		// (macOS gives a path's characters decomposed, as its file systems
 		// keep them: é as e and its accent; ASCII there)
-		var want = Mem.os() == 2 ? ["C:\\photos\\a b.png", "C:\\photos\\é.jpg"] : Mem.os() == 1 ? ["/tmp/photos/a b.png", "/tmp/photos/c.jpg"] : ["/tmp/photos/a b.png", "/tmp/photos/é.jpg"];
+		var want = Platform.os() == 2 ? ["C:\\photos\\a b.png", "C:\\photos\\é.jpg"] : Platform.os() == 1 ? ["/tmp/photos/a b.png", "/tmp/photos/c.jpg"] : ["/tmp/photos/a b.png", "/tmp/photos/é.jpg"];
 		var source:Null<DropSource> = null;
 		App.run(() -> {
 			frames++;
@@ -45,7 +46,7 @@ class WindowTest {
 				step = 2;
 				check("a drop: its files", dropped != null && dropped.files.join("|") == want.join("|"), dropped == null ? "none" : dropped.files.join("|"));
 				// (where: X11 and Windows exactly, macOS where the pointer is)
-				if (dropped != null && Mem.os() != 1) check("a drop: where", dropped.x == 20 && dropped.y == 30, '${dropped.x}, ${dropped.y}');
+				if (dropped != null && Platform.os() != 1) check("a drop: where", dropped.x == 20 && dropped.y == 30, '${dropped.x}, ${dropped.y}');
 				source.finish(check);
 				var p = window.position();
 				check("moveTo, position", p != null && p.x == 120 && p.y == 160, p == null ? "null" : '${p.x}, ${p.y}');
@@ -78,14 +79,14 @@ class WindowTest {
 // macOS's open request (application:openURLs:) reaching App.onOpen
 function integration(check:(String, Bool, String) -> Void) {
 	var types = [{mime: "image/jpeg", extensions: ["jpg", "jpeg"]}, {mime: "image/png", extensions: ["png"]}];
-	if (Mem.os() == 0) {
+	if (Platform.os() == 0) {
 		var dir = sys.FileSystem.fullPath(".") + "/bin/os/xdg";
 		Sys.putEnv("XDG_DATA_HOME", dir);
 		var w = FileTypes.register("helder-windowtest", "Window Test", "/opt/window test/viewer", types);
 		var text = try sys.io.File.getContent(dir + "/applications/helder-windowtest.desktop") catch (e:Dynamic) "";
 		check("FileTypes: a .desktop file", w.length == 1 && text.indexOf('Exec="/opt/window test/viewer" %F') >= 0 && text.indexOf("MimeType=image/jpeg;image/png;") >= 0, w.join(", "));
 	}
-	if (Mem.os() == 2) {
+	if (Platform.os() == 2) {
 		var w = FileTypes.register("helder.windowtest", "Window Test", "C:\\tools\\viewer.exe", types);
 		var command = Arena.scopedValue(a -> {
 			var buf:Ptr<UInt16> = a.alloc(1024), size:Ptr<Int32> = a.alloc(4);
@@ -100,7 +101,7 @@ function integration(check:(String, Bool, String) -> Void) {
 		check("FileTypes: the extensions' OpenWithProgids", w.indexOf("HKCU\\Software\\Classes\\.jpg\\OpenWithProgids\\helder.windowtest.file") >= 0, w.length + " values");
 		check("FileDialog: IFileOpenDialog made", !helder.os.win32.FileOpenDialog.make("Open", [{name: "Images", extensions: ["jpg"]}]).isNull(), "");
 	}
-	if (Mem.os() == 1) {
+	if (Platform.os() == 1) {
 		check("FileDialog: NSOpenPanel made", !helder.os.cocoa.OpenPanel.make("Open", [{name: "Images", extensions: ["jpg"]}]).isNull(), "");
 		var got:Array<String> = [];
 		App.onOpen = paths -> got = paths;
@@ -132,14 +133,14 @@ private class DropSource {
 		this.files = files;
 		this.x = x;
 		this.y = y;
-		if (Mem.os() == 2) windows() else if (Mem.os() == 1) mac() else x11();
+		if (Platform.os() == 2) windows() else if (Platform.os() == 1) mac() else x11();
 	}
 
 	public function pump()
-		if (Mem.os() != 1 && Mem.os() != 2) pumpX11();
+		if (Platform.os() != 1 && Platform.os() != 2) pumpX11();
 
 	public function finish(check:(String, Bool, String) -> Void) {
-		if (Mem.os() == 1 || Mem.os() == 2) return;
+		if (Platform.os() == 1 || Platform.os() == 2) return;
 		check("XDND: the position accepted (XdndStatus)", accepted == 1, 'accepted $accepted');
 		check("XDND: XdndFinished, the drop taken", finished == 1, 'finished $finished');
 	}

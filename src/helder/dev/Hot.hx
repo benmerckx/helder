@@ -240,7 +240,7 @@ class Hot {
 		if (file != null && file != "" && sys.FileSystem.exists(file)) data = sys.io.File.getContent(file);
 		#end
 		#else
-		if (hxmc.unsafe.Mem.os() == 3) {
+		if (hxmc.Platform.os() == 3) {
 			var n = DevWeb.restore_length();
 			if (n >= 0) {
 				var b = haxe.io.Bytes.alloc(n);
@@ -366,7 +366,7 @@ class Hot {
 		#end
 		#if (target.name == "hxmc")
 		// (what the program printed, in the terminal as it prints it: its output is a pipe)
-		if (hxmc.unsafe.Mem.os() != 3) Sys.stdout().flush();
+		if (hxmc.Platform.os() != 3) Sys.stdout().flush();
 		if (socket < 0) return !done;
 		helder.devtools.Agent.turn();
 		if (inbuf == null) inbuf = haxe.io.Bytes.alloc(4096);
@@ -469,7 +469,7 @@ class Hot {
 			restored = new Map();
 		}
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 3) DevWeb.frame() else if (helder.devtools.Agent.on) helder.devtools.Agent.notify("Runtime.ready", {startedAt: startedAt, ms: Math.round((haxe.Timer.stamp() - startStamp) * 10000) / 10}) else send('{"type":"frame"}');
+		if (hxmc.Platform.os() == 3) DevWeb.frame() else if (helder.devtools.Agent.on) helder.devtools.Agent.notify("Runtime.ready", {startedAt: startedAt, ms: Math.round((haxe.Timer.stamp() - startStamp) * 10000) / 10}) else send('{"type":"frame"}');
 		#end
 	}
 
@@ -501,7 +501,7 @@ class Hot {
 
 	// a line to the dev server (helder.devtools.Agent's messages)
 	@:noCompletion public static function sendLine(line:String)
-		if (hxmc.unsafe.Mem.os() == 3) sendDevtools(haxe.io.Bytes.ofString(line)) else send(line);
+		if (hxmc.Platform.os() == 3) sendDevtools(haxe.io.Bytes.ofString(line)) else send(line);
 
 	// a devtools message from the page (n bytes of JSON-RPC, DevWeb.devtools_take):
 	// the agent's, its answer through DevWeb.devtools_send

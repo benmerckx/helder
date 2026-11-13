@@ -3,6 +3,7 @@ package helder.os;
 import haxe.io.Bytes;
 import helder.image.ImageError;
 import helder.image.ImageLimits;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // The system's own image decoders, for what helder.image does not read:
@@ -24,10 +25,10 @@ class SystemImages {
 
 	// (Linux's: a constant condition, so that no other target links its libraries' loaders)
 	static inline function linux():Bool
-		return Mem.platform() == 0 && Mem.os() == 0 && Mem.target() < 9;
+		return Platform.apple() == 0 && Platform.os() == 0 && Platform.target() < 9;
 
 	public static function available():Bool
-		return Mem.platform() == 0 && (Mem.os() == 1 || Mem.os() == 2) || linux() && helder.os.linux.LinuxImages.any();
+		return Platform.apple() == 0 && (Platform.os() == 1 || Platform.os() == 2) || linux() && helder.os.linux.LinuxImages.any();
 
 	public static function supports(path:String):Bool {
 		var dot = path.lastIndexOf("."), ext = dot > 0 ? path.substr(dot + 1).toLowerCase() : "";
@@ -38,7 +39,7 @@ class SystemImages {
 	// the file decoded (side > 0: at most that a side, where the system scales
 	// as it decodes); an ImageError when it cannot be
 	public static function decode(path:String, side = 0):{width:Int, height:Int, pixelsWidth:Int, pixelsHeight:Int, rgba:Bytes}
-		return if (Mem.platform() != 0) throw ImageError.unsupported("SystemImages: none here") else if (Mem.os() == 2) wic(path) else if (Mem.os() == 1)
+		return if (Platform.apple() != 0) throw ImageError.unsupported("SystemImages: none here") else if (Platform.os() == 2) wic(path) else if (Platform.os() == 1)
 			imageIO(path, side) else if (linux()) linuxLibraries(path) else throw ImageError.unsupported("SystemImages: none on this system");
 
 	// --- Linux: libtiff, libheif, libavif, libraw where they are (helder.os.linux.LinuxImages)

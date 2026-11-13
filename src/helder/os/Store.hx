@@ -1,5 +1,7 @@
 package helder.os;
 
+import hxmc.Platform;
+
 import hxmc.unsafe.*;
 
 // A small key-value store kept between runs: an app's settings, a game's
@@ -91,10 +93,10 @@ class Store {
 	// (the platform's file for the app's data, its directory made when missing)
 	static function place(name:String):String {
 		var d:String, file = name + ".json";
-		if (Mem.os() == 3) d = "." else if (Mem.platform() >= 1) d = Sys.getEnv("HOME") + "/Library/Application Support" else if (Mem.target() >= 9)
+		if (Platform.os() == 3) d = "." else if (Platform.apple() >= 1) d = Sys.getEnv("HOME") + "/Library/Application Support" else if (Platform.target() >= 9)
 			d = #if (hxmc.target == "wasm32-wasi") "." #else androidFiles() #end else {
 			file = "store.json";
-			d = if (Mem.os() == 1) Sys.getEnv("HOME") + "/Library/Application Support/" + name else if (Mem.os() == 2)
+			d = if (Platform.os() == 1) Sys.getEnv("HOME") + "/Library/Application Support/" + name else if (Platform.os() == 2)
 				(Sys.getEnv("APPDATA") ?? Sys.getEnv("USERPROFILE") + "\\AppData\\Roaming") + "\\" + name else
 				(Sys.getEnv("XDG_DATA_HOME") ?? Sys.getEnv("HOME") + "/.local/share") + "/" + name;
 		}
@@ -168,7 +170,7 @@ class Store {
 			var tmp = path + ".tmp";
 			sys.io.File.saveContent(tmp, text());
 			// (Windows' rename does not replace)
-			if (Mem.os() == 2 && sys.FileSystem.exists(path)) sys.FileSystem.deleteFile(path);
+			if (Platform.os() == 2 && sys.FileSystem.exists(path)) sys.FileSystem.deleteFile(path);
 			sys.FileSystem.rename(tmp, path);
 			true;
 		} catch (_:Dynamic) false;

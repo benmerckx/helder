@@ -467,12 +467,12 @@ private class Call implements IDispatchObject {
 
 #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 // (the wake pipe: non-blocking, not inherited by children; none on Windows,
-// whose loop polls: Mem.os() is known when compiling, and a constant
+// whose loop polls: Platform.os() is known when compiling, and a constant
 // condition's other branch is not linked, POSIX's calls with it)
 private class Wake {
 	// both ends, read | write << 16; -1 on a failure
 	public static function pipe():Int
-		return if (hxmc.unsafe.Mem.os() == 2) -1 else posixPipe();
+		return if (hxmc.Platform.os() == 2) -1 else posixPipe();
 
 	static function posixPipe():Int {
 		var ends = pipeEnds();
@@ -489,15 +489,15 @@ private class Wake {
 
 	// (F_SETFL O_NONBLOCK: Linux's 0x800, the BSDs' 4; F_SETFD FD_CLOEXEC)
 	static function flags(fd:Int) {
-		hxmc.unsafe.Posix.fcntl(fd, 4, hxmc.unsafe.Mem.os() == 1 ? 4 : 0x800);
+		hxmc.unsafe.Posix.fcntl(fd, 4, hxmc.Platform.os() == 1 ? 4 : 0x800);
 		hxmc.unsafe.Posix.fcntl(fd, 2, 1);
 	}
 
 	public static function write(fd:Int)
-		if (hxmc.unsafe.Mem.os() == 2) {} else posixWrite(fd);
+		if (hxmc.Platform.os() == 2) {} else posixWrite(fd);
 
 	public static function drain(fd:Int)
-		if (hxmc.unsafe.Mem.os() == 2) {} else posixDrain(fd);
+		if (hxmc.Platform.os() == 2) {} else posixDrain(fd);
 
 	@:hxmc.kernel static function posixWrite(fd:Int) {
 		var b:hxmc.Span<hxmc.unsafe.UInt8> = hxmc.Span.stack(1);

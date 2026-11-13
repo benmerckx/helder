@@ -120,8 +120,8 @@ class Compiler {
 	// hxmc's name of this machine (linux-x86_64)
 	public static function hostTarget():String {
 		#if (target.name == "hxmc")
-		var os = ["linux", "macos", "windows", "wasi"][hxmc.unsafe.Mem.os()];
-		return os + "-" + (hxmc.unsafe.Mem.arm() ? "arm64" : "x86_64");
+		var os = ["linux", "macos", "windows", "wasi"][hxmc.Platform.os()];
+		return os + "-" + (hxmc.Platform.arm() ? "arm64" : "x86_64");
 		#else
 		return (Sys.systemName() == "Windows" ? "windows" : Sys.systemName() == "Mac" ? "macos" : "linux") + "-x86_64";
 		#end

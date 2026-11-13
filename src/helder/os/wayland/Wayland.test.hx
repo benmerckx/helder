@@ -14,7 +14,7 @@ function tests() {
 	describe("Wayland bindings", () -> {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		// (Linux's alone: a constant condition, the others' builds without it)
-		if (hxmc.unsafe.Mem.os() == 0 && hxmc.unsafe.Mem.target() < 9) {
+		if (hxmc.Platform.os() == 0 && hxmc.Platform.target() < 9) {
 		var seen:Array<{opcode:Int, iface:String, version:Int, flags:Int, args:Array<String>}> = [];
 		function record(sigs:String) {
 			Proxy.recorder = (proxy, opcode, iface, version, flags, args, count) -> {

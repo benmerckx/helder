@@ -1,5 +1,7 @@
 package helder.os.audio;
 
+import hxmc.Platform;
+
 import hxmc.unsafe.*;
 
 typedef AudioConfig = {
@@ -69,7 +71,7 @@ class Audio {
 	static var outputs:Null<Array<Audio>>;
 
 	final fill:AudioFill;
-	// the back end, the target's (as Window's: Mem.os() is known when compiling)
+	// the back end, the target's (as Window's: Platform.os() is known when compiling)
 	final native:Any;
 
 	public static function open(config:AudioConfig, fill:AudioFill):Audio
@@ -82,15 +84,15 @@ class Audio {
 		frames = config.frames != null ? config.frames : 512;
 		session = config.session;
 		if (sampleRate <= 0 || channels <= 0 || frames <= 0) throw "helder.os.audio: bad config";
-		native = Mem.target() >= 9 ? new AAudioOutput(this, config.device) : Mem.os() == 1 ? new CoreAudioOutput(this, config.device) : Mem.os() == 2 ? new WasapiOutput(this,
-			config.device) : Mem.os() == 3 ? new WebAudioOutput(this, config.device) : new AlsaOutput(this, config.device);
+		native = Platform.target() >= 9 ? new AAudioOutput(this, config.device) : Platform.os() == 1 ? new CoreAudioOutput(this, config.device) : Platform.os() == 2 ? new WasapiOutput(this,
+			config.device) : Platform.os() == 3 ? new WebAudioOutput(this, config.device) : new AlsaOutput(this, config.device);
 		track();
 	}
 
 	public function start() {
 		if (running || closed) return;
 		running = true;
-		if (Mem.target() >= 9) (cast native : AAudioOutput).start() else if (Mem.os() == 1) (cast native : CoreAudioOutput).start() else if (Mem.os() == 2) (cast native : WasapiOutput).start() else if (Mem.os() == 3)
+		if (Platform.target() >= 9) (cast native : AAudioOutput).start() else if (Platform.os() == 1) (cast native : CoreAudioOutput).start() else if (Platform.os() == 2) (cast native : WasapiOutput).start() else if (Platform.os() == 3)
 			(cast native : WebAudioOutput).start() else (cast native : AlsaOutput).start();
 	}
 
@@ -99,7 +101,7 @@ class Audio {
 		held = false;
 		if (!running) return;
 		running = false;
-		if (Mem.target() >= 9) (cast native : AAudioOutput).stop() else if (Mem.os() == 1) (cast native : CoreAudioOutput).stop() else if (Mem.os() == 2) (cast native : WasapiOutput).stop() else if (Mem.os() == 3)
+		if (Platform.target() >= 9) (cast native : AAudioOutput).stop() else if (Platform.os() == 1) (cast native : CoreAudioOutput).stop() else if (Platform.os() == 2) (cast native : WasapiOutput).stop() else if (Platform.os() == 3)
 			(cast native : WebAudioOutput).stop() else (cast native : AlsaOutput).stop();
 	}
 
@@ -108,19 +110,19 @@ class Audio {
 		stop();
 		closed = true;
 		if (outputs != null) outputs.remove(this);
-		if (Mem.target() >= 9) (cast native : AAudioOutput).close() else if (Mem.os() == 1) (cast native : CoreAudioOutput).close() else if (Mem.os() == 2) (cast native : WasapiOutput).close() else if (Mem.os() == 3)
+		if (Platform.target() >= 9) (cast native : AAudioOutput).close() else if (Platform.os() == 1) (cast native : CoreAudioOutput).close() else if (Platform.os() == 2) (cast native : WasapiOutput).close() else if (Platform.os() == 3)
 			(cast native : WebAudioOutput).close() else (cast native : AlsaOutput).close();
 	}
 
 	// the data callbacks the system made so far, where the back end counts
 	// them (Android; elsewhere -1): tests, the stream started
 	public function systemCalls():Int
-		return Mem.target() >= 9 ? (cast native : AAudioOutput).calls() : -1;
+		return Platform.target() >= 9 ? (cast native : AAudioOutput).calls() : -1;
 
 	function track() {
 		if (outputs == null) outputs = [];
 		outputs.push(this);
-		if (Mem.target() >= 9 || Mem.platform() >= 1) helder.os.AppAudio.hold = hold;
+		if (Platform.target() >= 9 || Platform.apple() >= 1) helder.os.AppAudio.hold = hold;
 	}
 
 	// the app's lifecycle (helder.os.AppAudio.hold: Android's activity

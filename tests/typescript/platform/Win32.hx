@@ -1,7 +1,7 @@
 // Something only Windows links, for the platform checks (tests/typescript/run.mjs):
 // kernel32's GetTickCount64, which a build for another platform must not
 // name (main.ts's and Main.hx's Windows branch, helder/platform's and
-// Mem.os()'s constants folded).
+// Platform.os()'s constants folded).
 class Win32 {
 	// milliseconds since Windows started
 	public static function ticks():Float {

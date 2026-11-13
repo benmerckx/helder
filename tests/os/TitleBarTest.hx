@@ -1,6 +1,7 @@
 import helder.os.*;
 import helder.os.TitleBar;
 import helder.os.objc.*;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // An inset title bar (helder.os's TitleBar) on the system's own window
@@ -36,13 +37,13 @@ class TitleBarTest {
 			}
 			if (step == 0) {
 				step = 1;
-				if (Mem.os() == 1) mac(window);
-				if (Mem.os() == 2) windows(window);
-				if (Mem.os() == 0 && !Std.isOfType(@:privateAccess window.native, helder.os.wayland.WaylandWindow)) x11(window);
+				if (Platform.os() == 1) mac(window);
+				if (Platform.os() == 2) windows(window);
+				if (Platform.os() == 0 && !Std.isOfType(@:privateAccess window.native, helder.os.wayland.WaylandWindow)) x11(window);
 				window.resize(500, 320);
 			} else if (step == 1 && frames > 12) {
 				step = 2;
-				if (Mem.os() == 1) {
+				if (Platform.os() == 1) {
 					var c = window.systemControls(), k = window.scale;
 					check("macOS: the buttons kept where placed after a resize", c != null && Math.abs(c.x - 20 * k) <= 1 && Math.abs(c.y - 14 * k) <= 1,
 						c == null ? "none" : '${c.x}, ${c.y}');

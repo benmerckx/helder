@@ -3,6 +3,7 @@ package helder.gfx.gl;
 import helder.gfx.egl.Egl;
 import helder.gfx.*;
 import helder.os.Surface;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // The GL back end: an OpenGL ES 3.0 context through EGL, on an X11 window's
@@ -29,7 +30,7 @@ import hxmc.unsafe.*;
 // is; the front faces turn clockwise there). A pass into a texture renders
 // into one framebuffer object, attached anew when the textures change.
 class GLBackend {
-	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
+	public final backend = Platform.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
 	public var height(default, null) = 0;
 
@@ -156,13 +157,13 @@ class GLBackend {
 
 	function makeCurrent() {
 		current = this;
-		if (Mem.os() == 3) WebGL.make_current(web) else if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+		if (Platform.os() == 3) WebGL.make_current(web) else if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
 	}
 
 	public function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
 		scratch = LibC.malloc((64 : Int64));
-		if (Mem.os() == 3) {
+		if (Platform.os() == 3) {
 			web = switch surface.kind {
 				case Canvas: WebGL.context(surface.handle.toI64().toInt(), 0, 0, antialias ? 1 : 0);
 				case Headless: WebGL.context(0, surface.width, surface.height, 0);
@@ -192,7 +193,7 @@ class GLBackend {
 		}
 		if (!hostKept) {
 		#end
-		if (Mem.target() >= 9)
+		if (Platform.target() >= 9)
 			display = Egl.eglGetDisplay(Ptr.nil()); // (EGL_DEFAULT_DISPLAY)
 		else if (headless)
 			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_SURFACELESS_MESA, Ptr.nil(), Ptr.nil());
@@ -236,18 +237,18 @@ class GLBackend {
 		#end
 		if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
 		// (Wayland: a swap waits for the compositor's frame callback, never sent to a hidden window: the loop paces itself)
-		if (Mem.target() < 9) if (surface.kind == Wayland) Egl.eglSwapInterval(display, 0);
+		if (Platform.target() < 9) if (surface.kind == Wayland) Egl.eglSwapInterval(display, 0);
 		current = this;
 		alive++;
 		// (Android: libGLESv3.so's own functions; eglGetProcAddress may know only extensions there)
-		var gles = Mem.target() >= 9 ? Posix.dlopen(Mem.cstr("libGLESv3.so"), 2) : Ptr.nil();
+		var gles = Platform.target() >= 9 ? Posix.dlopen(Mem.cstr("libGLESv3.so"), 2) : Ptr.nil();
 		var missing = GL.load(name -> {
 			var f = Ptr.nil();
 			// (Android only: no dlsym where the browser is GL's)
-			if (Mem.target() >= 9) if (!gles.isNull()) f = Posix.dlsym(gles, name);
+			if (Platform.target() >= 9) if (!gles.isNull()) f = Posix.dlsym(gles, name);
 			f.isNull() ? Egl.eglGetProcAddress(name) : f;
 		});
-		if (Mem.target() >= 9) {
+		if (Platform.target() >= 9) {
 			if (!headless) surface.lost = release;
 		}
 		if (missing != null) throw "helder.gfx: no GL function " + missing;
@@ -261,7 +262,7 @@ class GLBackend {
 
 	// (a headless surface resized, helder.headless's window: a new pbuffer of its size, current)
 	function resizeHeadless() {
-		if (Mem.os() == 3) return;
+		if (Platform.os() == 3) return;
 		Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), context);
 		Egl.eglDestroySurface(display, eglSurface);
 		Arena.scoped(a -> eglSurface = Egl.eglCreatePbufferSurface(display, config, ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])));
@@ -278,7 +279,7 @@ class GLBackend {
 	}
 
 	function fail(what:String):Dynamic
-		throw "helder.gfx: " + what + (Mem.os() == 3 ? "" : " (EGL error 0x" + StringTools.hex(Egl.eglGetError()) + ")");
+		throw "helder.gfx: " + what + (Platform.os() == 3 ? "" : " (EGL error 0x" + StringTools.hex(Egl.eglGetError()) + ")");
 
 	static function ints(a:Arena, xs:Array<Int>):Ptr<Int32> {
 		var p:Ptr<Int32> = a.alloc(4 * xs.length);
@@ -291,7 +292,7 @@ class GLBackend {
 		// (a canvas: its size now, which App's Resize events follow; a wl_egl_window: the size it was
 		// last resized to, which the next frame's buffer has: EGL reports the resize only once a buffer
 		// of the new size was drawn, so a frame drawn after a scale change would be sized a frame late)
-		if (Mem.os() == 3 || surface.kind == Wayland) {
+		if (Platform.os() == 3 || surface.kind == Wayland) {
 			width = surface.width;
 			height = surface.height;
 			return;
@@ -377,7 +378,7 @@ class GLBackend {
 	public function supports(f:TextureFormat):Bool {
 		if (!f.compressed) return true;
 		use();
-		if (Mem.os() == 3) {
+		if (Platform.os() == 3) {
 			var names = f == ASTC4x4 ? ["WEBGL_compressed_texture_astc"] : ["WEBGL_compressed_texture_s3tc"];
 			for (n in names)
 				if (Arena.scopedValue(a -> WebGL.extension(web, a.cstring(n))) != 0) return true;
@@ -462,7 +463,7 @@ class GLBackend {
 		var img = images.get(id);
 		if (img != null) {
 			images.remove(id);
-			if (Mem.os() != 3) {
+			if (Platform.os() != 3) {
 				EglImage.destroy(pDestroyImage, display, img.image);
 				if (img.fd >= 0) Posix.close(img.fd);
 			}
@@ -553,7 +554,7 @@ class GLBackend {
 	// (Android) the system takes the window: its EGL surface goes first
 	function release() {
 		// (Android only: no EGL import elsewhere, WebGL2's among them)
-		if (Mem.target() < 9) return;
+		if (Platform.target() < 9) return;
 		if (eglSurface.isNull()) return;
 		Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 		Egl.eglDestroySurface(display, eglSurface);
@@ -567,7 +568,7 @@ class GLBackend {
 	// an EGL surface on the window the Surface has now
 	function attach() {
 		// (not in the browser: no EGL import there)
-		if (Mem.os() == 3) return;
+		if (Platform.os() == 3) return;
 		eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
 		if (eglSurface.isNull()) fail("cannot create the EGL surface");
 		window = surface.handle;
@@ -585,7 +586,7 @@ class GLBackend {
 	// (pidfd_getfd); not on Android, not in a browser; HELDER_NO_DMABUF=1:
 	// none (the copy's path, tested where the GPU has them)
 	public function sharing():Null<String> {
-		if (Mem.os() == 3 || Mem.target() >= 9) return null;
+		if (Platform.os() == 3 || Platform.target() >= 9) return null;
 		if (dmabuf == null) {
 			use();
 			var p = Egl.eglQueryString(display, EGL.EXTENSIONS);
@@ -640,7 +641,7 @@ class GLBackend {
 	}
 
 	public function openShared(handle:String, w:Int, h:Int):Int {
-		if (Mem.os() == 3 || Mem.target() >= 9 || !StringTools.startsWith(handle, "dmabuf:") || sharing() == null) return 0;
+		if (Platform.os() == 3 || Platform.target() >= 9 || !StringTools.startsWith(handle, "dmabuf:") || sharing() == null) return 0;
 		var f = [for (x in handle.substr(7).split(":")) Std.parseInt(x) ?? 0];
 		if (f.length < 7) return 0;
 		use();
@@ -694,11 +695,11 @@ class GLBackend {
 		}
 		if (framed) {
 			framed = false;
-			if (Mem.os() != 3) querySize();
+			if (Platform.os() != 3) querySize();
 		}
 		// (Android: a new window after a Resume, none while suspended; the
 		// target's comparison alone, folded elsewhere)
-		if (Mem.target() >= 9) if (surface.kind != Headless) {
+		if (Platform.target() >= 9) if (surface.kind != Headless) {
 			if (surface.handle != window) {
 				release();
 				if (surface.handle.isNull()) return false;
@@ -710,7 +711,7 @@ class GLBackend {
 		ring ^= 1;
 		cursor = 0;
 		if (surface.kind != Headless) querySize();
-		else if (Mem.os() != 3 && (surface.width != width || surface.height != height)) resizeHeadless();
+		else if (Platform.os() != 3 && (surface.width != width || surface.height != height)) resizeHeadless();
 		return true;
 	}
 
@@ -897,7 +898,7 @@ class GLBackend {
 			if (images.exists(frameTarget)) GL.glFinish();
 			return;
 		}
-		if (Mem.os() == 3) WebGL.swap(web) else if (surface.kind != Headless && !eglSurface.isNull()) Egl.eglSwapBuffers(display, eglSurface);
+		if (Platform.os() == 3) WebGL.swap(web) else if (surface.kind != Headless && !eglSurface.isNull()) Egl.eglSwapBuffers(display, eglSurface);
 	}
 
 	public function readPixels(dst:haxe.io.Bytes) {
@@ -945,7 +946,7 @@ class GLBackend {
 			}
 		#if hxmc.dev_host
 		// (handing over: the context, its surface and the display left to the next build, not current on this thread)
-		if (Mem.os() != 3 && helder.dev.Hosted.hosted() && helder.dev.Hosted.get(helder.dev.Hosted.EGL_CONTEXT) == context && !context.isNull()) {
+		if (Platform.os() != 3 && helder.dev.Hosted.hosted() && helder.dev.Hosted.get(helder.dev.Hosted.EGL_CONTEXT) == context && !context.isNull()) {
 			if (helder.dev.Hosted.handingOver) {
 				Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 				LibC.free(pixels);
@@ -956,11 +957,11 @@ class GLBackend {
 		}
 		#end
 		current = null;
-		if (Mem.os() == 3) WebGL.release(web) else {
+		if (Platform.os() == 3) WebGL.release(web) else {
 			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 			Egl.eglDestroyContext(display, context);
 			if (!eglSurface.isNull()) Egl.eglDestroySurface(display, eglSurface);
-			if (Mem.target() >= 9) surface.lost = null;
+			if (Platform.target() >= 9) surface.lost = null;
 			// (the display is the process's, every window's: terminated with the last device)
 			if (--alive == 0) Egl.eglTerminate(display);
 		}

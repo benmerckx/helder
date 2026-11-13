@@ -507,7 +507,7 @@ class Headless {
 		if (s.flag("alt") || s.flag("option")) m |= Mods.ALT;
 		if (s.flag("cmd") || s.flag("meta")) m |= Mods.META;
 		// (secondary: Command on a Mac, Control elsewhere, as Keymap's)
-		if (s.flag("secondary")) m |= hxmc.unsafe.Mem.os() == 1 ? Mods.META : Mods.CONTROL;
+		if (s.flag("secondary")) m |= hxmc.Platform.os() == 1 ? Mods.META : Mods.CONTROL;
 		return m;
 	}
 

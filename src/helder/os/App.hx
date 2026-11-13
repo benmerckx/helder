@@ -9,6 +9,7 @@ import helder.os.web.CanvasWindow;
 import helder.os.win32.Win32Window;
 import helder.os.x11.X11Window;
 import helder.os.wayland.WaylandWindow;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // The app loop, callback driven (Cocoa, GTK and the browser own their
@@ -150,7 +151,7 @@ class App {
 	// whether e is an Escape onBack took (the desktop's and the browser's:
 	// Android's back is its own key, iOS has none; not while text is typed)
 	static function escapeBack(e:Event):Bool {
-		if (e.kind != KeyDown || e.key != 0xFF1B || onBack == null || Mem.target() >= 9 || Mem.platform() >= 1) return false;
+		if (e.kind != KeyDown || e.key != 0xFF1B || onBack == null || Platform.target() >= 9 || Platform.apple() >= 1) return false;
 		for (w in windows)
 			if (w.typing) return false;
 		return back();
@@ -173,7 +174,7 @@ class App {
 		onEvent = e -> if (!escapeBack(e)) inner(e);
 		// (the mouse's pointer events after its own: Pointers)
 		onEvent = Pointers.relay(onEvent);
-		if (Mem.os() == 3) {
+		if (Platform.os() == 3) {
 			CanvasWindow.start(onFrame, onEvent);
 			return;
 		}
@@ -213,15 +214,15 @@ class App {
 		if (!running || windows.length == 0) {
 			running = false;
 			// (Android: the vsync asked for comes first, its callback this build's code)
-			if (Mem.target() >= 9) helder.os.android.Vsync.drain();
+			if (Platform.target() >= 9) helder.os.android.Vsync.drain();
 			return false;
 		}
 		// (the pointers' motion and presses from this turn's events on)
 		Pointers.step();
 		// (macOS: what Cocoa autoreleases during a frame is freed after it)
-		var pool = Mem.os() == 1 ? Runtime.objc_autoreleasePoolPush() : Ptr.nil();
+		var pool = Platform.os() == 1 ? Runtime.objc_autoreleasePoolPush() : Ptr.nil();
 		// (Android: a frame only with the window, otherwise a sleep in the looper)
-		if (Mem.target() >= 9) {
+		if (Platform.target() >= 9) {
 			AndroidWindow.poll(onEvent);
 			loopTurn();
 			if (running && windows.length > 0) {
@@ -237,7 +238,7 @@ class App {
 					AndroidWindow.wait(bounded(-1));
 				}
 			}
-		} else if (Mem.platform() >= 1) {
+		} else if (Platform.apple() >= 1) {
 			UIKitWindow.poll(onEvent);
 			loopTurn();
 			if (running && windows.length > 0) {
@@ -254,7 +255,7 @@ class App {
 				}
 			}
 		} else {
-			if (Mem.os() == 1) CocoaWindow.poll(onFrame, onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
+			if (Platform.os() == 1) CocoaWindow.poll(onFrame, onEvent) else if (Platform.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Platform.os() == 3) CanvasWindow.poll(onEvent) else
 				if (WaylandWindow.chosen) WaylandWindow.poll(onEvent) else X11Window.poll(onEvent);
 			loopTurn();
 			if (running && windows.length > 0) {
@@ -262,7 +263,7 @@ class App {
 				onFrame();
 			}
 		}
-		if (Mem.os() == 1) Runtime.objc_autoreleasePoolPop(pool);
+		if (Platform.os() == 1) Runtime.objc_autoreleasePoolPop(pool);
 		#if hxmc.dev
 		helder.dev.Hot.framed();
 		#end
@@ -303,9 +304,9 @@ class App {
 		if (seconds < 0 || seconds > 0.01) seconds = 0.01;
 		#end
 		// (iOS: the display link held while the app sleeps: no vsync wakes it; Android asks for none)
-		if (Mem.platform() >= 1) UIKitWindow.pauseVsync();
-		if (Mem.platform() >= 1) UIKitWindow.wait(bounded(seconds)) else if (Mem.os() == 1) CocoaWindow.wait(bounded(seconds)) else if (Mem.os() == 2)
-			Win32Window.wait(bounded(seconds)) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) AndroidWindow.wait(bounded(seconds)) else
+		if (Platform.apple() >= 1) UIKitWindow.pauseVsync();
+		if (Platform.apple() >= 1) UIKitWindow.wait(bounded(seconds)) else if (Platform.os() == 1) CocoaWindow.wait(bounded(seconds)) else if (Platform.os() == 2)
+			Win32Window.wait(bounded(seconds)) else if (Platform.os() == 3) {} else if (Platform.target() >= 9) AndroidWindow.wait(bounded(seconds)) else
 			if (WaylandWindow.chosen) WaylandWindow.waitFor(seconds) else X11Window.waitFor(seconds);
 	}
 
@@ -321,9 +322,9 @@ class App {
 		#if helder.headless
 		return helder.headless.Headless.run.dark;
 		#end
-		if (Mem.os() == 3) return helder.os.web.Dom.prefers_dark() == 1;
-		if (Mem.platform() >= 1) return UIKitWindow.dark();
-		if (Mem.os() == 1) {
+		if (Platform.os() == 3) return helder.os.web.Dom.prefers_dark() == 1;
+		if (Platform.apple() >= 1) return UIKitWindow.dark();
+		if (Platform.os() == 1) {
 			var key = helder.os.objc.ObjC.str("AppleInterfaceStyle");
 			var v = helder.os.objc.Msg.idPtr(helder.os.objc.Msg.id(helder.os.objc.ObjC.cls("NSUserDefaults"), helder.os.objc.ObjC.sel("standardUserDefaults")),
 				helder.os.objc.ObjC.sel("stringForKey:"), key);
@@ -331,7 +332,7 @@ class App {
 			var s = v.isNull() ? null : helder.os.objc.ObjC.string(v);
 			return s != null && s.toLowerCase() == "dark";
 		}
-		if (Mem.os() == 2) return Arena.scopedValue(a -> {
+		if (Platform.os() == 2) return Arena.scopedValue(a -> {
 			var data:Ptr<Int32> = a.alloc(4), size:Ptr<Int32> = a.alloc(4);
 			size.value = 4;
 			// (HKEY_CURRENT_USER, RRF_RT_REG_DWORD)
@@ -340,7 +341,7 @@ class App {
 				a.wstring("AppsUseLightTheme"), 0x10, Ptr.nil(), data, size);
 			r == 0 && data.value == 0;
 		});
-		if (Mem.target() >= 9) return AndroidWindow.night();
+		if (Platform.target() >= 9) return AndroidWindow.night();
 		var gtk = Sys.getEnv("GTK_THEME");
 		if (gtk != null) return StringTools.endsWith(gtk.toLowerCase(), ":dark") || gtk.toLowerCase().indexOf("dark") >= 0;
 		var home = Sys.getEnv("HOME");

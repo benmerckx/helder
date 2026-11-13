@@ -1,6 +1,7 @@
 import helder.os.*;
 import helder.os.x11.Xlib;
 import helder.os.objc.*;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // helder.os's text input (npm test -- ui-draw under Xvfb; macOS in CI).
@@ -27,7 +28,7 @@ class TextInputTest {
 	}
 
 	static function main() {
-		if (Mem.os() == 1) CocoaTextInput.run() else X11TextInput.run();
+		if (Platform.os() == 1) CocoaTextInput.run() else X11TextInput.run();
 		Sys.println('TextInputTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
