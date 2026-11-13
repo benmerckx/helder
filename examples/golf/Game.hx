@@ -227,8 +227,14 @@ class Game {
 		renderer = r;
 		r.clearColor = new Color(0, 0, 0, 0);
 		r.rimPower = 3.0;
-		var s = Shadows.cascaded(r.device, 2048, 12);
+		// (one map: a hole's casters, its floating isles' too, fit 2048 texels
+		// of about 15 mm, as fine as a near cascade to 12 m was; soft, sharp
+		// where a piece meets the green: 12 taps a point and 6 for the
+		// blocker search, a phone's budget; the soft filter's own plane
+		// against acne, so a bias of a few cm: the low pieces still cast)
+		var s = new Shadows(r.device, 2048).soft(0.15, 12, 0.08);
 		s.strength = 0.55;
+		s.bias = 0.001;
 		r.use(s);
 		var post = r.post;
 		if (post != null) {
