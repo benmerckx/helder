@@ -137,7 +137,9 @@ fields of those types are typed slots, and code on them is plain native
 code: arithmetic on F64s, fields at fixed offsets, for-of over an array by
 index, `Math`'s functions called directly (Math is frozen). Such a class's
 constructor and methods are direct functions on a typed `this`: `new C(...)`
-makes and initializes the instance in place, and `o.m(...)` calls the
+makes and initializes the instance in place (C its declaration's name or an
+import of it: helder/gfx's Vec3 in a program's module, 64 bytes where the
+runtime's construct took 424), and `o.m(...)` calls the
 method o's class runs (found by o's prototype among C and its subclasses
 with layouts), the prototype keeping thin wrappers for dynamic calls. Its
 prototype is locked: replacing a method, or hiding one with an instance's
