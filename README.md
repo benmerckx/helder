@@ -979,7 +979,13 @@ fix.
       JWT): notarisation for macOS through its REST API, builds to
       TestFlight through Transporter (on Linux too) or the API's own
       build upload where it is available;
-    - optional store metadata (texts, screenshots) through the same APIs.
+    - optional store metadata (texts, screenshots) through the same APIs;
+    - `helder setup ios|android` (*landed*): the keys a store needs made
+      through its API, helder's own RSA keys and certificate requests (no
+      openssl): an Apple Distribution certificate and its App Store
+      profile, Play's upload key; the service account checked; the `gh
+      secret set` lines (`--github` runs them); what is left named, which
+      is what the stores have no API for (the app's record).
   - **Desktop stores**, after the direct packages (`helder build --package`,
     `helder publish --notarize`), with `--dry-run` building, signing and
     checking everything but the upload:

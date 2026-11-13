@@ -27,19 +27,29 @@ using StringTools;
 //     "notes": "...",                         what's new (App Store's whatsNew: not on an app's first version)
 //     "website", "support", "privacy":        https URLs; "email"; "copyright": "2026 Codeurs"
 //     "category": "GAMES_SPORTS",             App Store's (a game's: GAMES, and this its subcategory)
-//     "play": {"listing": {...}, "details": {...}},
+//     "play": {"listing": {...}, "details": {...}, "dataSafety": "store/data-safety.csv"},
 //     "appStore": {"app", "info", "infoLocalization", "version", "versionLocalization", "ageRating",
-//                  "reviewDetail": {...attributes}, "categories": {"secondaryCategory": "ENTERTAINMENT"}},
+//                  "reviewDetail": {...attributes}, "categories": {"secondaryCategory": "ENTERTAINMENT"},
+//                  "price": 0, "availability": {"territories": "all", "availableInNewTerritories": true}},
 //     "locales": {"nl-NL": {the localized fields, "play": {"listing"}, "appStore": {"infoLocalization", "versionLocalization"}}}
 //   }
 //
 // App Store Connect's age rating questions unanswered (null there, not
-// given here) are listed, so that one Apple adds shows up.
+// given here) are listed, so that one Apple adds shows up. The price (0:
+// free; {"amount": 0.99, "territory": "FRA"}: a base territory other
+// than the USA, the others priced from it by Apple) and the availability
+// (the territories: "all", or their codes, USA, BEL, ...) are sent when
+// they differ from App Store Connect's. Play's data safety form is its
+// CSV (exported once from Play Console: App content, Data safety, Export
+// to CSV), a file beside helder.json, sent each time (Play cannot read it
+// back).
 class Listing {
 	static final LOCALIZED = ["title", "subtitle", "summary", "description", "keywords", "promo", "notes"];
 	static final SHARED = LOCALIZED.concat(["website", "support", "privacy", "email", "copyright", "category", "play", "appStore", "locales"]);
-	static final PLAY = ["listing", "details"];
-	static final APP_STORE = ["app", "info", "infoLocalization", "version", "versionLocalization", "ageRating", "reviewDetail", "categories"];
+	static final PLAY = ["listing", "details", "dataSafety"];
+	static final APP_STORE = [
+		"app", "info", "infoLocalization", "version", "versionLocalization", "ageRating", "reviewDetail", "categories", "price", "availability"
+	];
 	static final LIMITS = ["title" => 30, "subtitle" => 30, "summary" => 80, "promo" => 170, "notes" => 4000];
 
 	// helder.json's listing checked (its mistakes named by its members)
@@ -94,8 +104,46 @@ class Listing {
 			if (!isObject(v)) throw '$file: $at.$s: an object';
 			var allowed = local ? (s == "play" ? ["listing"] : ["infoLocalization", "versionLocalization"]) : keys;
 			only(v, allowed, '$at.$s', file);
-			for (k in Reflect.fields(v)) if (!isObject(Reflect.field(v, k))) throw '$file: $at.$s.$k: an object of the store\'s attributes';
+			for (k in Reflect.fields(v)) {
+				var x:Dynamic = Reflect.field(v, k);
+				switch '$s.$k' {
+					case "play.dataSafety":
+						if (!Std.isOfType(x, String) || !(x : String).toLowerCase().endsWith(".csv"))
+							throw '$file: $at.play.dataSafety: a .csv file beside helder.json (Play Console\'s data safety export)';
+					case "appStore.price":
+						price(x, '$file: $at.appStore.price');
+					case "appStore.availability":
+						availability(x, '$file: $at.appStore.availability');
+					case _:
+						if (!isObject(x)) throw '$file: $at.$s.$k: an object of the store\'s attributes';
+				}
+			}
 		}
+	}
+
+	// listing.appStore.price: a number (0: free, in the USA's), or
+	// {"amount", "territory"} (the base territory, ISO 3166-1 alpha-3)
+	public static function price(v:Dynamic, at = "listing.appStore.price"):{amount:Float, territory:String} {
+		var amount:Dynamic = isObject(v) ? v.amount : v, territory:Dynamic = isObject(v) ? v.territory ?? "USA" : "USA";
+		if (isObject(v)) only(v, ["amount", "territory"], at, "");
+		if (!(Std.isOfType(amount, Float) || Std.isOfType(amount, Int)) || amount < 0)
+			throw '$at: a price (0: free), or {"amount": 0.99, "territory": "USA"}';
+		if (!Std.isOfType(territory, String) || !~/^[A-Z]{3}$/.match(territory)) throw '$at.territory: a territory\'s code (USA, FRA: ISO 3166-1 alpha-3)';
+		return {amount: amount, territory: territory};
+	}
+
+	// listing.appStore.availability: {"territories": "all" or ["USA", ...],
+	// "availableInNewTerritories"} (new ones: all's default yes, a list's no)
+	public static function availability(v:Dynamic, at = "listing.appStore.availability"):{all:Bool, territories:Array<String>, newOnes:Null<Bool>} {
+		if (!isObject(v)) throw '$at: an object ({"territories": "all", "availableInNewTerritories": true})';
+		only(v, ["territories", "availableInNewTerritories"], at, "");
+		var t:Dynamic = v.territories ?? "all", n:Dynamic = v.availableInNewTerritories;
+		if (n != null && !Std.isOfType(n, Bool)) throw '$at.availableInNewTerritories: true or false';
+		if (t == "all") return {all: true, territories: [], newOnes: n};
+		if (!Std.isOfType(t, Array) || (t : Array<Dynamic>).length == 0
+			|| !Lambda.foreach((t : Array<Dynamic>), x -> Std.isOfType(x, String) && ~/^[A-Z]{3}$/.match(x)))
+			throw '$at.territories: "all", or territories\' codes (["USA", "BEL"]: ISO 3166-1 alpha-3)';
+		return {all: false, territories: t, newOnes: n};
 	}
 
 	// ---- the values to send
@@ -227,6 +275,9 @@ class Listing {
 
 		// (the app's own attributes: contentRightsDeclaration, ...)
 		if (top.appStore?.app != null) patch(c, "apps", id, differ(merged(new Map(), top.appStore.app), app.attributes), "app");
+		// (the price and the territories)
+		if (top.appStore?.price != null) setPrice(c, id, price(top.appStore.price));
+		if (top.appStore?.availability != null) setAvailability(c, id, availability(top.appStore.availability));
 
 		// (the app info being edited: the one not yet live)
 		var infos:Array<Dynamic> = Publish.json("GET", '$api/v1/apps/$id/appInfos', token).data ?? [];
@@ -306,6 +357,135 @@ class Listing {
 		return version.id;
 	}
 
+	// (every page of a list: data and included, links.next followed)
+	@:coroutine static function pages(c:Asc, url:String):{data:Array<Dynamic>, included:Array<Dynamic>} {
+		var data = [], included = [], next:Null<String> = url, n = 0;
+		while (next != null && n++ < 50) {
+			var j:Dynamic = Publish.json("GET", next, c.token);
+			data = data.concat(j.data ?? []);
+			included = included.concat(j.included ?? []);
+			next = j.links?.next;
+		}
+		return {data: data, included: included};
+	}
+
+	// the price: the schedule's base territory and its manual price now,
+	// against ours; else a new schedule (POST /v1/appPriceSchedules) of the
+	// price point of that amount in that territory
+	@:coroutine static function setPrice(c:Asc, app:String, want:{amount:Float, territory:String}) {
+		var api = c.api;
+		var schedule:Dynamic = try Publish.json("GET", '$api/v1/apps/$app/appPriceSchedule', c.token).data catch (_:Dynamic) null;
+		var base:Null<String> = null, now:Null<Float> = null;
+		if (schedule != null) {
+			base = try Publish.json("GET", '$api/v1/appPriceSchedules/${schedule.id}/baseTerritory', c.token).data?.id catch (_:Dynamic) null;
+			if (base != null) {
+				var p = pages(c, '$api/v1/appPriceSchedules/${schedule.id}/manualPrices?include=appPricePoint&filter%5Bterritory%5D=$base&limit=200');
+				var today = DateTools.format(Date.now(), "%Y-%m-%d");
+				for (m in p.data) {
+					var a:Dynamic = m.attributes ?? {};
+					var from:Null<String> = a.startDate, until:Null<String> = a.endDate;
+					if ((from == null || from <= today) && (until == null || until > today)) {
+						var pp:Dynamic = Lambda.find(p.included, x -> x.type == "appPricePoints" && x.id == m.relationships?.appPricePoint?.data?.id);
+						if (pp != null) now = Std.parseFloat(pp.attributes.customerPrice);
+					}
+				}
+			}
+		}
+		if (base == want.territory && now != null && Math.abs(now - want.amount) < 0.001) return;
+		inline function shown(v:Float):String
+			return v == 0 ? "free" : Std.string(v);
+		c.changes.push('App Store price: ${shown(want.amount)} (${want.territory}${base == null ? "" : ", was " + (now == null ? "?" : shown(now)) + " in " + base})');
+		if (c.dry) return;
+		var found:Dynamic = null, next:Null<String> = '$api/v1/apps/$app/appPricePoints?filter%5Bterritory%5D=${want.territory}&limit=200', n = 0;
+		while (found == null && next != null && n++ < 50) {
+			var j:Dynamic = Publish.json("GET", next, c.token);
+			found = Lambda.find((j.data ?? [] : Array<Dynamic>), x -> Math.abs(Std.parseFloat(x.attributes?.customerPrice) - want.amount) < 0.001);
+			next = j.links?.next;
+		}
+		if (found == null) throw 'App Store Connect: no price point of ${want.amount} in ${want.territory} (listing.appStore.price: one of Apple\'s prices)';
+		Publish.json("POST", '$api/v1/appPriceSchedules', c.token, {
+			data: {
+				type: "appPriceSchedules",
+				relationships: {
+					app: {data: {type: "apps", id: app}},
+					baseTerritory: {data: {type: "territories", id: want.territory}},
+					manualPrices: {data: [{type: "appPrices", id: "${price}"}]}
+				}
+			},
+			included: [
+				{
+					type: "appPrices",
+					id: "${price}",
+					attributes: {startDate: null},
+					relationships: {appPricePoint: {data: {type: "appPricePoints", id: found.id}}}
+				}
+			]
+		}, 201);
+	}
+
+	// the territories: none yet, an availability made (POST
+	// /v2/appAvailabilities); else each territory's that differs patched
+	// (availableInNewTerritories is kept as made: App Store Connect's
+	// Pricing and Availability)
+	@:coroutine static function setAvailability(c:Asc, app:String, want:{all:Bool, territories:Array<String>, newOnes:Null<Bool>}) {
+		var api = c.api;
+		var wanted:Array<String> = want.all ? [for (t in pages(c, '$api/v1/territories?limit=200').data) t.id] : want.territories;
+		var newOnes = want.newOnes ?? want.all;
+		var have:Dynamic = try Publish.json("GET", '$api/v1/apps/$app/appAvailabilityV2', c.token).data catch (_:Dynamic) null;
+		if (have == null) {
+			c.changes.push('App Store availability: ${wanted.length} territories${newOnes ? ", new ones too" : ""}');
+			if (c.dry) return;
+			var ref = (t:String) -> "${" + t + "}";
+			Publish.json("POST", '$api/v2/appAvailabilities', c.token, {
+				data: {
+					type: "appAvailabilities",
+					attributes: {availableInNewTerritories: newOnes},
+					relationships: {
+						app: {data: {type: "apps", id: app}},
+						territoryAvailabilities: {data: [for (t in wanted) {type: "territoryAvailabilities", id: ref(t)}]}
+					}
+				},
+				included: [for (t in wanted) {
+					type: "territoryAvailabilities",
+					id: ref(t),
+					attributes: {available: true},
+					relationships: {territory: {data: {type: "territories", id: t}}}
+				}]
+			}, 201);
+			return;
+		}
+		var had:Null<Bool> = have.attributes?.availableInNewTerritories;
+		if (want.newOnes != null && had != null && had != want.newOnes)
+			Term.out(Style.status("by hand", Warn,
+				'App Store availability in new territories: ${want.newOnes} (App Store Connect\'s API keeps it as made: Pricing and Availability)'));
+		var list = pages(c, '$api/v2/appAvailabilities/${have.id}/territoryAvailabilities?include=territory&limit=200');
+		var change:Array<{id:String, territory:String, available:Bool}> = [];
+		for (ta in list.data) {
+			var t:Null<String> = ta.relationships?.territory?.data?.id;
+			if (t == null) continue;
+			var should = wanted.contains(t), is:Bool = ta.attributes?.available == true;
+			if (is != should) change.push({id: ta.id, territory: t, available: should});
+		}
+		if (change.length == 0) return;
+		c.changes.push('App Store availability: ${[for (x in change) (x.available ? "" : "not ") + x.territory].join(", ")}');
+		if (c.dry) return;
+		for (x in change)
+			Publish.json("PATCH", '$api/v1/territoryAvailabilities/${x.id}', c.token, {
+				data: {type: "territoryAvailabilities", id: x.id, attributes: {available: x.available}}
+			});
+	}
+
+	// ---- Google Play's data safety (no edit: sent whole, its CSV's text)
+
+	@:coroutine public static function dataSafety(l:Null<Dynamic>, root:String, base:String, token:String, dry:Bool):Array<String> {
+		var f:Null<String> = l?.play?.dataSafety;
+		if (f == null) return [];
+		var p = root == "." || root == "" || haxe.io.Path.isAbsolute(f) ? f : '$root/$f';
+		if (!FileSystem.exists(p)) throw 'listing.play.dataSafety: $p: no such file (Play Console: App content, Data safety, Export to CSV)';
+		if (!dry) Publish.json("POST", '$base/dataSafety', token, {safetyLabels: File.getContent(p)});
+		return ['Google Play data safety: $f'];
+	}
+
 	@:coroutine static function patch(c:Asc, type:String, rid:String, d:DynamicAccess<Dynamic>, what:String) {
 		if (d.keys().length == 0) return;
 		c.changes.push('App Store $what: ${names(d)}');
@@ -380,7 +560,7 @@ class Listing {
 
 	static function only(o:Dynamic, allowed:Array<String>, at:String, file:String)
 		for (k in Reflect.fields(o))
-			if (!allowed.contains(k)) throw '$file: $at.$k: not one of ${allowed.join(", ")}';
+			if (!allowed.contains(k)) throw (file == "" ? "" : '$file: ') + '$at.$k: not one of ${allowed.join(", ")}';
 
 	static function isObject(v:Dynamic):Bool
 		return v != null && Reflect.isObject(v) && !Std.isOfType(v, String) && !Std.isOfType(v, Array);

@@ -217,6 +217,167 @@ class Rsa {
 		return mod(one, m);
 	}
 
+	// ---- a new key (helder setup's: Apple's distribution certificate's,
+	// Play's upload key): two primes of bits/2, their top two bits set (n
+	// exactly bits long), each found from a random odd start counting up
+	// by 2, small primes sieved out, then Miller-Rabin with random bases;
+	// e = 65537, d its inverse mod (p-1)(q-1), the CRT's numbers. random:
+	// the system's (Entropy), a test's own
+
+	public static function generate(bits = 2048, ?random:Int->Bytes):RsaKey {
+		if (bits < 512 || bits % 16 != 0) throw 'RSA: $bits bits (512 or more, a multiple of 16)';
+		random ??= helder.pack.Entropy.bytes;
+		var e = 65537, one = fromInt(1);
+		while (true) {
+			var p = prime(bits >> 1, e, random), q = prime(bits >> 1, e, random);
+			var c = cmp(p, q);
+			if (c == 0) continue;
+			if (c < 0) {
+				var t = p;
+				p = q;
+				q = t;
+			}
+			var n = mul(p, q);
+			if (bitLength(n) != bits) continue;
+			var p1 = sub(p, one), q1 = sub(q, one);
+			var phi = mul(p1, q1);
+			// (d = (1 + k phi) / e, k = -phi^-1 mod e: e is small)
+			var k = (e - inverseSmall(modSmall(phi, e), e)) % e;
+			var d = divSmall(add(one, mul(phi, fromInt(k))), e);
+			// (q^-1 mod p: q^(p-2), p prime)
+			var qi = new Mont(p).pow(mod(q, p), sub(p, fromInt(2)));
+			return {
+				n: unsigned(n),
+				e: unsigned(fromInt(e)),
+				d: unsigned(d),
+				p: unsigned(p),
+				q: unsigned(q),
+				dp: unsigned(mod(d, p1)),
+				dq: unsigned(mod(d, q1)),
+				qi: unsigned(qi)
+			};
+		}
+	}
+
+	static var smallPrimes:Null<Array<Int>> = null;
+
+	// a prime of bits, p - 1 prime to e
+	static function prime(bits:Int, e:Int, random:Int->Bytes):Vector<Int> {
+		if (smallPrimes == null) {
+			var sieve = new Vector<Bool>(2048, true);
+			smallPrimes = [];
+			for (i in 3...2048) if (sieve[i] && i % 2 == 1) {
+				smallPrimes.push(i);
+				var j = i * i;
+				while (j < 2048) {
+					sieve[j] = false;
+					j += i;
+				}
+			}
+		}
+		var two = fromInt(2);
+		while (true) {
+			var b = random(bits >> 3);
+			b.set(0, b.get(0) | 0xc0);
+			b.set(b.length - 1, b.get(b.length - 1) | 1);
+			var c = fromBytes(b);
+			for (_ in 0...4096) {
+				if (bitLength(c) != bits) break;
+				if (!Lambda.exists(smallPrimes, s -> modSmall(c, s) == 0) && modSmall(c, e) != 1 && probablyPrime(c, 12, random)) return c;
+				c = add(c, two);
+			}
+		}
+	}
+
+	// Miller-Rabin: n - 1 = 2^s d, a^d 1 or -1, or one of its squares -1
+	public static function probablyPrime(n:Vector<Int>, rounds:Int, random:Int->Bytes):Bool {
+		var one = fromInt(1), two = fromInt(2);
+		var n1 = sub(n, one);
+		var d = n1, s = 0;
+		while (d[0] & 1 == 0) {
+			d = shr1(d);
+			s++;
+		}
+		var m = new Mont(n), len = (bitLength(n) + 7) >> 3;
+		var r = 0;
+		while (r < rounds) {
+			var a = fromBytes(random(len - 1));
+			if (cmp(a, two) < 0) continue;
+			r++;
+			var x = m.pow(a, d);
+			if (cmp(x, one) == 0 || cmp(x, n1) == 0) continue;
+			var witness = true;
+			for (_ in 1...s) {
+				x = m.pow(x, two);
+				if (cmp(x, n1) == 0) {
+					witness = false;
+					break;
+				}
+				if (cmp(x, one) == 0) break;
+			}
+			if (witness) return false;
+		}
+		return true;
+	}
+
+	static function fromInt(v:Int):Vector<Int>
+		return fromBytes(Bytes.ofHex(StringTools.hex(v, 8)));
+
+	// (the big-endian bytes without leading zeros)
+	static function unsigned(a:Vector<Int>):Bytes {
+		var b = toBytes(a, (bitLength(a) + 7) >> 3);
+		return b.length == 0 ? Bytes.ofHex("00") : b;
+	}
+
+	static function shr1(a:Vector<Int>):Vector<Int> {
+		var r = new Vector<Int>(a.length, 0);
+		for (i in 0...a.length)
+			r[i] = (a[i] >> 1) | (i + 1 < a.length ? (a[i + 1] & 1) << (BITS - 1) : 0);
+		return trim(r);
+	}
+
+	// (a mod m, m < 2^16: 15 bits a limb in two steps, each product under 2^31)
+	static function modSmall(a:Vector<Int>, m:Int):Int {
+		var r = 0, i = a.length - 1;
+		while (i >= 0) {
+			r = (r * 128 + (a[i] >> 8)) % m;
+			r = (r * 256 + (a[i] & 0xff)) % m;
+			i--;
+		}
+		return r;
+	}
+
+	static function divSmall(a:Vector<Int>, m:Int):Vector<Int> {
+		var q = new Vector<Int>(a.length, 0), r = 0, i = a.length - 1;
+		while (i >= 0) {
+			var t = r * 128 + (a[i] >> 8);
+			var q1 = Std.int(t / m);
+			r = t - q1 * m;
+			t = r * 256 + (a[i] & 0xff);
+			var q2 = Std.int(t / m);
+			r = t - q2 * m;
+			q[i] = q1 * 256 + q2;
+			i--;
+		}
+		return trim(q);
+	}
+
+	// x with a x = 1 mod m (a prime to m)
+	static function inverseSmall(a:Int, m:Int):Int {
+		var t = 0, nt = 1, r = m, nr = a % m;
+		while (nr != 0) {
+			var q = Std.int(r / nr);
+			var x = t - q * nt;
+			t = nt;
+			nt = x;
+			x = r - q * nr;
+			r = nr;
+			nr = x;
+		}
+		if (r != 1) throw "RSA: not invertible";
+		return t < 0 ? t + m : t;
+	}
+
 	public static function pad(a:Vector<Int>, n:Int):Vector<Int> {
 		var r = new Vector<Int>(n, 0);
 		for (i in 0...(a.length < n ? a.length : n))

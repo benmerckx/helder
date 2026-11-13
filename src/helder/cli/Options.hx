@@ -172,11 +172,30 @@ class Options {
 				{key: "listing", names: ["--listing"], about: "the stores' listings (--play, --testflight: one; else both): helder.json's listing (the text) and the screenshots, what changed"},
 				{key: "submit", names: ["--submit"], about: "--testflight: the build, once processed, on the App Store version and sent for App Review"},
 				{key: "locale", names: ["--locale"], value: "<l>", about: "the listing's language (en-US)"},
-				{key: "no-screenshot", names: ["--no-screenshot"], about: "--run: no screenshots rendered (the store stories, or one of the program) when helder.json's run.screenshots names none"},
+				{key: "no-screenshot", names: ["--no-screenshot"], about: "--listing: the text alone, the stores' screenshots left as they are; --run: no screenshots rendered (the store stories, or one of the program) when helder.json's run.screenshots names none"},
 			],
 			notes: [
 				"with no destination, each one helder.json names: helder.run when it has a run block,",
 				"then its targets' publish lists (targets.android.publish: [\"play\"], ...)",
+			],
+		},
+		{
+			name: "setup",
+			usage: "<ios|android> [entry] [options]",
+			about: "a store's keys made through its API: ios a distribution certificate and its profile, android Play's upload key; the gh secret set lines",
+			entry: true,
+			common: [],
+			own: [
+				{key: "out", names: ["-o", "--out"], value: "<dir>", about: "where the keys are written (~/.helder/<app>/apple or /android; never in the project)"},
+				{key: "github", names: ["--github"], about: "the secrets set on this GitHub repository (gh secret set, each from its file)"},
+			],
+			notes: [
+				"ios: the App Store Connect API key (HELDER_ASC_API_KEY, or HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID,",
+				"HELDER_ASC_KEY): the App ID (made when missing), the app's record (looked up: made by hand),",
+				"identity.pem (an Apple Distribution certificate, its key made here), its App Store profile;",
+				"android: upload-identity.pem (Play's upload key and certificate), its SHA-1 and SHA-256; with",
+				"HELDER_PLAY_SERVICE_ACCOUNT an edit opened and deleted, what to fix when Google refuses.",
+				"files that exist are kept, never overwritten; secrets are never printed",
 			],
 		},
 		{
@@ -354,6 +373,12 @@ class Options {
 	}
 
 	function check(c:Command, exists:String->Bool) {
+		if (command == "setup") {
+			if (positionals.length == 0) throw usage("ios or android: helder setup ios", true);
+			if (positionals[0] != "ios" && positionals[0] != "android") throw usage('${positionals[0]}: ios or android', true);
+			if (positionals.length > 2) throw usage('one entry, not ${positionals.slice(1).join(" and ")}');
+			return;
+		}
 		if (c.entry) {
 			if (positionals.length > 1) throw usage('one entry, not ${positionals.join(" and ")}');
 			var p = positionals[0];
