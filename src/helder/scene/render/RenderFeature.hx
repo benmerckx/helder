@@ -28,6 +28,8 @@ class ShadowFrame {
 	public var mapFar:helder.gfx.Texture = cast 0;
 	public var viewProjFar:helder.gfx.shader.Mat4 = helder.gfx.shader.Mat4.identity();
 	public var paramsFar:helder.gfx.shader.Vec4 = new helder.gfx.shader.Vec4(0, 0, 0, 0);
+	// the soft filter's (PbrFrame.shadowSoft; x 0: the 3x3 filter)
+	public var soft:helder.gfx.shader.Vec4 = new helder.gfx.shader.Vec4(0, 0, 0, 0);
 	// the last frame's draws into the maps, every cascade's
 	public var draws = 0;
 

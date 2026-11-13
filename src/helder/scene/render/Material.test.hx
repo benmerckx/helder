@@ -34,7 +34,7 @@ function tests() {
 				sky: new Vec4(0.1, 0.1, 0.1, 0), ground: new Vec4(0.1, 0.1, 0.1, 0), exposure: new Vec4(1, 1, 0, 0), lightViewProj: Mat4.identity(),
 				shadow: zero, point0: zero, point1: zero, point2: zero, point3: zero, pointColor0: zero, pointColor1: zero, pointColor2: zero,
 				pointColor3: zero, spot0: new Vec4(0, 0, 0, -2), spot1: new Vec4(0, 0, 0, -2), spot2: new Vec4(0, 0, 0, -2), spot3: new Vec4(0, 0, 0, -2),
-				lightViewProjFar: Mat4.identity(), shadowFar: zero, environment: zero, rim: zero, fog: Fog.colorOf(fog), fogShape: Fog.shapeOf(fog)
+				lightViewProjFar: Mat4.identity(), shadowFar: zero, environment: zero, rim: zero, fog: Fog.colorOf(fog), fogShape: Fog.shapeOf(fog), shadowSoft: zero
 			};
 		}
 		function material(m:Material):PbrMaterial

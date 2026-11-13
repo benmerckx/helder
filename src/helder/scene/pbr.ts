@@ -8,7 +8,7 @@
 // PbrShader.hx: what one changes the other does.
 import {
 	slots, position, vec2, vec3, vec4, mat4, sample, sampleLevel, dot, cross, normalize, reflect, mix, clamp, smoothstep, pow, min, max, abs,
-	sqrt, floor, step, discard, length, exp, type Vec2, type Vec3, type Vec4, type Mat4, type Texture2D,
+	sqrt, floor, fract, step, discard, length, exp, type Vec2, type Vec3, type Vec4, type Mat4, type Texture2D,
 } from "helder/gfx";
 
 // the combined vertex: a variant's attributes those it reads, in this order
@@ -24,7 +24,7 @@ export type PbrFrame = {
 	viewProj: Mat4, eye: Vec4, lightDir: Vec4, lightColor: Vec4, sky: Vec4, ground: Vec4, exposure: Vec4, lightViewProj: Mat4, shadow: Vec4,
 	point0: Vec4, point1: Vec4, point2: Vec4, point3: Vec4, pointColor0: Vec4, pointColor1: Vec4, pointColor2: Vec4, pointColor3: Vec4,
 	spot0: Vec4, spot1: Vec4, spot2: Vec4, spot3: Vec4, lightViewProjFar: Mat4, shadowFar: Vec4, environment: Vec4, rim: Vec4,
-	fog: Vec4, fogShape: Vec4,
+	fog: Vec4, fogShape: Vec4, shadowSoft: Vec4,
 };
 
 // per draw: the node's matrices
@@ -288,15 +288,15 @@ function shadowed(frame: PbrFrame, map: Texture2D, far: Texture2D, world: Vec3, 
 	const strength = frame.shadow.x;
 	let result = 1.0;
 	if (strength > 0) {
-		let lit = cascade(map, frame.lightViewProj, frame.shadow, world, nl);
-		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, world, nl);
-		if (lit >= 0) result = 1 - strength * (1 - lit / 9);
+		let lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, nl);
+		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, nl);
+		if (lit >= 0) result = 1 - strength * (1 - lit);
 	}
 	return result;
 }
 
-// a cascade's lit taps (0 to 9) at a point, or -1 where its map does not reach
-function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: number): number {
+// a cascade's lit share (0 to 1) at a point, or -1 where its map does not reach
+function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, soft: Vec4, deep: number, world: Vec3, nl: number): number {
 	let result = -1.0;
 	const ls = viewProj.mul(vec4(world, 1));
 	const p = ls.xyz.div(ls.w);
@@ -304,9 +304,11 @@ function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: 
 	if (uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1 && p.z < 1) {
 		const depth = p.z - params.y * (1 + 2 * (1 - nl));
 		const t = params.z;
-		result = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
-			+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
-			+ tap(map, uv, depth, t, t);
+		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, nl);
+		else
+			result = (tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
+				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
+				+ tap(map, uv, depth, t, t)) / 9;
 	}
 	return result;
 }
@@ -314,6 +316,52 @@ function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: 
 // 1 where the map's depth at uv + (dx, dy) is not nearer than depth
 function tap(map: Texture2D, uv: Vec2, depth: number, dx: number, dy: number): number {
 	return step(depth, sampleLevel(map, uv.add(vec2(dx, dy)), 0).x);
+}
+
+// the soft filter's lit share (Shadows.soft; PbrShader.hx's softly)
+function softly(map: Texture2D, uv: Vec2, depth: number, widest: number, texel: number, soft: Vec4, deep: number, nl: number): number {
+	const n = soft.x;
+	const slope = deep * min(sqrt(max(1 - nl * nl, 0)) / max(nl, 0.05), 4);
+	const cell = fract(floor(uv.div(texel)).div(64)).mul(64);
+	const h = fract(52.9829189 * fract(dot(cell, vec2(0.06711056, 0.00583715))));
+	const t = 2 * fract(2 * h) - 1;
+	const start = vec2(1 - t * t, 2 * t).mul((h < 0.5 ? 1 : -1) / (1 + t * t));
+	const c = -0.7373688;
+	const s = 0.6754903;
+	let radius = widest;
+	let lit = -1.0;
+	if (soft.w > 0) {
+		const m = max(floor(n * 0.5), 4);
+		let dir = start;
+		let sum = 0.0;
+		let found = 0.0;
+		let k = 0.0;
+		while (k < m) {
+			const at = sqrt((k + 0.5) / m) * widest;
+			const d = sampleLevel(map, uv.add(dir.mul(at)), 0).x;
+			if (d < depth - (at + texel) * slope) {
+				sum += d;
+				found += 1;
+			}
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		if (found > 0) radius = clamp((depth - sum / found) * soft.w / max(deep, 0.0001), texel * 1.5, widest);
+		else lit = 1;
+	}
+	if (lit < 0) {
+		let dir = start;
+		let sum = 0.0;
+		let k = 0.0;
+		while (k < n) {
+			const at = sqrt((k + 0.5) / n) * radius;
+			sum += step(depth - (at + texel) * slope, sampleLevel(map, uv.add(dir.mul(at)), 0).x);
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		lit = sum / n;
+	}
+	return lit;
 }
 
 // how much of the fog lies between the eye and a point (PbrShader.hx's fogAmount)

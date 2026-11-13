@@ -17,7 +17,8 @@ import helder.scene.render.ShadowInstancedShader;
 // the light into size x size R32F targets (the casters of one primitive
 // in one instanced draw, their matrices in an instance buffer written once
 // for every cascade), which the standard material then reads with a 3x3
-// percentage-closer filter. One cascade: an
+// percentage-closer filter, or a soft one (soft: a wider disc of taps,
+// sharper where the shadow meets its caster). One cascade: an
 // orthographic view fitted to the casters' bounds. Two (Shadows.cascaded,
 // whose fitting code a program without it does not link):
 // the first fitted to the camera's view up to split metres (its bounding
@@ -40,6 +41,13 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	// the first cascade's map (one cascade: the only one), the second's
 	public final map:Texture;
 	public var mapFar(default, null):Texture;
+	// the soft filter (soft): the widest penumbra's radius in metres (0: the
+	// 3x3 filter), its taps a point (8 for phones, 16, 32), and how much
+	// the penumbra widens a metre from its caster (0: the radius
+	// everywhere, no blocker search)
+	public var softRadius = 0.0;
+	public var softSamples = 16;
+	public var softSpread = 0.0;
 	// the last frame's draws into the maps (every cascade's: a primitive's
 	// casters one instanced draw, a skinned caster one draw)
 	public var draws(default, null) = 0;
@@ -69,6 +77,11 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	var instanceBytes = Bytes.alloc(64 * 64);
 	var instanceBuffer:Buffer = Buffer.NONE;
 	var instanceCapacity = 0;
+	// (the last frame's maps' width and depth in metres: the first's, the second's)
+	var nearWidth = 1.0;
+	var nearRange = 1.0;
+	var farWidth = 1.0;
+	var farRange = 1.0;
 	// (two cascades: the first's fitting, set by cascaded)
 	var fit:Null<(Renderer.FrameInfo, Vec3, Vec3, Vec3, Float) -> Mat4>;
 
@@ -99,6 +112,18 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		return s;
 	}
 
+	// the soft filter on (returns the shadows): taps on a disc out to radius
+	// metres, samples a point (8: phones; 16; 32), and with a spread a
+	// blocker search first, the penumbra growing by spread a metre from its
+	// caster up to the radius (contact hardening: PCSS); spread 0, the
+	// radius everywhere
+	public function soft(radius = 0.1, samples = 16, spread = 0.05):Shadows {
+		softRadius = radius;
+		softSamples = samples;
+		softSpread = spread;
+		return this;
+	}
+
 	public function attach(renderer:Renderer)
 		@:privateAccess renderer.shadowSource = this;
 
@@ -107,10 +132,12 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	public function shadowFrame():RenderFeature.ShadowFrame {
 		frame.map = map;
 		frame.viewProj = viewProj;
-		frame.params = new Vec4(strength, cascades == 2 ? nearBias : bias, 1 / size, 0);
+		var on = softRadius > 0 && softSamples > 0;
+		frame.params = new Vec4(strength, cascades == 2 ? nearBias : bias, 1 / size, on ? softRadius / nearWidth : 0);
 		frame.mapFar = mapFar;
 		frame.viewProjFar = viewProjFar;
-		frame.paramsFar = cascades == 2 ? new Vec4(strength, bias, 1 / size, 0) : frame.params;
+		frame.paramsFar = cascades == 2 ? new Vec4(strength, bias, 1 / size, on ? softRadius / farWidth : 0) : frame.params;
+		frame.soft = on ? new Vec4(softSamples, nearWidth / nearRange, farWidth / farRange, softSpread) : new Vec4(0, 0, 0, 0);
 		frame.draws = draws;
 		return frame;
 	}
@@ -164,6 +191,9 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		var up = Math.abs(toLight.y) > 0.99 ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
 		var whole = Mat4.orthographic(-r, r, -r, r, r * 0.5, r * 3.5) * MathTools.lookAt(c + toLight * (2 * r), c, up);
 		draws = 0;
+		// (each map's width and depth in metres: the soft filter's radius in its uv, its slopes)
+		farWidth = nearWidth = 2 * r;
+		farRange = nearRange = 3 * r;
 		if (fit == null || view.camera == null) {
 			viewProj = viewProjFar = whole;
 			draw(enc, pass, world, skins, viewProj);
@@ -207,6 +237,8 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		var toCentre = c - snapped, back = Math.sqrt(toCentre.x * toCentre.x + toCentre.y * toCentre.y + toCentre.z * toCentre.z) + r;
 		// (the bias: as many of this map's texels as the whole map's, in its depth)
 		nearBias = bias * (3 * r / (back + radius + r)) * (radius / r);
+		nearWidth = 2 * radius;
+		nearRange = back + radius + r - 0.01;
 		return Mat4.orthographic(-radius, radius, -radius, radius, 0.01, back + radius + r) * MathTools.lookAt(snapped + toLight * back, snapped, up);
 	}
 

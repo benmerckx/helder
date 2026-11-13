@@ -146,6 +146,13 @@ typedef Pbr = {
 	// density (0: none); x its start, y its falloff, z its height, w the most
 	var fog:Vec4;
 	var fogShape:Vec4;
+	// the soft shadow filter (Shadows.soft): x its taps (0: the 3x3
+	// filter), y and z a uv's depth in the first and the second cascade's
+	// maps (their width over their depth: a slope's change of depth across
+	// a uv), w the penumbra's spread a metre from the caster (0: the
+	// radius alone, no blocker search); shadow.w and shadowFar.w each
+	// cascade's widest radius, in its uv
+	var shadowSoft:Vec4;
 }
 
 // per draw: the node's matrices
@@ -446,21 +453,24 @@ function point(n:Vec3, v:Vec3, world:Vec3, base:Vec3, metallic:Float, a2:Float, 
 
 // the direct light's share at a point (1: lit) from the shadow maps: the
 // first cascade's where it reaches, else the second's; a 3x3
-// percentage-closer filter; 1 outside them or without shadows
+// percentage-closer filter, or the soft one (Shadows.soft); 1 outside
+// them or without shadows
 function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, nl:Float):Float {
 	var strength = frame.shadow.x;
 	var result = 1.0;
 	if (strength > 0) {
-		var lit = cascade(map, frame.lightViewProj, frame.shadow, world, nl);
-		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, world, nl);
-		if (lit >= 0) result = 1 - strength * (1 - lit / 9);
+		var lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, nl);
+		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, nl);
+		if (lit >= 0) result = 1 - strength * (1 - lit);
 	}
 	return result;
 }
 
-// a cascade's lit taps (0 to 9) at a point, or -1 where its map does not
-// reach (params: y the bias, z a texel of the map)
-function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float):Float {
+// a cascade's lit share (0 to 1) at a point, or -1 where its map does not
+// reach (params: y the bias, z a texel of the map, w the soft filter's
+// widest radius in its uv; soft and deep: shadowSoft's, this map's depth
+// a uv)
+function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, soft:Vec4, deep:Float, world:Vec3, nl:Float):Float {
 	var result = -1.0;
 	var ls = viewProj * vec4(world, 1);
 	var p = ls.xyz / ls.w;
@@ -469,9 +479,11 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float
 		// (more bias where the light grazes the surface)
 		var depth = p.z - params.y * (1 + 2 * (1 - nl));
 		var t = params.z;
-		result = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
-			+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
-			+ tap(map, uv, depth, t, t);
+		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, nl);
+		else
+			result = (tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
+				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
+				+ tap(map, uv, depth, t, t)) / 9;
 	}
 	return result;
 }
@@ -479,6 +491,64 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float
 // 1 where the map's depth at uv + (dx, dy) is not nearer than depth
 function tap(map:Texture2D, uv:Vec2, depth:Float, dx:Float, dy:Float):Float
 	return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
+
+// the soft filter's lit share (Shadows.soft): soft.x taps on a golden-angle
+// spiral (Vogel's disc) out to a radius, turned at each of the map's
+// texels by interleaved gradient noise (of the whole texel modulo 64,
+// exact in floats: the same turn on every GPU); with a spread (soft.w), first a blocker
+// search over the widest radius with half as many taps, the radius then
+// the penumbra's at the blockers' mean distance (PCSS: sharp where the
+// shadow meets its caster, softer away from it), a texel and a half at
+// least; none found: lit. Each tap's depth lowered by the surface's slope
+// across its distance and a texel more (the nearest texel's reach; deep:
+// this map's depth a uv), so a tilted surface does not shadow itself
+function softly(map:Texture2D, uv:Vec2, depth:Float, widest:Float, texel:Float, soft:Vec4, deep:Float, nl:Float):Float {
+	var n = soft.x;
+	var slope = deep * min(sqrt(max(1 - nl * nl, 0)) / max(nl, 0.05), 4);
+	var cell = fract(floor(uv / texel) / 64) * 64;
+	var h = fract(52.9829189 * fract(dot(cell, vec2(0.06711056, 0.00583715))));
+	// (the turn without trigonometry, whose precision GPUs differ in: a half
+	// turn's direction from t = tan(angle / 2), the other half its opposite)
+	var t = 2 * fract(2 * h) - 1;
+	var start = vec2(1 - t * t, 2 * t) * ((h < 0.5 ? 1 : -1) / (1 + t * t));
+	// (the golden angle's turn, a tap to the next)
+	var c = -0.7373688;
+	var s = 0.6754903;
+	var radius = widest;
+	var lit = -1.0;
+	if (soft.w > 0) {
+		var m = max(floor(n * 0.5), 4);
+		var dir = start;
+		var sum = 0.0;
+		var found = 0.0;
+		var k = 0.0;
+		while (k < m) {
+			var at = sqrt((k + 0.5) / m) * widest;
+			var d = sampleLevel(map, uv + dir * at, 0).x;
+			if (d < depth - (at + texel) * slope) {
+				sum += d;
+				found += 1;
+			}
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		if (found > 0) radius = clamp((depth - sum / found) * soft.w / max(deep, 0.0001), texel * 1.5, widest);
+		else lit = 1;
+	}
+	if (lit < 0) {
+		var dir = start;
+		var sum = 0.0;
+		var k = 0.0;
+		while (k < n) {
+			var at = sqrt((k + 0.5) / n) * radius;
+			sum += step(depth - (at + texel) * slope, sampleLevel(map, uv + dir * at, 0).x);
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		lit = sum / n;
+	}
+	return lit;
+}
 
 // how much of the fog (Fog: colour and density, shape) lies between the
 // eye and a point, 0 to its most: 1 - e^(-the density summed along the

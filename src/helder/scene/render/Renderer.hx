@@ -350,13 +350,14 @@ class Renderer {
 		if (!sun && lights.length > 0) c = new Vec3(0, 0, 0);
 		l = l / Math.sqrt(l.x * l.x + l.y * l.y + l.z * l.z);
 		var lightViewProj:Mat4 = Mat4.identity(), lightViewProjFar:Mat4 = Mat4.identity();
-		var shadow:Vec4 = new Vec4(0, 0, 0, 0), shadowFar:Vec4 = new Vec4(0, 0, 0, 0);
+		var shadow:Vec4 = new Vec4(0, 0, 0, 0), shadowFar:Vec4 = new Vec4(0, 0, 0, 0), soft:Vec4 = new Vec4(0, 0, 0, 0);
 		if (shadowed) {
 			var f = shadowSource.shadowFrame();
 			lightViewProj = f.viewProj;
 			shadow = f.params;
 			lightViewProjFar = f.viewProjFar;
 			shadowFar = f.paramsFar;
+			soft = f.soft;
 		}
 		PbrShader.params.frame.write({
 			viewProj: viewProj,
@@ -385,7 +386,8 @@ class Renderer {
 			environment: environment != null ? new Vec4(environment.intensity, environment.levels, environment.rows, @:privateAccess environment.edge) : new Vec4(0, 0, 0, 0),
 			rim: new Vec4(rim.x, rim.y, rim.z, rimPower),
 			fog: Fog.colorOf(fog),
-			fogShape: Fog.shapeOf(fog)
+			fogShape: Fog.shapeOf(fog),
+			shadowSoft: soft
 		}, frameBytes);
 		return l;
 	}

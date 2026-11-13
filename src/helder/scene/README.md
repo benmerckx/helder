@@ -279,7 +279,14 @@ blur). Shadows are opted in:
 `renderer.use(new Shadows(device))` (one shadow map for the directional
 light, fitted to the casters, filtered 3x3; `Shadows.cascaded(device, size, split)`:
 two cascades, the first sharp over the camera's view up to `split`
-metres; a primitive's casters one instanced draw a cascade). `Shapes.box`, `sphere` and
+metres; a primitive's casters one instanced draw a cascade). Softer
+shadows are opted in with `.soft(radius, samples, spread)`: a disc of
+`samples` taps (8 for phones, 16, 32) out to `radius` metres, turned per
+texel; with a `spread` a blocker search first (half as many taps), the
+penumbra widening by `spread` a metre from its caster up to the radius,
+so a shadow is sharp where it meets what casts it (PCSS); `spread` 0, the
+radius everywhere (tests/3d's `softshadows` frame; `shadows` and
+`cascades` keep the 3x3 filter). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need
 `renderer.use(new Skinning(device))`; materials' normal maps need
 `renderer.use(new NormalMaps(device))`, made before the models load (they
