@@ -46,6 +46,8 @@ class Cli {
 				Async.main(task -> Sys.exit(Inspect.run(task, o)));
 			case "publish":
 				Async.main(_ -> Sys.exit(Publish.run(o)));
+			case "setup":
+				Async.main(_ -> Sys.exit(Setup.run(o)));
 			case "share":
 				Async.main(_ -> Sys.exit(Run.share(o)));
 			case "login":

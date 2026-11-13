@@ -73,9 +73,10 @@ class Publish {
 			1;
 		}
 		if (shots || listing) return try {
-			Term.out(Style.header("publish", ["store screenshots", e.main]));
+			Term.out(Style.header("publish", [listing ? "store listings" : "store screenshots", e.main]));
 			var dir = "bin/store";
-			var list = screenshots(e, dir, App.android(e.name, e.config).orientation == "landscape");
+			// (--listing --no-screenshot: the text alone, the stores' screenshots left as they are)
+			var list = listing && o.has("no-screenshot") ? [] : screenshots(e, dir, App.android(e.name, e.config).orientation == "landscape");
 			var changes = [];
 			if (listing) {
 				var both = !play && !testflight;
@@ -234,8 +235,7 @@ class Publish {
 
 	@:coroutine public static function toPlay(aab:String, pkg:String, versionCode:Int, track:String, draft:Bool, dry:Bool, sa:Dynamic) {
 		if (!["internal", "alpha", "beta", "production"].contains(track)) throw '--track $track: internal, alpha, beta or production';
-		var api = (Sys.getEnv("HELDER_PLAY_API") ?? "").trim();
-		if (api == "") api = PLAY;
+		var api = playApi();
 		var base = '$api/androidpublisher/v3/applications/$pkg';
 		var token = googleToken(sa);
 		var edit:String = json("POST", '$base/edits', token, {}).id;
@@ -260,6 +260,17 @@ class Publish {
 	}
 
 	// ---- App Store Connect
+
+	// the APIs' bases (HELDER_ASC_API, HELDER_PLAY_API: the tests' stand-in)
+	public static function ascApi():String {
+		var api = (Sys.getEnv("HELDER_ASC_API") ?? "").trim();
+		return api == "" ? ASC : api;
+	}
+
+	public static function playApi():String {
+		var api = (Sys.getEnv("HELDER_PLAY_API") ?? "").trim();
+		return api == "" ? PLAY : api;
+	}
 
 	// the App Store Connect API key: HELDER_ASC_API_KEY (one secret: JSON
 	// {"key_id", "issuer_id", "private_key"}, its path or text), else
@@ -294,8 +305,7 @@ class Publish {
 	}
 
 	@:coroutine public static function toTestFlight(ipa:String, bundleId:String, version:String, build:String, dry:Bool, k:{id:String, issuer:String, key:PrivateKey}, submit = false) {
-		var api = (Sys.getEnv("HELDER_ASC_API") ?? "").trim();
-		if (api == "") api = ASC;
+		var api = ascApi();
 		var token = ascToken(k);
 		var apps:Array<Dynamic> = json("GET", '$api/v1/apps?filter%5BbundleId%5D=' + StringTools.urlEncode(bundleId), token).data;
 		if (apps == null || apps.length == 0) throw 'App Store Connect has no app $bundleId (make its record first: Apps, +, New App)';
@@ -387,8 +397,7 @@ class Publish {
 	// Google Play's listing: each image type's screenshots against ours by
 	// SHA-256: the ones not ours deleted, ours not there uploaded, committed
 	@:coroutine static function playListing(e:Entry, dir:String, list:Array<Dynamic>, pkg:String, lang:String, dry:Bool, sa:Dynamic):Array<String> {
-		var api = (Sys.getEnv("HELDER_PLAY_API") ?? "").trim();
-		if (api == "") api = PLAY;
+		var api = playApi();
 		var base = '$api/androidpublisher/v3/applications/$pkg';
 		var token = googleToken(sa);
 		var edit:String = json("POST", '$base/edits', token, {}).id;
@@ -414,6 +423,7 @@ class Publish {
 				}
 		}
 		if (dry || changes.length == 0) json("DELETE", '$base/edits/$edit', token) else json("POST", '$base/edits/$edit:commit', token);
+		changes = changes.concat(Listing.dataSafety(cfg?.listing, e.root, base, token, dry));
 		for (c in changes) Term.out(Style.status(dry ? "would" : "listing", dry ? Info : Ok, c));
 		return changes;
 	}
@@ -424,8 +434,7 @@ class Publish {
 	// deleted, ours missing uploaded (reserved, the parts sent, committed)
 	@:coroutine static function ascListing(e:Entry, dir:String, list:Array<Dynamic>, ios:Dynamic, locale:String, dry:Bool, k:{id:String, issuer:String, key:PrivateKey}):Array<String> {
 		var bundleId:String = ios.id;
-		var api = (Sys.getEnv("HELDER_ASC_API") ?? "").trim();
-		if (api == "") api = ASC;
+		var api = ascApi();
 		var token = ascToken(k);
 		var apps:Array<Dynamic> = json("GET", '$api/v1/apps?filter%5BbundleId%5D=' + StringTools.urlEncode(bundleId), token).data;
 		if (apps == null || apps.length == 0) throw 'App Store Connect has no app $bundleId';
@@ -434,6 +443,10 @@ class Publish {
 		if (version == null) {
 			for (c in changes) Term.out(Style.status("would", Info, c));
 			Term.out(Style.status("would", Info, 'App Store screenshots: compared once version ${ios.versionName} is made'));
+			return changes;
+		}
+		if (!Lambda.exists(list, s -> s.store == "ios")) {
+			for (c in changes) Term.out(Style.status(dry ? "would" : "listing", dry ? Info : Ok, c));
 			return changes;
 		}
 		var locs:Array<Dynamic> = json("GET", '$api/v1/appStoreVersions/$version/appStoreVersionLocalizations', token).data;
@@ -495,9 +508,11 @@ class Publish {
 
 	// the active App Store profile of a bundle id for the certificate, from
 	// App Store Connect (bundleIds by identifier, their profiles)
-	@:coroutine public static function profile(bundleId:String, cert:haxe.io.Bytes, k:{id:String, issuer:String, key:PrivateKey}):helder.pack.apple.Identity.Profile {
-		var api = (Sys.getEnv("HELDER_ASC_API") ?? "").trim();
-		if (api == "") api = ASC;
+	// make: the certificate's id on App Store Connect and the name, to make
+	// one when there is none (helder setup ios)
+	@:coroutine public static function profile(bundleId:String, cert:haxe.io.Bytes, k:{id:String, issuer:String, key:PrivateKey},
+			?make:{certificate:String, name:String}):helder.pack.apple.Identity.Profile {
+		var api = ascApi();
 		var token = ascToken(k);
 		var ids:Array<Dynamic> = json("GET", '$api/v1/bundleIds?filter%5Bidentifier%5D=' + StringTools.urlEncode(bundleId), token).data ?? [];
 		var id:Dynamic = Lambda.find(ids, b -> b.attributes?.identifier == bundleId);
@@ -509,6 +524,21 @@ class Publish {
 			if (a == null || a.profileType != "IOS_APP_STORE" || a.profileState != "ACTIVE" || a.profileContent == null) continue;
 			var parsed = helder.pack.apple.Identity.Profile.parse(haxe.crypto.Base64.decode(a.profileContent));
 			if (Lambda.exists(parsed.certificates, c -> c.compare(cert) == 0)) found.push(parsed);
+		}
+		if (found.length == 0 && make != null) {
+			var made:Dynamic = json("POST", '$api/v1/profiles', token, {
+				data: {
+					type: "profiles",
+					attributes: {name: make.name, profileType: "IOS_APP_STORE"},
+					relationships: {
+						bundleId: {data: {type: "bundleIds", id: id.id}},
+						certificates: {data: [{type: "certificates", id: make.certificate}]}
+					}
+				}
+			}, 201).data;
+			var p = helder.pack.apple.Identity.Profile.parse(haxe.crypto.Base64.decode(made.attributes.profileContent));
+			Term.out(Style.status("profile", Ok, '"${p.name}" made on App Store Connect (App Store, $bundleId)'));
+			return p;
 		}
 		if (found.length == 0)
 			throw 'App Store Connect: no active App Store profile for $bundleId with this certificate (Profiles, +, App Store Connect: the App ID, the certificate; or HELDER_IOS_PROFILE)';

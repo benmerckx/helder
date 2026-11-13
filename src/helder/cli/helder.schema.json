@@ -82,8 +82,11 @@
         "play": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Google Play's resources by the API's names: listing (edits.listings), details (edits.details).",
-          "properties": {"listing": {"$ref": "#/$defs/storeAttributes"}, "details": {"$ref": "#/$defs/storeAttributes"}}
+          "description": "Google Play's resources by the API's names: listing (edits.listings), details (edits.details); dataSafety, the data safety form's CSV.",
+          "properties": {
+            "listing": {"$ref": "#/$defs/storeAttributes"}, "details": {"$ref": "#/$defs/storeAttributes"},
+            "dataSafety": {"type": "string", "pattern": "\\.[cC][sS][vV]$", "description": "The data safety form as Play Console exports it (App content, Data safety, Export to CSV), a file beside helder.json: sent by every helder publish --listing (applications.dataSafety)."}
+          }
         },
         "appStore": {
           "type": "object",
@@ -92,7 +95,24 @@
           "properties": {
             "app": {"$ref": "#/$defs/storeAttributes"}, "info": {"$ref": "#/$defs/storeAttributes"}, "infoLocalization": {"$ref": "#/$defs/storeAttributes"},
             "version": {"$ref": "#/$defs/storeAttributes"}, "versionLocalization": {"$ref": "#/$defs/storeAttributes"}, "ageRating": {"$ref": "#/$defs/storeAttributes"},
-            "reviewDetail": {"$ref": "#/$defs/storeAttributes"}, "categories": {"$ref": "#/$defs/storeAttributes"}
+            "reviewDetail": {"$ref": "#/$defs/storeAttributes"}, "categories": {"$ref": "#/$defs/storeAttributes"},
+            "price": {
+              "description": "The price, sent when it differs from App Store Connect's: 0 is free; a number is the USA's price; {amount, territory} another base territory's (Apple prices the others from it).",
+              "oneOf": [
+                {"type": "number", "minimum": 0},
+                {"type": "object", "additionalProperties": false, "required": ["amount"],
+                 "properties": {"amount": {"type": "number", "minimum": 0}, "territory": {"type": "string", "pattern": "^[A-Z]{3}$", "default": "USA"}}}
+              ]
+            },
+            "availability": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Where the app is sold, sent when it differs from App Store Connect's.",
+              "properties": {
+                "territories": {"oneOf": [{"const": "all"}, {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[A-Z]{3}$"}}], "default": "all", "description": "all, or territories' codes (USA, BEL: ISO 3166-1 alpha-3)."},
+                "availableInNewTerritories": {"type": "boolean", "description": "Territories Apple adds later too (all's default: true; a list's: false). Fixed once the availability is made."}
+              }
+            }
           }
         },
         "locales": {

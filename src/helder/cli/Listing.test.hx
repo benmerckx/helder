@@ -44,6 +44,23 @@ function tests() {
 		keys.sort(Reflect.compare);
 		equals(keys, ["keywords", "shortDescription"]);
 	});
+	test("listing: the App Store's price and availability, Play's data safety", () -> {
+		var h = HelderJson.parse(haxe.Json.stringify({
+			name: "Skies",
+			listing: {appStore: {price: 0, availability: {territories: ["USA", "BEL"]}}, play: {dataSafety: "store/data-safety.csv"}}
+		}));
+		equals(Listing.price(h.listing.appStore.price), {amount: 0, territory: "USA"});
+		equals(Listing.price({amount: 0.99, territory: "FRA"}), {amount: 0.99, territory: "FRA"});
+		equals(Listing.availability(h.listing.appStore.availability), {all: false, territories: ["USA", "BEL"], newOnes: null});
+		equals(Listing.availability({}), {all: true, territories: [], newOnes: null});
+		equals(Listing.availability({territories: "all", availableInNewTerritories: false}).newOnes, false);
+		equals(error({appStore: {price: -1}}), 'helder.json: listing.appStore.price: a price (0: free), or {"amount": 0.99, "territory": "USA"}');
+		equals(error({appStore: {price: {amount: 1, territory: "US"}}}), "helder.json: listing.appStore.price.territory: a territory's code (USA, FRA: ISO 3166-1 alpha-3)");
+		equals(error({appStore: {price: {cost: 1}}}).indexOf("helder.json: listing.appStore.price.cost: not one of"), 0);
+		equals(error({appStore: {availability: {territories: ["be"]}}}).indexOf("helder.json: listing.appStore.availability.territories: \"all\", or"), 0);
+		equals(error({play: {dataSafety: {}}}).indexOf("helder.json: listing.play.dataSafety: a .csv file"), 0);
+		equals(error({locales: {"nl-NL": {appStore: {price: 0}}}}).indexOf("helder.json: listing.locales.nl-NL.appStore.price: not one of"), 0);
+	});
 	test("listing: mistakes, in helder.json's names", () -> {
 		equals(error("x"), "helder.json: listing: an object");
 		equals(error({tagline: "x"}).indexOf("helder.json: listing.tagline: not one of"), 0);

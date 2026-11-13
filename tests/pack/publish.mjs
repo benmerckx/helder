@@ -11,8 +11,19 @@
 // build upload (buildUploads, buildUploadFiles, the parts PUT where the
 // upload operations say, put together equal to the .ipa, the commit's
 // MD5). Then the missing credentials' messages.
+//
+// helder setup: ios's certificate request (its RSA key's signature, checked
+// here), the certificate made of it (issued as by Apple's WWDR G3, signed
+// by key.pem), identity.pem (the certificate, G3, the key: they match), the
+// App ID made, the app's record missing named, the profile made for that
+// certificate, then a second run keeping all of it; android's upload key
+// (a self-signed certificate node verifies, its fingerprints), the service
+// account's edit opened and deleted, Google's 403s explained. No secret in
+// the output. helder publish --listing --no-screenshot: the App Store's
+// price (a price point found across pages) and availability made, then
+// one territory patched, Play's data safety CSV sent.
 import { spawn } from "node:child_process";
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { X509Certificate, createHash, createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, resolve } from "node:path";
@@ -39,6 +50,48 @@ function jwt(token, key, alg) {
 }
 
 let calls = [], parts = {}, play = {}, asc = {};
+// (what App Store Connect keeps across runs: the certificates and profiles
+// made, the price schedule and availability; flags for an App ID and an app not there yet)
+const kept = { certs: [{ type: "certificates", id: "C-other", attributes: { name: "Someone else's", certificateContent: readFileSync(join(signing, "cert.pem"), "utf8").replace(/-----[^-]+-----|\s/g, "") } }],
+  profiles: [], noBundle: false, noApp: false, price: null, availability: null };
+// (DER, for the certificate made of a request)
+const der = (tag, ...p) => {
+  const body = Buffer.concat(p);
+  const n = body.length, len = n < 0x80 ? [n] : n < 0x100 ? [0x81, n] : [0x82, n >> 8, n & 0xff];
+  return Buffer.concat([Buffer.from([tag, ...len]), body]);
+};
+const seq = (...p) => der(0x30, ...p), set = (...p) => der(0x31, ...p);
+const oid = (s) => {
+  const p = s.split(".").map(Number), out = [40 * p[0] + p[1]];
+  for (const v of p.slice(2)) { const b = [v & 0x7f]; let x = v >>> 7; while (x > 0) { b.unshift(0x80 | (x & 0x7f)); x >>>= 7; } out.push(...b); }
+  return der(0x06, Buffer.from(out));
+};
+const utf8 = (s) => der(0x0c, Buffer.from(s));
+const readDer = (b, at) => {
+  let n = b[at + 1], start = at + 2;
+  if (n & 0x80) { const k = n & 0x7f; n = 0; for (let i = 0; i < k; i++) n = n * 256 + b[at + 2 + i]; start += k; }
+  return { at, start, end: start + n };
+};
+const kids = (b, node) => { const out = []; for (let at = node.start; at < node.end;) { const c = readDer(b, at); out.push(c); at = c.end; } return out; };
+function certificateOf(csrContent) {
+  const csr = Buffer.from(csrContent, "base64"), top = kids(csr, readDer(csr, 0)), info = kids(csr, top[0]);
+  const spki = csr.subarray(info[2].at, info[2].end), key = createPublicKey({ key: spki, format: "der", type: "spki" });
+  asc.csr = { ok: verify("sha256", csr.subarray(top[0].at, top[0].end), key, csr.subarray(top[2].start + 1, top[2].end)), bits: key.asymmetricKeyDetails.modulusLength };
+  const g3 = seq(set(seq(oid("2.5.4.3"), utf8("Apple Worldwide Developer Relations Certification Authority"))), set(seq(oid("2.5.4.11"), utf8("G3"))),
+    set(seq(oid("2.5.4.10"), utf8("Apple Inc."))), set(seq(oid("2.5.4.6"), der(0x13, Buffer.from("US")))));
+  const subject = seq(set(seq(oid("2.5.4.3"), utf8("Apple Distribution: Helder Tests (TEAMID1234)"))), set(seq(oid("2.5.4.11"), utf8("TEAMID1234"))));
+  const alg = seq(oid("1.2.840.113549.1.1.11"), Buffer.from([5, 0]));
+  const time = (d) => der(0x17, Buffer.from(d.toISOString().replace(/[-:T]/g, "").slice(2, 14) + "Z"));
+  const now = new Date();
+  const tbs = seq(der(0xa0, der(0x02, Buffer.from([2]))), der(0x02, Buffer.from([0x11, 0x22, kept.certs.length])), alg, g3,
+    seq(time(now), time(new Date(now.getTime() + 365 * 864e5))), subject, spki, der(0xa3, seq(seq(oid("1.2.840.113635.100.6.1.4"), der(0x04, Buffer.from([5, 0]))))));
+  return seq(tbs, alg, der(0x03, Buffer.concat([Buffer.from([0]), sign("sha256", tbs, createPrivateKey(readFileSync(join(signing, "key.pem"))))])));
+}
+// (a profile: its property list alone, which is what helder reads of one)
+const profileOf = (name, cert) => Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>Name</key><string>${name}</string><key>TeamIdentifier</key><array><string>TEAMID1234</string></array>
+<key>Entitlements</key><dict><key>application-identifier</key><string>TEAMID1234.org.helder.Hello</string></dict>
+<key>DeveloperCertificates</key><array><data>${cert}</data></array><key>Platform</key><array><string>iOS</string></array></dict></plist>`);
 const server = createServer((req, res) => {
   const chunks = [];
   req.on("data", (c) => chunks.push(c));
@@ -60,10 +113,34 @@ const server = createServer((req, res) => {
       return send(200);
     }
     const auth = req.headers.authorization ?? "";
-    if (url.pathname.startsWith("/v1/")) {
+    if (/^\/v[12]\//.test(url.pathname)) {
       const t = jwt(auth.replace("Bearer ", ""), ecKey, "ES256");
       asc.jwt = t;
       if (!t.ok) return send(401, { errors: [{ detail: "bad token" }] });
+      if (req.method === "GET" && url.pathname === "/v1/bundleIds" && kept.noBundle) return send(200, { data: [] });
+      if (req.method === "POST" && url.pathname === "/v1/bundleIds") {
+        asc.bundleMade = JSON.parse(body).data.attributes;
+        kept.noBundle = false;
+        return send(201, { data: { type: "bundleIds", id: "B-1", attributes: asc.bundleMade } });
+      }
+      if (req.method === "GET" && url.pathname === "/v1/certificates") return send(200, { data: kept.certs });
+      if (req.method === "POST" && url.pathname === "/v1/certificates") {
+        const a = JSON.parse(body).data.attributes;
+        asc.certificateType = a.certificateType;
+        const c = { type: "certificates", id: `C-${kept.certs.length}`, attributes: { name: "Apple Distribution: Helder Tests", certificateType: a.certificateType,
+          expirationDate: "2027-11-13T00:00:00.000+0000", certificateContent: certificateOf(a.csrContent).toString("base64") } };
+        kept.certs.push(c);
+        return send(201, { data: c });
+      }
+      if (req.method === "POST" && url.pathname === "/v1/profiles") {
+        const d = JSON.parse(body).data;
+        asc.profileMade = d;
+        const cert = kept.certs.find((c) => c.id === d.relationships.certificates.data[0].id);
+        const p = { type: "profiles", id: `P-${kept.profiles.length + 2}`, attributes: { name: d.attributes.name, profileType: d.attributes.profileType, profileState: "ACTIVE",
+          profileContent: profileOf(d.attributes.name, cert.attributes.certificateContent).toString("base64") } };
+        kept.profiles.push(p);
+        return send(201, { data: p });
+      }
       if (req.method === "GET" && url.pathname === "/v1/bundleIds") {
         asc.profileAsked = url.searchParams.get("filter[identifier]");
         return send(200, { data: [{ type: "bundleIds", id: "B-2", attributes: { identifier: "org.helder.Hello.extra" } },
@@ -74,11 +151,45 @@ const server = createServer((req, res) => {
         return send(200, { data: [
           { type: "profiles", id: "P-dev", attributes: { profileType: "IOS_APP_DEVELOPMENT", profileState: "ACTIVE", profileContent: content } },
           { type: "profiles", id: "P-old", attributes: { profileType: "IOS_APP_STORE", profileState: "INVALID", profileContent: content } },
-          { type: "profiles", id: "P-1", attributes: { profileType: "IOS_APP_STORE", profileState: "ACTIVE", profileContent: content } }] });
+          { type: "profiles", id: "P-1", attributes: { profileType: "IOS_APP_STORE", profileState: "ACTIVE", profileContent: content } }, ...kept.profiles] });
       }
       if (req.method === "GET" && url.pathname === "/v1/apps") {
         asc.bundleId = url.searchParams.get("filter[bundleId]");
-        return send(200, { data: [{ type: "apps", id: "6400000001" }] });
+        return send(200, { data: kept.noApp ? [] : [{ type: "apps", id: "6400000001" }] });
+      }
+      // (the price and the territories)
+      const territories = ["USA", "BEL", "NLD"];
+      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appInfos") return send(200, { data: [] });
+      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appPriceSchedule")
+        return kept.price ? send(200, { data: { type: "appPriceSchedules", id: "6400000001" } }) : send(404, { errors: [{ status: "404" }] });
+      if (req.method === "GET" && url.pathname === "/v1/appPriceSchedules/6400000001/baseTerritory") return send(200, { data: { type: "territories", id: kept.price.base } });
+      if (req.method === "GET" && url.pathname === "/v1/appPriceSchedules/6400000001/manualPrices")
+        return send(200, { data: [{ type: "appPrices", id: "ap-1", attributes: { startDate: null, endDate: null }, relationships: { appPricePoint: { data: { type: "appPricePoints", id: kept.price.point } } } }],
+          included: [{ type: "appPricePoints", id: kept.price.point, attributes: { customerPrice: kept.price.point === "pp-free" ? "0.0" : "0.99" } }] });
+      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appPricePoints") {
+        asc.pricePages = (asc.pricePages ?? 0) + 1;
+        return url.searchParams.get("cursor") ? send(200, { data: [{ type: "appPricePoints", id: "pp-free", attributes: { customerPrice: "0.0" } }] })
+          : send(200, { data: [{ type: "appPricePoints", id: "pp-099", attributes: { customerPrice: "0.99" } }], links: { next: `http://127.0.0.1:${port}${url.pathname}?filter%5Bterritory%5D=USA&cursor=2` } });
+      }
+      if (req.method === "POST" && url.pathname === "/v1/appPriceSchedules") {
+        asc.priceSchedule = JSON.parse(body);
+        kept.price = { base: asc.priceSchedule.data.relationships.baseTerritory.data.id, point: asc.priceSchedule.included[0].relationships.appPricePoint.data.id };
+        return send(201, { data: { type: "appPriceSchedules", id: "6400000001" } });
+      }
+      if (req.method === "GET" && url.pathname === "/v1/territories") return send(200, { data: territories.map((id) => ({ type: "territories", id })) });
+      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appAvailabilityV2")
+        return kept.availability ? send(200, { data: { type: "appAvailabilities", id: "av-1", attributes: { availableInNewTerritories: true } } }) : send(404, { errors: [{ status: "404" }] });
+      if (req.method === "POST" && url.pathname === "/v2/appAvailabilities") {
+        asc.availability = JSON.parse(body);
+        kept.availability = Object.fromEntries(asc.availability.included.map((t) => [t.relationships.territory.data.id, t.attributes.available]));
+        return send(201, { data: { type: "appAvailabilities", id: "av-1" } });
+      }
+      if (req.method === "GET" && url.pathname === "/v2/appAvailabilities/av-1/territoryAvailabilities")
+        return send(200, { data: Object.entries(kept.availability).map(([t, available]) => ({ type: "territoryAvailabilities", id: `ta-${t}`, attributes: { available },
+          relationships: { territory: { data: { type: "territories", id: t } } } })) });
+      if (req.method === "PATCH" && url.pathname.startsWith("/v1/territoryAvailabilities/")) {
+        asc.territoryPatched = [...(asc.territoryPatched ?? []), [url.pathname.slice(28), JSON.parse(body).data.attributes.available]];
+        return send(200, { data: {} });
       }
       if (req.method === "POST" && url.pathname === "/v1/buildUploads") {
         asc.upload = JSON.parse(body);
@@ -123,7 +234,13 @@ const server = createServer((req, res) => {
         return send(200, { data: { type: "buildUploads", id: "bu-1", attributes: { state: { state: "PROCESSING" } } } });
       return send(404, { errors: [{ detail: "no such route" }] });
     }
+    // (Google's refusals: a service account not invited, the API not enabled)
+    if (auth === "Bearer forbidden") return send(403, { error: { code: 403, message: "The caller does not have permission", status: "PERMISSION_DENIED" } });
+    if (auth === "Bearer disabled")
+      return send(403, { error: { code: 403, message: "Google Play Android Developer API has not been used in project 123 before or it is disabled.", status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } });
     if (auth !== "Bearer play-token") return send(401, { error: "bad token" });
+    const safety = url.pathname.match(/^\/androidpublisher\/v3\/applications\/([^/]+)\/dataSafety$/);
+    if (req.method === "POST" && safety) { play.dataSafety = { pkg: safety[1], ...JSON.parse(body) }; return send(200, {}); }
     const m = url.pathname.match(/^(\/upload)?\/androidpublisher\/v3\/applications\/([^/]+)\/edits(?:\/([^/:]+))?(.*)$/);
     if (!m) return send(404, { error: "no such route" });
     play.pkg = m[2];
@@ -131,6 +248,8 @@ const server = createServer((req, res) => {
     if (req.method === "POST" && !m[3]) return send(200, { id: "edit-1" });
     if (req.method === "GET" && rest.startsWith("/tracks/")) return send(200, { track: rest.slice(8), releases: [{ status: "completed", versionCodes: ["1"] }] });
     if (req.method === "DELETE" && rest === "") { play.deleted = true; return send(204); }
+    if (req.method === "GET" && rest === "/details") return send(200, { defaultLanguage: "en-US" });
+    if (req.method === "GET" && rest === "/listings/en-US") return send(200, { language: "en-US", title: "Listed" });
     if (req.method === "POST" && m[1] && rest === "/bundles") {
       play.uploaded = body;
       return send(200, { versionCode: 2, sha256: createHash("sha256").update(body).digest("hex") });
@@ -263,6 +382,94 @@ else {
     && web.length === 1 && web[0].story === "Phone/Three items" && shot.readUInt32BE(16) === 1280 && shot.readUInt32BE(20) === 800 && shot[25] === 2,
     `${run.code} ${web.map((w) => w.story)}`);
 }
+
+// helder setup
+async function helderRun(args, env, want = 0) {
+  const p = await new Promise((done) => {
+    const c = spawn(helder, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    c.stdout.on("data", (d) => (out += d));
+    c.stderr.on("data", (d) => (out += d));
+    c.on("close", (code) => done({ code, out }));
+  });
+  process.stdout.write(p.out);
+  check(`helder ${args.join(" ")}: exit code ${want}`, p.code === want, `${p.code}`);
+  return p.out;
+}
+// (a secret's body: a line from the middle of its base64)
+const secretLine = (pem) => pem.split("\n").filter((l) => /^[A-Za-z0-9+/]{64}$/.test(l))[3];
+const apple = resolve(dir, "keys", "apple");
+calls = []; asc = {}; kept.noBundle = true; kept.noApp = true;
+out = await helderRun(["setup", "ios", "tests/pack/Hello.hx", "-o", apple], ascEnv);
+check("setup ios: the App ID made (identifier, the app's label, iOS)", asc.bundleMade?.identifier === "org.helder.Hello" && asc.bundleMade.platform === "IOS",
+  JSON.stringify(asc.bundleMade));
+check("setup ios: the app's record missing named, to be made by hand", out.includes("no app for org.helder.Hello") && out.includes("New App"));
+kept.noApp = false;
+check("setup ios: a distribution certificate requested: a 2048-bit RSA key's request, its signature good", asc.certificateType === "DISTRIBUTION"
+  && asc.csr?.ok === true && asc.csr.bits === 2048, JSON.stringify(asc.csr));
+const idPem = existsSync(join(apple, "identity.pem")) ? readFileSync(join(apple, "identity.pem"), "utf8") : "";
+const idCerts = idPem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+const made = kept.certs.at(-1);
+check("identity.pem: App Store Connect's certificate, Apple's WWDR G3 after it, the key, which is the certificate's", idCerts.length === 2
+  && new X509Certificate(idCerts[0]).raw.equals(Buffer.from(made.attributes.certificateContent, "base64"))
+  && new X509Certificate(idCerts[1]).subject.includes("G3") && new X509Certificate(idCerts[0]).checkPrivateKey(createPrivateKey(idPem)));
+check("setup ios: the App Store profile made for the bundle id and that certificate", asc.profileMade?.attributes?.profileType === "IOS_APP_STORE"
+  && asc.profileMade.relationships.bundleId.data.id === "B-1" && asc.profileMade.relationships.certificates.data[0].id === made.id, JSON.stringify(asc.profileMade));
+const keyJson = existsSync(join(apple, "asc-api-key.json")) ? JSON.parse(readFileSync(join(apple, "asc-api-key.json"), "utf8")) : {};
+check("setup ios: the API key as one JSON (HELDER_ASC_API_KEY's)", keyJson.key_id === "ABC123DEFG" && keyJson.private_key?.includes("PRIVATE KEY"));
+check("setup ios: the gh secret set lines, no secret in the output", out.includes(`gh secret set HELDER_IOS_IDENTITY < ${apple.replace(/\\/g, "/")}/identity.pem`)
+  && out.includes("gh secret set HELDER_ASC_API_KEY <") && !out.includes(secretLine(idPem)) && !out.includes(secretLine(keyJson.private_key ?? "")));
+calls = []; asc = {};
+out = await helderRun(["setup", "ios", "tests/pack/Hello.hx", "-o", apple], ascEnv);
+check("setup ios again: identity.pem kept, no certificate or profile made (the profile found)", out.includes("kept") && !calls.includes("POST /v1/certificates")
+  && !calls.includes("POST /v1/profiles") && out.includes("from App Store Connect") && readFileSync(join(apple, "identity.pem"), "utf8") === idPem, calls.join(", "));
+out = await helderRun(["setup", "ios", "tests/pack/Hello.hx", "-o", "tests/pack/keys"], ascEnv, 2);
+check("setup: not into the project", out.includes("inside the project") && !existsSync("tests/pack/keys"));
+
+const droid = resolve(dir, "keys", "android");
+calls = []; play = {};
+out = await helderRun(["setup", "android", "tests/pack/Hello.hx", "-o", droid], playEnv);
+const upPem = existsSync(join(droid, "upload-identity.pem")) ? readFileSync(join(droid, "upload-identity.pem"), "utf8") : "";
+const up = upPem ? new X509Certificate(upPem) : null;
+check("setup android: the upload key, a self-signed 2048-bit certificate of it, 30 years", up && up.verify(up.publicKey) && up.checkPrivateKey(createPrivateKey(upPem))
+  && up.publicKey.asymmetricKeyDetails.modulusLength === 2048 && new Date(up.validTo).getFullYear() - new Date(up.validFrom).getFullYear() === 30, up?.subject);
+check("setup android: its SHA-1 and SHA-256 fingerprints", up && out.includes(up.fingerprint) && out.includes(up.fingerprint256));
+check("setup android: the service account's edit opened and deleted", calls.includes("POST /androidpublisher/v3/applications/org.helder.hello/edits") && play.deleted === true,
+  calls.join(", "));
+check("setup android: the gh secret set lines, no secret in the output", out.includes("gh secret set HELDER_ANDROID_UPLOAD_IDENTITY <")
+  && out.includes(`gh secret set HELDER_PLAY_SERVICE_ACCOUNT < ${sa.replace(/\\/g, "/")}`) && !out.includes(secretLine(upPem)));
+out = await helderRun(["setup", "android", "tests/pack/Hello.hx", "-o", droid], { ...base, GOOGLE_OAUTH_ACCESS_TOKEN: "forbidden" }, 1);
+check("setup android, the service account not invited: kept the key, what to do", out.includes("kept") && out.includes("Users and permissions")
+  && readFileSync(join(droid, "upload-identity.pem"), "utf8") === upPem);
+out = await helderRun(["setup", "android", "tests/pack/Hello.hx", "-o", droid], { ...base, GOOGLE_OAUTH_ACCESS_TOKEN: "disabled" }, 1);
+check("setup android, the API not enabled: where to enable it", out.includes("enable the Google Play Android Developer API"));
+
+// the listing's price, availability and data safety (no screenshots)
+const app = join(dir, "listed");
+mkdirSync(app, { recursive: true });
+writeFileSync(join(app, "helder.json"), JSON.stringify({ name: "Listed", id: "org.helder.listed",
+  listing: { appStore: { price: 0, availability: { territories: "all" } }, play: { dataSafety: "data-safety.csv" } } }));
+writeFileSync(join(app, "Main.hx"), "class Main { static function main() {} }\n");
+writeFileSync(join(app, "data-safety.csv"), "Question ID (machine readable),Response ID (machine readable),Response value,Answer requirement,Human-friendly question label\nPSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA,,false,REQUIRED,Does your app collect...\n");
+const listed = (extra, env = both) => helderRun(["publish", app, "--listing", "--no-screenshot", ...extra], env);
+calls = []; play = {}; asc = {};
+out = await listed(["--dry-run"]);
+check("listing dry run: the price, the availability and the data safety would be sent; nothing sent", out.includes("App Store price: free") && out.includes("3 territories")
+  && out.includes("data safety") && !asc.priceSchedule && !asc.availability && !play.dataSafety);
+calls = []; play = {}; asc = {};
+out = await listed([]);
+check("listing: free from the USA's price points (the second page's), the schedule made", asc.pricePages === 2
+  && asc.priceSchedule?.data?.relationships?.baseTerritory?.data?.id === "USA" && asc.priceSchedule.included[0].relationships.appPricePoint.data.id === "pp-free",
+  JSON.stringify(asc.priceSchedule));
+check("listing: available in every territory, new ones too", asc.availability?.data?.attributes?.availableInNewTerritories === true
+  && asc.availability.included.map((t) => t.relationships.territory.data.id).join() === "USA,BEL,NLD");
+check("listing: Play's data safety, the CSV's text", play.dataSafety?.pkg === "org.helder.listed"
+  && play.dataSafety.safetyLabels === readFileSync(join(app, "data-safety.csv"), "utf8"));
+calls = []; asc = {};
+kept.availability.BEL = false;
+out = await listed([]);
+check("listing again: the price as it is, nothing sent for it; the one territory that differs patched", !asc.priceSchedule && !asc.availability
+  && JSON.stringify(asc.territoryPatched) === JSON.stringify([["ta-BEL", true]]), JSON.stringify(asc.territoryPatched));
 
 // missing credentials
 out = await publish(["--play", "-o", aab], { ...base, HELDER_PLAY_SERVICE_ACCOUNT: "" }, 1);

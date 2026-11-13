@@ -85,7 +85,7 @@ token.
 helder <command> [entry] [options]      entry: a .hx file, a directory or a project (default: .)
 helder <entry>                          shorthand for: helder dev <entry>
 
-commands: dev, run, build, test, inspect, publish, share, login, logout, migrate, studio, devices, help
+commands: dev, run, build, test, inspect, publish, setup, share, login, logout, migrate, studio, devices, help
 
   --target <t>       host (default), web, android, ios, ios-sim, macos (a universal app bundle), or an exact hxmc target (windows-x86_64, android-x86_64, ...)
   -d, --device <d>   which phone, emulator or simulator (android, ios); `helder devices` lists them
@@ -482,7 +482,19 @@ names (helder.run's first, when it has a run block, then each target's
   App Store Connect's app, app info (name, subtitle, privacy URL,
   categories, the age rating: questions still unanswered named), the
   version (made when there is none) and its listing, the review's
-  contact. Play's icon (the app's, 512 px) and feature graphic (the first
+  contact; `appStore.price` (`0`: free, the USA's price; `{"amount":
+  0.99, "territory": "FRA"}`: another base territory, Apple pricing the
+  others from it: a new price schedule of the price point of that
+  amount, found across the territory's pages) and
+  `appStore.availability` (`{"territories": "all"}` or their codes,
+  `"availableInNewTerritories"`: all's default yes; made when there is
+  none, else each territory that differs patched; the new territories'
+  switch is kept as made, App Store Connect's API cannot change it), each
+  sent only when it differs; `play.dataSafety`, the data safety form as
+  Play Console exports it (App content, Data safety, Export to CSV, once:
+  a file beside helder.json), sent every time (`applications.dataSafety`:
+  Play cannot read it back). With `--no-screenshot`: the text alone, no
+  story rendered, the stores' screenshots left as they are. Play's icon (the app's, 512 px) and feature graphic (the first
   story with `feature: true`, 1024x500) go with the screenshots. And the
   same screenshots against each store's listing by hash, those not ours deleted and ours missing uploaded:
   Google Play's image types (`phoneScreenshots`) in an edit, committed;
@@ -492,10 +504,50 @@ names (helder.run's first, when it has a run block, then each target's
   sent and committed with its MD5. With `--dry-run` the changes are only
   listed, in the review sheet too.
 
+### Setting up: helder setup
+
+`helder setup ios|android [entry]` (`Setup.hx`) does through the stores'
+APIs what a new app needs before `helder publish` can send anything, and
+names what is left, which is what the stores have no API for. Its keys
+are made by helder (`Rsa.generate`: RSA 2048, primes by Miller-Rabin;
+`helder.pack.X509`: PKCS#8, the certificate request, a self-signed
+certificate; no openssl) and written under `-o` (default
+`~/.helder/<app>/apple` or `/android`; never in the project), never
+printed and never overwritten: a second run keeps what is there and goes
+on from it. It ends with the `gh secret set NAME < file` lines for the
+repository's secrets (values never shown), and with `--github` runs
+them (gh installed, the directory a GitHub repository; each value on
+gh's standard input).
+
+- **ios**, with the App Store Connect API key (as `--testflight` reads
+  it): the App ID (`/v1/bundleIds`, made when missing); the app's record
+  looked up (Apple has no API to make one: App Store Connect, Apps, +,
+  New App, by hand); an Apple Distribution certificate
+  (`POST /v1/certificates` with the request of a key made here; Apple's
+  limit reached: what to revoke) as `identity.pem`, the certificate,
+  Apple's WWDR intermediate and the key (`HELDER_IOS_IDENTITY`); its App
+  Store profile, made when none is active for that certificate
+  (`POST /v1/profiles`; builds fetch it as before); the API key as one
+  JSON, `asc-api-key.json` (`HELDER_ASC_API_KEY`), unless it is a file
+  already.
+- **android**: Play's upload key and its certificate (self-signed, 30
+  years) as one PEM, `upload-identity.pem`
+  (`HELDER_ANDROID_UPLOAD_IDENTITY`), the certificate alone beside it,
+  its SHA-1 and SHA-256 fingerprints; with a service account
+  (`HELDER_PLAY_SERVICE_ACCOUNT`, or an access token) an edit of the
+  package opened and deleted, and when Google refuses what to fix: 403,
+  the service account to invite in Play Console (Users and permissions)
+  or the Google Play Android Developer API to enable in its project; 404,
+  the app to make in Play Console (Create app: no API); exit code 1.
+  The first bundle uploaded with the key (`helder publish --play
+  --draft`) makes it the app's upload key under Play App Signing.
+
 Checked against a stand-in of both APIs (`tests/pack/publish.mjs`, the
 pack lane: the JWTs verified with the keys' public halves, every call
 and its order, the uploaded bytes against the files, the dry run's
-calls); a real upload needs the owner's accounts (`helder.pack`'s README).
+calls; setup's certificate request verified and a certificate issued of
+it, the identities and the upload certificate checked by node's crypto);
+a real upload needs the owner's accounts (`helder.pack`'s README).
 
 ## Android and iOS
 
