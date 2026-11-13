@@ -1725,8 +1725,7 @@ class Run {
 	static function output(cmd:String, args:Array<String>, mayFail = false):Null<String> {
 		args = nodeArgs(cmd, args);
 		var p = new Process(cmd, args);
-		var out = p.stdout.readAll().toString();
-		p.stderr.readAll();
+		var out = drain(p).out;
 		var code = p.exitCode();
 		p.close();
 		if (code != 0 && mayFail) return null;
@@ -1779,14 +1778,22 @@ class Run {
 	static function build(args:Array<String>, log:String, ?tool:String):{code:Int, log:String, seconds:Float} {
 		var t0 = Sys.time();
 		var p = new Process(tool ?? TOOL, args);
-		// (the compiler's messages are on stderr: read first, its pipe would fill)
-		var err = p.stderr.readAll().toString();
-		var out = p.stdout.readAll().toString();
+		var r = drain(p), out = r.out, err = r.err;
 		var code = p.exitCode();
 		p.close();
 		mkdirs(Path.directory(log));
 		File.saveContent(log, out + err);
 		return {code: code, log: out + err, seconds: Sys.time() - t0};
+	}
+
+	// both pipes read at once: a program filling one while the other is read
+	// waits forever (helder build's warnings are on stdout, the compiler's on
+	// stderr)
+	static function drain(p:Process):{out:String, err:String} {
+		var err = new sys.thread.Deque<String>();
+		sys.thread.Thread.create(() -> err.add(p.stderr.readAll().toString()));
+		var out = p.stdout.readAll().toString();
+		return {out: out, err: err.pop(true)};
 	}
 
 	static function wasi(module:String)
@@ -1824,7 +1831,7 @@ class Run {
 			Sys.putEnv(k, v);
 		}
 		var p = new Process(cmd, args);
-		var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
+		var r = drain(p), out = r.out + r.err;
 		var code = p.exitCode();
 		p.close();
 		// (null: unset again, not left empty: the variables as they were before)
