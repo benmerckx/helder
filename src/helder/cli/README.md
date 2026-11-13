@@ -164,7 +164,9 @@ booted.
   printed.
 - **Entries**:
   - nothing: the working directory, a project;
-  - a project directory: `package.json` and `src/Main.hx`;
+  - a project directory: `package.json` and `src/Main.hx`; or its
+    `helder.json`'s `entry` (`src/LittleSkies.hx`: an app in a repository
+    of its own, helder its dependency), named as the package;
   - an example's directory: its one main file, or the one named as the
     directory (`examples/cube` is Cube.hx, not Targets.hx);
   - a TypeScript program: a `.ts` or `.tsx` file, a project whose entry is
