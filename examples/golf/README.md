@@ -124,15 +124,22 @@ hole has a recorded round at or under par (GolfReplay).
     scene's alpha over the sky is blurred with its colour, so edges soften
     without a halo. `TiltShift.STRENGTH` is its one constant, lighter than
     the mockups.
-  - `Dressing.hx`: the cloud sea (cumulus clusters on two layers below the
-    islands, one instanced draw, centred a little behind what the camera
-    looks at, drifting, shrinking away at its rim and under the camera), the
-    contact shadows (a soft skirt along each rail's foot on green, a soft
-    disc under posts, bumpers, hubs, lanterns and the cup, in the island's
-    cool shade: one mesh a hole; a disc under the ball), and the lanterns'
-    halos at dusk (their pool on the green is the lantern's light, the
-    cup's lantern dimmer). The islands' undersides darken toward the bottom
-    (a ramp texture on the rock).
+  - `Clouds.hx`: the cloud sea, one continuous bank 9.5 m below the hole
+    (under every island's underside, so no cloud ever comes between the
+    camera and the hole): soft cumulus billboards facing the camera, lit
+    tops and a darker base in the island's colours (Lanternwater's dusk
+    pink over violet), hazed toward the sky's lowest colour and faded out
+    with distance so the sky stays above it, drifting. Its own shader
+    (a texture tap, two mixes) in one premultiplied draw from a renderer
+    hook, after the opaque surfaces and before the water, quads sorted far
+    to near and written once a frame into bytes made once.
+  - `Dressing.hx`: the contact shadows (a soft skirt along each rail's foot
+    on green, a soft disc under posts, bumpers, hubs, lanterns and the cup,
+    in the island's cool shade: one mesh a hole; a disc under the ball),
+    and the lanterns' halos at dusk (their pool on the green is the
+    lantern's light, the cup's lantern dimmer). The islands' undersides
+    darken toward the bottom (a ramp texture on the rock); the pools have
+    an opaque floor.
   - `Creatures.hx`: birds perched on rails, bumpers, posts and lanterns
     (Meadowdrift's finches and tits, Copperwind's gulls, Lanternwater's
     heron) scatter when the ball comes fast or close and land again on a
@@ -144,8 +151,8 @@ hole has a recorded round at or under par (GolfReplay).
   - `Turf.hx`: the greens mown in stripes (a MaterialShader colour slot
     from world position, 3 to 4% on screen).
   - The quality switch (`Game.quality`): 2 everything, 1 a thinner cloud
-    sea, 0 no blur; dropped a step after two seconds of frames slower than
-    40 a second (not in a demo or a held aim).
+    sea, 0 no blur and a thinner sea still; dropped a step after two
+    seconds of frames slower than 40 a second (not in a demo or a held aim).
 - `Golf.hx`: the window (`<Surface>`, the island's sky), a `<Scene hdr>`
   (bloom, a light vignette: emissive portals, switches and lanterns glow)
   and the title, hole card, HUD, card and scorecard in ui's markup, clear

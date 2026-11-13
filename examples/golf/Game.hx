@@ -115,11 +115,12 @@ class Game {
 	final sun:Node;
 	final sunLight:Light;
 	// the diorama: the cool fill (a far light across from the sun), the
-	// dressing (cloud sea, contact shadows, lantern glow), the creatures,
+	// dressing (contact shadows, lantern glow), the cloud sea, the creatures,
 	// the tilt-shift lens (null without a post chain)
 	final fill:Node;
 	final fillLight:Light;
 	var dressing:Null<Dressing>;
+	var sea:Null<Clouds>;
 	var creatures:Null<Creatures>;
 	var tilt:Null<TiltShift>;
 	// (the lanterns' places: x, y, z each)
@@ -265,6 +266,9 @@ class Game {
 		}
 		// (the lens: a stage of the post chain, made for each renderer)
 		tilt = post != null ? new TiltShift(post) : null;
+		// (the cloud sea: a hook of the renderer's, made for each renderer)
+		sea = new Clouds(r);
+		placeClouds();
 		lightUp();
 		setQuality(quality);
 		// (a renderer made again: the <Scene> without multisampling or half floats on a GPU that had none; the meshes kept)
@@ -529,6 +533,8 @@ class Game {
 					part(k.ice, new Vec3(x, y + 0.002, z), new Vec3(w, 0.006, d));
 				case Water(x, z, w, d, y):
 					part(k.water, new Vec3(x, y - 0.02, z), new Vec3(w, 0.04, d));
+					// (its floor, opaque, under the surface: deep water, nothing below showing through)
+					part(k.waterBed, new Vec3(x, y - 0.2, z), new Vec3(w, 0.04, d));
 					// (the pool's bed: a rock under it, its sides rising to the surface)
 					part(k.rockDark, new Vec3(x, y - 0.3, z), new Vec3(w * 1.02, 0.9, d * 1.02));
 					var t = 0.08;
@@ -635,6 +641,7 @@ class Game {
 		// (the diorama's dressing and creatures, from the hole's pieces)
 		var dr = dressing;
 		if (dr != null) dr.build(sim.hole, course, minX, maxX, minZ, maxZ, lanterns, w.night);
+		placeClouds();
 		if (cr != null) {
 			var i = 0;
 			while (i < lanterns.length) {
@@ -645,6 +652,16 @@ class Game {
 			cr.populate(holeIndex.peek(), sim.hole.world, minX, maxX, minZ, maxZ, sim.hole.tee.y, new Vec3(t.x, t.y, t.z), new Vec3(c.x, c.y, c.z));
 		}
 		syncBall(0);
+	}
+
+	// the cloud sea under the hole, in its island's colours (its lit tops, its shaded base, the sky's lowest colour)
+	function placeClouds() {
+		var cl = sea;
+		if (cl == null) return;
+		var w = Course.worlds[sim.hole.world];
+		var lowest = Math.min(0, Math.min(sim.hole.tee.y, sim.cup.y));
+		var sky = Std.parseInt("0x" + w.sky[2].substr(1));
+		cl.place((minX + maxX) / 2, (minZ + maxZ) / 2, lowest, w.cloud, w.cloudShade, sky != null ? sky : w.fog, w.night ? 0.9 : 1.25);
 	}
 
 	function part(mesh:helder.scene.render.Mesh, at:Vec3, size:Vec3):Node {
@@ -1440,8 +1457,9 @@ class Game {
 		}
 		// (the dressing and the creatures: the view's clock, the ball only read)
 		var dr = dressing;
-		var o = orbit;
-		if (dr != null) dr.update(realTime, ball.position, sim.grounded || sim.resting, sinkTime >= 0, eye.rotation, o != null ? o.target : ball.position, eye.position);
+		if (dr != null) dr.update(realTime, ball.position, sim.grounded || sim.resting, sinkTime >= 0, eye.rotation, eye.position);
+		var cl = sea;
+		if (cl != null) cl.update(realTime, eye.position, eye.rotation);
 		var cr = creatures;
 		if (cr != null) {
 			var v = sim.ball.velocity, on = aimPower > 0 && (shot.active || held) && sim.resting;
@@ -1527,8 +1545,8 @@ class Game {
 		quality = level;
 		var t = tilt;
 		if (t != null) t.enabled = level >= 1;
-		var d = dressing;
-		if (d != null) d.quality(level);
+		var c = sea;
+		if (c != null) c.quality(level);
 	}
 
 	function watch(dt:Float) {

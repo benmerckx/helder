@@ -85,13 +85,13 @@ class Kit {
 	public final puff:Mesh;
 	public final confetti:Mesh;
 	public final mote:Mesh;
-	// the diorama's: the cloud sea's soft puffs (smooth, flattened, lit
-	// low: their emissive the island's shade), the contact shadows (a soft
-	// disc, a ramp along a wall's foot: see-through, the island's cool
-	// shade, never black), the lanterns' halo (added light), the
-	// islands' undersides darker toward the bottom (a ramp on the rock)
-	public final cloudPuff:Mesh;
-	public final cloudSeaMat:Material;
+	// the diorama's: the contact shadows (a soft disc, a ramp along a
+	// wall's foot: see-through, the island's cool shade, never black), the
+	// lanterns' halo (added light), the islands' undersides darker toward
+	// the bottom (a ramp on the rock), the pools' floor (opaque: nothing
+	// below shows through the water)
+	public final waterBedMat:Material;
+	public final waterBed:Mesh;
 	public final blobMat:Material;
 	public final skirtMat:Material;
 	public final blob:Mesh;
@@ -236,9 +236,8 @@ class Kit {
 			m.baseColorTexture = under;
 			m.sampler = clamp;
 		}
-		cloudSeaMat = mat(0xffffff, 1);
-		cloudSeaMat.castShadows = false;
-		cloudPuff = ellipsoid(cloudSeaMat, 20, 10);
+		waterBedMat = mat(0x1f5f9e, 1);
+		waterBed = box(waterBedMat);
 		var soft = texture(64, 64, (x, y) -> {
 			var dx = x * 2 - 1, dy = y * 2 - 1, r = Math.min(1, Math.sqrt(dx * dx + dy * dy));
 			var a = Math.exp(-r * r * 3.2) * (1 - r * r);
@@ -306,29 +305,6 @@ class Kit {
 		var n = standing ? [0.0, 0, 1] : [0.0, 1, 0];
 		var mesh = new Mesh();
 		mesh.add(device, p, n.concat(n).concat(n).concat(n), [0, 1, 1, 1, 1, 0, 0, 0], [0, 1, 2, 0, 2, 3], m);
-		return mesh;
-	}
-
-	// a smooth ball of radius 0.5 squashed to a cloud's puff: its top rounded, its bottom flat
-	function ellipsoid(m:Material, segments:Int, rings:Int):Mesh {
-		var p = [], idx = [];
-		for (r in 0...rings + 1) {
-			var a = Math.PI * r / rings, y = Math.cos(a) * 0.5, s = Math.sin(a) * 0.5;
-			for (k in 0...segments + 1) {
-				var b = 2 * Math.PI * (k % segments) / segments;
-				p.push(Math.cos(b) * s);
-				p.push(y > 0 ? y * 0.62 : y * 0.22);
-				p.push(-Math.sin(b) * s);
-			}
-		}
-		for (r in 0...rings)
-			for (k in 0...segments) {
-				var a = r * (segments + 1) + k, b = a + segments + 1;
-				for (i in [a, b, a + 1, a + 1, b, b + 1])
-					idx.push(i);
-			}
-		var mesh = new Mesh();
-		mesh.add(device, p, null, null, idx, m);
 		return mesh;
 	}
 
@@ -414,11 +390,8 @@ class Kit {
 		rockMat.baseColor = rgb(w.rock);
 		rockDarkMat.baseColor = rgb(w.rockDark);
 		rockBoxMat.baseColor = rgb(w.rockDark);
-		// (the diorama's: the cloud sea lit low, its shade the island's; the contact shadows in the island's cool shade)
-		// (lit from above: the sun's side the cloud's colour, the rest falling into the island's shade, never dark)
-		var lit = rgb(w.cloud), shade = rgb(w.cloudShade), k = w.night ? 0.5 : 0.72;
-		cloudSeaMat.baseColor = new Vec4(lit.x * 0.75, lit.y * 0.75, lit.z * 0.75, 1);
-		cloudSeaMat.emissive = new Vec3(shade.x * k, shade.y * k, shade.z * k);
+		// (the diorama's: the pools' floor deep under the water; the contact shadows in the island's cool shade)
+		waterBedMat.baseColor = w.night ? rgb(0x182a66) : rgb(0x1e5b96);
 		var sh = rgb(w.shade);
 		blobMat.baseColor = new Vec4(sh.x, sh.y, sh.z, w.night ? 0.42 : 0.32);
 		skirtMat.baseColor = new Vec4(sh.x, sh.y, sh.z, w.night ? 0.32 : 0.26);

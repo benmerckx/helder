@@ -3,20 +3,12 @@ import helder.gfx.shader.Vec3;
 import helder.scene.Node;
 import helder.scene.World;
 import helder.scene.math.Quat;
-import helder.scene.render.InstancedMesh;
 import helder.scene.render.Mesh;
 import helder.scene.render.MeshRenderer;
 
-// The diorama's dressing round a hole, scenery the ball never touches:
+// The diorama's dressing round a hole, scenery the ball never touches (the
+// cloud sea below it is Clouds'):
 //
-//   the cloud sea    a deck of cumulus below the islands (one instanced
-//                    draw): clusters of three smooth puffs on two layers,
-//                    their bottoms level, lit from above with their sides
-//                    falling into the island's shade, fogged; centred a
-//                    little behind what the camera looks at, so it lies in
-//                    the lower part of the frame with the sky above it,
-//                    drifting (wrapping round, a puff shrinking away at the
-//                    deck's rim and growing back, so none pops)
 //   contact shadows  a soft dark skirt along the foot of each rail and
 //                    block where it stands on green, a soft disc under
 //                    the posts, bumpers, hubs and lanterns (one mesh made
@@ -33,15 +25,6 @@ import helder.scene.render.MeshRenderer;
 class Dressing {
 	final world:World;
 	final kit:Kit;
-	// (the cloud sea: per puff its layer, its place on the deck x, z (-1..1), its size, bob's phase)
-	final sea:InstancedMesh;
-	final seaPuffs:Array<Float> = [];
-	static inline var PUFF = 5;
-	// the puffs drawn (the quality switch's: fewer on a slow device)
-	public var seaCount(default, null) = 0;
-	var cx = 0.0;
-	var cy = 0.0;
-	var cz = 0.0;
 	// (the hole's contact shadows: its mesh, made again for each hole)
 	var contact:Null<Mesh> = null;
 	var contactNode = Node.NONE;
@@ -56,58 +39,15 @@ class Dressing {
 	final blobP:Array<Float> = [];
 	final blobUv:Array<Float> = [];
 
-	public static inline var SEA = 132;
-	// how far behind the camera's target the deck's middle lies (toward the camera)
-	static inline var BACK = 2.0;
-
-	static inline function wrap(v:Float):Float
-		return v - 2 * Math.floor((v + 1) / 2);
-
 	public function new(world:World, kit:Kit) {
 		this.world = world;
 		this.kit = kit;
-		sea = new InstancedMesh(kit.cloudPuff, SEA, 0);
-		sea.castShadows = false;
-		InstancedMesh.attach(world.node("sea"), sea);
 		ballBlob = world.node("ballShadow");
 		MeshRenderer.attach(ballBlob, kit.blob);
-		// (clusters of three: a big puff and two smaller beside it; the lower layer's
-		// clusters every other one, so a thinner sea, drawn first, keeps both)
-		var k = 0;
-		for (c in 0...Std.int(SEA / 3)) {
-			var layer = c % 2;
-			var x = hash(c * 7 + 1) * 2 - 1, z = hash(c * 7 + 2) * 2 - 1, a = hash(c * 7 + 3) * 6.283, big = 0.75 + 0.5 * hash(c * 7 + 4);
-			for (j in 0...3) {
-				var side = j == 0 ? 0.0 : j == 1 ? 0.6 : -0.55, size = big * (j == 0 ? 1.0 : j == 1 ? 0.66 : 0.58);
-				var reach = layer == 0 ? 8.5 : 12.0;
-				seaPuffs.push(layer);
-				seaPuffs.push(x + Math.cos(a) * side * big * 2.2 / reach);
-				seaPuffs.push(z + Math.sin(a) * side * big * 2.2 / reach + (j == 0 ? 0 : 0.6 / reach));
-				seaPuffs.push(size);
-				seaPuffs.push(hash(k * 3 + 3) * 6.283);
-				var v = 0.95 + 0.05 * hash(k * 5 + 7);
-				sea.setColor(k, v, v, v);
-				k++;
-			}
-		}
-		quality(2);
 	}
 
-	// (a fixed spread: the same sea on every run)
-	static function hash(i:Int):Float {
-		var x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
-		return x - Math.floor(x);
-	}
-
-	public function quality(level:Int) {
-		seaCount = level >= 2 ? SEA : level == 1 ? 84 : 48;
-		sea.count = seaCount;
-		sea.changed();
-	}
-
-	// the hole's dressing: the sea round its middle, the contact shadows from its pieces, the lanterns' glow
+	// the hole's dressing: the contact shadows from its pieces, the lanterns' glow
 	public function build(hole:Hole, course:Node, minX:Float, maxX:Float, minZ:Float, maxZ:Float, lanterns:Array<Float>, night:Bool) {
-		cy = hole.tee.y;
 		var device = kit.device;
 		if (contact != null) contact.dispose(device);
 		contact = null;
@@ -214,38 +154,8 @@ class Dressing {
 			blobUv.push(v);
 	}
 
-	// the frame: the sea turning, the ball's shade, the lanterns' halos facing the camera
-	// (target: what the camera looks at; from: the camera)
-	public function update(time:Float, ball:Vec3, grounded:Bool, sunk:Bool, eye:Quat, target:Vec3, from:Vec3) {
-		// (the deck's middle: back from the target toward the camera, so the
-		// deck lies under the near and middle of the frame, its far rim lower than the far course)
-		var dx = from.x - target.x, dz = from.z - target.z, l = Math.sqrt(dx * dx + dz * dz);
-		if (l > 1e-4) {
-			dx /= l;
-			dz /= l;
-		}
-		var mx = target.x + dx * BACK, mz = target.z + dz * BACK;
-		for (k in 0...seaCount) {
-			var o = k * PUFF, layer = Std.int(seaPuffs[o]);
-			var reach = layer == 0 ? 8.5 : 12.0;
-			// (drifting with the breeze, wrapping round the deck's square: across it in a few minutes)
-			var x = wrap(seaPuffs[o + 1] + time * (layer == 0 ? 0.006 : 0.004)), z = wrap(seaPuffs[o + 2] + time * (layer == 0 ? 0.0025 : 0.0015));
-			// (shrinking and sinking into the haze toward the rim: nothing appears or vanishes at once)
-			var d = Math.sqrt(x * x + z * z);
-			var rim = d >= 1 ? 0 : d <= 0.55 ? 1 : 1 - (d - 0.55) / 0.45;
-			rim = rim * rim * (3 - 2 * rim);
-			// (none right under the camera: a puff there would fill the frame)
-			var px = mx + x * reach - from.x, pz = mz + z * reach - from.z, near = Math.sqrt(px * px + pz * pz);
-			var clear = near <= 3 ? 0 : near >= 6.5 ? 1 : (near - 3) / 3.5;
-			rim *= clear * clear * (3 - 2 * clear);
-			// (a puff too small to read as cloud is no puff: gone below a third of its size)
-			var s = rim < 0.35 ? 0 : (layer == 0 ? 2.5 : 3.4) * seaPuffs[o + 3] * rim;
-			// (a deck: the puffs' flat bottoms level, their domes as high as they are big)
-			var y = cy - (layer == 0 ? 5.6 : 7.2) - (1 - rim) * 2.5 + s * 0.11 + Math.sin(time * 0.25 + seaPuffs[o + 4]) * 0.05;
-			var a = seaPuffs[o + 4];
-			sea.setTransform(k, mx + x * reach, y, mz + z * reach, 0, Math.sin(a * 0.5), 0, Math.cos(a * 0.5), Math.max(0.001, s));
-		}
-		sea.changed();
+	// the frame: the ball's shade, the lanterns' halos facing the camera (from: the camera)
+	public function update(time:Float, ball:Vec3, grounded:Bool, sunk:Bool, eye:Quat, from:Vec3) {
 		// (the ball's shade: on the green it rests or rolls on; in the air, on the green it left, fainter and wider)
 		if (grounded) groundY = ball.y - Sim.BALL;
 		var up = Math.max(0, ball.y - Sim.BALL - groundY);
