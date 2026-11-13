@@ -152,11 +152,12 @@ class Options {
 		},
 		{
 			name: "publish",
-			usage: "[entry] --play | --testflight | --notarize | --screenshots | --listing [options]",
-			about: "a release built, signed and uploaded: Google Play's track, TestFlight, or Apple's notary service",
+			usage: "[entry] [--run | --play | --testflight | --notarize | --screenshots | --listing] [options]",
+			about: "a release built, signed and uploaded: helder.run, Google Play's track, TestFlight, or Apple's notary service (none: every destination helder.json names)",
 			entry: true,
 			common: ["out"],
 			own: [
+				{key: "run", names: ["--run"], about: "to helder.run: <run.name>.helder.run (helder login, or GitHub Actions' OIDC token)"},
 				{key: "play", names: ["--play"], about: "to Google Play (the App Bundle; HELDER_PLAY_SERVICE_ACCOUNT)"},
 				{key: "testflight", names: ["--testflight"], about: "to TestFlight (the .ipa; HELDER_ASC_KEY_ID, HELDER_ASC_ISSUER_ID, HELDER_ASC_KEY)"},
 				{
@@ -170,7 +171,47 @@ class Options {
 				{key: "screenshots", names: ["--screenshots"], about: "the stories with store: true rendered at the stores' sizes, the review sheet (bin/store)"},
 				{key: "listing", names: ["--listing"], about: "the screenshots to the stores' listings (--play, --testflight: one; else both), the changed ones by hash"},
 				{key: "locale", names: ["--locale"], value: "<l>", about: "the listing's language (en-US)"},
+				{key: "no-screenshot", names: ["--no-screenshot"], about: "--run: no screenshot taken of the program when helder.json's run.screenshots names none"},
 			],
+			notes: [
+				"with no destination, each one helder.json names: helder.run when it has a run block,",
+				"then its targets' publish lists (targets.android.publish: [\"play\"], ...)",
+			],
+		},
+		{
+			name: "share",
+			usage: "[entry] [options]",
+			about: "the web build on helder.run for a week, without an account: a link to send (unlisted)",
+			entry: true,
+			common: [],
+			own: [
+				{key: "no-screenshot", names: ["--no-screenshot"], about: "no screenshot taken of the program for its page"},
+				{key: "dry-run", names: ["--dry-run"], about: "built, what would be uploaded printed; nothing uploaded"},
+			],
+		},
+		{
+			name: "login",
+			usage: "",
+			about: "sign in to helder.build with GitHub (for helder publish --run); the token kept in helder's config directory",
+			entry: false,
+			common: [],
+			own: [],
+		},
+		{
+			name: "logout",
+			usage: "",
+			about: "forget helder login's token",
+			entry: false,
+			common: [],
+			own: [],
+		},
+		{
+			name: "migrate",
+			usage: "[dir]",
+			about: "helder.webmanifest written as helder.json (the app's settings by target), the old file removed",
+			entry: false,
+			common: [],
+			own: [],
 		},
 		{
 			name: "studio",
@@ -316,7 +357,7 @@ class Options {
 			if (positionals.length > 1) throw usage('one entry, not ${positionals.join(" and ")}');
 			var p = positionals[0];
 			if (p != null && isTarget(p) && !exists(p)) throw usage('`$p` is a target: use --target $p');
-		} else if (command == "inspect") {
+		} else if (command == "inspect" || command == "migrate") {
 			if (positionals.length > 1) throw usage('one directory, not ${positionals.join(" and ")}');
 		} else if (command != "test" && positionals.length > 0) {
 			throw usage('unexpected argument ${positionals[0]}', true);

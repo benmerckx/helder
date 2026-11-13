@@ -50,6 +50,14 @@ class Publish {
 	public static inline var ASC = "https://api.appstoreconnect.apple.com";
 
 	@:coroutine public static function run(o:Options):Int {
+		if (o.has("run")) {
+			if (o.has("play") || o.has("testflight") || o.has("notarize") || o.has("screenshots") || o.has("listing")) {
+				Term.err(Style.usage("helder publish: --run alone (each destination is its own publish)"));
+				return 2;
+			}
+			return Run.publish(o);
+		}
+		if (!Lambda.exists(["play", "testflight", "notarize", "screenshots", "listing"], k -> o.has(k))) return every(o);
 		var play = o.has("play"), testflight = o.has("testflight"), shots = o.has("screenshots"), listing = o.has("listing"), notarize = o.has("notarize");
 		if (!shots && !listing && !notarize && play == testflight || notarize && (play || testflight || shots || listing)) {
 			Term.err(Style.usage("helder publish: --play or --testflight, --notarize, or --screenshots, --listing (helder publish --help)"));
@@ -106,6 +114,29 @@ class Publish {
 		} catch (err:Dynamic) {
 			Term.err(Style.status("error", Fail, Std.string(err)));
 			return 1;
+		}
+		return 0;
+	}
+
+	// `helder publish` with no destination: each one helder.json names
+	// (helder.run's first), as `helder publish --<destination>` does it
+	@:coroutine static function every(o:Options):Int {
+		var e = try Entry.of(o) catch (err:Dynamic) {
+			Term.err(Style.usage('helder publish: $err'));
+			return 2;
+		}
+		var cfg:Manifest.AppConfig = e.config;
+		var runs = [];
+		if (cfg?.run != null) runs.push(["--run"]);
+		for (d in cfg?.destinations ?? []) runs.push(["--" + d.to].concat(d.track != null ? ["--track", d.track] : []).concat(d.draft ? ["--draft"] : []));
+		if (runs.length == 0) {
+			Term.err(Style.usage("helder publish: where to: --run, --play, --testflight or --notarize, or name them in helder.json (a run block, targets.<t>.publish)"));
+			return 2;
+		}
+		for (r in runs) {
+			var args = (o.entry == null ? [] : [o.entry]).concat(r).concat(o.has("dry-run") ? ["--dry-run"] : []).concat(o.has("no-screenshot") ? ["--no-screenshot"] : []);
+			var code = run(Options.parse("publish", args));
+			if (code != 0) return code;
 		}
 		return 0;
 	}

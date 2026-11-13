@@ -85,7 +85,7 @@ token.
 helder <command> [entry] [options]      entry: a .hx file, a directory or a project (default: .)
 helder <entry>                          shorthand for: helder dev <entry>
 
-commands: dev, run, build, test, inspect, publish, studio, devices, help
+commands: dev, run, build, test, inspect, publish, share, login, logout, migrate, studio, devices, help
 
   --target <t>       host (default), web, android, ios, ios-sim, macos (a universal app bundle), or an exact hxmc target (windows-x86_64, android-x86_64, ...)
   -d, --device <d>   which phone, emulator or simulator (android, ios); `helder devices` lists them
@@ -193,10 +193,59 @@ booted.
   the build needs of Java, beside it in `<name>.lib/`),
   `bin/ios/<name>.ipa` (and its `.app`), `bin/ios-sim/<name>.app`.
 
-## The app's manifest
+## The app's settings: helder.json
 
-`helder.webmanifest` at the project's root (beside `package.json`) is the
-app's name, icons, colours, splash and native settings, for every target
+`helder.json` at the project's root (beside `package.json`, or in an
+example's directory, which it then makes the project's root: its `bin/`
+there) is the app's name, icons, colours and splash, each target's own
+settings, and where `helder publish` sends each one (`HelderJson.hx`; its
+schema `helder.schema.json`, served at https://helder.build/schema/helder.json
+for editors' completion):
+
+```json
+{
+  "$schema": "https://helder.build/schema/helder.json",
+  "name": "Floating Greens",
+  "description": "Mini golf on floating islands.",
+  "id": "build.helder.golf",
+  "version": "1.2", "build": 3,
+  "entry": "Golf.hx",
+  "icon": "icon.svg",
+  "colors": {"theme": "#9fd0ff", "background": "#fbdfea"},
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "run": {"name": "floating-greens", "listed": true, "kind": "game", "tags": ["golf"],
+          "source": "https://github.com/helder/helder/tree/main/examples/golf"},
+  "targets": {
+    "android": {"minSdk": 31, "publish": [{"to": "play", "track": "internal"}], "store": "https://play.google.com/..."},
+    "ios": {"bundleId": "build.helder.golf", "publish": ["testflight"]}
+  }
+}
+```
+
+- **The app's**: `name`, `label` (the launcher's, else name),
+  `description`, `id` (both phones'), `version`, `build`, `entry` (what a
+  build of the directory builds), `icon` (a file, or `{any, maskable,
+  monochrome}`), `colors` (`theme`, `background`), `splash` (`image`,
+  `background`, `dark`), `display`, `orientation`, `lang`, `dir`,
+  `categories`, `fileHandlers`: the web manifest's members below, by
+  other names.
+- **`run`**: helder.run's (below, "helder.run").
+- **`targets`**: `android` and `ios` take the web manifest's `"helder":
+  {"android"}` and `{"ios"}` members below as they are; each target its
+  `publish` list (android: `play`, or `{"to": "play", "track", "draft"}`;
+  ios: `testflight`; macos: `notarize`) and `store`, its page in its store
+  (helder.run's page links it).
+- It is read as the web manifest it stands for, so everything below holds
+  for it; its mistakes are named by its own members (`targets.android.minSdk`).
+  A web build writes that manifest beside the page without its `"helder"`
+  member. `helder migrate [dir]` writes a `helder.webmanifest` as
+  `helder.json` and removes it; a project with both reads `helder.json`.
+
+### helder.webmanifest
+
+A project without `helder.json` may keep `helder.webmanifest` at its root:
+the app's name, icons, colours, splash and native settings, for every target
 (`Manifest.hx`, `Icons.hx`). It is a [W3C Web App
 Manifest](https://www.w3.org/TR/appmanifest/), served to browsers as it
 is, so its members are the web's wherever the web has one; what only
@@ -322,11 +371,49 @@ browser extensions and PWA tools each claim.
   (minSdk 29); the web's splash is not the installed PWA's (the browser
   makes that from `background_color` and the icons).
 
+## helder.run
+
+`helder publish --run` puts the web build on helder.run, at
+`<run.name>.helder.run` (`Run.hx`): a page of its own (its name, a
+screenshot, Play, its stores' links, a QR code, what it can access) and the
+program at `/play/`, on helder.run's own page. helder.build lists it on
+https://helder.build/explore when `run.listed` is true. `helder share`
+does the same without an account: unlisted, at a random address, for a week.
+
+```sh
+helder login                         # GitHub, through helder.build (its device flow); the token in helder's config directory
+helder publish --run                 # this project's run block: <run.name>.helder.run, a new version
+helder publish examples/golf --run --dry-run   # built, what would be uploaded printed
+helder share examples/golf           # anonymous: https://quiet-otter-k7m2.helder.run, for a week
+helder logout
+```
+
+- **What is uploaded**: the web build (`bin/run/<name>`: the module, its
+  assets, fonts, helder's runtime modules), the icon at 512 px, and
+  `run.screenshots`, else one screenshot of the program taken headless
+  (`helder run --headless`: a GPU or Mesa's llvmpipe; `--no-screenshot`:
+  none). Not the page: helder.run renders its own from the page's values
+  (`Page.written`), and accepts only helder's own runtime modules (their
+  hashes from helder's main), so only helder's runtime runs there; a
+  runtime changed locally is refused. Files are content-addressed: what
+  helder.run has (a font, the runtime) is not sent again.
+- **Who may publish**: `helder login`'s account (`HELDER_TOKEN` gives a
+  token instead); in GitHub Actions the workflow's OIDC token (`permissions:
+  id-token: write`, no secret), whose repository the project trusts: its
+  first publish from GitHub makes it the repository owner's and trusts that
+  repository, helder.build's settings trust others (helder's own examples:
+  `.github/workflows/run.yml`). `HELDER_API`: another helder.build (a local one).
+- **The address**: `run.name` (3 to 40 lowercase letters, digits and
+  hyphens), else the app's name made one; the first to publish an address
+  owns it.
+
 ## Publishing to the stores
 
 `helder publish` (`Publish.hx`) builds the release, signs it and uploads
 it through the store's own API, without fastlane, Transporter or Xcode
-(HTTP by curl):
+(HTTP by curl). With no destination it publishes to each one `helder.json`
+names (helder.run's first, when it has a run block, then each target's
+`publish` list):
 
 - **`--play`**: the App Bundle (below: the release key's), an access
   token: `GOOGLE_OAUTH_ACCESS_TOKEN` or `HELDER_PLAY_ACCESS_TOKEN` as it

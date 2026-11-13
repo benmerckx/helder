@@ -11,11 +11,16 @@ body { margin: 0; background: #fff; }
 #hxmc-dev-overlay b { color: #fff; }
 </style>
 {{preload}}
+<script type="application/json" id="helder-page">{{page}}</script>
 <script>
+// (the page's values in the data block above: {wasm, fonts, browser,
+// imports, assets, dev}; the scripts are the same text for every program,
+// so a Content-Security-Policy can name them by hash, as helder.run's does)
+window.helderPage = JSON.parse(document.getElementById('helder-page').textContent);
 // (the module and the fonts, fetched and compiled from the start, while the
 // scripts load; revalidated, so a rebuild is never served from the cache)
-window.helderLoad = { wasm: WebAssembly.compileStreaming(fetch('{{wasm}}', { cache: 'no-cache' })),
-	fonts: Promise.all({{fonts}}.map((u) => fetch(u, { cache: 'no-cache' }).then((r) => r.arrayBuffer()))) };
+window.helderLoad = { wasm: WebAssembly.compileStreaming(fetch(helderPage.wasm, { cache: 'no-cache' })),
+	fonts: Promise.all(helderPage.fonts.map((u) => fetch(u, { cache: 'no-cache' }).then((r) => r.arrayBuffer()))) };
 window.helderLoad.wasm.catch(() => {});
 window.helderLoad.fonts.catch(() => {});
 </script></head><body>
@@ -28,8 +33,9 @@ window.helderLoad.fonts.catch(() => {});
 // snapshots and disposes (host.dispose(): what it registered dropped, its
 // GPU objects released), and the new one runs from the snapshot against
 // the same canvas and GPU device; the page never loads again.
-import { run } from '{{browser}}';
-const DEV = {{dev}};
+const PAGE = window.helderPage;
+const { run } = await import(new URL(PAGE.browser, document.baseURI).href);
+const DEV = PAGE.dev;
 const overlay = document.getElementById('hxmc-dev-overlay');
 const show = (text) => {
 	overlay.innerHTML = '';
@@ -48,9 +54,9 @@ const out = (s) => { window.hxmcDev.log.push(s); console.log(s); send({ type: 'l
 function pageArgs(search) {
 	return [...new URLSearchParams(search)].filter(([k]) => k !== 'gfx').flatMap(([k, v]) => (v ? ['--' + k, v] : ['--' + k]));
 }
-const IMPORTS = {{imports}};
+const IMPORTS = PAGE.imports;
 // (the files read before main: helder.asset's, fetched while the module loads)
-const ASSETS = {{assets}};
+const ASSETS = PAGE.assets;
 const fonts = await window.helderLoad.fonts.catch(() => []);
 // the running build: its host, its reload callback, the snapshot it sent
 let current = null, gpu = null, canvases = [];
@@ -90,7 +96,7 @@ async function start(wasm, restoreBytes) {
 }
 // a new build: compiled as it arrives (409: it failed, the running one stays), then swapped in
 async function swap() {
-	const r = await fetch('{{wasm}}?swap=' + Date.now());
+	const r = await fetch(PAGE.wasm + '?swap=' + Date.now());
 	if (!r.ok) return;
 	const module = await WebAssembly.compileStreaming(r);
 	const old = current;

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://helder.build/schema/helder.json",
+  "name": "Showroom",
+  "description": "helder.scene's renderer features together: an environment map lighting metal and plastic spheres, a normal-mapped crate, a morphing surface, shadows and glass. Drag to turn.",
+  "run": {
+    "name": "helder-showroom",
+    "listed": true,
+    "source": "https://github.com/helder/helder/tree/main/examples/showroom"
+  }
+}

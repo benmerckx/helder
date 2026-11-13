@@ -1,0 +1,11 @@
+{
+  "$schema": "https://helder.build/schema/helder.json",
+  "name": "Todo",
+  "description": "A todo list in markup: signals, a keyed list, a text field, checkboxes and filters",
+  "run": {
+    "name": "helder-todo",
+    "listed": true,
+    "kind": "app",
+    "source": "https://github.com/helder/helder/tree/main/examples/todo"
+  }
+}

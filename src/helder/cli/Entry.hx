@@ -65,6 +65,16 @@ class Entry {
 		if (e.target == "host") e.target = Compiler.hostTarget();
 		path = clean(path ?? ".");
 		if (!FileSystem.exists(path)) throw '$path: no such file or directory';
+		if (FileSystem.isDirectory(path) && !FileSystem.exists('$path/package.json') && FileSystem.exists('$path/${HelderJson.FILE}')) {
+			// (a directory's helder.json naming its entry: that file, the directory its project's root)
+			var named = HelderJson.entry(File.getContent('$path/${HelderJson.FILE}'));
+			if (named != null) {
+				var f = path == "." ? named : '$path/$named';
+				if (!FileSystem.exists(f)) throw '$path/${HelderJson.FILE}: entry: $named: no such file';
+				if (isTypescript(f)) e.typescriptFile(f) else e.file(f);
+				return e;
+			}
+		}
 		if (FileSystem.isDirectory(path)) {
 			var ts = typescriptMain(path);
 			if (ts != null) e.typescriptFile(ts) else if (FileSystem.exists('$path/package.json')) e.project(path) else e.file(mainOf(path));
@@ -110,6 +120,7 @@ class Entry {
 		root = pj == null ? "." : Path.directory(pj);
 		if (root == "") root = ".";
 		if (pj != null) configure(pj, false);
+		root = settingsRoot(dir, root);
 		defines = defines.concat(["-D", 'helder.typescript=$typescript']);
 		finish();
 		sources.unshift(dir);
@@ -130,7 +141,21 @@ class Entry {
 		root = pj == null ? "." : Path.directory(pj);
 		if (root == "") root = ".";
 		if (pj != null) configure(pj, false);
+		root = settingsRoot(dir, root);
 		finish();
+	}
+
+	// (a helder.json from the entry's directory up to the package's root:
+	// its directory the project's, where its files and bin/ are; an example's
+	// in this checkout)
+	static function settingsRoot(dir:String, root:String):String {
+		var d = dir, top = FileSystem.fullPath(root);
+		for (_ in 0...32) {
+			if (FileSystem.exists('$d/${HelderJson.FILE}')) return d;
+			if (FileSystem.fullPath(d) == top) break;
+			d = parent(d);
+		}
+		return root;
 	}
 
 	function project(dir:String) {
