@@ -361,6 +361,70 @@ class Sim {
 		return new Quat(0, s, 0, c);
 	}
 
+	// this simulation (of the same hole) set to another's state, as it is
+	// between steps: the ball, the step (the movers, lifts and turnstiles
+	// placed from it), the gates, switches, tiles, bumpers and portals; the
+	// physics keeps nothing else between steps, so the same shot from here
+	// goes exactly where it goes there (Aim's ghost). Allocates nothing.
+	public function mirror(from:Sim) {
+		strokes = from.strokes;
+		steps = from.steps;
+		resting = from.resting;
+		sunk = from.sunk;
+		spot = from.spot;
+		safe = from.safe;
+		onFixed = from.onFixed;
+		previous = from.previous;
+		grounded = from.grounded;
+		area = from.area;
+		still = from.still;
+		exitX = from.exitX;
+		exitZ = from.exitZ;
+		exiting = from.exiting;
+		ball.position = from.ball.position;
+		ball.velocity = from.ball.velocity;
+		ball.orientation = from.ball.orientation;
+		ball.angular = from.ball.angular;
+		for (i in 0...gates.length) {
+			gateOpen[i] = from.gateOpen[i];
+			gateDown[i] = from.gateDown[i];
+		}
+		for (i in 0...onPlate.length)
+			onPlate[i] = from.onPlate[i];
+		for (i in 0...bumperKick.length)
+			bumperKick[i] = from.bumperKick[i];
+		for (i in 0...tiles.length) {
+			tiles[i].position = from.tiles[i].position;
+			tileState[i] = from.tileState[i];
+			tileTime[i] = from.tileTime[i];
+		}
+		for (i in 0...movers.length) {
+			movers[i].position = from.movers[i].position;
+			movers[i].velocity = from.movers[i].velocity;
+		}
+		for (i in 0...spinners.length) {
+			spinners[i].orientation = from.spinners[i].orientation;
+			spinners[i].angular = from.spinners[i].angular;
+		}
+		for (i in 0...gates.length) {
+			gates[i].position = from.gates[i].position;
+			gates[i].velocity = from.gates[i].velocity;
+		}
+		clearEvents();
+	}
+
+	// the events cleared (the view's, after reading them; the ghost's, each step)
+	public function clearEvents() {
+		impact = 0;
+		fell = false;
+		splashed = false;
+		holed = false;
+		kicked = -1;
+		warped = -1;
+		thrown = -1;
+		cracked = -1;
+	}
+
 	// a shot: toward (dx, dz) (any length but zero) at speed (m/s, clamped)
 	public function shoot(dx:Float, dz:Float, speed:Float) {
 		if (!resting || sunk) return;

@@ -10,6 +10,7 @@ import helder.scene.World as SceneWorld;
 import helder.scene.math.MathTools;
 import helder.scene.math.Quat;
 import helder.scene.render.Fog;
+import helder.scene.render.InstancedMesh;
 import helder.scene.render.Light;
 import helder.scene.render.MeshRenderer;
 import helder.scene.render.Renderer;
@@ -56,6 +57,9 @@ class Game {
 	public final aiming = signal(false);
 	public final shots = signal(0);
 	public final power = signal(0.0);
+	// the power's readout beside the ball (box points)
+	public final readX = signal(0.0);
+	public final readY = signal(0.0);
 	// the hole's card shown (as the camera flies over it)
 	public final card = signal(false);
 	// the curtain drawn between holes
@@ -76,6 +80,9 @@ class Game {
 	final unsquash:Node;
 	final roll:Node;
 	final aimDots:Array<Node> = [];
+	// the predicted path's dots (one instanced draw), its ghost simulation
+	var pathDots:Null<InstancedMesh>;
+	final preview:Aim;
 	var ring = Node.NONE;
 	var flag = Node.NONE;
 	var flagPole = Node.NONE;
@@ -132,6 +139,11 @@ class Game {
 	static inline var TITLE = 7;
 	var aimDir = new Vec3(0, 0, -1);
 	var aimPower = 0.0;
+	// (GOLF_AIM: an aim held without a finger, for snaps)
+	var held = false;
+	// the pull on screen (points, from the ball)
+	var pullX = 0.0;
+	var pullY = 0.0;
 	var rollQ = Quat.identity();
 	var squashAmount = 0.0;
 	var squashSpeed = 0.0;
@@ -184,6 +196,7 @@ class Game {
 		holeIndex = signal(first);
 		// (the title's backdrop: a hole with something moving on it)
 		sim = new Sim(Course.holes[TITLE]);
+		preview = new Aim(sim);
 		sky = signal(gradient(Course.worlds[sim.hole.world]));
 		stepFn = stepSim;
 		shot.within = nearBall;
@@ -240,6 +253,10 @@ class Game {
 			n.visible = false;
 			aimDots.push(n);
 		}
+		var pd = new InstancedMesh(k.pathDot, PATH_DOTS, 0);
+		pd.castShadows = false;
+		InstancedMesh.attach(world.node("path"), pd);
+		pathDots = pd;
 		puffs = new Particles(world, k.puff, 220, "puffs");
 		bits = new Particles(world, k.confetti, 160, "confetti");
 		motes = new Particles(world, k.mote, 160, "motes");
@@ -288,6 +305,8 @@ class Game {
 		var was = sim.hole.world;
 		holeIndex(index);
 		sim = new Sim(Course.holes[index]);
+		preview.reset(sim);
+		held = false;
 		strokes(0);
 		shots(0);
 		screen("play");
@@ -737,6 +756,8 @@ class Game {
 				project(p);
 				var px = g.x - screenX, py = g.y - screenY;
 				var pull = Math.sqrt(px * px + py * py);
+				pullX = px;
+				pullY = py;
 				aimPower = Math.min(1, Math.max(0, (pull - DEAD) / (PULL - DEAD)));
 				if (pull > 1 && ground(screenX - px / pull * 60, screenY - py / pull * 60, p.y)) {
 					var dx = hitX - p.x, dz = hitZ - p.z, l = Math.sqrt(dx * dx + dz * dz);
@@ -747,16 +768,29 @@ class Game {
 				touched = 99;
 			case Ended:
 				aiming(false);
-				if (aimPower > 0 && sim.resting) {
-					// (a curve: fine control for putts, the full range still there)
-					var speed = Sim.MIN_SPEED + (Sim.MAX_SPEED - Sim.MIN_SPEED) * Math.pow(aimPower, 1.6);
-					shootNow(aimDir.x, aimDir.z, speed, aimPower);
-				}
+				if (aimPower > 0 && sim.resting) shootNow(aimDir.x, aimDir.z, speedOf(aimPower), aimPower);
 				aimPower = 0;
 			case Cancelled | Failed | Possible:
 				aiming(false);
 				aimPower = 0;
 		}
+	}
+
+	// a shot's speed from its power (a curve: fine control for putts, the full range still there)
+	static function speedOf(power:Float):Float
+		return Sim.MIN_SPEED + (Sim.MAX_SPEED - Sim.MIN_SPEED) * Math.pow(power, 1.6);
+
+	// an aim held (GOLF_AIM=<hole>,<dx>,<dz>,<power>: the hole started, the fly-over skipped, the aim shown as if dragged)
+	public function holdAim(index:Int, dx:Float, dz:Float, strength:Float) {
+		play(index);
+		endIntro();
+		var l = Math.sqrt(dx * dx + dz * dz);
+		if (l < 1e-9) return;
+		aimDir = new Vec3(dx / l, 0, dz / l);
+		aimPower = Math.min(1, Math.max(0.01, strength));
+		held = true;
+		aiming(true);
+		power(Math.round(aimPower * 100) / 100);
 	}
 
 	function shootNow(dx:Float, dz:Float, speed:Float, power:Float) {
@@ -864,9 +898,9 @@ class Game {
 		}
 	}
 
-	// (the frame's allocation, counted after the first seconds: what a frame of play costs)
+	// (the frame's allocation, counted after the first seconds: what a frame of play, or of an aim held, costs)
 	function stat() {
-		if (demoShots == null || realTime < 3) return;
+		if ((demoShots == null && !held) || realTime < 3) return;
 		statFrames++;
 		if (frameBytes > 0) {
 			statAllocating++;
@@ -874,7 +908,7 @@ class Game {
 			if (frameBytes > statMax) statMax = frameBytes;
 		}
 		if (statFrames % 60 == 0)
-			Sys.println('golf: $statFrames frames, $statAllocating allocated ($statBytes bytes, at most $statMax), strokes ${sim.strokes}${sim.sunk ? ", holed" : ""}, ${renderer != null ? renderer.draws : 0} draws');
+			Sys.println('golf: $statFrames frames, $statAllocating allocated ($statBytes bytes, at most $statMax), strokes ${sim.strokes}${sim.sunk ? ", holed" : ""}, ${renderer != null ? renderer.draws : 0} draws${held ? ', ' + preview.made + ' previews (the last ' + preview.ran + ' steps)' : ''}');
 	}
 
 	// the simulation's events: hits (squash, shake, a sound), kicks, portals, switches, tiles, a fall or a splash, a hole-in
@@ -1043,30 +1077,103 @@ class Game {
 		unsquash.rotation = squashAxis.conjugate();
 	}
 
-	// the aim: dots from the ball the way it will go, longer and warmer with power
+	// the aim: the predicted path (Aim: the hole's ghost played forward
+	// with this shot), clear to its first bounce and fading after, a marker
+	// at the bounce and at a blocker it meets; behind the ball a band, as
+	// long and as warm as the pull is strong; the power beside the ball
+	static inline var PATH_DOTS = 40;
+	static inline var SPACING = 0.15;
+	static inline var START = 0.17;
+
 	function aimView() {
-		var on = aimPower > 0 && shot.active;
+		var on = aimPower > 0 && (shot.active || held) && sim.resting && !sim.sunk;
 		var p = sim.ball.position;
 		var n = aimDots.length;
-		var shown = on ? Std.int(3 + aimPower * (n - 3)) : 0;
-		if (kit != null) {
+		var shown = on ? Std.int(2 + aimPower * (n - 2) + 0.5) : 0;
+		if (kit != null && on) {
 			var c0 = new Vec4(1, 1, 1, 1), c1 = Kit.rgb(0xffd166), c2 = Kit.rgb(0xff6b6b);
 			var k = aimPower;
 			var c = k < 0.6 ? lerp4(c0, c1, k / 0.6) : lerp4(c1, c2, (k - 0.6) / 0.4);
 			kit.dotMaterial.baseColor = c;
 			kit.dotMaterial.emissive = new Vec3(c.x * 0.5, c.y * 0.5, c.z * 0.5);
 		}
+		// (the band: back from the ball, opposite the aim)
 		for (i in 0...n) {
 			var d = aimDots[i];
 			d.visible = i < shown;
 			if (i >= shown) continue;
-			var f = (i + 1) / n;
-			// (the dots creep outward, a pulse along the line)
-			var dist = 0.22 + (f + (realTime * 0.6 % (1 / n))) * (0.4 + aimPower * 2.6);
-			d.position = new Vec3(p.x + aimDir.x * dist, p.y - Sim.BALL * 0.55, p.z + aimDir.z * dist);
-			var size = 0.12 * (1 - f * 0.6);
-			d.scale = new Vec3(size, size * 0.6, size);
+			var dist = 0.14 + i * 0.045;
+			d.position = new Vec3(p.x - aimDir.x * dist, p.y - Sim.BALL * 0.5, p.z - aimDir.z * dist);
+			var size = 0.065 - 0.03 * i / n;
+			d.scale = new Vec3(size, size * 0.7, size);
 		}
+		var pd = pathDots;
+		if (pd == null) return;
+		var used = 0;
+		if (on) {
+			preview.update(sim, aimDir.x, aimDir.z, speedOf(aimPower));
+			var len = preview.length, from = preview.fadeFrom;
+			var y = -Sim.BALL * 0.55;
+			// (the dots creep outward along the path)
+			var s = START + (realTime * 0.4) % SPACING;
+			while (s < len && used < PATH_DOTS - 2) {
+				var f = s <= from ? 1.0 : 1 - (s - from) / Aim.FADE;
+				if (f <= 0.04) break;
+				var grow = Math.min(1, (s - START) / SPACING);
+				var size = 0.07 * (0.25 + 0.75 * f) * (0.4 + 0.6 * grow);
+				preview.at(s);
+				pd.setTransform(used, preview.px, preview.py + y, preview.pz, 0, 0, 0, 1, size);
+				pd.setColor(used, 1, 1, 1);
+				used++;
+				s += SPACING;
+			}
+			// (the first bounce, a warm mark; a blocker met, a red one)
+			if (preview.bounce >= 0 && preview.bounce <= len) {
+				preview.at(preview.bounce);
+				pd.setTransform(used, preview.px, preview.py + y, preview.pz, 0, 0, 0, 1, 0.13);
+				pd.setColor(used, 1, 0.62, 0.12);
+				used++;
+			}
+			if (preview.ending == Aim.END_BLOCKER) {
+				preview.at(len);
+				pd.setTransform(used, preview.px, preview.py + y, preview.pz, 0, 0, 0, 1, 0.16);
+				pd.setColor(used, 0.95, 0.18, 0.16);
+				used++;
+			}
+			readout(p);
+		}
+		if (pd.count != used || used > 0) {
+			pd.count = used;
+			pd.changed();
+		}
+	}
+
+	// the power's readout: beside the ball on screen, on the side across the aim nearer the middle
+	function readout(p:Vec3) {
+		var b = box;
+		if (b == null) return;
+		project(p + aimDir * 0.6);
+		var ax = screenX, ay = screenY;
+		project(p);
+		var dx = ax - screenX, dy = ay - screenY, l = Math.sqrt(dx * dx + dy * dy);
+		if (l < 1e-6) {
+			dx = 0;
+			dy = -1;
+		} else {
+			dx /= l;
+			dy /= l;
+		}
+		// (across the aim: of the two sides, the one toward the box's middle)
+		var sx = -dy, sy = dx;
+		if (sx * (b.width / 2 - screenX) + sy * (b.height / 2 - screenY) < 0) {
+			sx = -sx;
+			sy = -sy;
+		}
+		var x = screenX + sx * 46 - dx * 6, y = screenY + sy * 46 - dy * 6;
+		x = Math.max(32, Math.min(b.width - 32, x));
+		y = Math.max(24, Math.min(b.height - 24, y));
+		if (Math.abs(x - readX.peek()) > 0.5) readX(Math.round(x));
+		if (Math.abs(y - readY.peek()) > 0.5) readY(Math.round(y));
 	}
 
 	// the trail: puffs dropped behind the moving ball, shrinking

@@ -20,9 +20,12 @@ import helder.view.graph.Graph.*;
 // (env(safe-area-inset-*)): the title, the hole's card as the camera flies
 // over it, the hole and the strokes, a hint, a toast, the card after a
 // hole-in (stars, retry, next), the islands' scorecard (stars and best
-// strokes, saved) and a curtain between holes. Set in Fredoka (OFL,
-// fonts/), embedded. GOLF_DEMO=<hole> plays its recorded round,
-// GOLF_PLAY=<hole> starts it, GOLF_MENU opens the scorecard (natively). The game steps on ui's clock (Game.frame), its
+// strokes, saved) and a curtain between holes. Set in Nunito (the
+// numbers, labels, tips and buttons), the title and the holes' names in
+// Fredoka (both OFL, fonts/), embedded. GOLF_DEMO=<hole> plays its recorded
+// round, GOLF_PLAY=<hole> starts it, GOLF_AIM=<hole>,<dx>,<dz>,<power>
+// holds an aim on it (the predicted path shown), GOLF_MENU opens the
+// scorecard (natively). The game steps on ui's clock (Game.frame), its
 // simulation at a fixed rate.
 class Golf implements Markup {
 	static inline var INK = "#2b2d42";
@@ -32,6 +35,7 @@ class Golf implements Markup {
 	static function main() {
 		Sys.println("floating greens: starting");
 		try helder.text.SystemFonts.get().add(helder.asset.Asset.embed("fonts/Fredoka.ttf")) catch (_:Dynamic) {}
+		try helder.text.SystemFonts.get().add(helder.asset.Asset.embed("fonts/Nunito.ttf")) catch (_:Dynamic) {}
 		var game = new Game();
 		// (GOLF_DEMO=<hole>: its recorded round played, the frames' allocation printed natively)
 		#if (hxmc.target != "wasm32-wasi")
@@ -40,6 +44,10 @@ class Golf implements Markup {
 		// (GOLF_PLAY=<hole>: that hole started, past the title)
 		var start = Std.parseInt(Sys.getEnv("GOLF_PLAY") ?? "");
 		if (start != null && demo == null) game.play(start - 1);
+		// (GOLF_AIM=<hole>,<dx>,<dz>,<power 0..1>: that hole, an aim held on it)
+		var held = (Sys.getEnv("GOLF_AIM") ?? "").split(",");
+		if (held.length == 4 && demo == null)
+			game.holdAim(Std.parseInt(held[0]) - 1, Std.parseFloat(held[1]), Std.parseFloat(held[2]), Std.parseFloat(held[3]));
 		if (Sys.getEnv("GOLF_MENU") != null) game.openMenu();
 		#end
 		Clock.add(t -> {
@@ -47,7 +55,7 @@ class Golf implements Markup {
 			true;
 		});
 		UiWindow.run(<Surface title="Floating Greens" width={390} height={844} theme={sheet}>
-			<view grow={1} background={game.sky()} font-family="Fredoka" color={INK}>
+			<view grow={1} background={game.sky()} font-family="Nunito" color={INK}>
 				<Scene grow={1} world={game.world} camera={game.camera} hdr animate setup={game.setup} ref={game.attach}>
 					<OrbitControls ref={game.controls}/>
 				</Scene>
@@ -104,7 +112,7 @@ class Golf implements Markup {
 		var bg = props.primary == true ? (props.color ?? "#ff6b6b") : "#ffffff";
 		return <view:button tag={props.tag} slot="button" role="button" focusable pointer-events="auto" cursor="pointer" padding="13 24" radius={24}
 			min-width={props.wide == true ? 180 : 0} align-items="center" background={bg} color={props.primary == true ? "#ffffff" : INK} font-size={17}
-			font-weight={600} shadow="0 4 14 #2b2d4230" transition="transform 0.12s ease-out" onPress={props.onPress}>{props.label}</view:button>;
+			font-weight={700} shadow="0 4 14 #2b2d4230" transition="transform 0.12s ease-out" onPress={props.onPress}>{props.label}</view:button>;
 	}
 
 	static function Hud(props:{game:Game}):View {
@@ -123,26 +131,26 @@ class Golf implements Markup {
 							<text font-size={18} font-weight={700} color="#ffffff">{"" + (g.holeIndex() + 1)}</text>
 						</view>
 						<view>
-							<text font-size={11} font-weight={500} color={MUTED} letter-spacing={1}>{world().name.toUpperCase()}</text>
-							<text font-size={17} font-weight={600}>{hole().name}</text>
+							<text font-size={11} font-weight={600} color={MUTED} letter-spacing={1}>{world().name.toUpperCase()}</text>
+							<text font-size={17} font-weight={500} font-family="Fredoka">{hole().name}</text>
 						</view>
 					</view:button>
 					<view tag="score" direction="row" column-gap={14} padding="6 16" radius={24} background="#ffffffe0" shadow="0 3 10 #2b2d4224">
 						<view align-items="center">
-							<text font-size={11} font-weight={500} color={MUTED} letter-spacing={1}>PAR</text>
-							<text font-size={20} font-weight={700}>{"" + hole().par}</text>
+							<text font-size={11} font-weight={600} color={MUTED} letter-spacing={1}>PAR</text>
+							<text font-size={20} font-weight={600}>{"" + hole().par}</text>
 						</view>
 						<view width={1} background="#2b2d421c"/>
 						<view align-items="center">
-							<text font-size={11} font-weight={500} color={MUTED} letter-spacing={1}>STROKES</text>
-							<text tag="strokes" font-size={20} font-weight={700} color={g.strokes() > hole().par ? "#e76f51" : INK}>{"" + g.strokes()}</text>
+							<text font-size={11} font-weight={600} color={MUTED} letter-spacing={1}>STROKES</text>
+							<text tag="strokes" font-size={20} font-weight={600} color={g.strokes() > hole().par ? "#e76f51" : INK}>{"" + g.strokes()}</text>
 						</view>
 					</view>
 				</view>
 			</Show>
 			<view grow={1} align-items="center" justify="center">
 				<Show when={g.toast() != ""}>
-					<text tag="toast" slot="pop" transition="opacity 0.2s ease-out, transform 0.25s ease-out" font-size={20} font-weight={600} color="#ffffff"
+					<text tag="toast" slot="pop" transition="opacity 0.2s ease-out, transform 0.25s ease-out" font-size={18} font-weight={600} color="#ffffff"
 						padding="10 20" radius={22} background="#2b2d42c0">{g.toast()}</text>
 				</Show>
 			</view>
@@ -154,14 +162,15 @@ class Golf implements Markup {
 					<Show when={g.card()}>
 						<HoleCard game={g}/>
 					</Show>
-					<Show when={g.aiming()}>
-						<view tag="power" width={220} height={14} radius={7} background="#ffffffa8" overflow="hidden" shadow="0 2 8 #2b2d4220">
-							<view height={14} radius={7} width={(Math.round(g.power() * 220) : Float)} background={powerColor(g.power())}/>
-						</view>
-					</Show>
 					<Show when={g.shots() == 0 && !g.aiming() && !g.card()}>
 						<text tag="hint" font-size={15} font-weight={500} padding="9 18" radius={18} background="#ffffffd0">Drag back from the ball, let go to shoot</text>
 					</Show>
+				</view>
+			</Show>
+			<Show when={g.screen() == "play" && g.aiming()}>
+				<view tag="power" position="absolute" left={g.readX() - 30} top={g.readY() - 14} width={60} height={28} radius={14} background="#2b2d42d9"
+					align-items="center" justify="center" shadow="0 2 8 #2b2d4230">
+					<text font-size={15} font-weight={700} color={powerColor(g.power())}>{Math.round(g.power() * 100) + "%"}</text>
 				</view>
 			</Show>
 			<Show when={g.screen() == "title"}>
@@ -185,13 +194,13 @@ class Golf implements Markup {
 		return <view tag="title" position="absolute" left={0} top={0} right={0} bottom={0} pointer-events="none" align-items="center" justify="space-between"
 			padding-top="calc(env(safe-area-inset-top) + 64px)" padding-bottom="calc(env(safe-area-inset-bottom) + 48px)" padding-left={20} padding-right={20}>
 			<view slot="drop" transition="opacity 0.5s ease-out, transform 0.6s ease-out" align-items="center" row-gap={4}>
-				<text font-size={g.wide() ? 64 : 46} font-weight={700} color="#ffffff" text-align="center" text-shadow="0 3 0 #2b2d4240">Floating Greens</text>
-				<text font-size={17} font-weight={500} color="#ffffff" text-align="center" text-shadow="0 1 0 #2b2d4240">Mini golf on three islands in the sky</text>
+				<text font-size={g.wide() ? 64 : 46} font-weight={500} font-family="Fredoka" color="#ffffff" text-align="center" text-shadow="0 3 0 #2b2d4240">Floating Greens</text>
+				<text font-size={17} font-weight={600} color="#ffffff" text-align="center" text-shadow="0 1 0 #2b2d4240">Mini golf on three islands in the sky</text>
 			</view>
 			<view slot="rise" transition="opacity 0.5s ease-out, transform 0.6s ease-out" align-items="center" row-gap={12}>
 				<Button tag="play" label={g.best()[0] > 0 ? "Play hole " + (g.holeIndex() + 1) : "Play"} primary wide onPress={g.start}/>
 				<Button tag="holes" label="Holes" wide onPress={g.openMenu}/>
-				<text font-size={14} font-weight={500} color={INK} padding="5 14" radius={14} background="#ffffffa8">
+				<text font-size={14} font-weight={600} color={INK} padding="5 14" radius={14} background="#ffffffa8">
 					{total() + " of " + Course.holes.length * 3 + " stars · 18 holes"}</text>
 			</view>
 		</view>;
@@ -203,15 +212,15 @@ class Golf implements Markup {
 		var i = g.holeIndex.peek(), h = Course.holes[i], w = Course.worlds[h.world];
 		return <view tag="card" slot="pop" transition="opacity 0.3s ease-out, transform 0.4s ease-out" align-items="center" row-gap={6} padding="18 26"
 			radius={26} background="#ffffffeb" shadow="0 10 30 #2b2d4235" max-width={340} margin-bottom={24}>
-			<text font-size={12} font-weight={600} color={hex(w.deep)} letter-spacing={2}>{"HOLE " + (i + 1) + " · " + w.name.toUpperCase()}</text>
-			<text font-size={32} font-weight={700} text-align="center">{h.name}</text>
+			<text font-size={12} font-weight={700} color={hex(w.deep)} letter-spacing={2}>{"HOLE " + (i + 1) + " · " + w.name.toUpperCase()}</text>
+			<text font-size={32} font-weight={500} font-family="Fredoka" text-align="center">{h.name}</text>
 			<view direction="row" column-gap={8} align-items="center">
-				<text font-size={15} font-weight={600} padding="3 12" radius={12} background="#2b2d420f">{"Par " + h.par}</text>
+				<text font-size={15} font-weight={700} padding="3 12" radius={12} background="#2b2d420f">{"Par " + h.par}</text>
 			</view>
 			<Show when={(h.tip ?? "") != ""}>
-				<text font-size={15} font-weight={500} color={MUTED} text-align="center" margin-top={2}>{h.tip ?? ""}</text>
+				<text font-size={15} font-weight={500} color="#5c6375" text-align="center" margin-top={2}>{h.tip ?? ""}</text>
 			</Show>
-			<text font-size={12} font-weight={500} color="#7d859790" margin-top={4}>Tap to skip</text>
+			<text font-size={12} font-weight={600} color="#7d8597b0" margin-top={4}>Tap to skip</text>
 		</view>;
 	}
 
@@ -227,9 +236,9 @@ class Golf implements Markup {
 			row-gap={8} padding="22 26" radius={28} background="#fffffff2" shadow="0 10 34 #2b2d4245" min-width={280}>
 			<text tag="verdict" font-size={30} font-weight={700} color={deep(i)}>{verdict(strokes, par)}</text>
 			<text tag="stars" font-size={42} color={STAR} letter-spacing={6} font-family="DejaVu Sans">{starText(n)}</text>
-			<text font-size={15} font-weight={500} color={MUTED}>{strokes + (strokes == 1 ? " stroke" : " strokes") + " · par " + par + " · best " + best}</text>
+			<text font-size={15} font-weight={600} color={MUTED}>{strokes + (strokes == 1 ? " stroke" : " strokes") + " · par " + par + " · best " + best}</text>
 			<Show when={islandEnd}>
-				<text font-size={15} font-weight={600} color={deep(i)}>{Course.worlds[Course.holes[i].world].name + (last ? " done: the course is yours" : " done!")}</text>
+				<text font-size={15} font-weight={700} color={deep(i)}>{Course.worlds[Course.holes[i].world].name + (last ? " done: the course is yours" : " done!")}</text>
 			</Show>
 			<view direction="row" column-gap={12} margin-top={8}>
 				<Button tag="retry" label="Retry" onPress={g.retry}/>
@@ -256,7 +265,7 @@ class Golf implements Markup {
 				<view direction="row" align-items="center" justify="space-between">
 					<view>
 						<text font-size={26} font-weight={700}>Scorecard</text>
-						<text font-size={14} font-weight={500} color={MUTED}>{total() + " of " + Course.holes.length * 3 + " stars"}</text>
+						<text font-size={14} font-weight={600} color={MUTED}>{total() + " of " + Course.holes.length * 3 + " stars"}</text>
 					</view>
 					<Button tag="close" label="Close" onPress={g.closeMenu}/>
 				</view>
@@ -289,7 +298,7 @@ class Golf implements Markup {
 				<view width={6} height={30} radius={3} background={hex(w.accent)}/>
 				<view grow={1}>
 					<text font-size={18} font-weight={700}>{w.name}</text>
-					<text font-size={12} font-weight={500} color={MUTED}>{w.blurb + " · " + summary()}</text>
+					<text font-size={12} font-weight={600} color={MUTED}>{w.blurb + " · " + summary()}</text>
 				</view>
 			</view>
 			<view direction="row" wrap justify="space-between" row-gap={8}>
@@ -306,9 +315,9 @@ class Golf implements Markup {
 			background={g.holeIndex() == i ? "#ffffff" : "#ffffffb0"} border-width={2} border-color={g.holeIndex() == i ? color : "#ffffff00"}
 			shadow="0 2 6 #2b2d4218" onPress={() -> g.go(i)}>
 			<text font-size={20} font-weight={700} color={color}>{"" + (i + 1)}</text>
-			<text font-size={12} font-weight={600} text-align="center">{h.name}</text>
+			<text font-size={13} font-weight={500} font-family="Fredoka" text-align="center">{h.name}</text>
 			<text font-size={15} color={STAR} font-family="DejaVu Sans">{starText(stars(g.best()[i], h.par))}</text>
-			<text font-size={11} font-weight={500} color={MUTED}>{"par " + h.par + (g.best()[i] > 0 ? " · best " + g.best()[i] : "")}</text>
+			<text font-size={11} font-weight={600} color={MUTED}>{"par " + h.par + (g.best()[i] > 0 ? " · best " + g.best()[i] : "")}</text>
 		</view:button>;
 	}
 }
