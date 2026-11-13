@@ -50,7 +50,8 @@ function step(args, what) {
 // the studio, for the web (its page's modules and fonts beside it)
 step(['build', 'apps/studio', '--target', 'web', '-o', path.resolve(out, 'studio.wasm')], 'the studio built for the web');
 const html = readFileSync(path.join(out, 'studio.html'), 'utf8');
-const imports = JSON.parse(html.match(/const IMPORTS = (\[.*?\]);/)[1]).map((u) => u.match(/helder\/([^/]+)\/imports\.mjs/)[1]);
+// (the page's values: its JSON data block, page.html's helder-page)
+const imports = JSON.parse(html.match(/<script type="application\/json" id="helder-page">(.*?)<\/script>/s)[1]).imports.map((u) => u.match(/helder\/([^/]+)\/imports\.mjs/)[1]);
 
 // the studio's fonts (its module embeds them; the page's own text fields use them too)
 for (const f of ['HankenGrotesk-Regular.ttf', 'HankenGrotesk-Medium.ttf', 'GeistMono-Regular.ttf']) cpSync(path.join(repo, 'apps/studio/fonts', f), path.join(out, 'fonts', f));
