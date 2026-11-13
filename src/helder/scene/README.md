@@ -372,7 +372,17 @@ var stage = post.add(FinishShader, finishBytes);   // fragment(i, p:{view:Finish
 stage.filter = Nearest;                            // read in big pixels (Linear by default)
 stage.bind = enc -> enc.setTexture(slot, noise, sampler);  // anything else it reads
 stage.enabled = false;                             // passed over; post.remove(stage)
+stage.prepare = enc -> blurHalf(enc, post.source, post.width, post.height);  // its own passes first
 ```
+
+While the chain runs, its context is the stages': `post.source` is the
+scene's light it was given (linear, RGBA16F, its alpha the scene's
+coverage) and `post.width`, `post.height` its size. A stage's `prepare`
+is recorded before the chain's passes, outside any pass, every run
+(enabled or not, so it may switch itself), for passes of its own from
+that light: Floating Greens' tilt-shift blurs it at half size there, then
+mixes the blur in as its stage. A `<Scene hdr>`'s chain is there when its
+`setup` is called, so stages are added there.
 
 `tests/3d/poststage.png` is the bloom frame through two (a sepia grade,
 then scanlines: tests/3d/StageShaders.hx).

@@ -21,7 +21,8 @@ import helder.view.graph.Graph.*;
 // a cancel), a drag from the mesh orbiting the camera (<OrbitControls>),
 // <Ui> over the mesh, a <Stick> drawn at rest; in the second a <Scene
 // hdr> whose setup finds its post chain and adds a stage (StageProbe: the
-// frame marked green); the second window closed by a Show, both
+// frame marked green) that prepares from the chain's context (the
+// scene's light and its size); the second window closed by a Show, both
 // by the root's dispose.
 class SurfaceTest implements Markup {
 	static var checks = 0;
@@ -45,12 +46,19 @@ class SurfaceTest implements Markup {
 		var windows:Array<UiWindow> = [];
 		var box:Null<helder.scene.view.SceneBox> = null;
 		var sprites:Null<helder.sprite.SpriteBox> = null;
-		// (the hdr box's setup: its post chain there, a stage added)
-		var setupPost = false;
+		// (the hdr box's setup: its post chain there, a stage added; what its prepare saw)
+		var hdrBox:Null<helder.scene.view.SceneBox> = null;
+		var setupPost = false, prepared = 0, preparedSize = "", preparedSource = false;
 		function setup(r:helder.scene.render.Renderer) {
 			var post = r.post;
 			setupPost = post != null;
-			if (post != null) post.add(ProbeShader);
+			if (post == null) return;
+			var stage = post.add(ProbeShader);
+			stage.prepare = enc -> {
+				prepared++;
+				preparedSize = '${post.width}x${post.height}';
+				preparedSource = post.source != null;
+			};
 		}
 		var world = new World("test"), eye = world.node("eye");
 		eye.position = new Vec3(0, 0, 4);
@@ -74,7 +82,7 @@ class SurfaceTest implements Markup {
 			</Surface>
 			<Show when={second}><Surface title="two" width={160} height={100} background={0xFFFFFFFF} ref={w -> windows.push(w)}>
 				<text>two</text>
-				<Scene world={world} camera={camera} grow={1} hdr setup={setup}/>
+				<Scene world={world} camera={camera} grow={1} hdr setup={setup} ref={b -> hdrBox = b}/>
 			</Surface></Show>
 		</>);
 		check("two windows", windows.length == 2 && windows[0].window.title == "one" && windows[1].window.title == "two",
@@ -116,8 +124,11 @@ class SurfaceTest implements Markup {
 		check("scale: drawn at half the box's pixels", box.drawnWidth == Math.round(200 * s * 0.5) && box.drawnHeight == Math.round(200 * s * 0.5),
 			'${box.drawnWidth}x${box.drawnHeight} at $s');
 		check("ui's beside it", panel[0] > 240 && panel[1] > 240 && panel[2] > 240, Std.string(panel));
-		// (the hdr box: its setup saw its post chain; the stage it added drew)
+		// (the hdr box: its setup saw its post chain; the stage it added prepared from the run's context and drew)
 		check("<Scene hdr>: its post chain there in setup", setupPost);
+		check("a stage added in setup: prepared each run, from the scene's light at its size",
+			prepared >= 1 && preparedSource && hdrBox != null && preparedSize == '${hdrBox.drawnWidth}x${hdrBox.drawnHeight}',
+			'$prepared runs, $preparedSize, source $preparedSource');
 		var s2 = w2.renderer.scale, o2 = (Std.int(70 * s2) * w2.device.width + Std.int(10 * s2)) * 4;
 		var probe = [pixels2.get(o2), pixels2.get(o2 + 1), pixels2.get(o2 + 2)];
 		check("a stage added in setup: drawn (the frame marked green)", probe[1] > 220 && probe[0] < 120 && probe[2] < 120, Std.string(probe));

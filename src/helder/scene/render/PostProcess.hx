@@ -22,6 +22,7 @@ import helder.scene.render.PostShader.CompositeShader;
 //   // or by hand, after the scene's pass into hdrColor:
 //   post.run(enc, hdrColor, ldrColor, width, height, time);
 //   post.add(FinishShader, finishBytes);  // a pass of its own after the grade (PostStage)
+//   stage.prepare = enc -> ...;        // its own passes first, from post.source (the scene's light)
 //
 // Bloom has no threshold: everything spreads a little, what is bright
 // (an engine, a laser, the sun: values far over 1) spreads visibly. The
@@ -68,6 +69,12 @@ class PostProcess {
 	// the last run's draws (each a full-screen pass: bloom down and up, the
 	// composite, the stages; helder.gfx.FrameCounts.postDraws too)
 	public var draws(default, null) = 0;
+	// the run's context, for its stages (PostStage's prepare and bind): the
+	// scene's light it was given (linear, RGBA16F, its alpha the scene's
+	// coverage) and its size in pixels; null and 0 outside a run
+	public var source(default, null):Null<Texture> = null;
+	public var width(default, null) = 0;
+	public var height(default, null) = 0;
 
 	static inline var MAX_LEVELS = 6;
 
@@ -170,6 +177,11 @@ class PostProcess {
 	// grain's
 	public function run(enc:Encoder, source:Texture, target:Null<Texture>, width:Int, height:Int, time = 0.0) {
 		draws = 0;
+		this.source = source;
+		this.width = width;
+		this.height = height;
+		for (s in stages)
+			if (s.prepare != null) s.prepare(enc);
 		var n = bloom > 0 ? Std.int(Math.max(1, Math.min(levels, MAX_LEVELS))) : 0;
 		var b = base >= 2 ? 2 : 1;
 		if (n > 0) size(width, height, b, n);
@@ -250,6 +262,8 @@ class PostProcess {
 		}
 		outPass.colors[0].texture = null;
 		helder.gfx.FrameCounts.postDraws += draws;
+		this.source = null;
+		this.width = this.height = 0;
 	}
 
 	function stageBetween(s:PostStage):Pipeline {
