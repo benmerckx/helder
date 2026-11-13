@@ -174,8 +174,12 @@ class Publish {
 		return r.body.trim() == "" ? {} : haxe.Json.parse(r.body);
 	}
 
-	static function textOrFile(name:String, v:String):String
-		return v.trim().startsWith("{") || v.indexOf("-----BEGIN") >= 0 ? v : FileSystem.exists(v) ? File.getContent(v) : throw '$name: $v: no such file';
+	// (a secret's text, or the file it names: JSON, PEM, or a bare base64 key, its armour lost)
+	static function textOrFile(name:String, v:String):String {
+		var t = v.trim();
+		if (t.startsWith("{") || v.indexOf("-----BEGIN") >= 0 || (t.length >= 64 && ~/^[A-Za-z0-9+\/=\s]+$/.match(t))) return v;
+		return FileSystem.exists(t) ? File.getContent(t) : throw '$name: $v: no such file';
+	}
 
 	// ---- Google Play
 

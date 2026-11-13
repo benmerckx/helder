@@ -581,9 +581,14 @@ build time.
   key, a profile without the certificate, expired, for another bundle id
   or not granting an entitlement the app asks for. From Keychain's .p12:
 
+  Apple's WWDR intermediate (G3 or G4) is added when the PEM has the
+  leaf alone (`helder.pack.apple.Wwdr`), and a key or `.p8` is read
+  however it was pasted (on one line, `
+` for its newlines, CRLF, its
+  base64 without the armour: `Identity.pem`):
+
   ```sh
   openssl pkcs12 -in distribution.p12 -nokeys -out distribution.pem     # (-legacy for an older .p12)
-  curl -s https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer | openssl x509 -inform DER >> distribution.pem
   openssl pkcs12 -in distribution.p12 -nocerts -nodes -out distribution.key
   HELDER_IOS_CERTIFICATE=distribution.pem HELDER_IOS_KEY=distribution.key \
     HELDER_IOS_PROFILE=AppStore.mobileprovision helder build --target ios --release

@@ -39,8 +39,9 @@ class Identity {
 		var chain = [leaf];
 		while (!chain[chain.length - 1].selfSigned()) {
 			var last = chain[chain.length - 1];
-			var issuer = Lambda.find(certs, c -> c.subject.compare(last.issuer) == 0 && !chain.contains(c));
-			if (issuer == null) break;
+			// (the PEM's, else Apple's WWDR intermediate when it issued it: Wwdr)
+			var issuer = Lambda.find(certs, c -> c.subject.compare(last.issuer) == 0 && !chain.contains(c)) ?? Wwdr.issuerOf(last.issuer);
+			if (issuer == null || chain.contains(issuer)) break;
 			chain.push(issuer);
 		}
 		return new Identity(leaf, chain, k);
@@ -50,16 +51,23 @@ class Identity {
 	public function complete():Bool
 		return chain.length > 1 || leaf.selfSigned();
 
-	// PEM's blocks: each label and its DER
+	// PEM's blocks: each label and its DER. Forgiving of how a secret was
+	// pasted: `\n` written for the newlines, CRLF, the body on one line
+	// (spaces, or nothing, where the newlines were: a .p8 pasted into a CI
+	// secret's field), header lines (an encrypted key's Proc-Type); a bare
+	// base64 key, its armour lost, a PRIVATE KEY block
 	public static function pem(text:String):Array<{label:String, der:Bytes, headers:Bool}> {
 		var out = [], re = ~/-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/;
-		var rest = text.replace("\\n", "\n");
+		var rest = text.replace("\\r", "").replace("\\n", "\n").replace("\r", "");
 		while (re.match(rest)) {
 			var body = re.matched(2), headers = body.indexOf(":") >= 0;
-			var lines = [for (l in body.split("\n")) if (l.trim() != "" && l.indexOf(":") < 0) l.trim()];
-			out.push({label: re.matched(1), der: haxe.crypto.Base64.decode(lines.join("")), headers: headers});
+			var lines = [for (l in body.split("\n")) if (l.trim() != "" && l.indexOf(":") < 0) l];
+			out.push({label: re.matched(1), der: haxe.crypto.Base64.decode(~/\s+/g.replace(lines.join(""), "")), headers: headers});
 			rest = re.matchedRight();
 		}
+		var bare = ~/\s+/g.replace(text, "");
+		if (out.length == 0 && bare.length >= 64 && ~/^[A-Za-z0-9+\/]+=*$/.match(bare))
+			out.push({label: "PRIVATE KEY", der: haxe.crypto.Base64.decode(bare), headers: false});
 		return out;
 	}
 }
