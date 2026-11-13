@@ -12,7 +12,9 @@ using StringTools;
 //   (nothing)                the working directory, a project
 //   examples/counter         a project (package.json, src/Main.hx), else a
 //                            directory with one main file (or the one
-//                            named as the directory: cube/Cube.hx)
+//                            named as the directory: cube/Cube.hx); a
+//                            helder.json's entry first (an app's own
+//                            repository: src/LittleSkies.hx)
 //   examples/counter/Counter.hx   a file: its module is the main class, its
 //                            class path the directory its package line
 //                            makes it (one up per package segment)
@@ -65,13 +67,16 @@ class Entry {
 		if (e.target == "host") e.target = Compiler.hostTarget();
 		path = clean(path ?? ".");
 		if (!FileSystem.exists(path)) throw '$path: no such file or directory';
-		if (FileSystem.isDirectory(path) && !FileSystem.exists('$path/package.json') && FileSystem.exists('$path/${HelderJson.FILE}')) {
-			// (a directory's helder.json naming its entry: that file, the directory its project's root)
+		if (FileSystem.isDirectory(path) && FileSystem.exists('$path/${HelderJson.FILE}')) {
+			// (a directory's helder.json naming its entry: that file, the
+			// directory its project's root; a project's (package.json beside
+			// it, helder as a dependency: an app of its own) named as the package)
 			var named = HelderJson.entry(File.getContent('$path/${HelderJson.FILE}'));
 			if (named != null) {
 				var f = path == "." ? named : '$path/$named';
 				if (!FileSystem.exists(f)) throw '$path/${HelderJson.FILE}: entry: $named: no such file';
 				if (isTypescript(f)) e.typescriptFile(f) else e.file(f);
+				if (FileSystem.exists('$path/package.json')) e.name = packageName('$path/package.json') ?? e.name;
 				return e;
 			}
 		}
@@ -80,6 +85,13 @@ class Entry {
 			if (ts != null) e.typescriptFile(ts) else if (FileSystem.exists('$path/package.json')) e.project(path) else e.file(mainOf(path));
 		} else if (path.endsWith(".hx")) e.file(path) else if (isTypescript(path)) e.typescriptFile(path) else throw '$path: not a .hx, .ts or .tsx file, or a directory';
 		return e;
+	}
+
+	// (a package.json's app name: its "helder": {"name"}, else its name, its scope left out)
+	static function packageName(pj:String):Null<String> {
+		var json:Dynamic = try haxe.Json.parse(File.getContent(pj)) catch (_:Dynamic) null;
+		var n:Null<String> = json?.helder?.name ?? json?.name;
+		return n == null ? null : Path.withoutDirectory(n);
 	}
 
 	// (from Options: the entry and the target)

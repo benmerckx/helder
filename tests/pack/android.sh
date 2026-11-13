@@ -113,32 +113,34 @@ adb shell settings put system user_rotation 0
 node tests/pack/screen.mjs "$out/screen.txt" android
 check "the screen's lines (tests/pack/screen.mjs)" $?
 
-# The golf example (examples/golf): built for the emulator, started, its
-# first frames drawn (its line), a screenshot kept in <out dir>/golf.png.
-gid=build.helder.golf  # (examples/golf/helder.json's id)
-"$helder" build examples/golf/Golf.hx --target android-x86_64 -o "$out/Golf.apk"
-check "helder build examples/golf" $?
+# The planets example (examples/planets: ui's markup with a <Scene> in it):
+# built for the emulator, started, its first frames drawn (its line), a
+# screenshot kept in <out dir>/planets.png. (helder/little-skies, the game,
+# has its own CI.)
+gid=org.helder.planets
+"$helder" build examples/planets/Planets.hx --target android-x86_64 -o "$out/Planets.apk"
+check "helder build examples/planets" $?
 adb uninstall $gid > /dev/null 2>&1
-adb install -r "$out/Golf.apk"
-check "adb install Golf.apk" $?
+adb install -r "$out/Planets.apk"
+check "adb install Planets.apk" $?
 adb logcat -c
 adb shell am start -W -n $gid/android.app.NativeActivity
 i=0
-while [ $i -lt 60 ] && ! seen "floating greens: 18 holes, drawing"; do
+while [ $i -lt 60 ] && ! seen "planets: drawing"; do
 	sleep 1
 	i=$((i + 1))
 done
-seen "floating greens: 18 holes, drawing"
-check "golf: its first frames" $?
+seen "planets: drawing"
+check "planets: its first frames" $?
 sleep 3
-adb exec-out screencap -p > "$out/golf.png"
-adb logcat -d > "$out/golf-logcat.txt"
+adb exec-out screencap -p > "$out/planets.png"
+adb logcat -d > "$out/planets-logcat.txt"
 adb logcat -d -v raw -s hxmc:I | tail -20
-# (still running three seconds on, nothing uncaught: a crash after the first frame, a missing font, show here)
+# (still running three seconds on, nothing uncaught: a crash after the first frame shows here)
 [ -n "$(adb shell pidof $gid)" ]
-check "golf: still running after its first frames" $?
+check "planets: still running after its first frames" $?
 ! seen "Uncaught exception"
-check "golf: nothing uncaught" $?
+check "planets: nothing uncaught" $?
 adb shell am force-stop $gid
 
 # helder.ui's accessibility (tests/ui/AndroidAccessCheck.hx: AccessFixture's

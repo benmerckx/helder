@@ -38,6 +38,13 @@ class Planets implements Markup {
 		eye.position = new Vec3(0, 5, 8);
 		eye.lookAt(new Vec3(0, 0, 0));
 		var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+		// (its first frame said: the phones' lanes wait for it, tests/pack/android.sh and ios.sh)
+		var said = false;
+		Clock.add(t -> {
+			if (!said) Sys.println("planets: drawing");
+			said = true;
+			false;
+		});
 		UiWindow.run(<Surface title="Planets" width={640} height={400}>
 			<view direction="row" grow={1}>
 				<Scene world={world} camera={camera} grow={1}>

@@ -172,6 +172,12 @@ class Icons {
 		return has("maskable") ? png(["maskable"], ANDROID_LAYER, 66 / 108 / 0.8, null, "Android's adaptive icon") : png(["any"], ANDROID_LAYER,
 			66 / 108 * 0.75, null, "Android's adaptive icon");
 
+	// a layer of the manifest's own adaptive icon ("android": {"adaptiveIcon"}):
+	// drawn as Android's 108 dp layer, edge to edge, its safe zone the
+	// middle 66 dp as the file has it
+	public function androidLayer(src:String):Bytes
+		return png([], ANDROID_LAYER, 1, null, "Android's adaptive icon layer", src);
+
 	public function androidMonochrome():Null<Bytes>
 		return has("monochrome") ? png(["monochrome"], ANDROID_LAYER, 66 / 108 / 0.8, null, "Android's themed icon") : null;
 

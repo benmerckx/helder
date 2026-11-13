@@ -250,6 +250,40 @@ function tests() {
 		equals([half.get(0), half.get(3)], [128, 255]);
 		equals(Icons.scale(red, 64, 64) == red, true);
 	});
+	test("Android's adaptive icon from layers of its own: each a whole 108 dp layer, the background a picture", () -> {
+		function svg(color:String, inset:Int):Bytes
+			return Bytes.ofString('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 432"><rect x="$inset" y="$inset" width="${432 - 2 * inset}" height="${432 - 2 * inset}" fill="$color"/></svg>');
+		var files = ["fg.svg" => svg("#ff0000", 100), "bg.svg" => svg("#0000ff", 0), "mono.svg" => svg("#000000", 120)];
+		var read = (p:String) -> files.exists(p) ? files.get(p) : throw "no";
+		var h = HelderJson.parse(haxe.Json.stringify({
+			name: "Layers",
+			icon: "icon.svg",
+			targets: {android: {adaptiveIcon: {foreground: "fg.svg", background: "bg.svg", monochrome: "mono.svg"}}}
+		}));
+		var m = Manifest.parse(haxe.Json.stringify(h.manifest), HelderJson.FILE);
+		var r = Android.resources(m, ".", "org.example.layers", false, read);
+		var names = [for (f in r.files) f.name];
+		equals(names.filter(n -> StringTools.startsWith(n, "res/mipmap-xxxhdpi")), [
+			"res/mipmap-xxxhdpi-v4/ic_launcher_background.png",
+			"res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png",
+			"res/mipmap-xxxhdpi-v4/ic_launcher_monochrome.png"
+		]);
+		function at(name:String, x:Int, y:Int):Array<Int> {
+			var png = PngDecoder.decode(Lambda.find(r.files, f -> f.name == name).data);
+			var o = 4 * (y * png.width + x);
+			return [png.width, png.rgba.get(o), png.rgba.get(o + 2), png.rgba.get(o + 3)];
+		}
+		// (drawn whole, not shrunk into the safe zone: the foreground's edge at 100 px, the background to the corner)
+		equals(at("res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png", 104, 216), [432, 255, 0, 255]);
+		equals(at("res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png", 96, 216), [432, 0, 0, 0]);
+		equals(at("res/mipmap-xxxhdpi-v4/ic_launcher_background.png", 0, 0), [432, 0, 255, 255]);
+		var dump = Arsc.dump(r.table.encode());
+		equals(dump.indexOf("color/ic_launcher_background") < 0 && dump.indexOf("mipmap/ic_launcher_background") >= 0, true);
+		function error(adaptive:Dynamic):String
+			return Std.string(throws(() -> HelderJson.parse(haxe.Json.stringify({name: "x", targets: {android: {adaptiveIcon: adaptive}}}))));
+		equals(error({background: "bg.svg"}), 'helder.json: targets: {"android": {"adaptiveIcon"}}: its foreground (a file) is needed');
+		equals(error({foreground: "fg.svg", round: "r.svg"}), 'helder.json: targets: {"android": {"adaptiveIcon"}}: no member "round" (foreground, background, monochrome)');
+	});
 	test("PngEncoder: what it writes, PngDecoder reads; a flat colour small", () -> {
 		var c = checker(37);
 		var d = PngDecoder.decode(PngEncoder.encode(c, 37, 37));

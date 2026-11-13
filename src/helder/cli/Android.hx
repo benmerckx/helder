@@ -177,7 +177,9 @@ class Android {
 	// the manifest's icon and splash as Android's resources (null: neither,
 	// package.json's "helder" key's app): the adaptive icon (Icons: its
 	// foreground at xxxhdpi, background_color behind it, the monochrome
-	// layer of a monochrome icon), the splash's theme (Android 12's
+	// layer of a monochrome icon; or the manifest's own layers, "android":
+	// {"adaptiveIcon": {"foreground", "background", "monochrome"}}, each
+	// drawn whole as a 108 dp layer, the background a picture), the splash's theme (Android 12's
 	// SplashScreen: windowSplashScreenBackground, and the image as its
 	// windowSplashScreenAnimatedIcon, else the launcher's icon; the window's
 	// background the same colour before it, and on Android 10 and 11),
@@ -192,7 +194,7 @@ class Android {
 		xml:Map<String, XmlElement>
 	}> {
 		var m:Manifest.AppConfig = cfg;
-		if (m == null || m.icons == null && m.splash == null && m.theme == null) return null;
+		if (m == null || m.icons == null && m.splash == null && m.theme == null && m.android?.adaptiveIcon == null) return null;
 		var icons = new Icons(m, root, read), t = new Arsc(pkg), files = [];
 		var icon:Null<Int> = null, theme:Null<Int> = null, xml = new Map<String, XmlElement>();
 		var density:Config = {density: Arsc.XXXHDPI};
@@ -200,16 +202,18 @@ class Android {
 			files.push({name: path, data: data});
 			return t.add(type, name, FilePath(path), config);
 		}
-		var fg = icons.androidForeground();
+		var own:Null<{foreground:String, ?background:String, ?monochrome:String}> = m.android?.adaptiveIcon;
+		var fg = own != null ? icons.androidLayer(own.foreground) : icons.androidForeground();
 		if (fg != null) {
-			var bg = t.add("color", "ic_launcher_background", Argb(icons.background()));
+			var bg = own?.background != null ? file("mipmap", "ic_launcher_background", "res/mipmap-xxxhdpi-v4/ic_launcher_background.png",
+				icons.androidLayer(own.background), density) : t.add("color", "ic_launcher_background", Argb(icons.background()));
 			var layers = [
 				Axml.el("background", [{android: true, name: "drawable", type: Axml.REFERENCE, value: bg}]),
 				Axml.el("foreground", [
 					{android: true, name: "drawable", type: Axml.REFERENCE, value: file("mipmap", "ic_launcher_foreground", "res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png", fg, density)}
 				])
 			];
-			var mono = icons.androidMonochrome();
+			var mono = own?.monochrome != null ? icons.androidLayer(own.monochrome) : icons.androidMonochrome();
 			if (mono != null) layers.push(Axml.el("monochrome", [
 				{android: true, name: "drawable", type: Axml.REFERENCE, value: file("mipmap", "ic_launcher_monochrome", "res/mipmap-xxxhdpi-v4/ic_launcher_monochrome.png", mono, density)}
 			]));

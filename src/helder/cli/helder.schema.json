@@ -83,6 +83,13 @@
             "key": {"type": "string"},
             "signing": {"type": "object", "properties": {"certificate": {"type": "string"}, "key": {"type": "string"}}},
             "serviceAccount": {"type": "string"},
+            "adaptiveIcon": {
+              "description": "the launcher's adaptive icon as its own layers, each a full 108 dp layer (its safe zone the middle 66 dp): foreground, background (else colors.background), monochrome",
+              "type": "object",
+              "properties": {"foreground": {"type": "string"}, "background": {"type": "string"}, "monochrome": {"type": "string"}},
+              "required": ["foreground"],
+              "additionalProperties": false
+            },
             "publish": {
               "type": "array",
               "items": {

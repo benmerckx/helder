@@ -291,13 +291,17 @@ abstract class ClassValues extends Expressions {
 		}
 	}
 
-	// `new C(...)` of a class with a layout: made and initialized directly
-	// (before its declaration ran: the runtime's way, which throws)
+	// `new C(...)` of a class with a layout, C its declaration's name or an
+	// import of it (helder/gfx's Vec3 in a program's module): made and
+	// initialized directly (before its declaration ran: the runtime's way,
+	// which throws)
 	function layoutConstruct(n:Node):Null<Ex> {
 		var callee = n.expression(), actual = n.arguments() ?? [];
 		if (callee.kind != KindIdentifier || hasSpread(actual)) return null;
 		var c = classes.of(callee.symbol);
-		if (c == null || c.node.name().symbol != callee.symbol) return null;
+		if (c != null && c.node.name().symbol != callee.symbol) return null;
+		if (c == null) c = importedClass(callee);
+		if (c == null) return null;
 		var args = actuals(actual);
 		var l = b.local("made", TRef(RObj(c.info)));
 		var fast = b.block(() -> {
@@ -313,6 +317,29 @@ abstract class ClassValues extends Expressions {
 		b.out.push(SIf(EBin(RefEq, EGlobal(c.prototype, TRef(RAny)), ENull(TRef(RAny))), slow, fast));
 		typedOperations++;
 		return ELocal(l);
+	}
+
+	// the class with a layout an identifier is an import of (`import {C}
+	// from "./c"`, or `{D as C}`: the module's exported class declaration of
+	// that name), else null (another binding of the name, a re-export)
+	function importedClass(id:Node):Null<ClassLayout> {
+		for (s in id.file.root.statements()) {
+			if (s.kind != KindImportDeclaration || s.importClause() == null || s.importClause().isTypeOnly()) continue;
+			var bindings = s.importClause().namedBindings();
+			if (bindings == null || bindings.kind != KindNamedImports) continue;
+			for (e in bindings.elements()) {
+				if (e.name().symbol != id.symbol || e.isTypeOnly()) continue;
+				var name = e.propertyName() != null ? e.propertyName().text : e.name().text;
+				var target = src.resolve(s.moduleSpecifier());
+				if (target == null) return null;
+				for (c in classes.all)
+					if (c.node.file.path == target && c.node.name().text == name && Lambda.exists(c.node.modifiers(), m -> m.kind == KindExportKeyword)
+						&& !Lambda.exists(c.node.modifiers(), m -> m.kind == KindDefaultKeyword))
+						return c;
+				return null;
+			}
+		}
+		return null;
 	}
 
 	// `o.m(...)` with o of a class with a layout: the method its class runs,

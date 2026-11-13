@@ -164,7 +164,9 @@ booted.
   printed.
 - **Entries**:
   - nothing: the working directory, a project;
-  - a project directory: `package.json` and `src/Main.hx`;
+  - a project directory: `package.json` and `src/Main.hx`; or its
+    `helder.json`'s `entry` (`src/LittleSkies.hx`: an app in a repository
+    of its own, helder its dependency), named as the package;
   - an example's directory: its one main file, or the one named as the
     directory (`examples/cube` is Cube.hx, not Targets.hx);
   - a TypeScript program: a `.ts` or `.tsx` file, a project whose entry is
@@ -205,20 +207,21 @@ for editors' completion):
 ```json
 {
   "$schema": "https://helder.build/schema/helder.json",
-  "name": "Floating Greens",
-  "description": "Mini golf on floating islands.",
-  "id": "build.helder.golf",
+  "name": "Little Skies",
+  "description": "Mini golf on three islands in the sky.",
+  "id": "build.helder.littleskies",
   "version": "1.2", "build": 3,
-  "entry": "Golf.hx",
-  "icon": "icon.svg",
-  "colors": {"theme": "#9fd0ff", "background": "#fbdfea"},
+  "entry": "src/LittleSkies.hx",
+  "icon": "brand/icon-ios.svg",
+  "colors": {"theme": "#ffae78", "background": "#fbdfea"},
   "display": "fullscreen",
   "orientation": "landscape",
-  "run": {"name": "floating-greens", "listed": true, "kind": "game", "tags": ["golf"],
-          "source": "https://github.com/helder/helder/tree/main/examples/golf"},
+  "run": {"name": "little-skies", "listed": true, "kind": "game", "tags": ["golf"],
+          "source": "https://github.com/helder/little-skies"},
   "targets": {
-    "android": {"minSdk": 31, "publish": [{"to": "play", "track": "internal"}], "store": "https://play.google.com/..."},
-    "ios": {"bundleId": "build.helder.golf", "publish": ["testflight"]}
+    "android": {"minSdk": 31, "adaptiveIcon": {"foreground": "brand/fg.svg", "background": "brand/bg.svg"},
+                "publish": [{"to": "play", "track": "internal"}], "store": "https://play.google.com/..."},
+    "ios": {"bundleId": "build.helder.littleskies", "publish": ["testflight"]}
   }
 }
 ```
@@ -335,7 +338,11 @@ browser extensions and PWA tools each claim.
   foreground the maskable icon (its 80% safe zone on the layer's 66 dp),
   else the icon of any purpose inside the safe zone, 108 dp at xxxhdpi;
   its background `background_color`; a monochrome layer (Android 13's
-  themed icons) from a monochrome icon. The activity's theme
+  themed icons) from a monochrome icon. Or the app's own layers,
+  `targets.android.adaptiveIcon` (`{"foreground", "background",
+  "monochrome"}`: each a full 108 dp layer, its safe zone the middle 66
+  dp, drawn whole; the background a picture, a gradient or clouds, not
+  only a colour). The activity's theme
   `Theme.Helder` (the framework's it had as its parent): the splash's
   colour as `windowSplashScreenBackground` (Android 12's SplashScreen) and
   `windowBackground` (before it, and Android 10 and 11), the splash image
@@ -384,8 +391,8 @@ unlisted, at a random name, for a week.
 ```sh
 helder login                         # GitHub, through helder.build (its device flow); the token in helder's config directory
 helder publish --run                 # this project's run block: <run.name>.helder.run and helder.build/<run.name>, a new version
-helder publish examples/golf --run --dry-run   # built, what would be uploaded printed
-helder share examples/golf           # anonymous: https://quiet-otter-k7m2.helder.run, for a week
+helder publish examples/planets --run --dry-run   # built, what would be uploaded printed
+helder share examples/planets        # anonymous: https://quiet-otter-k7m2.helder.run, for a week
 helder logout
 ```
 
@@ -575,9 +582,14 @@ build time.
   key, a profile without the certificate, expired, for another bundle id
   or not granting an entitlement the app asks for. From Keychain's .p12:
 
+  Apple's WWDR intermediate (G3 or G4) is added when the PEM has the
+  leaf alone (`helder.pack.apple.Wwdr`), and a key or `.p8` is read
+  however it was pasted (on one line, `
+` for its newlines, CRLF, its
+  base64 without the armour: `Identity.pem`):
+
   ```sh
   openssl pkcs12 -in distribution.p12 -nokeys -out distribution.pem     # (-legacy for an older .p12)
-  curl -s https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer | openssl x509 -inform DER >> distribution.pem
   openssl pkcs12 -in distribution.p12 -nocerts -nodes -out distribution.key
   HELDER_IOS_CERTIFICATE=distribution.pem HELDER_IOS_KEY=distribution.key \
     HELDER_IOS_PROFILE=AppStore.mobileprovision helder build --target ios --release
