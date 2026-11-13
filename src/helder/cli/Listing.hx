@@ -27,6 +27,7 @@ using StringTools;
 //     "notes": "...",                         what's new (App Store's whatsNew: not on an app's first version)
 //     "website", "support", "privacy":        https URLs; "email"; "copyright": "2026 Codeurs"
 //     "category": "GAMES_SPORTS",             App Store's (a game's: GAMES, and this its subcategory)
+//     "collects": false, "ads": false         the answers helder setup gives for App Privacy, data safety, ads
 //     "play": {"listing": {...}, "details": {...}, "dataSafety": "store/data-safety.csv"},
 //     "appStore": {"app", "info", "infoLocalization", "version", "versionLocalization", "ageRating",
 //                  "reviewDetail": {...attributes}, "categories": {"secondaryCategory": "ENTERTAINMENT"},
@@ -45,7 +46,7 @@ using StringTools;
 // back).
 class Listing {
 	static final LOCALIZED = ["title", "subtitle", "summary", "description", "keywords", "promo", "notes"];
-	static final SHARED = LOCALIZED.concat(["website", "support", "privacy", "email", "copyright", "category", "play", "appStore", "locales"]);
+	static final SHARED = LOCALIZED.concat(["website", "support", "privacy", "email", "copyright", "category", "collects", "ads", "play", "appStore", "locales"]);
 	static final PLAY = ["listing", "details", "dataSafety"];
 	static final APP_STORE = [
 		"app", "info", "infoLocalization", "version", "versionLocalization", "ageRating", "reviewDetail", "categories", "price", "availability"
@@ -61,6 +62,9 @@ class Listing {
 			var v:Dynamic = Reflect.field(l, k);
 			if (v != null && !(Std.isOfType(v, String) && ~/^https:\/\/[^\s]+$/.match(v))) throw '$file: listing.$k: an https URL';
 		}
+		if (l.collects != null && l.collects != false && !(Std.isOfType(l.collects, Array) && Lambda.foreach((l.collects : Array<Dynamic>), x -> Std.isOfType(x, String))))
+			throw '$file: listing.collects: false (no data), or the types of data the app collects (["Crash logs"])';
+		if (l.ads != null && l.ads != true && l.ads != false) throw '$file: listing.ads: true or false';
 		for (k in ["email", "copyright", "category"]) {
 			var v:Dynamic = Reflect.field(l, k);
 			if (v != null && !Std.isOfType(v, String)) throw '$file: listing.$k: a string';
@@ -500,7 +504,7 @@ class Listing {
 	// the build of version (build) put on the app's editable version and
 	// that version sent for review: the build waited for while App Store
 	// Connect processes it (minutes), an open review submission reused
-	@:coroutine public static function submit(api:String, token:() -> String, app:String, versionString:String, build:String, dry:Bool) {
+	@:coroutine public static function submit(api:String, token:() -> String, app:String, versionString:String, build:String, dry:Bool, ?upload:String) {
 		if (dry) {
 			Term.out(Style.status("would", Info, 'put build $versionString ($build) on version $versionString once processed, and send it for App Review'));
 			return;
@@ -515,6 +519,17 @@ class Listing {
 		var found:Dynamic = null, waited = 0.0, limit = Std.parseFloat(Sys.getEnv("HELDER_ASC_WAIT") ?? "") ?? 3600;
 		if (Math.isNaN(limit)) limit = 3600;
 		while (true) {
+			// (the upload's own state: App Store Connect's validation refusing
+			// the binary shows there, no build is ever made of it)
+			if (upload != null) {
+				var u:Dynamic = try Publish.json("GET", '$api/v1/buildUploads/$upload', token()).data catch (_:Dynamic) null;
+				var st:Dynamic = u?.attributes?.state;
+				if (st?.state == "FAILED") {
+					Term.done();
+					var why = [for (e in (st.errors ?? [] : Array<Dynamic>)) '${e.code}: ${e.description}'];
+					throw 'App Store Connect refused $versionString ($build): ${why.length == 0 ? "its upload failed" : why.join("; ")}';
+				}
+			}
 			var b:Array<Dynamic> = Publish.json("GET", q, token()).data ?? [];
 			if (b.length > 0) {
 				var s:String = b[0].attributes.processingState;

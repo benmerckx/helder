@@ -181,8 +181,8 @@ class Options {
 		},
 		{
 			name: "setup",
-			usage: "<ios|android> [entry] [options]",
-			about: "a store's keys made through its API: ios a distribution certificate and its profile, android Play's upload key; the gh secret set lines",
+			usage: "[ios|android|check] [entry] [options]",
+			about: "a store's keys made through its API (ios a distribution certificate and its profile, android Play's upload key; the gh secret set lines), then what is left by hand: checked where the stores' APIs read it, its page, the answers; check (or none): that list alone, both stores",
 			entry: true,
 			common: [],
 			own: [
@@ -374,8 +374,7 @@ class Options {
 
 	function check(c:Command, exists:String->Bool) {
 		if (command == "setup") {
-			if (positionals.length == 0) throw usage("ios or android: helder setup ios", true);
-			if (positionals[0] != "ios" && positionals[0] != "android") throw usage('${positionals[0]}: ios or android', true);
+			if (positionals.length > 0 && !["ios", "android", "check"].contains(positionals[0])) throw usage('${positionals[0]}: ios, android or check', true);
 			if (positionals.length > 2) throw usage('one entry, not ${positionals.slice(1).join(" and ")}');
 			return;
 		}

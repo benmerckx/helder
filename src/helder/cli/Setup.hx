@@ -38,7 +38,15 @@ using StringTools;
 //   refuses (Advice).
 class Setup {
 	@:coroutine public static function run(o:Options):Int {
-		var platform = o.positionals[0];
+		var platform = o.positionals[0] ?? "check";
+		if (platform == "check") {
+			var e = try Entry.resolve(o.positionals[1]) catch (err:Dynamic) {
+				Term.err(Style.usage('helder setup: $err'));
+				return 2;
+			}
+			Term.out(Style.header("setup", ["the stores, by hand", e.main]));
+			return Checklist.run(e, ["ios", "android"]);
+		}
 		var e = try Entry.resolve(o.positionals[1]) catch (err:Dynamic) {
 			Term.err(Style.usage('helder setup: $err'));
 			return 2;
@@ -60,9 +68,10 @@ class Setup {
 			if (o.has("github")) github(r.secrets);
 			if (r.todo.length > 0) {
 				Term.out("");
-				Term.out(Style.status("by hand", Warn, "what the store has no API for:"));
+				Term.out(Style.status("next", Warn, "for these keys:"));
 				for (t in r.todo) Term.out('  - $t');
 			}
+			Checklist.run(e, [platform]);
 			return r.failed == true ? 1 : 0;
 		} catch (err:Dynamic) {
 			Term.err(Style.status("error", Fail, Std.string(err)));
@@ -126,7 +135,6 @@ class Setup {
 		var apps:Array<Dynamic> = Publish.json("GET", '$api/v1/apps?filter%5BbundleId%5D=' + StringTools.urlEncode(bundleId), token()).data ?? [];
 		if (apps.length == 0) {
 			Term.out(Style.status("app", Warn, 'App Store Connect has no app for $bundleId'));
-			todo.push('the app\'s record in App Store Connect (Apple has no API to make one): Apps, +, New App: iOS, the name, bundle id $bundleId, a SKU; then helder setup ios again');
 		} else Term.out(Style.status("app", Ok, '${apps[0].attributes?.name ?? label} (${apps[0].id})'));
 
 		// (the distribution certificate: identity.pem's, else made)

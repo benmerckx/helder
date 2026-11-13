@@ -358,7 +358,7 @@ class Publish {
 		});
 		var state:Dynamic = json("GET", '$api/v1/buildUploads/${upload.id}', token).data;
 		Term.out(Style.status("uploaded", Ok, '$bundleId $version ($build): App Store Connect\'s build upload ${upload.id}, ${haxe.Json.stringify(state.attributes?.state ?? "")}; TestFlight lists it once processed'));
-		if (submit) Listing.submit(api, () -> ascToken(k), app, version, build, false);
+		if (submit) Listing.submit(api, () -> ascToken(k), app, version, build, false, upload.id);
 	}
 
 	// ---- store screenshots (helder.story.StoreShots, built and run by Shots)

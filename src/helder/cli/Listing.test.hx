@@ -71,4 +71,12 @@ function tests() {
 		equals(error({appStore: {screenshots: {}}}).indexOf("helder.json: listing.appStore.screenshots: not one of"), 0);
 		equals(error({locales: {"nl-NL": {email: "x"}}}).indexOf("helder.json: listing.locales.nl-NL.email: not one of"), 0);
 	});
+	test("listing: collects and ads, the answers helder setup gives", () -> {
+		equals(HelderJson.parse('{"listing": {"collects": false, "ads": false}}').listing.collects, false);
+		equals(HelderJson.parse('{"listing": {"collects": ["Crash logs"]}}').listing.collects[0], "Crash logs");
+		equals(error({collects: true}).indexOf("helder.json: listing.collects: false"), 0);
+		equals(error({ads: "no"}), "helder.json: listing.ads: true or false");
+		equals([Checklist.playCategory("GAMES_SPORTS", true), Checklist.playCategory("GAMES", true), Checklist.playCategory("PRODUCTIVITY", false)],
+			["Game, Sports", "Game", "App, Productivity (or the closest)"]);
+	});
 }

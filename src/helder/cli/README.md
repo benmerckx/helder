@@ -506,6 +506,18 @@ names (helder.run's first, when it has a run block, then each target's
 
 ### Setting up: helder setup
 
+`helder setup` alone (or `helder setup check`) prints what is left by
+hand for both stores (`Checklist.hx`), each step checked where an API
+reads it (done, to do; "check" where none does), the page it is on and
+what to answer there, from helder.json: App Store Connect's app record and
+App Privacy; Google Play's app, the service account's invitation, App
+content (privacy policy, access, ads, content rating, target audience,
+data safety, the other declarations), Store settings (the category), the
+first release sent for review, and a personal account's closed test. The
+answers come from the name, ids and `listing` (`collects: false`, `ads`,
+the age rating, the category, the privacy URL). `helder setup
+ios|android` prints its store's after its keys.
+
 `helder setup ios|android [entry]` (`Setup.hx`) does through the stores'
 APIs what a new app needs before `helder publish` can send anything, and
 names what is left, which is what the stores have no API for. Its keys

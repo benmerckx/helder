@@ -79,6 +79,8 @@
         "email": {"type": "string", "description": "Google Play's contact email."},
         "copyright": {"type": "string", "description": "The App Store's copyright line (2026 Codeurs)."},
         "category": {"type": "string", "description": "The App Store's category (GAMES_SPORTS: a game's subcategory, under GAMES)."},
+        "collects": {"description": "The data the app collects: false (none), or its types; helder setup's answers for App Privacy and Play's data safety.", "oneOf": [{"const": false}, {"type": "array", "items": {"type": "string"}}]},
+        "ads": {"type": "boolean", "description": "Whether the app shows ads: helder setup's answer for Play's ads declaration."},
         "play": {
           "type": "object",
           "additionalProperties": false,
