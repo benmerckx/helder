@@ -191,12 +191,41 @@ controls in its pass (`text` in its pixel font, `rect`; `panel = false`:
 those alone). The performance examples use it: `examples/instancing`,
 `bunnymark`, `particles`, `physics-stress`.
 
+### Draw calls by pass
+
+What a frame costs in draw calls, by pass, to measure the next
+optimisation against:
+
+| Pass | The last frame's, this renderer | Every renderer's, summed |
+|---|---|---|
+| main (the scene's colour pass) | `renderer.draws` (and `instanced`, `culled`) | `FrameCounts.sceneDraws` |
+| shadow maps (every cascade) | `renderer.shadowDraws` (`Shadows.draws`) | `FrameCounts.shadowDraws` |
+| post (bloom down and up, the composite, stages) | `renderer.post.draws` | `FrameCounts.postDraws` |
+| everything the GPU was given (the UI's too) | | `FrameCounts.draws`, `passes`, `instances` |
+
+`helder.gfx.FrameCounts` is counted from its last `reset()`; a headless
+run's `--stats out.json` resets it at each frame and writes these for every
+frame (`sceneDraws`, `shadowDraws`, `postDraws` beside `draws` and
+`passes`), and prints their medians:
+
+```
+HELDER_CONTROLS=none GOLF_DEMO=8 bun run helder run examples/golf --headless --stats bin/golf-stats.json --at 4
+headless: 3D draws by pass: main 17 (at most 18), shadow maps 17 (at most 17), post 12 (at most 12)
+```
+
+Nodes drawing one primitive are one instanced draw whatever their scale
+(uneven too: the normals are turned by the instance matrix's inverse
+transpose), unless their material is see-through (`blend`) or skinned;
+`renderer.instancing = false` draws each alone. The shadow maps batch
+their casters the same way, a primitive's casters one instanced draw a
+cascade (a skinned caster alone).
+
 ## Instancing
 
 Nodes that draw the same primitive are batched by the renderer (above).
 For many copies without a node each, an `InstancedMesh` is one mesh drawn
 from flat per-instance data in one instanced draw a primitive: a transform
-(position, unit quaternion, uniform scale; or a matrix), a colour (times
+(position, unit quaternion, uniform scale; or any affine matrix), a colour (times
 the material's), and custom floats for a program's own shader:
 
 ```haxe
@@ -250,7 +279,18 @@ blur). Shadows are opted in:
 `renderer.use(new Shadows(device))` (one shadow map for the directional
 light, fitted to the casters, filtered 3x3; `Shadows.cascaded(device, size, split)`:
 two cascades, the first sharp over the camera's view up to `split`
-metres). `Shapes.box`, `sphere` and
+metres; a primitive's casters one instanced draw a cascade). Softer
+shadows are opted in with `.soft(radius, samples, spread)`: a disc of
+`samples` taps (8 for phones, 16, 32) out to `radius` metres, turned per
+texel; with a `spread` a blocker search first (half as many taps), the
+penumbra widening by `spread` a metre from its caster up to the radius,
+so a shadow is sharp where it meets what casts it (PCSS); `spread` 0, the
+radius everywhere. Each tap is compared with the surface's own depth there
+(its plane as the light sees it), so a far smaller `bias` than the 3x3
+filter's keeps tilted surfaces from shadowing themselves, and low casters
+(a rail on a green) still cast: examples/golf uses `bias = 0.001` with one
+2048 map (tests/3d's `softshadows` frame; `shadows` and `cascades` keep
+the 3x3 filter). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need
 `renderer.use(new Skinning(device))`; materials' normal maps need
 `renderer.use(new NormalMaps(device))`, made before the models load (they

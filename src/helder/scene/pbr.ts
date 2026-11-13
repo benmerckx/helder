@@ -8,7 +8,7 @@
 // PbrShader.hx: what one changes the other does.
 import {
 	slots, position, vec2, vec3, vec4, mat4, sample, sampleLevel, dot, cross, normalize, reflect, mix, clamp, smoothstep, pow, min, max, abs,
-	sqrt, floor, step, discard, length, exp, type Vec2, type Vec3, type Vec4, type Mat4, type Texture2D,
+	sqrt, floor, fract, step, discard, length, exp, type Vec2, type Vec3, type Vec4, type Mat4, type Texture2D,
 } from "helder/gfx";
 
 // the combined vertex: a variant's attributes those it reads, in this order
@@ -24,7 +24,7 @@ export type PbrFrame = {
 	viewProj: Mat4, eye: Vec4, lightDir: Vec4, lightColor: Vec4, sky: Vec4, ground: Vec4, exposure: Vec4, lightViewProj: Mat4, shadow: Vec4,
 	point0: Vec4, point1: Vec4, point2: Vec4, point3: Vec4, pointColor0: Vec4, pointColor1: Vec4, pointColor2: Vec4, pointColor3: Vec4,
 	spot0: Vec4, spot1: Vec4, spot2: Vec4, spot3: Vec4, lightViewProjFar: Mat4, shadowFar: Vec4, environment: Vec4, rim: Vec4,
-	fog: Vec4, fogShape: Vec4,
+	fog: Vec4, fogShape: Vec4, shadowSoft: Vec4,
 };
 
 // per draw: the node's matrices
@@ -137,7 +137,7 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 	const f0 = mix(mix(vec3(0.04), base, metallic), vec3(0.12), crystal);
 	const sunUp = dot(up, l);
 	const day = mix(1.0, smoothstep(-0.08, 0.22, sunUp), material.ground.x);
-	let direct = brdf(n, v, l, base, metallic, a2, f0).mul(frame.lightColor.xyz).mul(shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day);
+	let direct = brdf(n, v, l, base, metallic, a2, f0).mul(frame.lightColor.xyz).mul(shadowed(frame, shadowMap, shadowMapFar, world, n) * day);
 	direct = direct.add(point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
 		.add(point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1))
 		.add(point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2))
@@ -175,7 +175,7 @@ function shade(facing: Vec3, world: Vec3, uv: Vec2, up: Vec3, base: Vec3, baseAl
 		const cr = clamp(material.layers.y, 0.04, 1);
 		const ca = cr * cr;
 		const fc = (0.04 + 0.96 * pow(1 - nv, 5)) * coat;
-		const lit = shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day;
+		const lit = shadowed(frame, shadowMap, shadowMapFar, world, n) * day;
 		const layer = coatLobe(n, v, l, ca * ca).mul(frame.lightColor.xyz).mul(lit * coat).add(reflected(frame, environmentMap, r, cr).mul(fc));
 		direct = direct.mul(1 - fc);
 		ambient = ambient.mul(1 - fc).add(layer);
@@ -283,20 +283,21 @@ function point(n: Vec3, v: Vec3, world: Vec3, base: Vec3, metallic: number, a2: 
 	return result;
 }
 
-// the direct light's share at a point (1: lit) from the shadow maps
-function shadowed(frame: PbrFrame, map: Texture2D, far: Texture2D, world: Vec3, nl: number): number {
+// the direct light's share at a point (1: lit) from the shadow maps (n: the surface's unit normal)
+function shadowed(frame: PbrFrame, map: Texture2D, far: Texture2D, world: Vec3, n: Vec3): number {
 	const strength = frame.shadow.x;
 	let result = 1.0;
 	if (strength > 0) {
-		let lit = cascade(map, frame.lightViewProj, frame.shadow, world, nl);
-		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, world, nl);
-		if (lit >= 0) result = 1 - strength * (1 - lit / 9);
+		const nl = max(dot(n, frame.lightDir.xyz), 0);
+		let lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, n, nl);
+		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, n, nl);
+		if (lit >= 0) result = 1 - strength * (1 - lit);
 	}
 	return result;
 }
 
-// a cascade's lit taps (0 to 9) at a point, or -1 where its map does not reach
-function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: number): number {
+// a cascade's lit share (0 to 1) at a point, or -1 where its map does not reach
+function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, soft: Vec4, deep: number, world: Vec3, n: Vec3, nl: number): number {
 	let result = -1.0;
 	const ls = viewProj.mul(vec4(world, 1));
 	const p = ls.xyz.div(ls.w);
@@ -304,9 +305,11 @@ function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: 
 	if (uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1 && p.z < 1) {
 		const depth = p.z - params.y * (1 + 2 * (1 - nl));
 		const t = params.z;
-		result = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
-			+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
-			+ tap(map, uv, depth, t, t);
+		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, plane(viewProj, n, deep));
+		else
+			result = (tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
+				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
+				+ tap(map, uv, depth, t, t)) / 9;
 	}
 	return result;
 }
@@ -314,6 +317,70 @@ function cascade(map: Texture2D, viewProj: Mat4, params: Vec4, world: Vec3, nl: 
 // 1 where the map's depth at uv + (dx, dy) is not nearer than depth
 function tap(map: Texture2D, uv: Vec2, depth: number, dx: number, dy: number): number {
 	return step(depth, sampleLevel(map, uv.add(vec2(dx, dy)), 0).x);
+}
+
+// how the depth of the surface's plane changes across the map, a uv (PbrShader.hx's plane)
+function plane(viewProj: Mat4, n: Vec3, deep: number): Vec2 {
+	const t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
+	const t2 = cross(n, t1);
+	const a = viewProj.mul(vec4(t1, 0)).xyz;
+	const b = viewProj.mul(vec4(t2, 0)).xyz;
+	const au = vec2(a.x * 0.5, -a.y * 0.5);
+	const bu = vec2(b.x * 0.5, -b.y * 0.5);
+	const det = au.x * bu.y - au.y * bu.x;
+	let g = vec2(0);
+	if (abs(det) > 0.000001) g = vec2(a.z * bu.y - b.z * au.y, au.x * b.z - bu.x * a.z).div(det);
+	const most = deep * 4;
+	const len = length(g);
+	if (len > most) g = g.mul(most / len);
+	return g;
+}
+
+// the soft filter's lit share (Shadows.soft; PbrShader.hx's softly)
+function softly(map: Texture2D, uv: Vec2, depth: number, widest: number, texel: number, soft: Vec4, deep: number, g: Vec2): number {
+	const n = soft.x;
+	const margin = depth - length(g) * texel;
+	const cell = fract(floor(uv.div(texel)).div(64)).mul(64);
+	const h = fract(52.9829189 * fract(dot(cell, vec2(0.06711056, 0.00583715))));
+	const t = 2 * fract(2 * h) - 1;
+	const start = vec2(1 - t * t, 2 * t).mul((h < 0.5 ? 1 : -1) / (1 + t * t));
+	const c = -0.7373688;
+	const s = 0.6754903;
+	let radius = widest;
+	let lit = -1.0;
+	if (soft.w > 0) {
+		const m = max(floor(n * 0.5), 4);
+		let dir = start;
+		let sum = 0.0;
+		let found = 0.0;
+		let k = 0.0;
+		while (k < m) {
+			const off = dir.mul(sqrt((k + 0.5) / m) * widest);
+			const d = sampleLevel(map, uv.add(off), 0).x;
+			const at = dot(g, off);
+			if (d < margin + at) {
+				sum += margin + at - d;
+				found += 1;
+			}
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		if (found > 0) radius = clamp(sum / found * soft.w / max(deep, 0.0001), texel * 1.5, widest);
+		else lit = 1;
+	}
+	if (lit < 0) {
+		let dir = start;
+		let sum = 0.0;
+		let k = 0.0;
+		while (k < n) {
+			const off = dir.mul(sqrt((k + 0.5) / n) * radius);
+			sum += step(margin + dot(g, off), sampleLevel(map, uv.add(off), 0).x);
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		lit = sum / n;
+	}
+	return lit;
 }
 
 // how much of the fog lies between the eye and a point (PbrShader.hx's fogAmount)
@@ -357,6 +424,15 @@ function texel(t: Texture2D, x: number, y: number): number {
 	return sampleLevel(t, vec2((x + 0.5) / 16, y), 0).x;
 }
 
+// a normal turned to the world by an instance's matrix (its columns): by
+// its cofactors, the inverse transpose times the determinant, with the
+// determinant's sign (PbrShader.hx's instanceNormal)
+function instanceNormal(c0: Vec3, c1: Vec3, c2: Vec3, n: Vec3): Vec3 {
+	const x = cross(c1, c2);
+	const turned = x.mul(n.x).add(cross(c2, c0).mul(n.y)).add(cross(c0, c1).mul(n.z));
+	return dot(c0, x) < 0 ? turned.neg() : turned;
+}
+
 export const pbr = slots({
 	options: {normalMap: false, skinned: false, instanced: false},
 	vertex: (v: PbrVertex, p: PbrVertexParams, m: Pbr): PbrVaryings => {
@@ -374,7 +450,7 @@ export const pbr = slots({
 		return {
 			clip: position(p.frame.viewProj.mul(world)),
 			world: world.xyz,
-			normal: m.options.instanced ? model.mul(vec4(nr, 0)).xyz : p.object!.normalMatrix.mul(vec4(nr, 0)).xyz,
+			normal: m.options.instanced ? instanceNormal(v.m0!.xyz, v.m1!.xyz, v.m2!.xyz, nr) : p.object!.normalMatrix.mul(vec4(nr, 0)).xyz,
 			uv: v.uv,
 			tangent: m.options.normalMap ? vec4(model.mul(vec4(v.tangent!.xyz, 0)).xyz, v.tangent!.w) : vec4(0),
 			up: m.options.instanced ? v.m1!.xyz : model.mul(vec4(0, 1, 0, 0)).xyz,

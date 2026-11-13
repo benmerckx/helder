@@ -49,6 +49,16 @@ class RenderTest {
 			} else
 				Sys.println('RenderTest: $name: its checks ok');
 		}
+		// (a twin: the scene drawn another way, the same frame by GfxTest's rule)
+		if (Scenes.twin != null) {
+			var twin = Bytes.alloc(WIDTH * HEIGHT * 4);
+			var enc = device.beginFrame();
+			Scenes.twin(enc);
+			device.readPixels(twin);
+			device.endFrame();
+			sys.io.File.saveBytes(haxe.io.Path.withoutExtension(out) + "-twin.png", Png.encode(twin, WIDTH, HEIGHT));
+			if (!GfxTest.compareBytes('$name, its twin', twin, Png.encode(pixels, WIDTH, HEIGHT))) drawsOk = false;
+		}
 		device.dispose();
 		sys.io.File.saveBytes(out, Png.encode(pixels, WIDTH, HEIGHT));
 		if (args[3] == "--bless") {

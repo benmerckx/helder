@@ -64,20 +64,33 @@ import StageShaders;
 //   poststage the bloom scene through a PostProcess with two stages of
 //          its own (StageShaders, PostProcess.add): a sepia grade into a
 //          target between, then scanlines into the frame
+//   unevenscale boxes and spheres scaled unevenly and turned, on two
+//          meshes: one instanced draw each (normals by the instance
+//          matrix's inverse transpose), the shadow map's casters batched
+//          too; its twin, drawn with renderer.instancing off (each node
+//          alone, its normal matrix from the CPU), the same frame
+//   softshadows Shadows.cascaded's soft filter (soft: taps on a disc, a
+//          blocker search, the penumbra widening away from the caster):
+//          pillars, slabs on stems and balls down a street, sharp where
+//          they stand, soft under the slabs, in both cascades
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene", "fog", "poststage"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh", "glow", "tsscene", "fog", "poststage", "unevenscale", "softshadows"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	// the last scene's own checks beyond its frame (RenderTest; null: none)
 	public static var probe:Null<Void->String>;
+	// the last scene drawn another way that must give the same frame
+	// (RenderTest, after the first and its probe; null: none)
+	public static var twin:Null<Encoder->Void>;
 	public static inline var TIME = 2.0;
 	public static inline var STEPS = 150;
 
 	public static function make(name:String, device:Device):Encoder->Void {
 		ready = () -> true;
 		probe = null;
+		twin = null;
 		return switch name {
 			case "crystal":
 				var r = new Renderer(device);
@@ -726,6 +739,82 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.6, 0.1, 100));
 				eye.position = new Vec3(0, 0, 6);
 				eye.lookAt(new Vec3(0, 0, 0));
+				enc -> r.draw(enc, world, camera);
+			case "unevenscale":
+				var shadows = new Shadows(device, 1024);
+				var r = new Renderer(device).use(shadows);
+				renderer = r;
+				var world = new World();
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, -0.6, 0);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new helder.gfx.shader.Vec4(0.55, 0.56, 0.6, 1), 0, 0.85), 14));
+				var box = Shapes.box(device, new Material("box", new helder.gfx.shader.Vec4(0.9, 0.5, 0.25, 1), 0, 0.35));
+				var ball = Shapes.sphere(device, new Material("ball", new helder.gfx.shader.Vec4(0.25, 0.55, 0.95, 1), 0, 0.25), 0.5, 24, 12);
+				// (each scaled unevenly, turned about a tilted axis: an uneven scale under a turn, and a turn after it from the parent)
+				var scales = [new Vec3(0.3, 1.2, 0.7), new Vec3(1.4, 0.25, 0.5), new Vec3(0.5, 0.6, 1.5), new Vec3(1, 0.4, 0.3)];
+				for (k in 0...16) {
+					var x = (k % 4) - 1.5, z = Std.int(k / 4) - 1.5;
+					var parent = world.node();
+					parent.position = new Vec3(x * 1.6, 0, z * 1.5);
+					parent.rotation = helder.scene.math.Quat.axisAngle(new Vec3(0, 1, 0), k * 0.4);
+					var n = world.node("", parent);
+					n.rotation = helder.scene.math.Quat.axisAngle(new Vec3(0.48, 0.8, 0.36), k * 0.9);
+					n.scale = scales[k % 4] * (k % 3 == 0 ? 1.3 : 1);
+					MeshRenderer.attach(n, k % 2 == 0 ? box : ball);
+				}
+				var sun = world.node("sun");
+				Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.88), 2.8));
+				sun.rotation = helder.scene.math.Quat.fromEuler(-0.6, 0.7, 0);
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 60));
+				eye.position = new Vec3(1.5, 5.5, 6.5);
+				eye.lookAt(new Vec3(0, -0.2, 0));
+				// (the floor, the boxes, the balls: three draws, in the main pass and the map's)
+				probe = () -> r.draws == 3 && r.instanced == 16 && r.shadowDraws == 3 ? null : '${r.draws} draws, ${r.instanced} instanced, ${r.shadowDraws} shadow draws (3, 16, 3)';
+				twin = enc -> {
+					r.instancing = false;
+					r.draw(enc, world, camera);
+					r.instancing = true;
+					if (r.draws != 17) throw 'Scenes: unevenscale: ${r.draws} draws without instancing (17)';
+				};
+				enc -> r.draw(enc, world, camera);
+			case "softshadows":
+				var shadows = Shadows.cascaded(device, 1024, 6);
+				// (HXMC_SOFT=0: the same with the 3x3 filter, to compare)
+				if (Sys.getEnv("HXMC_SOFT") != "0") shadows.soft(0.16, 16, 0.05);
+				var r = new Renderer(device).use(shadows);
+				renderer = r;
+				var world = new World();
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, 0, -10);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new helder.gfx.shader.Vec4(0.62, 0.62, 0.64, 1), 0, 0.9), 30));
+				var stone = new Material("stone", new helder.gfx.shader.Vec4(0.82, 0.58, 0.38, 1), 0, 0.6);
+				var pillar = Shapes.box(device, stone, 0.3, 2.6, 0.3);
+				var stem = Shapes.box(device, stone, 0.08, 1.6, 0.08);
+				var slab = Shapes.box(device, new Material("slab", new helder.gfx.shader.Vec4(0.35, 0.6, 0.85, 1), 0, 0.5), 1.4, 0.08, 1.0);
+				var ball = Shapes.sphere(device, new Material("ball", new helder.gfx.shader.Vec4(0.9, 0.85, 0.8, 1), 0, 0.3), 0.3, 24, 12);
+				for (k in 0...5) {
+					var z = 1 - k * 4.5;
+					var p = world.node();
+					p.position = new Vec3(-1.8, 1.3, z);
+					MeshRenderer.attach(p, pillar);
+					var st = world.node();
+					st.position = new Vec3(1.4, 0.8, z - 1);
+					MeshRenderer.attach(st, stem);
+					var sl = world.node();
+					sl.position = new Vec3(1.4, 1.64, z - 1);
+					MeshRenderer.attach(sl, slab);
+					var b = world.node();
+					b.position = new Vec3(-0.2, 0.3, z - 2);
+					MeshRenderer.attach(b, ball);
+				}
+				var sun = world.node("sun");
+				Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.88), 2.6));
+				sun.rotation = helder.scene.math.Quat.fromEuler(-0.75, 1.1, 0);
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.9, 0.1, 60));
+				eye.position = new Vec3(0.4, 3.2, 4.5);
+				eye.lookAt(new Vec3(0, 0.2, -5));
 				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}

@@ -65,6 +65,9 @@ class PostProcess {
 	// whether the frame's alpha is kept (the scene's coverage, where bloom
 	// adds light its brightness: over a ui behind it, premultiplied); false: opaque
 	public var transparent = true;
+	// the last run's draws (each a full-screen pass: bloom down and up, the
+	// composite, the stages; helder.gfx.FrameCounts.postDraws too)
+	public var draws(default, null) = 0;
 
 	static inline var MAX_LEVELS = 6;
 
@@ -166,6 +169,7 @@ class PostProcess {
 	// size; null: the frame, a PostProcess made for it); time: seconds, the
 	// grain's
 	public function run(enc:Encoder, source:Texture, target:Null<Texture>, width:Int, height:Int, time = 0.0) {
+		draws = 0;
 		var n = bloom > 0 ? Std.int(Math.max(1, Math.min(levels, MAX_LEVELS))) : 0;
 		var b = base >= 2 ? 2 : 1;
 		if (n > 0) size(width, height, b, n);
@@ -183,6 +187,7 @@ class PostProcess {
 			enc.setTexture(downSlots[1], from, linear);
 			enc.setVertexBuffer(0, triangle);
 			enc.draw(3);
+			draws++;
 			enc.endPass();
 		}
 		// (back up: each level's tent filtered into the one above, added)
@@ -195,6 +200,7 @@ class PostProcess {
 			enc.setTexture(upSlots[1], chain[k], linear);
 			enc.setVertexBuffer(0, triangle);
 			enc.draw(3);
+			draws++;
 			enc.endPass();
 			k--;
 		}
@@ -224,6 +230,7 @@ class PostProcess {
 		enc.setTexture(compositeSlots[2], n > 0 ? chain[0] : black, linear);
 		enc.setVertexBuffer(0, triangle);
 		enc.draw(3);
+		draws++;
 		enc.endPass();
 		// (the stages: each from the last target into the next, the last into the output)
 		var from = 0;
@@ -237,10 +244,12 @@ class PostProcess {
 			if (s.bind != null) s.bind(enc);
 			enc.setVertexBuffer(0, triangle);
 			enc.draw(3);
+			draws++;
 			enc.endPass();
 			from = 1 - from;
 		}
 		outPass.colors[0].texture = null;
+		helder.gfx.FrameCounts.postDraws += draws;
 	}
 
 	function stageBetween(s:PostStage):Pipeline {

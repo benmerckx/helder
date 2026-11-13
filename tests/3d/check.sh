@@ -24,7 +24,7 @@ else
 	Linux-aarch64 | Linux-arm64) export HXMC_3D_TOLERANCE=3 ;;
 	esac
 fi
-for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy normals blend walker packedskin packednormals cascades environment morph chains packedmorph bloom normalgrid gpuparticles crystal khrtransform khrclearcoat compressed packedbc packedastc instancedmesh glow tsscene fog poststage; do
+for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy normals blend walker packedskin packednormals cascades environment morph chains packedmorph bloom normalgrid gpuparticles crystal khrtransform khrclearcoat compressed packedbc packedastc instancedmesh glow tsscene fog poststage unevenscale softshadows; do
 	g=$s
 	# (the packed sample draws the glTF one's frame, the lazy skin the skin's)
 	[ $s = packed ] && g=gltf

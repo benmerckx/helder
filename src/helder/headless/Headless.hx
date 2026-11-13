@@ -708,11 +708,15 @@ class Headless {
 		f.push(g.uploaded);
 		f.push(g.uiBytes);
 		f.push(g.glyphTexels);
+		f.push(g.sceneDraws);
+		f.push(g.shadowDraws);
+		f.push(g.postDraws);
 		statStart = -1;
 	}
 
 	// {"fps", "frames": [{"frame", "t", "ms", "gcBytes", "gcs", "keys", "wheels", "pointers",
-	// "passes", "draws", "instances", "pipelines", "textures", "quads", "uiMs", "uploadMs", "encodeMs", "uploaded", "uiBytes", "glyphTexels"}...]}
+	// "passes", "draws", "instances", "pipelines", "textures", "quads", "uiMs", "uploadMs", "encodeMs", "uploaded", "uiBytes", "glyphTexels",
+	// "sceneDraws", "shadowDraws", "postDraws"}...]}
 	function writeStats() {
 		var b = new StringBuf();
 		b.add('{"fps":$fps,"frames":[');
@@ -722,8 +726,9 @@ class Headless {
 			if (k > 0) b.add(",\n");
 			var f = statFrames;
 			b.add('{"frame":${Std.int(f[k])},"t":${round(f[k + 1])},"ms":${Math.round(f[k + 2] * 1000) / 1000},"gcBytes":${Std.int(f[k + 3])},"gcs":${Std.int(f[k + 4])},"keys":${Std.int(f[k + 5])},"wheels":${Std.int(f[k + 6])},"pointers":${Std.int(f[k + 7])}');
-			b.add(',"passes":${Std.int(f[k + 8])},"draws":${Std.int(f[k + 9])},"instances":${Std.int(f[k + 10])},"pipelines":${Std.int(f[k + 11])},"textures":${Std.int(f[k + 12])},"quads":${Std.int(f[k + 13])},"uiMs":${Math.round(f[k + 14] * 1000) / 1000},"uploadMs":${Math.round(f[k + 15] * 1000) / 1000},"encodeMs":${Math.round(f[k + 16] * 1000) / 1000},"uploaded":${Std.int(f[k + 17])},"uiBytes":${Std.int(f[k + 18])},"glyphTexels":${Std.int(f[k + 19])}}');
-			if (f[k + 8] > 0) drawn.push([f[k + 2], f[k + 8], f[k + 9], f[k + 13], f[k + 14], f[k + 3], f[k + 14] - f[k + 16], f[k + 16], f[k + 18]]);
+			b.add(',"passes":${Std.int(f[k + 8])},"draws":${Std.int(f[k + 9])},"instances":${Std.int(f[k + 10])},"pipelines":${Std.int(f[k + 11])},"textures":${Std.int(f[k + 12])},"quads":${Std.int(f[k + 13])},"uiMs":${Math.round(f[k + 14] * 1000) / 1000},"uploadMs":${Math.round(f[k + 15] * 1000) / 1000},"encodeMs":${Math.round(f[k + 16] * 1000) / 1000},"uploaded":${Std.int(f[k + 17])},"uiBytes":${Std.int(f[k + 18])},"glyphTexels":${Std.int(f[k + 19])}');
+			b.add(',"sceneDraws":${Std.int(f[k + 20])},"shadowDraws":${Std.int(f[k + 21])},"postDraws":${Std.int(f[k + 22])}}');
+			if (f[k + 8] > 0) drawn.push([f[k + 2], f[k + 8], f[k + 9], f[k + 13], f[k + 14], f[k + 3], f[k + 14] - f[k + 16], f[k + 16], f[k + 18], f[k + 20], f[k + 21], f[k + 22]]);
 			k += n;
 		}
 		b.add("]}\n");
@@ -741,10 +746,13 @@ class Headless {
 			function ms(v:Float)
 				return Math.round(v * 1000) / 1000;
 			Sys.println('headless: ${drawn.length} frames drawn: passes ${col(1, 0.5)} (at most ${col(1, 1)}), draw calls ${col(2, 0.5)} (at most ${col(2, 1)}), quads ${col(3, 0.5)}, renderer CPU ms ${ms(col(4, 0.5))} (p95 ${ms(col(4, 0.95))}, of it the draw calls ${ms(col(7, 0.5))}, the rest ${ms(col(6, 0.5))}), frame ms ${ms(col(0, 0.5))} (p95 ${ms(col(0, 0.95))}), GC bytes ${col(5, 0.5)} (the renderer, painting included, ${col(8, 0.5)})');
+			// (a 3D renderer's draws by pass: helder.scene's)
+			if (col(9, 1) + col(10, 1) + col(11, 1) > 0)
+				Sys.println('headless: 3D draws by pass: main ${col(9, 0.5)} (at most ${col(9, 1)}), shadow maps ${col(10, 0.5)} (at most ${col(10, 1)}), post ${col(11, 0.5)} (at most ${col(11, 1)})');
 		}
 	}
 
-	static inline var STAT_FIELDS = 20;
+	static inline var STAT_FIELDS = 23;
 
 	// the frame (keycaps and ripples over it) as an opaque PNG; at w x h pixels when given (cropped or padded with black)
 	function writePng(path:String, t:Float, w = 0, h = 0) {

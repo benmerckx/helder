@@ -11,8 +11,8 @@ import helder.scene.math.Aabb;
 // instances' data in flat arrays the program writes (no node, no object
 // an instance): a swarm of asteroids, a fleet of ships, a forest. Each
 // instance is a world transform (a position, a unit quaternion and a
-// uniform scale, or a matrix of a uniform scale: the normals are turned by
-// it), a colour (rgb times the material's base colour, white by default)
+// uniform scale, or any affine matrix: uneven scales too, the normals
+// turned by its inverse transpose), a colour (rgb times the material's base colour, white by default)
 // and, for a program's own shader, `custom` floats of its own (a second
 // buffer, `custom` floats an instance, a multiple of 4). Attached to a
 // node (InstancedMesh.attach), drawn by the Renderer while the node is
@@ -138,7 +138,7 @@ class InstancedMesh {
 		dirty = true;
 	}
 
-	// instance i's world matrix (affine, of a uniform scale), its colour kept
+	// instance i's world matrix (affine: any scale, uneven too), its colour kept
 	public function setMatrix(i:Int, m:Mat4) {
 		var o = i * STRIDE, d = data;
 		d.setFloat(o, m.c0.x);

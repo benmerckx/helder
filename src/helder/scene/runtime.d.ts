@@ -189,9 +189,13 @@ export declare class Renderer {
 	// GpuParticles; a material opts out with Material.fog
 	fog: Fog | null;
 	clearColor: unknown;
-	// the last draw's draws and primitives culled (statistics)
+	// the last draw's draws in its main pass and primitives culled
+	// (statistics); its shadow maps' draws (Shadows: every cascade's; 0
+	// without); every renderer's by pass in helder.gfx.FrameCounts
+	// (sceneDraws, shadowDraws, postDraws: PostProcess.draws)
 	readonly draws: number;
 	readonly culled: number;
+	readonly shadowDraws: number;
 	// whether runs of one primitive are drawn instanced (on by default)
 	instancing: boolean;
 	// the last draw's instances drawn by instanced draws (statistics)

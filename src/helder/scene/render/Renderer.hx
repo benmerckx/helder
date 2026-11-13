@@ -69,9 +69,13 @@ class Renderer {
 	// GpuParticles; a material opts out with Material.fog
 	public var fog:Null<Fog> = null;
 	public var clearColor = new Color(0.07, 0.08, 0.1);
-	// the last draw's draws and primitives culled (statistics)
+	// the last draw's draws in its main pass and primitives culled
+	// (statistics); its shadow maps' draws (Shadows: every cascade's; 0
+	// without); every renderer's by pass in helder.gfx.FrameCounts
+	// (sceneDraws, shadowDraws, postDraws: PostProcess.draws)
 	public var draws(default, null) = 0;
 	public var culled(default, null) = 0;
+	public var shadowDraws(default, null) = 0;
 
 	final pipeline:Pipeline;
 	final doubleSided:Pipeline;
@@ -226,11 +230,15 @@ class Renderer {
 		frame.hdr = hdr;
 		frame.fog = fog;
 		frame.exposure = exposure;
+		shadowDraws = 0;
 		if (shadowSource != null) {
 			shadowSource.render(enc, world, toLight, skinSource, frame);
 			writeFrame(world, camera, viewProj, true);
+			shadowDraws = shadowSource.shadowFrame().draws;
+			FrameCounts.shadowDraws += shadowDraws;
 		}
 		record(enc);
+		FrameCounts.sceneDraws += draws;
 		for (f in hooks[AfterPass])
 			f(enc, frame);
 	}
@@ -342,13 +350,14 @@ class Renderer {
 		if (!sun && lights.length > 0) c = new Vec3(0, 0, 0);
 		l = l / Math.sqrt(l.x * l.x + l.y * l.y + l.z * l.z);
 		var lightViewProj:Mat4 = Mat4.identity(), lightViewProjFar:Mat4 = Mat4.identity();
-		var shadow:Vec4 = new Vec4(0, 0, 0, 0), shadowFar:Vec4 = new Vec4(0, 0, 0, 0);
+		var shadow:Vec4 = new Vec4(0, 0, 0, 0), shadowFar:Vec4 = new Vec4(0, 0, 0, 0), soft:Vec4 = new Vec4(0, 0, 0, 0);
 		if (shadowed) {
 			var f = shadowSource.shadowFrame();
 			lightViewProj = f.viewProj;
 			shadow = f.params;
 			lightViewProjFar = f.viewProjFar;
 			shadowFar = f.paramsFar;
+			soft = f.soft;
 		}
 		PbrShader.params.frame.write({
 			viewProj: viewProj,
@@ -377,7 +386,8 @@ class Renderer {
 			environment: environment != null ? new Vec4(environment.intensity, environment.levels, environment.rows, @:privateAccess environment.edge) : new Vec4(0, 0, 0, 0),
 			rim: new Vec4(rim.x, rim.y, rim.z, rimPower),
 			fog: Fog.colorOf(fog),
-			fogShape: Fog.shapeOf(fog)
+			fogShape: Fog.shapeOf(fog),
+			shadowSoft: soft
 		}, frameBytes);
 		return l;
 	}
@@ -534,8 +544,10 @@ class Renderer {
 		var bytes = 0, i = 0;
 		while (i < count) {
 			var j = i + 1;
-			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend && uniformScale(list[i].node))
-				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
+			// (any scale: the instanced shader turns normals by the matrix's
+			// inverse transpose, as the object's normalMatrix)
+			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend)
+				while (j < count && list[j].primitive == list[i].primitive)
 					j++;
 			if (batchCount == batchStart.length) {
 				batchStart.push(0);
@@ -620,15 +632,6 @@ class Renderer {
 	// tangents and its material's map there)
 	inline function mapped(p:Mesh.Primitive):Bool
 		return normalSource != null && p.tangents != null && p.material.normalTexture != null && !p.skinned;
-
-	// whether a node's world matrix scales alike on every axis (instanced
-	// normals are turned by its upper 3x3)
-	static function uniformScale(n:Node):Bool {
-		var m = n.worldMatrix();
-		var x = m.c0.x * m.c0.x + m.c0.y * m.c0.y + m.c0.z * m.c0.z, y = m.c1.x * m.c1.x + m.c1.y * m.c1.y + m.c1.z * m.c1.z,
-			z = m.c2.x * m.c2.x + m.c2.y * m.c2.y + m.c2.z * m.c2.z;
-		return Math.abs(x - y) <= 1e-6 * x && Math.abs(x - z) <= 1e-6 * x;
-	}
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
 	// frame, object (-1: none), material, base colour, shadow map, skin,

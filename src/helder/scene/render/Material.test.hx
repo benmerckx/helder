@@ -12,13 +12,15 @@ import helder.scene.render.PbrShader.materialOf;
 import helder.scene.render.PbrShader.shadeAt;
 import helder.scene.render.PbrShader.uvOf;
 import helder.scene.render.PbrShader.fogAmount;
+import helder.scene.render.PbrShader.instanceNormal;
 
 // The standard shader's material options run on the CPU (shadeAt
 // as the GPU runs it, its textures white): Material.ground's sunset with
 // the sphere under it and the sky it no longer reflects below its
 // horizon, Material.air towards the limb, Material.crystal's Fresnel and
 // see-through middle, a node's tint (MeshRenderer.tint), a double-sided
-// face seen from behind; glTF's uv transform, clear coat and transmission.
+// face seen from behind; glTF's uv transform, clear coat and transmission;
+// an instance's normal (instanceNormal) as the object's normalMatrix turns it.
 // The renderer drawing them: the 3d lane's "crystal", "khrtransform" and
 // "khrclearcoat" frames (tests/3d/Scenes.hx).
 function tests() {
@@ -32,7 +34,7 @@ function tests() {
 				sky: new Vec4(0.1, 0.1, 0.1, 0), ground: new Vec4(0.1, 0.1, 0.1, 0), exposure: new Vec4(1, 1, 0, 0), lightViewProj: Mat4.identity(),
 				shadow: zero, point0: zero, point1: zero, point2: zero, point3: zero, pointColor0: zero, pointColor1: zero, pointColor2: zero,
 				pointColor3: zero, spot0: new Vec4(0, 0, 0, -2), spot1: new Vec4(0, 0, 0, -2), spot2: new Vec4(0, 0, 0, -2), spot3: new Vec4(0, 0, 0, -2),
-				lightViewProjFar: Mat4.identity(), shadowFar: zero, environment: zero, rim: zero, fog: Fog.colorOf(fog), fogShape: Fog.shapeOf(fog)
+				lightViewProjFar: Mat4.identity(), shadowFar: zero, environment: zero, rim: zero, fog: Fog.colorOf(fog), fogShape: Fog.shapeOf(fog), shadowSoft: zero
 			};
 		}
 		function material(m:Material):PbrMaterial
@@ -165,6 +167,20 @@ function tests() {
 			approx(sum(behind), sum(front), 1e-6);
 			m.doubleSided = false;
 			assert(sum(shade(m, new Vec3(0, -1, 0), sunny(), sunny(), above())) < sum(front) * 0.3, "single-sided: its own normal's");
+		});
+		test("instanced: a normal turned by the instance matrix's inverse transpose, as the object's normalMatrix (uneven and mirrored scales)", () -> {
+			for (scale in [new Vec3(0.3, 1.4, 0.7), new Vec3(2, 0.25, 1), new Vec3(-1, 0.5, 2)]) {
+				var turn = helder.scene.math.Quat.axisAngle(new Vec3(0.48, 0.8, 0.36), 0.9);
+				var m = helder.scene.math.MathTools.compose(new Vec3(1, 2, 3), turn, scale);
+				var nm = helder.scene.math.MathTools.normalMatrix(m);
+				for (n in [new Vec3(0, 1, 0), new Vec3(0.6, 0, 0.8), new Vec3(-0.48, 0.6, 0.64)]) {
+					var a = instanceNormal(m.c0.xyz, m.c1.xyz, m.c2.xyz, n), b = nm * new Vec4(n.x, n.y, n.z, 0);
+					var la = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z), lb = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z);
+					approx(a.x / la, b.x / lb, 1e-9);
+					approx(a.y / la, b.y / lb, 1e-9);
+					approx(a.z / la, b.z / lb, 1e-9);
+				}
+			}
 		});
 	});
 }

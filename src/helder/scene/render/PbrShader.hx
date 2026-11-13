@@ -146,6 +146,13 @@ typedef Pbr = {
 	// density (0: none); x its start, y its falloff, z its height, w the most
 	var fog:Vec4;
 	var fogShape:Vec4;
+	// the soft shadow filter (Shadows.soft): x its taps (0: the 3x3
+	// filter), y and z a uv's depth in the first and the second cascade's
+	// maps (their width over their depth: a slope's change of depth across
+	// a uv), w the penumbra's spread a metre from the caster (0: the
+	// radius alone, no blocker search); shadow.w and shadowFar.w each
+	// cascade's widest radius, in its uv
+	var shadowSoft:Vec4;
 }
 
 // per draw: the node's matrices
@@ -258,7 +265,7 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 	// across the terminator as the planet's own light is)
 	var sunUp = dot(up, l);
 	var day = mix(1.0, smoothstep(-0.08, 0.22, sunUp), material.ground.x);
-	var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * (shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day);
+	var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * (shadowed(frame, shadowMap, shadowMapFar, world, n) * day);
 	direct += point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
 		+ point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
 		+ point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
@@ -310,7 +317,7 @@ function shade(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, base:Vec3, baseAlpha:F
 		var cr = clamp(material.layers.y, 0.04, 1);
 		var ca = cr * cr;
 		var fc = (0.04 + 0.96 * pow(1 - nv, 5)) * coat;
-		var lit = shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day;
+		var lit = shadowed(frame, shadowMap, shadowMapFar, world, n) * day;
 		var layer = coatLobe(n, v, l, ca * ca) * frame.lightColor.xyz * (lit * coat) + reflected(frame, environmentMap, r, cr) * fc;
 		direct = direct * (1 - fc);
 		ambient = ambient * (1 - fc) + layer;
@@ -446,21 +453,25 @@ function point(n:Vec3, v:Vec3, world:Vec3, base:Vec3, metallic:Float, a2:Float, 
 
 // the direct light's share at a point (1: lit) from the shadow maps: the
 // first cascade's where it reaches, else the second's; a 3x3
-// percentage-closer filter; 1 outside them or without shadows
-function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, nl:Float):Float {
+// percentage-closer filter, or the soft one (Shadows.soft); 1 outside
+// them or without shadows (n: the surface's unit normal)
+function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, n:Vec3):Float {
 	var strength = frame.shadow.x;
 	var result = 1.0;
 	if (strength > 0) {
-		var lit = cascade(map, frame.lightViewProj, frame.shadow, world, nl);
-		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, world, nl);
-		if (lit >= 0) result = 1 - strength * (1 - lit / 9);
+		var nl = max(dot(n, frame.lightDir.xyz), 0);
+		var lit = cascade(map, frame.lightViewProj, frame.shadow, frame.shadowSoft, frame.shadowSoft.y, world, n, nl);
+		if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, frame.shadowSoft, frame.shadowSoft.z, world, n, nl);
+		if (lit >= 0) result = 1 - strength * (1 - lit);
 	}
 	return result;
 }
 
-// a cascade's lit taps (0 to 9) at a point, or -1 where its map does not
-// reach (params: y the bias, z a texel of the map)
-function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float):Float {
+// a cascade's lit share (0 to 1) at a point, or -1 where its map does not
+// reach (params: y the bias, z a texel of the map, w the soft filter's
+// widest radius in its uv; soft and deep: shadowSoft's, this map's depth
+// a uv)
+function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, soft:Vec4, deep:Float, world:Vec3, n:Vec3, nl:Float):Float {
 	var result = -1.0;
 	var ls = viewProj * vec4(world, 1);
 	var p = ls.xyz / ls.w;
@@ -469,9 +480,11 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float
 		// (more bias where the light grazes the surface)
 		var depth = p.z - params.y * (1 + 2 * (1 - nl));
 		var t = params.z;
-		result = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
-			+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
-			+ tap(map, uv, depth, t, t);
+		if (soft.x > 0 && params.w > 0) result = softly(map, uv, depth, params.w, t, soft, deep, plane(viewProj, n, deep));
+		else
+			result = (tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
+				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
+				+ tap(map, uv, depth, t, t)) / 9;
 	}
 	return result;
 }
@@ -479,6 +492,88 @@ function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float
 // 1 where the map's depth at uv + (dx, dy) is not nearer than depth
 function tap(map:Texture2D, uv:Vec2, depth:Float, dx:Float, dy:Float):Float
 	return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
+
+// how the depth of the surface's plane (unit normal n) changes across the
+// map, a uv (an orthographic light's viewProj: two directions along the
+// plane, their change of uv and depth, solved for it), its length at most
+// four times deep (the plane seen from the light at a slant of 76 degrees:
+// past it, no surface that is lit much)
+function plane(viewProj:Mat4, n:Vec3, deep:Float):Vec2 {
+	var t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
+	var t2 = cross(n, t1);
+	var a = (viewProj * vec4(t1, 0)).xyz;
+	var b = (viewProj * vec4(t2, 0)).xyz;
+	var au = vec2(a.x * 0.5, -a.y * 0.5);
+	var bu = vec2(b.x * 0.5, -b.y * 0.5);
+	var det = au.x * bu.y - au.y * bu.x;
+	var g = vec2(0);
+	if (abs(det) > 0.000001) g = vec2(a.z * bu.y - b.z * au.y, au.x * b.z - bu.x * a.z) / det;
+	var most = deep * 4;
+	var len = length(g);
+	if (len > most) g = g * (most / len);
+	return g;
+}
+
+// the soft filter's lit share (Shadows.soft): soft.x taps on a golden-angle
+// spiral (Vogel's disc) out to a radius, turned at each of the map's
+// texels by interleaved gradient noise (of the whole texel modulo 64,
+// exact in floats: the same turn on every GPU); with a spread (soft.w),
+// first a blocker search over the widest radius with half as many taps,
+// the radius then the penumbra's at the blockers' mean distance (PCSS:
+// sharp where the shadow meets its caster, softer away from it), a texel
+// and a half at least; none found: lit. Each tap compared with the
+// surface's own depth there (its plane in the light's view, g: plane),
+// less a texel's change of it (the nearest texel's reach), so a tilted
+// surface does not shadow itself and what stands on it still does
+function softly(map:Texture2D, uv:Vec2, depth:Float, widest:Float, texel:Float, soft:Vec4, deep:Float, g:Vec2):Float {
+	var n = soft.x;
+	var margin = depth;
+	var cell = fract(floor(uv / texel) / 64) * 64;
+	var h = fract(52.9829189 * fract(dot(cell, vec2(0.06711056, 0.00583715))));
+	// (the turn without trigonometry, whose precision GPUs differ in: a half
+	// turn's direction from t = tan(angle / 2), the other half its opposite)
+	var t = 2 * fract(2 * h) - 1;
+	var start = vec2(1 - t * t, 2 * t) * ((h < 0.5 ? 1 : -1) / (1 + t * t));
+	// (the golden angle's turn, a tap to the next)
+	var c = -0.7373688;
+	var s = 0.6754903;
+	var radius = widest;
+	var lit = -1.0;
+	if (soft.w > 0) {
+		var m = max(floor(n * 0.5), 4);
+		var dir = start;
+		var sum = 0.0;
+		var found = 0.0;
+		var k = 0.0;
+		while (k < m) {
+			var off = dir * (sqrt((k + 0.5) / m) * widest);
+			var d = sampleLevel(map, uv + off, 0).x;
+			var at = dot(g, off);
+			if (d < margin + at) {
+				// (the blocker's distance above the surface there)
+				sum += margin + at - d;
+				found += 1;
+			}
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		if (found > 0) radius = clamp(sum / found * soft.w / max(deep, 0.0001), texel * 1.5, widest);
+		else lit = 1;
+	}
+	if (lit < 0) {
+		var dir = start;
+		var sum = 0.0;
+		var k = 0.0;
+		while (k < n) {
+			var off = dir * (sqrt((k + 0.5) / n) * radius);
+			sum += step(margin + dot(g, off), sampleLevel(map, uv + off, 0).x);
+			dir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+			k += 1;
+		}
+		lit = sum / n;
+	}
+	return lit;
+}
 
 // how much of the fog (Fog: colour and density, shape) lies between the
 // eye and a point, 0 to its most: 1 - e^(-the density summed along the
@@ -525,6 +620,18 @@ function joint(t:Texture2D, k:Float, rows:Float):Mat4 {
 function texel(t:Texture2D, x:Float, y:Float):Float
 	return sampleLevel(t, vec2((x + 0.5) / 16, y), 0).x;
 
+// a normal n turned to the world by an instance's matrix (its columns
+// c0, c1, c2): by the inverse transpose of its upper 3x3, as the object's
+// normalMatrix turns it, here as its cofactors (the columns' cross
+// products, the inverse transpose times the determinant) with the
+// determinant's sign: exact for any scale, uneven or mirrored, and shear,
+// the length the fragment's normalize takes away
+function instanceNormal(c0:Vec3, c1:Vec3, c2:Vec3, n:Vec3):Vec3 {
+	var x = cross(c1, c2);
+	var turned = x * n.x + cross(c2, c0) * n.y + cross(c0, c1) * n.z;
+	return dot(c0, x) < 0 ? -turned : turned;
+}
+
 final pbr = slots({
 	options: {normalMap: false, skinned: false, instanced: false},
 	vertex: function(v:PbrVertex, p:PbrVertexParams, m:Pbr):PbrVaryings {
@@ -538,15 +645,12 @@ final pbr = slots({
 			pos = ((j0 * q) * v.weights.x + (j1 * q) * v.weights.y + (j2 * q) * v.weights.z + (j3 * q) * v.weights.w).xyz;
 			nr = ((j0 * n4) * v.weights.x + (j1 * n4) * v.weights.y + (j2 * n4) * v.weights.z + (j3 * n4) * v.weights.w).xyz;
 		}
-		// (instanced: normals turned by the matrix's upper 3x3, exact for
-		// rotations and uniform scales; a non-uniform scale is drawn without
-		// instancing)
 		var model = m.options.instanced ? mat4(vec4(v.m0.xyz, 0), vec4(v.m1.xyz, 0), vec4(v.m2.xyz, 0), v.m3) : p.object.model;
 		var world = model * vec4(pos, 1);
 		return {
 			clip: position(p.frame.viewProj * world),
 			world: world.xyz,
-			normal: m.options.instanced ? (model * vec4(nr, 0)).xyz : (p.object.normalMatrix * vec4(nr, 0)).xyz,
+			normal: m.options.instanced ? instanceNormal(v.m0.xyz, v.m1.xyz, v.m2.xyz, nr) : (p.object.normalMatrix * vec4(nr, 0)).xyz,
 			uv: v.uv,
 			tangent: m.options.normalMap ? vec4((model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w) : vec4(0),
 			up: m.options.instanced ? v.m1.xyz : (model * vec4(0, 1, 0, 0)).xyz,
