@@ -19,7 +19,9 @@ import helder.view.*;
 // Written as opaque RGB PNGs (no alpha channel: Apple's rule).
 //
 // - The stores' (store): at each store's size (SIZES), the story's caption
-//   (StoreOptions) in a band over it: <dir>/<size>/<story>.png.
+//   (StoreOptions) in a band over it: <dir>/<size>/<story>.png; the first
+//   story with feature: true also as Google Play's feature graphic
+//   (FEATURE, no band): <dir>/android-feature/<story>.png.
 // - helder.run's (web): at one size (a window's, 1280x800, or a phone's,
 //   390x844 at 2x, for a portrait app), no band (helder.run's page shows
 //   plain frames), in the stories' order, at most a number of them:
@@ -39,6 +41,8 @@ class StoreShots implements Markup {
 		{name: "ipad-13", width: 2064, height: 2752, scale: 2, store: "ios", type: "APP_IPAD_PRO_3GEN_129"},
 		{name: "android-phone", width: 1080, height: 1920, scale: 2.5, store: "android", type: "phoneScreenshots"},
 	];
+	// Google Play's feature graphic (landscape whatever the app's orientation)
+	public static final FEATURE = {name: "android-feature", width: 1024, height: 500, scale: 1.6, store: "android", type: "featureGraphic"};
 
 	// the program's arguments: <dir> portrait|landscape (the stores'), or
 	// <dir> web <width>x<height> <scale> <at most> (helder.run's), after the
@@ -76,6 +80,12 @@ class StoreShots implements Markup {
 				mkdirs('$dir/${size.name}');
 				list.push(save(dir, path, s, shot(s, w, h, size.scale), w, h, {size: size.name, store: size.store, type: size.type}));
 			}
+		}
+		var f = Lambda.find(stories, s -> s.screenshot?.feature == true);
+		if (f != null) {
+			var path = '${FEATURE.name}/${f.slug()}.png';
+			mkdirs('$dir/${FEATURE.name}');
+			list.push(save(dir, path, f, shot(f, FEATURE.width, FEATURE.height, FEATURE.scale, false), FEATURE.width, FEATURE.height, {size: FEATURE.name, store: FEATURE.store, type: FEATURE.type}));
 		}
 		sys.io.File.saveContent('$dir/shots.json', haxe.Json.stringify(list, null, "  "));
 	}

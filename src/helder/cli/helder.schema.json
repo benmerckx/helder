@@ -61,6 +61,61 @@
         "screenshots": {"type": "array", "maxItems": 8, "items": {"type": "string"}, "description": "Images beside helder.json, an override (else the stories with store: true are rendered at a window's size, else one is taken of the program)."}
       }
     },
+    "listing": {
+      "type": "object",
+      "description": "The stores' pages: helder publish --listing sends them with the screenshots. A field not given is left as the store has it.",
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string", "maxLength": 30, "description": "Play's title, the App Store's name (else name)."},
+        "subtitle": {"type": "string", "maxLength": 30, "description": "The App Store's subtitle."},
+        "summary": {"type": "string", "maxLength": 80, "description": "Google Play's short description."},
+        "description": {"type": "string", "maxLength": 4000, "description": "Both stores' description: the text, or a .txt or .md file beside helder.json."},
+        "keywords": {"type": "array", "items": {"type": "string"}, "description": "The App Store's keywords (100 characters together)."},
+        "promo": {"type": "string", "maxLength": 170, "description": "The App Store's promotional text."},
+        "notes": {"type": "string", "maxLength": 4000, "description": "What's new (the App Store's whatsNew; not on an app's first version)."},
+        "website": {"type": "string", "pattern": "^https://[^ ]+$", "description": "The app's website (Play's contact website, the App Store's marketing URL)."},
+        "support": {"type": "string", "pattern": "^https://[^ ]+$", "description": "The App Store's support URL."},
+        "privacy": {"type": "string", "pattern": "^https://[^ ]+$", "description": "The privacy policy (the App Store's; Play's is set in Play Console)."},
+        "email": {"type": "string", "description": "Google Play's contact email."},
+        "copyright": {"type": "string", "description": "The App Store's copyright line (2026 Codeurs)."},
+        "category": {"type": "string", "description": "The App Store's category (GAMES_SPORTS: a game's subcategory, under GAMES)."},
+        "play": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Google Play's resources by the API's names: listing (edits.listings), details (edits.details).",
+          "properties": {"listing": {"$ref": "#/$defs/storeAttributes"}, "details": {"$ref": "#/$defs/storeAttributes"}}
+        },
+        "appStore": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "App Store Connect's resources by the API's names: app, info (appInfos), infoLocalization, version (appStoreVersions), versionLocalization, ageRating (ageRatingDeclarations), reviewDetail (appStoreReviewDetails), categories (appInfos' relationships, an appCategories id each).",
+          "properties": {
+            "app": {"$ref": "#/$defs/storeAttributes"}, "info": {"$ref": "#/$defs/storeAttributes"}, "infoLocalization": {"$ref": "#/$defs/storeAttributes"},
+            "version": {"$ref": "#/$defs/storeAttributes"}, "versionLocalization": {"$ref": "#/$defs/storeAttributes"}, "ageRating": {"$ref": "#/$defs/storeAttributes"},
+            "reviewDetail": {"$ref": "#/$defs/storeAttributes"}, "categories": {"$ref": "#/$defs/storeAttributes"}
+          }
+        },
+        "locales": {
+          "type": "object",
+          "description": "Other languages' localized fields, by language tag (nl-NL).",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": {"type": "string", "maxLength": 30, "description": "Play's title, the App Store's name (else name)."},
+              "subtitle": {"type": "string", "maxLength": 30, "description": "The App Store's subtitle."},
+              "summary": {"type": "string", "maxLength": 80, "description": "Google Play's short description."},
+              "description": {"type": "string", "maxLength": 4000, "description": "Both stores' description: the text, or a .txt or .md file beside helder.json."},
+              "keywords": {"type": "array", "items": {"type": "string"}, "description": "The App Store's keywords (100 characters together)."},
+              "promo": {"type": "string", "maxLength": 170, "description": "The App Store's promotional text."},
+              "notes": {"type": "string", "maxLength": 4000, "description": "What's new (the App Store's whatsNew; not on an app's first version)."},
+              "play": {"type": "object", "additionalProperties": false, "properties": {"listing": {"$ref": "#/$defs/storeAttributes"}}},
+              "appStore": {"type": "object", "additionalProperties": false, "properties": {"infoLocalization": {"$ref": "#/$defs/storeAttributes"}, "versionLocalization": {"$ref": "#/$defs/storeAttributes"}}}
+            }
+          }
+        }
+      }
+    },
     "targets": {
       "type": "object",
       "additionalProperties": false,
@@ -125,6 +180,7 @@
     }
   },
   "$defs": {
+    "storeAttributes": {"type": "object", "additionalProperties": true, "description": "The store's own attributes, by its API's names, sent as they are (a field the store adds later works too). A string ${NAME} is the environment's NAME."},
     "store": {"type": "string", "pattern": "^https://", "description": "The app's page in this target's store (helder.run's page links it)."},
     "target": {"type": "object", "additionalProperties": false, "properties": {"publish": {"type": "array", "maxItems": 0}, "store": {"$ref": "#/$defs/store"}}}
   }

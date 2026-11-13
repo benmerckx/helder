@@ -20,7 +20,7 @@ export declare class Story {
 
 // story({...})'s fields, as a TypeScript program gives them (helder/story:
 // Stories.define, the definition checked them where they are written)
-export type StoryDef = { name: string; render: (arg0: Controls) => View; seed?: number; width?: number; height?: number; store?: boolean; caption?: string; background?: number; color?: number };
+export type StoryDef = { name: string; render: (arg0: Controls) => View; seed?: number; width?: number; height?: number; store?: boolean; caption?: string; background?: number; color?: number; feature?: boolean };
 
 // A story's controls: each a signal its view reads, recorded with its name
 // and kind for an editor (the values a store screenshot uses are their

@@ -79,6 +79,7 @@ class Manifest {
 		cfg.run = h.run;
 		cfg.destinations = h.destinations;
 		cfg.stores = h.stores;
+		cfg.listing = h.listing;
 		cfg.manifest = h.manifest;
 		return cfg;
 	}
@@ -318,6 +319,8 @@ typedef AppConfig = {
 	?run:Null<HelderJson.RunConfig>,
 	?destinations:Array<HelderJson.Destination>,
 	?stores:haxe.DynamicAccess<String>,
+	// helder.json's listing: the stores' pages (Listing)
+	?listing:Dynamic,
 	?manifest:Dynamic,
 }
 

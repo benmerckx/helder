@@ -27,6 +27,7 @@ using StringTools;
 //       "source": "https://github.com/...",
 //       "screenshots": ["shots/1.png"]     (an override; else the stories with store: true, else one of the program)
 //     },
+//     "listing": {"subtitle", "summary", "description", "keywords", ...}   the stores' pages (Listing)
 //     "targets": {
 //       "android": {"package", "minSdk", "targetSdk", "permissions", "key", "signing", "serviceAccount", "adaptiveIcon",
 //                   "publish": ["play"] or [{"to": "play", "track": "internal"}], "store": "<url>"},
@@ -48,7 +49,7 @@ class HelderJson {
 
 	static final TOP = [
 		"$schema", "name", "label", "description", "id", "version", "build", "entry", "icon", "colors", "splash", "display", "orientation", "lang", "dir",
-		"categories", "fileHandlers", "run", "targets"
+		"categories", "fileHandlers", "run", "targets", "listing"
 	];
 	public static final RUN = ["name", "listed", "kind", "tags", "source", "screenshots"];
 	public static final KINDS = ["game", "app", "tool"];
@@ -64,7 +65,7 @@ class HelderJson {
 
 	// the text read: the web manifest it stands for (its "helder" member
 	// helder's), its run and targets' own; mistakes thrown naming the member
-	public static function parse(text:String):{manifest:Dynamic, run:Null<RunConfig>, destinations:Array<Destination>, stores:haxe.DynamicAccess<String>} {
+	public static function parse(text:String):{manifest:Dynamic, run:Null<RunConfig>, destinations:Array<Destination>, stores:haxe.DynamicAccess<String>, listing:Dynamic} {
 		var j:Dynamic = try haxe.Json.parse(text) catch (e:Dynamic) throw '$FILE: not JSON ($e)';
 		if (!isObject(j)) throw '$FILE: not a JSON object';
 		known(j, TOP, "the top level");
@@ -147,7 +148,8 @@ class HelderJson {
 		var run = j.run == null ? null : runConfig(j.run, j.name);
 		// (the manifest's own checks, named as helder.json names them)
 		try Manifest.parse(haxe.Json.stringify(m), FILE) catch (e:Dynamic) throw rename(Std.string(e));
-		return {manifest: m, run: run, destinations: destinations, stores: stores};
+		var listing = j.listing == null ? null : Listing.check(j.listing, FILE);
+		return {manifest: m, run: run, destinations: destinations, stores: stores, listing: listing};
 	}
 
 	// the run block: its name a DNS label (else the app's name as one)

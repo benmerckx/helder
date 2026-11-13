@@ -2,7 +2,7 @@ package helder.story;
 
 import helder.definition.Kernel;
 
-// story({name, render, seed, width, height, store, caption, background, color})'s handler
+// story({name, render, seed, width, height, store, caption, background, color, feature})'s handler
 // (src/helder/compiler/DESIGN.md 4), the same for both languages (Haxe's
 // helder.story.Story.story, TypeScript's helder/story): the fields checked
 // at their positions, each a literal but render, a function of the story's
@@ -15,7 +15,7 @@ import helder.definition.Kernel;
 class StoryDefinition implements Definition<Adapter, StoryFields> {
 	public final name = "story";
 
-	static final FIELDS = ["name", "render", "seed", "width", "height", "store", "caption", "background", "color"];
+	static final FIELDS = ["name", "render", "seed", "width", "height", "store", "caption", "background", "color", "feature"];
 
 	public function new() {}
 
@@ -51,7 +51,12 @@ class StoryDefinition implements Definition<Adapter, StoryFields> {
 				case _: a.error('$f is a size in points, a whole number above 0, not ${x.describe()}', x.pos);
 			}
 		}
-		for (f in ["caption", "background", "color"]) {
+		var feature = switch r.get("feature") {
+			case null: false;
+			case {value: KBool(b)}: b;
+			case x: a.error('feature is true or false, not ${x.describe()}', x.pos);
+		}
+		for (f in ["caption", "background", "color", "feature"]) {
 			var x = r.get(f);
 			if (x != null && !store) a.error('$f is a store screenshot\'s (store: true)', x.pos);
 		}
@@ -64,7 +69,8 @@ class StoryDefinition implements Definition<Adapter, StoryFields> {
 			store: store,
 			caption: caption,
 			background: int(r, "background", a),
-			color: int(r, "color", a)
+			color: int(r, "color", a),
+			feature: feature
 		};
 	}
 
@@ -88,5 +94,6 @@ typedef StoryFields = {
 	store:Bool,
 	caption:Null<String>,
 	background:Null<Int>,
-	color:Null<Int>
+	color:Null<Int>,
+	feature:Bool
 }

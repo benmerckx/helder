@@ -96,7 +96,7 @@ const server = createServer((req, res) => {
         return send(200, { data: { type: "buildUploadFiles", id: "f-1" } });
       }
       // (the listing's screenshots)
-      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appStoreVersions") return send(200, { data: [{ type: "appStoreVersions", id: "v-1" }] });
+      if (req.method === "GET" && url.pathname === "/v1/apps/6400000001/appStoreVersions") return send(200, { data: [{ type: "appStoreVersions", id: "v-1", attributes: { versionString: "1.0", appStoreState: "PREPARE_FOR_SUBMISSION" } }] });
       if (req.method === "GET" && url.pathname === "/v1/appStoreVersions/v-1/appStoreVersionLocalizations")
         return send(200, { data: [{ type: "appStoreVersionLocalizations", id: "loc-1", attributes: { locale: "en-US" } }] });
       if (req.method === "GET" && url.pathname === "/v1/appStoreVersionLocalizations/loc-1/appScreenshotSets")
@@ -135,10 +135,12 @@ const server = createServer((req, res) => {
       play.uploaded = body;
       return send(200, { versionCode: 2, sha256: createHash("sha256").update(body).digest("hex") });
     }
-    if (req.method === "GET" && rest.startsWith("/listings/en-US/phoneScreenshots"))
-      return send(200, { images: [{ id: "img-old", sha256: "00" }] });
-    if (req.method === "DELETE" && rest.startsWith("/listings/en-US/phoneScreenshots/")) { play.deletedImages = [...(play.deletedImages ?? []), rest.slice(33)]; return send(204); }
-    if (req.method === "POST" && m[1] && rest.startsWith("/listings/en-US/phoneScreenshots")) {
+    // (each image type's: phoneScreenshots with an old one, the others none yet)
+    const image = rest.match(/^\/listings\/en-US\/([A-Za-z]+)(?:\/([^/?]+))?/);
+    if (req.method === "GET" && image && !image[2])
+      return send(200, { images: image[1] === "phoneScreenshots" ? [{ id: "img-old", sha256: "00" }] : [] });
+    if (req.method === "DELETE" && image?.[2]) { play.deletedImages = [...(play.deletedImages ?? []), image[2]]; return send(204); }
+    if (req.method === "POST" && m[1] && image) {
       play.images = [...(play.images ?? []), body];
       return send(200, { image: { id: "img-new", sha256: createHash("sha256").update(body).digest("hex") } });
     }
@@ -229,7 +231,7 @@ else {
   check("--screenshots: rendered, the review sheet written", out.includes("rendered 4 screenshots") && existsSync("bin/store/review.html"));
   const shots = JSON.parse(readFileSync("bin/store/shots.json", "utf8"));
   const png = (f) => readFileSync(join("bin/store", f));
-  check("each at its store size, opaque RGB (PNG colour type 2)", shots.every((s) => { const b = png(s.file); return b.readUInt32BE(16) === s.width && b.readUInt32BE(20) === s.height && b[25] === 2; }),
+  check("each at its store size, opaque RGB (PNG colour type 2)", shots.filter((s) => s.type !== "icon").every((s) => { const b = png(s.file); return b.readUInt32BE(16) === s.width && b.readUInt32BE(20) === s.height && b[25] === 2; }),
     shots.map((s) => `${s.size} ${s.width}x${s.height}`).join(", "));
   calls = []; play = {}; asc = {};
   out = await publish(["--listing", "--dry-run"], both);

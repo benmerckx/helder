@@ -44,7 +44,7 @@ import helder.view.graph.Signal;
 	if (Context.defined("helder.release")) return macro(null : helder.story.Story);
 	var render:Expr = s.render.source;
 	if (s.render.params.length == 0) render = macro(_ : helder.story.Story.Controls) -> $render();
-	var shot = s.store ? macro {caption: $v{s.caption}, background: $v{s.background}, color: $v{s.color}} : macro null;
+	var shot = s.store ? macro {caption: $v{s.caption}, background: $v{s.background}, color: $v{s.color}, feature: $v{s.feature}} : macro null;
 	return macro @:pos(Context.currentPos()) new helder.story.Story($v{s.name}, $render, $v{s.seed}, $shot, $v{s.width}, $v{s.height});
 }
 
@@ -84,6 +84,8 @@ typedef StoreOptions = {
 	// the caption band's colours (0xRRGGBB: #111827 and white)
 	?background:Int,
 	?color:Int,
+	// Google Play's feature graphic too (1024x500, no band; the first such story)
+	?feature:Bool,
 }
 
 // story({...})'s fields, as a TypeScript program gives them (helder/story:
@@ -98,6 +100,7 @@ typedef StoryDef = {
 	?caption:String,
 	?background:Int,
 	?color:Int,
+	?feature:Bool,
 }
 
 // A story's controls: each a signal its view reads, recorded with its name
