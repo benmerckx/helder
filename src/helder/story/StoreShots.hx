@@ -46,7 +46,7 @@ class StoreShots implements Markup {
 					store: size.store,
 					type: size.type,
 					story: s.name,
-					caption: s.screenshot.caption,
+					caption: s.screenshot?.caption,
 					width: w,
 					height: h,
 					sha256: haxe.crypto.Sha256.make(png).toHex(),
@@ -67,14 +67,14 @@ class StoreShots implements Markup {
 		var ui = new Ui(new DrawText(), width / scale, height / scale);
 		ui.scale = scale;
 		var c = new Controls(s.seed);
-		var o = s.screenshot;
+		var o = s.screenshot ?? {}, caption = o.caption;
 		var content = s.build(c);
-		if (o.caption != null) {
+		if (caption != null) {
 			var bg = "#" + StringTools.hex(o.background ?? 0x111827, 6), fg = "#" + StringTools.hex(o.color ?? 0xffffff, 6);
 			var band = Math.round(height / scale * 0.14), size = Math.round(width / scale * 0.075);
 			Render.render(<view grow={1} background={bg}>
 				<view height={band} align-items="center" justify="center" padding="0 24">
-					<text font-size={size} font-weight={700} color={fg}>{o.caption}</text>
+					<text font-size={size} font-weight={700} color={fg}>{caption}</text>
 				</view>
 				<view grow={1}>{content}</view>
 			</view>, ui.root);
@@ -85,6 +85,7 @@ class StoreShots implements Markup {
 		r.scale = scale;
 		var pixels = Bytes.alloc(width * height * 4);
 		var enc = device.beginFrame();
+		if (enc == null) throw 'helder.story: no frame for ${s.name}';
 		enc.beginPass({colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]});
 		r.begin(width, height);
 		ui.paint(r);
