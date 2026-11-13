@@ -1,5 +1,5 @@
 // title: Floating Greens
-// summary: Mini golf on floating islands, a small mobile 3D game: eighteen holes on three islands, each bringing in its own pieces (bumpers, sand, turnstiles, wind, boosters, lifts, one-way gates, water, portals, switches and their gates, crumbling tiles); drag back from the ball to aim and shoot, orbit and pinch the camera elsewhere; helder.physics at a fixed step, a <Scene hdr> with shadows, bloom and instanced particles under a HUD in ui, best scores saved
+// summary: Mini golf on floating islands, a small mobile 3D game: eighteen holes on three islands, each bringing in its own pieces (bumpers, sand, turnstiles, wind, boosters, lifts, one-way gates, water, portals, switches and their gates, crumbling tiles); drag back from the ball to aim and shoot, orbit and pinch the camera elsewhere; helder.physics at a fixed step, a <Scene hdr> with shadows, bloom, a tilt-shift lens, a cloud sea, contact shadows, creatures and instanced particles under a HUD in ui, best scores saved
 // tags: 3d, game, physics, ui, view, scene markup, touch, particles
 // demo: canvas 390x844
 // apk: android
@@ -49,6 +49,9 @@ class Golf implements Markup {
 		if (held.length == 4 && demo == null)
 			game.holdAim(Std.parseInt(held[0]) - 1, Std.parseFloat(held[1]), Std.parseFloat(held[2]), Std.parseFloat(held[3]));
 		if (Sys.getEnv("GOLF_MENU") != null) game.openMenu();
+		// (GOLF_QUALITY=0..2: the diorama's quality held: 2 all, 1 a thinner cloud sea, 0 no blur)
+		var quality = Std.parseInt(Sys.getEnv("GOLF_QUALITY") ?? "");
+		if (quality != null) game.fixQuality(quality);
 		#end
 		Clock.add(t -> {
 			game.frame(t);

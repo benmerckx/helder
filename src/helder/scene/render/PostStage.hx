@@ -11,7 +11,10 @@ import helder.gfx.shader.Shader;
 // block bytes. The last stage draws into the chain's output (the frame, or
 // run's target: any size, its fragments' positions in that target's
 // pixels), the others into targets of the run's size. Its pipelines are
-// made by the chain, for what it draws into.
+// made by the chain, for what it draws into. What it needs beyond the
+// image so far is the chain's context while it runs (PostProcess.source:
+// the scene's light before bloom and the curve, width, height), read in
+// prepare or bind.
 class PostStage {
 	// its block's std140 bytes (the shader's first uniform block; null: none)
 	public var bytes:Null<Bytes>;
@@ -21,6 +24,11 @@ class PostStage {
 	public var enabled = true;
 	// what else it binds before it draws (another block or texture)
 	public var bind:Null<Encoder->Void> = null;
+	// what it records before the chain's passes, outside any pass (passes
+	// of its own: a blur at half size from the chain's source), each run,
+	// enabled or not (it may enable itself); the chain's context (source,
+	// width, height) is the run's then
+	public var prepare:Null<Encoder->Void> = null;
 
 	@:allow(helder.scene.render.PostProcess) final desc:PipelineDesc;
 	@:allow(helder.scene.render.PostProcess) final block:Int;

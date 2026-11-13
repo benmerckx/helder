@@ -280,8 +280,9 @@ class SceneBox extends helder.ui.Node {
 			device = r.device;
 			renderer = new Renderer(r.device, true, antialias ? 4 : 1, hdr);
 			if (SceneRenderer.device == null) SceneRenderer.device = r.device;
-			if (onRenderer != null) onRenderer(renderer);
+			// (the post chain first: onRenderer sets it up with the rest)
 			if (renderer.hdr && renderer.post == null) renderer.post = new helder.scene.render.PostProcess(r.device);
+			if (onRenderer != null) onRenderer(renderer);
 		}
 		// (the textures a resize replaced in an earlier frame: no pass left reading them)
 		if (pw != tw || ph != th) {

@@ -1,3 +1,4 @@
+import StageProbe.ProbeShader;
 import haxe.io.Bytes;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
@@ -18,8 +19,11 @@ import helder.view.graph.Graph.*;
 // scene's), a click over the mesh routed by ui's hit testing into the
 // scene (picked), fingers picked at their presses (each its own, a tap,
 // a cancel), a drag from the mesh orbiting the camera (<OrbitControls>),
-// <Ui> over the mesh, a <Stick> drawn at rest; the second window
-// closed by a Show, both by the root's dispose.
+// <Ui> over the mesh, a <Stick> drawn at rest; in the second a <Scene
+// hdr> whose setup finds its post chain and adds a stage (StageProbe: the
+// frame marked green) that prepares from the chain's context (the
+// scene's light and its size); the second window closed by a Show, both
+// by the root's dispose.
 class SurfaceTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -42,6 +46,20 @@ class SurfaceTest implements Markup {
 		var windows:Array<UiWindow> = [];
 		var box:Null<helder.scene.view.SceneBox> = null;
 		var sprites:Null<helder.sprite.SpriteBox> = null;
+		// (the hdr box's setup: its post chain there, a stage added; what its prepare saw)
+		var hdrBox:Null<helder.scene.view.SceneBox> = null;
+		var setupPost = false, prepared = 0, preparedSize = "", preparedSource = false;
+		function setup(r:helder.scene.render.Renderer) {
+			var post = r.post;
+			setupPost = post != null;
+			if (post == null) return;
+			var stage = post.add(ProbeShader);
+			stage.prepare = enc -> {
+				prepared++;
+				preparedSize = '${post.width}x${post.height}';
+				preparedSource = post.source != null;
+			};
+		}
 		var world = new World("test"), eye = world.node("eye");
 		eye.position = new Vec3(0, 0, 4);
 		eye.lookAt(new Vec3(0, 0, 0));
@@ -62,7 +80,10 @@ class SurfaceTest implements Markup {
 				</view>
 				<Stick bind={stick} left={10} bottom={10} color={0xFF000000} knob={0xFF0000FF}/>
 			</Surface>
-			<Show when={second}><Surface title="two" width={160} height={100} ref={w -> windows.push(w)}><text>two</text></Surface></Show>
+			<Show when={second}><Surface title="two" width={160} height={100} background={0xFFFFFFFF} ref={w -> windows.push(w)}>
+				<text>two</text>
+				<Scene world={world} camera={camera} grow={1} hdr setup={setup} ref={b -> hdrBox = b}/>
+			</Surface></Show>
 		</>);
 		check("two windows", windows.length == 2 && windows[0].window.title == "one" && windows[1].window.title == "two",
 			[for (w in windows) w.window.title].join(", "));
@@ -71,13 +92,18 @@ class SurfaceTest implements Markup {
 		check("a reactive title", windows[0].window.title == "uno", windows[0].window.title);
 		var w = windows[0];
 		var pixels = Bytes.alloc(w.device.width * w.device.height * 4);
+		var w2 = windows[1];
+		var pixels2 = Bytes.alloc(w2.device.width * w2.device.height * 4);
 		// (UiWindow.run's loop for a few frames: the windows mapped, their events handled; the fifth frame captured)
 		var frames = 0;
 		helder.os.App.run(() -> {
 			for (x in windows)
 				if (!x.window.closed && x.needsFrame()) x.frame();
 			frames++;
-			if (frames == 5) w.capture = pixels;
+			if (frames == 5) {
+				w.capture = pixels;
+				w2.capture = pixels2;
+			}
 			w.ui.requestFrame();
 			if (frames == 7) helder.os.App.quit();
 			helder.os.App.wait(0.02);
@@ -98,6 +124,14 @@ class SurfaceTest implements Markup {
 		check("scale: drawn at half the box's pixels", box.drawnWidth == Math.round(200 * s * 0.5) && box.drawnHeight == Math.round(200 * s * 0.5),
 			'${box.drawnWidth}x${box.drawnHeight} at $s');
 		check("ui's beside it", panel[0] > 240 && panel[1] > 240 && panel[2] > 240, Std.string(panel));
+		// (the hdr box: its setup saw its post chain; the stage it added prepared from the run's context and drew)
+		check("<Scene hdr>: its post chain there in setup", setupPost);
+		check("a stage added in setup: prepared each run, from the scene's light at its size",
+			prepared >= 1 && preparedSource && hdrBox != null && preparedSize == '${hdrBox.drawnWidth}x${hdrBox.drawnHeight}',
+			'$prepared runs, $preparedSize, source $preparedSource');
+		var s2 = w2.renderer.scale, o2 = (Std.int(70 * s2) * w2.device.width + Std.int(10 * s2)) * 4;
+		var probe = [pixels2.get(o2), pixels2.get(o2 + 1), pixels2.get(o2 + 2)];
+		check("a stage added in setup: drawn (the frame marked green)", probe[1] > 220 && probe[0] < 120 && probe[2] < 120, Std.string(probe));
 		// (the stick at rest: its ring at 10 points from the lower left, its knob in its centre)
 		var ring = at(11, 170), knob = at(30, 170);
 		check("<Stick> at rest: its ring and its knob", ring[0] < 80 && ring[1] < 80 && knob[2] > 200 && knob[0] < 80, '$ring, $knob');
