@@ -88,7 +88,7 @@ class Script {
 		if (h.length != 32 || !~/^[0-9a-fA-F]+$/.match(h)) throw 'helder/native: "$text" is no GUID ({xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx})';
 		var b = haxe.io.Bytes.alloc(16);
 		inline function hex(i:Int, n:Int):Int
-			return Std.parseInt("0x" + h.substr(i, n));
+			return Std.parseInt("0x" + h.substr(i, n)) ?? 0;
 		b.setInt32(0, hex(0, 8));
 		b.setUInt16(4, hex(8, 4));
 		b.setUInt16(6, hex(12, 4));
