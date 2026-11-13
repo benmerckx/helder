@@ -170,13 +170,23 @@ class ImageView extends helder.ui.Node {
 		nearest = d.createSampler({filter: Nearest, mipFilter: Linear, wrap: Clamp});
 	}
 
-	// (the shown decode's frame in the texture, its mip levels made)
+	// (the shown decode's frame in the texture, its mip levels made; trusted:
+	// the GPU takes a Bytes, a view of the frame's memory lent to the upload
+	// (detached, not copied, then the frame's again on every path)
 	@:hxmc.unsafe(gc) function upload() {
 		var d = viewer.shown;
 		if (d == null) return;
 		if (d == texShown && viewer.frame == texFrame) return;
-		var f = d.frames[viewer.frame], pw = d.pixelsWidth, ph = d.pixelsHeight;
-		var src = f.pixels.view();
+		var f = d.frames[viewer.frame], io = f.pixels.detach();
+		try uploadFrom(d, io.view()) catch (e:Dynamic) {
+			f.pixels = hxmc.Buffer.adopt(io);
+			throw e;
+		}
+		f.pixels = hxmc.Buffer.adopt(io);
+	}
+
+	function uploadFrom(d:viewer.Decode.Decoded, src:Bytes) {
+		var pw = d.pixelsWidth, ph = d.pixelsHeight;
 		if (d != texShown) {
 			for (t in tiles)
 				retired.push({t: t.texture, at: records});

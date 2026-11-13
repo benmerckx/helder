@@ -31,13 +31,13 @@ class Fetch {
 	}
 
 	#if (hxmc.target == "wasm32-wasi")
-	// the same, in a buffer off the collected heap (the caller frees it): a
+	// the same, in a buffer off the collected heap (the caller closes it): a
 	// large file (an image to decode as a job) never on the collected heap
-	@:coroutine public static function buffer(path:String, ?progress:(loaded:Int, total:Int) -> Void):IoBuffer {
+	@:coroutine public static function buffer(path:String, ?progress:(loaded:Int, total:Int) -> Void):hxmc.Buffer {
 		var h = fetched(path, progress);
 		var n = Web.fetch_length(h);
-		var b = IoBuffer.alloc(n);
-		Web.fetch_take(h, hxmc.Span.ofIoBuffer(b));
+		var b = new hxmc.Buffer(n);
+		Web.fetch_take(h, hxmc.Span.ofBuffer(b));
 		if (progress != null) progress(n, n);
 		return b;
 	}

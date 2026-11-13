@@ -2,7 +2,7 @@ package viewer;
 
 import haxe.io.Bytes;
 import helder.image.*;
-import hxmc.unsafe.IoBuffer;
+import hxmc.Buffer;
 
 // A file decoded for the viewer, as a job (helder.jobs: a GC job on the
 // pool, its pixels off the GC heap, moved back: ImageMemory, not copied;
@@ -21,7 +21,7 @@ typedef Decoded = {
 	pixelsWidth:Int,
 	pixelsHeight:Int,
 	// (off the GC heap: freed by release, when the cache lets it go)
-	frames:Array<{pixels:IoBuffer, delay:Float}>,
+	frames:Array<{pixels:Buffer, delay:Float}>,
 	repetitions:Int,
 	format:String,
 	fileSize:Int,
@@ -65,7 +65,7 @@ class Decode {
 	}
 
 	// a PDF's page (helder.pdf, PdfPages: the document kept open for its next pages)
-	@:hxmc.unsafe(gc) static function pdf(path:Null<String>, bytes:Null<Bytes>, page:Int, side:Int, size:Int):Decoded {
+	static function pdf(path:Null<String>, bytes:Null<Bytes>, page:Int, side:Int, size:Int):Decoded {
 		return try {
 			var p = PdfPages.render(path, bytes, page, side);
 			var mem = ImageMemory.offHeapMemory();
@@ -100,7 +100,7 @@ class Decode {
 	}
 
 	// (helder.os's SystemImages: WIC, ImageIO; ImageLimits before any pixel; upright, scaled where the system scales)
-	@:hxmc.unsafe(gc) static function system(path:String, side:Int, size:Int):Decoded {
+	static function system(path:String, side:Int, size:Int):Decoded {
 		var ext = path.substr(path.lastIndexOf(".") + 1).toUpperCase();
 		var format = ext == "TIF" ? "TIFF" : ext == "HEIF" ? "HEIC" : ext;
 		return try {
@@ -117,7 +117,7 @@ class Decode {
 				height: d.height,
 				pixelsWidth: pw,
 				pixelsHeight: ph,
-				frames: [{pixels: IoBuffer.ofBytes(rgba), delay: 0.0}],
+				frames: [{pixels: bufferOf(rgba), delay: 0.0}],
 				repetitions: 0,
 				format: format,
 				fileSize: size,
@@ -140,7 +140,7 @@ class Decode {
 		if (bytes == null) return failed("unreadable", "The file cannot be read", 0, "");
 		var size = Image.size(bytes);
 		if (formatOf(bytes) == "PNG" && !apng(bytes) && size != null && (size.width : Float) * size.height <= MAX_PIXELS) {
-			var p = try ImageJobs.pixels(IoBuffer.ofBytes(bytes)) catch (e:ImageError) return failedBy(e, bytes.length, "PNG") catch (e:helder.jobs.JobError)
+			var p = try ImageJobs.pixels(bufferOf(bytes)) catch (e:ImageError) return failedBy(e, bytes.length, "PNG") catch (e:helder.jobs.JobError)
 				return failed("corrupt", "Damaged or cut short: " + after(e.message), bytes.length, "PNG");
 			return {
 				width: p.width,
@@ -160,7 +160,7 @@ class Decode {
 		return try helder.jobs.Jobs.job(file).run({path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
 	}
 
-	@:hxmc.unsafe(gc) public static function decode(bytes:Bytes, side = 0):Decoded {
+	public static function decode(bytes:Bytes, side = 0):Decoded {
 		var format = formatOf(bytes);
 		if (bytes.length == 0) return failed("corrupt", "The file is empty", 0, "");
 		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP, PDF" + (helder.os.SystemImages.available() ? "; the system's: TIFF, HEIC, AVIF, RAW" : "") + ")", bytes.length, "");
@@ -306,7 +306,7 @@ class Decode {
 		return Resize.half(src, w, h, mem);
 
 	// the bytes a decoded image holds
-	@:hxmc.unsafe(gc) public static function bytesOf(d:Decoded):Float {
+	public static function bytesOf(d:Decoded):Float {
 		var n = 0.0;
 		for (f in d.frames)
 			n += f.pixels.length;
@@ -314,9 +314,9 @@ class Decode {
 	}
 
 	// its pixels freed (the cache let it go)
-	@:hxmc.unsafe(gc) public static function release(d:Decoded) {
+	public static function release(d:Decoded) {
 		for (f in d.frames)
-			f.pixels.free();
+			f.pixels.close();
 		d.frames = [];
 	}
 
@@ -335,5 +335,12 @@ class Decode {
 			p += 12 + n;
 		}
 		return false;
+	}
+
+	// (a copy of b off the collected heap)
+	static function bufferOf(b:Bytes):Buffer {
+		var r = new Buffer(b.length);
+		r.blitFromBytes(0, b, 0, b.length);
+		return r;
 	}
 }

@@ -5,8 +5,8 @@ import haxe.macro.Expr;
 #else
 import helder.jobs.Wire.Reader;
 import helder.jobs.Wire.Writer;
-import hxmc.unsafe.IoBuffer;
-import hxmc.unsafe.Ptr;
+import hxmc.Buffer;
+import hxmc.I64;
 #end
 
 // Background work, awaited from a coroutine: a job runs on another thread
@@ -15,16 +15,16 @@ import hxmc.unsafe.Ptr;
 // (helder.async: a coroutine never changes thread, only data crosses).
 //
 //   // GC-free, the engine's: a checked kernel over off-heap memory
-//   var pixels:IoBuffer = Jobs.job(PngJob.decode).run(IoBuffer.ofBytes(png));
+//   var pixels:Buffer = Jobs.job(PngJob.decode).run(file);   // hxmc.Buffer: moved in, the result yours
 //   // a GC job, user code: values that can be sent in and out (Sendable)
 //   var n:Int = Jobs.job(Words.count).run(text);
 //   var t = task.async(_ -> Jobs.job(Words.count).run(text));   // a Task
 //
 // Two tiers:
 // - a GC-free job is a static `@:hxmc.kernel @:hxmc.callback function (job:Job):Int`:
-//   its input an IoBuffer moved into the run, its output one it allocates
-//   (Job.output), the awaiting task's to free, both spans; a result < 0 is
-//   a JobError.
+//   its input an hxmc.Buffer moved into the run (closed for the caller),
+//   its output one it allocates (Job.output), a Buffer the awaiting task
+//   closes; both spans to the job; a result < 0 is a JobError.
 //   Natively it runs in a safe region (hxmc.unsafe.Blocking), so the
 //   collector never waits for it: no pause of other threads' frames.
 // - a GC job is any static function of one sendable argument (or none) to a
@@ -57,28 +57,17 @@ class Jobs {
 	public static function onWorker():Bool
 		return #if (hxmc.target == "wasm32-wasi") WebJobs.inWorker() #else hxmc.NativeThread.current() != 1 #end;
 
-	// (a GC-free job's run: by its address)
-	@:hxmc.unsafe(gc) @:coroutine public static function runFree(fn:Ptr, input:IoBuffer):IoBuffer {
-		var r = Run.await(fn, true, input);
-		var out = r.output;
-		r.output = cast Ptr.nil();
-		return out;
-	}
+	// (a GC-free job's run: by its address, Sendable's)
+	@:coroutine public static function runFree(fn:I64, input:Null<Buffer>):Buffer
+		return Run.await(fn, true, input, null).result();
 
 	// (a GC job: its input written, its result's bytes, read where it was
 	// run: a closure could not return a struct as a type parameter's value)
-	@:hxmc.unsafe(gc) @:coroutine public static function runGc(fn:Ptr, input:IoBuffer):IoBuffer {
-		var r = Run.await(fn, false, input);
-		var out = r.output;
-		r.output = cast Ptr.nil();
-		return out;
-	}
+	@:coroutine public static function runGc(fn:I64, input:Null<Writer>):Reader
+		return Run.await(fn, false, null, input).reader();
 
-	@:hxmc.unsafe(gc) @:coroutine public static function runGcVoid(fn:Ptr, input:IoBuffer):Void {
-		var r = Run.await(fn, false, input);
-		free(r.output);
-		r.output = cast Ptr.nil();
-	}
+	@:coroutine public static function runGcVoid(fn:I64, input:Null<Writer>):Void
+		Run.await(fn, false, null, input).discard();
 
 	// (a GC job's wrapper: an exception as the run's error, its message the output)
 	@:hxmc.unsafe(gc) public static function failed(job:JobRecord, e:Dynamic):Int {
@@ -88,9 +77,6 @@ class Jobs {
 		job.setOutput(w.done());
 		return -1;
 	}
-
-	@:hxmc.unsafe(gc) public static inline function free(b:IoBuffer)
-		if (!(cast b : Ptr).isNull()) b.free();
 
 	// (the size the pool will be: workers, else the cores but one)
 	@:allow(helder.jobs) static function size():Int

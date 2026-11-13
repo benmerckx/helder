@@ -7,11 +7,12 @@ import hxmc.unsafe.IoBuffer;
 import hxmc.unsafe.Ptr;
 
 // What every Channel<T> is (Channel's macro makes one per T, with its
-// codec): messages as IoBuffers (Wire), sent from any thread or job,
+// codec): messages as Wire's bytes, sent from any thread or job,
 // received on the loop of the thread that made it, in order. Natively a
 // queue under a lock, its sends posted to that loop; a browser's worker's
 // sends go to the page, which delivers them (WebJobs). Known by id
-// (Sendable: what crosses), until closed.
+// (Sendable: what crosses), until closed. Its receive holds Readers only
+// (GC values): the raw bytes stay in the trusted push and deliver.
 @:allow(helder.jobs)
 class ChannelBase {
 	static var nextId = 1;
@@ -23,7 +24,7 @@ class ChannelBase {
 	public final id:Int;
 	// (the owner's loop; null: a stand-in in a browser's worker, its sends to the page)
 	final loop:Null<Loop>;
-	final queue:Array<IoBuffer> = [];
+	final queue:Array<Wire.Reader> = [];
 	var closed = false;
 	var waiter:Null<IContinuation<Bool>>;
 	#if target.threaded
@@ -88,7 +89,10 @@ class ChannelBase {
 	}
 
 	// (a message, from any thread)
-	@:hxmc.unsafe(gc) function push(b:IoBuffer) {
+	@:hxmc.unsafe(gc) function push(w:Wire.Writer)
+		pushBytes(w.done());
+
+	@:hxmc.unsafe(gc) function pushBytes(b:IoBuffer) {
 		#if (hxmc.target == "wasm32-wasi")
 		if (loop == null) {
 			WebJobs.JobsHost.send(id, b.ptr, b.length);
@@ -100,7 +104,7 @@ class ChannelBase {
 		lock.acquire();
 		#end
 		var shut = closed;
-		if (!shut) queue.push(b);
+		if (!shut) queue.push(new Wire.Reader(b, true));
 		#if target.threaded
 		lock.release();
 		#end
@@ -113,7 +117,7 @@ class ChannelBase {
 	}
 
 	// (the next message, null once closed and empty: the owner's thread only)
-	@:coroutine function take():Null<IoBuffer> {
+	@:coroutine function take():Null<Wire.Reader> {
 		if (loop == null) throw new JobError(-1, "a channel is received from on the thread that made it");
 		while (true) {
 			#if target.threaded
@@ -155,7 +159,7 @@ class ChannelBase {
 			if (!(cast b : Ptr).isNull()) b.free();
 			return;
 		}
-		c.push(b);
+		c.pushBytes(b);
 	}
 
 	static function closedBy(id:Int) {

@@ -10,7 +10,7 @@ import helder.test.Test;
 // "usun", a destructor's flag), events decoded from slots back to the
 // handlers (ints, a negative fixed, a string, an object); the scanner's
 // signatures for a protocol of its own.
-function tests() {
+@:hxmc.unsafe(gc) function tests() {
 	describe("Wayland bindings", () -> {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		// (Linux's alone: a constant condition, the others' builds without it)

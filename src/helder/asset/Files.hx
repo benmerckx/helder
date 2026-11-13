@@ -56,26 +56,42 @@ class Files {
 	#if (target.name == "hxmc")
 	// the bytes in a buffer off the collected heap, for a GC-free job
 	// (ImageJobs): natively copied straight from the executable's data or
-	// the APK's map; the caller owns it
-	@:coroutine public static function readBuffer(key:String, ?file:String):IoBuffer {
+	// the APK's map; the caller closes it
+	@:coroutine public static function readBuffer(key:String, ?file:String):hxmc.Buffer {
 		#if (hxmc.target != "wasm32-wasi" && hxmc.target != "ios-arm64" && hxmc.target != "ios-sim-arm64")
 		#if hxmc.dev
-		if (file != null) return IoBuffer.ofBytes(devBytes(key, file, false));
+		if (file != null) return bufferOf(devBytes(key, file, false));
 		#end
-		var b:Null<IoBuffer> = null;
-		mapped(key, (p, n) -> {
-			b = IoBuffer.alloc(n);
-			LibC.memcpy(b.ptr, p, (n : hxmc.I64));
-		});
+		var b = mappedBuffer(key);
 		Assets.progressed(key, b.length, b.length);
 		return b;
 		#elseif (hxmc.target == "wasm32-wasi" && !hxmc.dev)
 		// (fetched straight into the buffer: the file never on the collected heap)
 		return helder.async.Fetch.buffer(AssetPath.url(AssetPath.bundled(key)), (loaded, total) -> Assets.progressed(key, loaded, total));
 		#else
-		return IoBuffer.ofBytes(read(key, file));
+		return bufferOf(read(key, file));
 		#end
 	}
+
+	// (a copy of b off the collected heap)
+	static function bufferOf(b:Bytes):hxmc.Buffer {
+		var r = new hxmc.Buffer(b.length);
+		r.blitFromBytes(0, b, 0, b.length);
+		return r;
+	}
+
+	#if (hxmc.target != "wasm32-wasi" && hxmc.target != "ios-arm64" && hxmc.target != "ios-sim-arm64")
+	// (the bundled file copied from where it is mapped)
+	@:hxmc.unsafe(gc) static function mappedBuffer(key:String):hxmc.Buffer {
+		var b:Null<hxmc.Buffer> = null;
+		mapped(key, (p, n) -> {
+			var io = IoBuffer.alloc(n);
+			LibC.memcpy(io.ptr, p, (n : hxmc.I64));
+			b = hxmc.Buffer.adopt(io);
+		});
+		return b;
+	}
+	#end
 
 	@:hxmc.unsafe(gc) static function bundleBytes(key:String):Bytes {
 		#if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64")

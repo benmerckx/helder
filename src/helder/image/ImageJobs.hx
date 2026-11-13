@@ -5,9 +5,9 @@ import haxe.io.Bytes;
 import helder.jobs.Job;
 import helder.jobs.JobError;
 import helder.jobs.Jobs;
+import hxmc.Buffer;
 import hxmc.ReadOnlySpan;
 import hxmc.Span;
-import hxmc.unsafe.IoBuffer;
 import hxmc.unsafe.UInt8;
 
 // Images decoded as GC-free jobs (helder.jobs: natively on a pool's thread
@@ -18,7 +18,7 @@ import hxmc.unsafe.UInt8;
 // module on helder.jobs.
 //
 //   var image = ImageJobs.decode(bytes);                  // in a coroutine
-//   var p = ImageJobs.pixels(IoBuffer.ofBytes(bytes));    // {width, height, rgba: an IoBuffer to upload and free}
+//   var p = ImageJobs.pixels(file);                       // file: an hxmc.Buffer; {width, height, rgba: a Buffer to upload and close}
 class ImageJobs {
 	// the PNG job: its input the file, its output the RGBA8 pixels (the
 	// size: the header's, PngCore.info)
@@ -35,32 +35,34 @@ class ImageJobs {
 		return 0;
 	}
 
-	// an image file decoded, a PNG as a job; its pixels a Bytes over the
-	// job's IoBuffer (no copy), which the Image keeps for good (no collector
-	// frees native memory on WebAssembly: pixels gives the buffer instead)
+	// an image file decoded, a PNG as a job; its pixels the job's buffer kept
+	// for good as a Bytes (keep: no copy; no collector frees native memory on
+	// WebAssembly: pixels gives the buffer instead)
 	@:coroutine public static function decode(bytes:Bytes):Image {
 		if (!(bytes.length >= 8 && bytes.get(0) == 0x89 && bytes.get(1) == 0x50 && bytes.get(2) == 0x4E && bytes.get(3) == 0x47))
 			return Image.decode(bytes);
-		var p = try pixels(IoBuffer.ofBytes(bytes)) catch (j:JobError) throw PngCore.error(j.code, Bytes.alloc(PngCore.INFO));
-		var image = new Image(p.width, p.height, p.rgba.view());
+		var file = new Buffer(bytes.length);
+		file.blitFromBytes(0, bytes, 0, bytes.length);
+		var p = try pixels(file) catch (j:JobError) throw PngCore.error(j.code, Bytes.alloc(PngCore.INFO));
+		var image = new Image(p.width, p.height, keep(p.rgba));
 		@:privateAccess image.source = {bytes: bytes, type: "png"};
 		return image;
 	}
 
 	// a PNG file's pixels (the file moved into the job): RGBA8, rows top to
-	// bottom, straight alpha, in an IoBuffer the caller frees; its header's
+	// bottom, straight alpha, in a Buffer the caller closes; its header's
 	// errors and ImageLimits' thrown here (ImageError), the data's as a
 	// JobError (PngCore's code, PngDecoder's message; decode: an ImageError)
-	@:hxmc.unsafe(gc) @:coroutine public static function pixels(file:IoBuffer):{width:Int, height:Int, rgba:IoBuffer} {
+	@:coroutine public static function pixels(file:Buffer):{width:Int, height:Int, rgba:Buffer} {
 		var info = Bytes.alloc(PngCore.INFO);
-		var e = PngCore.info(ReadOnlySpan.ofIoBuffer(file), Span.ofBytes(info));
+		var e = PngCore.info(ReadOnlySpan.ofBuffer(file), Span.ofBytes(info));
 		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
 		if (e == 0) try ImageLimits.check("PngDecoder", w, h, 0, PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h)) catch (x:ImageError) {
-			file.free();
+			file.close();
 			throw x;
 		}
 		if (e != 0) {
-			file.free();
+			file.close();
 			throw PngCore.error(e, info);
 		}
 		var rgba = try Jobs.job(ImageJobs.png).run(file) catch (j:JobError) {
@@ -68,5 +70,10 @@ class ImageJobs {
 		}
 		return {width: w, height: h, rgba: rgba};
 	}
+
+	// pixels kept for good as a Bytes over their memory (not copied; the
+	// Buffer closed): an Image's, which no collector frees
+	@:hxmc.unsafe(gc) public static function keep(rgba:Buffer):Bytes
+		return rgba.detach().view();
 }
 #end

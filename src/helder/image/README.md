@@ -58,7 +58,7 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   154 instead of 96 on wasm32 (114).
 - `ImageJobs` (hxmc): a PNG as a GC-free job (helder.jobs: natively on
   the pool, in a safe region; in a browser on a worker), `decode` an Image
-  over the job's buffer (kept), `pixels` the IoBuffer to upload and free;
+  over the job's buffer (kept: `keep`), `pixels` an `hxmc.Buffer` to upload and close;
   `png` the job itself. JPEG, GIF and WebP decode on the calling thread
   for now.
 - `JpegDecoder`: baseline and progressive, decoded as browsers do, the
@@ -124,8 +124,8 @@ reason (`tests/image/unsafe.mjs`, `unsafe.txt`).
 `ImageMemory.offHeapMemory()`, given to `JpegDecoder.decode`,
 `PngDecoder.decode` or `WebpDecoder.decode` (lossy), puts a decode's
 planes, coefficients and pixels off the GC heap (IoBuffers, each a
-Bytes view): `take` hands the result's buffer to the caller (moved, not
-copied: a job's result), `free` frees the rest. With `GcPoint.poll()` in
+Bytes view): `take` hands the result to the caller as an `hxmc.Buffer`
+(moved, not copied: a job's result), `free` frees the rest. With `GcPoint.poll()` in
 the decoders' row loops (a GC point, `@:hxmc.collects`: one atomic load
 unless a collection is asked for), a decode run as a GC job no longer
 holds the other threads' collections: helder's viewer prefetching a 24 MP

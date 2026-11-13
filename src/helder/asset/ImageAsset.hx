@@ -23,11 +23,10 @@ class ImageAsset {
 		var b = Files.readBuffer(key, file);
 		if (b.length >= 8 && b.get(0) == 0x89 && b.get(1) == 0x50 && b.get(2) == 0x4E && b.get(3) == 0x47) {
 			var p = helder.image.ImageJobs.pixels(b);
-			return new Image(p.width, p.height, p.rgba.view());
+			return new Image(p.width, p.height, helder.image.ImageJobs.keep(p.rgba));
 		}
-		var bytes = haxe.io.Bytes.alloc(b.length);
-		b.blitToBytes(0, bytes, 0, b.length);
-		b.free();
+		var bytes = b.getBytes(0, b.length);
+		b.close();
 		return Image.decode(bytes);
 		#else
 		return Image.decode(Files.read(key, file));

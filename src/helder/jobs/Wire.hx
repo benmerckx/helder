@@ -8,8 +8,8 @@ import hxmc.unsafe.Ptr;
 
 // The bytes a sendable value crosses as (Sendable's codec: a GC job's
 // input and result, a channel's messages): written into an IoBuffer, read
-// from one. Little-endian; a String as UTF-8. An IoBuffer moves: natively
-// its address, in a browser's worker its bytes (the sender's freed).
+// from one. Little-endian; a String as UTF-8. A Buffer moves: natively its
+// memory's address, in a browser's worker its bytes (the sender's freed).
 @:hxmc.unsafe(gc)
 class Writer {
 	var buf:Ptr;
@@ -40,19 +40,25 @@ class Writer {
 		return p;
 	}
 
-	public inline function int(v:Int)
+	@:hxmc.unsafe(gc) public inline function int(v:Int)
 		Mem.setI32(reserve(4), 0, v);
 
-	public inline function float(v:Float)
+	@:hxmc.unsafe(gc) public inline function float(v:Float)
 		Mem.setF64(reserve(8), 0, v);
 
-	public inline function bool(v:Bool)
+	@:hxmc.unsafe(gc) public inline function bool(v:Bool)
 		Mem.setI8(reserve(1), 0, v ? 1 : 0);
 
-	public inline function int64(v:haxe.Int64) {
+	@:hxmc.unsafe(gc) public inline function int64(v:haxe.Int64) {
 		var p = reserve(8);
 		Mem.setI32(p, 0, v.low);
 		Mem.setI32(p, 4, v.high);
+	}
+
+	// (an @:hxmc.struct's bytes, size of them)
+	@:hxmc.unsafe(gc) public extern inline function struct<T>(v:T, size:Int) {
+		var p:Ptr<T> = cast reserve(size);
+		p.value = v;
 	}
 
 	public function string(s:Null<String>) {
@@ -80,13 +86,14 @@ class Writer {
 		LibC.memcpy(p, hxmc.unsafe.BytesPtr.of(b, 0, b.length), b.length);
 	}
 
-	// (moved: natively its address, in a browser's worker its bytes, freed)
-	public function buffer(b:IoBuffer) {
-		var p:Ptr = cast b;
-		if (p.isNull()) {
+	// (moved: natively its address, in a browser's worker its bytes, freed;
+	// the Buffer closed either way)
+	public function buffer(from:Null<hxmc.Buffer>) {
+		if (from == null) {
 			int(-1);
 			return;
 		}
+		var b = from.detach(), p:Ptr = cast b;
 		#if (hxmc.target == "wasm32-wasi")
 		int(b.length);
 		LibC.memcpy(reserve(b.length), b.ptr, b.length);
@@ -110,10 +117,18 @@ class Writer {
 @:hxmc.unsafe(gc)
 class Reader {
 	final buf:IoBuffer;
+	// (whether free() frees buf: a message's or a result's, not a job's input)
+	final owned:Bool;
 	var pos = 0;
 
-	public function new(buf:IoBuffer)
+	public function new(buf:IoBuffer, owned = false) {
 		this.buf = buf;
+		this.owned = owned;
+	}
+
+	// (done with: its bytes freed when it owns them)
+	public function free()
+		if (owned && !(cast buf : Ptr).isNull()) buf.free();
 
 	// n bytes on: their address
 	public function at(n:Int):Ptr {
@@ -123,18 +138,23 @@ class Reader {
 		return p;
 	}
 
-	public inline function int():Int
+	@:hxmc.unsafe(gc) public inline function int():Int
 		return Mem.getI32(at(4), 0);
 
-	public inline function float():Float
+	@:hxmc.unsafe(gc) public inline function float():Float
 		return Mem.getF64(at(8), 0);
 
-	public inline function bool():Bool
+	@:hxmc.unsafe(gc) public inline function bool():Bool
 		return Mem.getU8(at(1), 0) != 0;
 
-	public inline function int64():haxe.Int64 {
+	@:hxmc.unsafe(gc) public inline function int64():haxe.Int64 {
 		var p = at(8);
 		return haxe.Int64.make(Mem.getI32(p, 4), Mem.getI32(p, 0));
+	}
+
+	@:hxmc.unsafe(gc) public extern inline function struct<T>(size:Int):T {
+		var p:Ptr<T> = cast at(size);
+		return p.value;
 	}
 
 	public function string():Null<String> {
@@ -150,15 +170,16 @@ class Reader {
 		return b;
 	}
 
-	public function buffer():IoBuffer {
+	// (a Buffer moved here: its owner's now)
+	public function buffer():Null<hxmc.Buffer> {
 		var n = int();
-		if (n < 0) return cast Ptr.nil();
+		if (n < 0) return null;
 		#if (hxmc.target == "wasm32-wasi")
 		var b = IoBuffer.alloc(n);
 		LibC.memcpy(b.ptr, at(n), n);
-		return b;
+		return hxmc.Buffer.adopt(b);
 		#else
-		return cast Mem.getPtr(at(8), 0);
+		return hxmc.Buffer.adopt(cast Mem.getPtr(at(8), 0));
 		#end
 	}
 }

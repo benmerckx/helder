@@ -18,12 +18,15 @@ class Entry {
 		var w = new Writer();
 		w.int(index);
 		w.string(haxe.Serializer.run([captures, input]));
-		var out = Jobs.runGc(hxmc.unsafe.Callback.addr(entry), w.done());
-		var r = new Reader(out);
+		var r = Jobs.runGc(fn(), w);
 		var v:Dynamic = haxe.Unserializer.run(r.string() ?? "n");
-		Jobs.free(out);
+		r.free();
 		return Interop.toJs(v);
 	}
+
+	// (the entry's address, as a number)
+	@:hxmc.unsafe static function fn():hxmc.I64
+		return hxmc.unsafe.Callback.addr(entry).toI64();
 
 	@:hxmc.unsafe(gc) @:hxmc.callback static function entry(p:hxmc.unsafe.Ptr):Int {
 		var job:helder.jobs.JobRecord = cast p;

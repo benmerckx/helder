@@ -3,7 +3,7 @@ import helder.async.Async.TimeoutException;
 import helder.jobs.*;
 import helder.os.App;
 import helder.os.Window;
-import hxmc.unsafe.*;
+import hxmc.Buffer;
 
 // helder.jobs in a browser (tests/jobs/browser.mjs: headless Chromium), on
 // App.run's loop: jobs on Web Workers instantiating this module (a GC-free
@@ -51,11 +51,11 @@ class JobsWeb {
 		var window = new Window("JobsWeb", 64, 64);
 		var frames = 0;
 		Async.launch(_ -> {
-			var b = IoBuffer.alloc(3);
+			var b = new Buffer(3);
 			b.set(1, 5);
 			var out = Jobs.job(invert).run(b);
 			check("a GC-free job", out.length == 3 && out.get(0) == 255 && out.get(1) == 250);
-			out.free();
+			out.close();
 			var w = Jobs.job(where).run(100000);
 			check("a GC job on a worker", w.worker && w.sum == 100000);
 			var ch = new Channel<Int>(), got = [];

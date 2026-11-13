@@ -11,7 +11,7 @@ that does not use it.
 
 ```haxe
 import helder.jobs.*;
-import hxmc.unsafe.IoBuffer;
+import hxmc.Buffer;
 
 // GC-free, the engine's: a checked kernel over off-heap memory, as spans
 @:hxmc.kernel @:hxmc.callback static function invert(job:Job):Int {
@@ -28,8 +28,8 @@ import hxmc.unsafe.IoBuffer;
 static function words(s:String):Int return s.split(" ").length;
 
 Async.run(task -> {
-  var out:IoBuffer = Jobs.job(invert).run(IoBuffer.ofBytes(bytes));  // the input moved in
-  out.free();                                                     // the output is ours
+  var out:Buffer = Jobs.job(invert).run(input);                   // input (a Buffer) moved in: closed here
+  out.close();                                                    // the output is ours
   var n = Jobs.job(words).run("one two three");                       // 3
   var t = task.async(_ -> Jobs.job(words).run(text));                 // a Task
   var ch = new Channel<{done:Int, of:Int}>();                     // progress from a job
@@ -67,10 +67,12 @@ Haxe's serialization of them.
 static function, named (`Class.field`, private too):
 
 - **GC-free** (`@:hxmc.kernel @:hxmc.callback function (job:Job):Int`):
-  its input an `IoBuffer` moved into the run (freed after it), read as a
+  its input an `hxmc.Buffer` moved into the run (closed for the caller,
+  freed after it), read as a
   `ReadOnlySpan<UInt8>` (`job.input()`), its output one it allocates with
   `job.output(n)` (a `Span<UInt8>`, not zeroed, empty when out of memory;
-  `truncate(n)` shortens it), which `run` returns; a result < 0 is a
+  `truncate(n)` shortens it), which `run` returns as a Buffer the caller
+  closes; a result < 0 is a
   `JobError` with that code. Natively the pool calls it in a safe region
   (`hxmc.unsafe.Blocking`), so other threads' collections never wait for
   it. It is a checked kernel (hxmc's `@:hxmc.kernel`): the compiler checks
@@ -110,7 +112,7 @@ its codec generated, `Wire`):
 | --- | --- |
 | `Int`, `Float`, `Bool`, `haxe.Int64` | copied |
 | `String`, `haxe.io.Bytes` | copied (null too) |
-| `hxmc.unsafe.IoBuffer` | moved: natively its address, in a browser its bytes (the sender's freed) |
+| `hxmc.Buffer` | moved: natively its memory, in a browser its bytes (closed for the sender) |
 | `@:hxmc.struct` classes | copied (their bytes) |
 | `Null<T>`, abstracts over a `T` | as `T` (enum abstracts too) |
 | `{a:T, ...}`, `Array<T>` | copied, field by field |

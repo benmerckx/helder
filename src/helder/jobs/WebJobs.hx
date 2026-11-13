@@ -60,7 +60,7 @@ class WebJobs {
 		runs.set(r.id, r);
 		var input = r.job.input;
 		var p:Ptr = cast input;
-		JobsHost.submit(r.id, r.fn.toI64().toInt(), p.isNull() ? Ptr.nil() : input.ptr, p.isNull() ? -1 : input.length);
+		JobsHost.submit(r.id, r.fn.toInt(), p.isNull() ? Ptr.nil() : input.ptr, p.isNull() ? -1 : input.length);
 		// (moved: the worker has its copy)
 		r.job.dropInput();
 		return true;
