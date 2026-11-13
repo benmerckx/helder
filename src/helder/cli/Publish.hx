@@ -160,6 +160,8 @@ class Publish {
 			File.saveBytes(tmp, body);
 			args = args.concat(["--data-binary", "@" + tmp]);
 		} else if (file != null) args = args.concat(["--data-binary", "@" + file.path]);
+		else if (method != "GET" && method != "DELETE" && method != "HEAD") args = args.concat(["-H", "Content-Length: 0"]);
+		// (a POST with no body: Google's front end refuses one without its length, which curl on Windows leaves out)
 		var r = Devices.output("curl", args.concat([url]));
 		if (tmp != null) try FileSystem.deleteFile(tmp) catch (_:Dynamic) {};
 		if (r.code != 0) throw '$method $url: curl: exit code ${r.code} ${r.errors.trim()}';
@@ -255,7 +257,15 @@ class Publish {
 		if (r.code != 200) throw 'bundles.upload: HTTP ${r.code} ${r.body.trim()}';
 		var code:Int = haxe.Json.parse(r.body).versionCode;
 		json("PUT", '$base/edits/$edit/tracks/$track', token, {track: track, releases: [{versionCodes: [Std.string(code)], status: status}]});
-		json("POST", '$base/edits/$edit:commit', token);
+		try json("POST", '$base/edits/$edit:commit', token) catch (err:String) {
+			// (an app never published takes drafts alone: its first release
+			// sent for review in Play Console, the ones after it directly)
+			if (status == "draft" || err.indexOf("status draft") < 0) throw err;
+			status = "draft";
+			json("PUT", '$base/edits/$edit/tracks/$track', token, {track: track, releases: [{versionCodes: [Std.string(code)], status: status}]});
+			json("POST", '$base/edits/$edit:commit', token);
+			Term.out(Style.status("draft", Warn, '$pkg has never been published: its first release is a draft; send it for review in Play Console (Publishing overview), the ones after it go out directly'));
+		}
 		Term.out(Style.status("published", Ok, '$pkg versionCode $code on $track ($status)'));
 	}
 
