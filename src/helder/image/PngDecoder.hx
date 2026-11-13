@@ -47,15 +47,17 @@ class PngDecoder {
 		if (e != 0) throw PngCore.error(e, info);
 
 	// (decoded into a buffer of its own, the pixels copied to out: the file's
-	// image data, or a frame's zlib stream; off the GC heap on hxmc)
+	// image data, or a frame's zlib stream; on hxmc off the GC heap, an owned
+	// Buffer closed on every path)
 	static function beside(png:Bytes, info:Bytes, data:Null<Bytes>, w:Int, h:Int, out:Bytes) {
 		var len = PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h);
 		#if (target.name == "hxmc")
-		var b = hxmc.unsafe.IoBuffer.alloc(len);
-		var e = data == null ? PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofIoBuffer(b))
-			: PngCore.decodeStream(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), ReadOnlySpan.ofBytes(data), w, h, Span.ofIoBuffer(b));
-		if (e == 0) b.blitToBytes(0, out, 0, out.length);
-		b.free();
+		var e = hxmc.Buffer.scoped(len, b -> {
+			var e = data == null ? PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofBuffer(b))
+				: PngCore.decodeStream(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), ReadOnlySpan.ofBytes(data), w, h, Span.ofBuffer(b));
+			if (e == 0) b.blitToBytes(0, out, 0, out.length);
+			e;
+		});
 		#else
 		var b = Bytes.alloc(len);
 		var e = data == null ? PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofBytes(b))

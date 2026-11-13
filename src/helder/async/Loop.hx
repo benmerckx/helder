@@ -71,7 +71,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		io = Io.Backends.create(this);
 		if (Driven.MainLoop.main == null) Driven.MainLoop.main = this;
 		#if (hxmc.target == "wasm32-wasi")
-		Web.start(Callback.addr(webTurn));
+		Web.start(webTurn);
 		#end
 	}
 
@@ -230,7 +230,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	public function run() {
 		stopped = false;
 		#if (hxmc.target == "wasm32-wasi")
-		Web.start(Callback.addr(webTurn));
+		Web.start(webTurn);
 		#else
 		while (!stopped && turn(-1)) {}
 		#end

@@ -50,7 +50,7 @@ class Signals {
 		}
 		if (caught.contains(s)) return;
 		caught.push(s);
-		if (hxmc.Platform.os() == 2) {} else hxmc.unsafe.Posix.signal(s, hxmc.unsafe.Callback.addr(onSignal));
+		if (hxmc.Platform.os() == 2) {} else Fds.Sig.signal(s, onSignal);
 	}
 
 	// (the pipe: its read end, the write end in writeFd; -1 on a failure)

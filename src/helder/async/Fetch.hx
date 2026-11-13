@@ -44,7 +44,7 @@ class Fetch {
 
 	// (the fetch's handle, its body here: helder.image's WebImages decodes it there)
 	@:noCompletion @:coroutine public static function fetched(path:String, progress:Null<(loaded:Int, total:Int) -> Void>):Int {
-		var h = Arena.scopedValue(a -> Web.fetch_start(a.cstring(path)));
+		var h = Web.fetch_start(path);
 		var told = 0;
 		var ok = Async.suspendCancellable(cont -> {
 			var done = false;

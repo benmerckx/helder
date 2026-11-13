@@ -18,4 +18,13 @@ extern class Fds {
 	static function write(fd:Int, buf:ReadOnlySpan<UInt8>):I64;
 	@:hxmc.len(fds, 2) static function pipe(fds:Span<Int>):Int;
 }
+
+// signal(2) with its handler typed: the address of a static @:hxmc.callback
+// of (int), passed by name; the previous one a handle nothing calls
+@:hxmc.handle(0) abstract SigHandler(hxmc.unsafe.Ptr) {}
+
+@:hxmc.c @:hxmc.fast @:hxmc.safe @:hxmc.header("signal.h")
+extern class Sig {
+	static function signal(sig:Int, handler:Int->Void):SigHandler;
+}
 #end
