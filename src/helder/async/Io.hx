@@ -169,6 +169,8 @@ class ReadyIo implements Backend {
 	function ask() {
 		var i = ops.length;
 		while (i-- > 0) {
+			// (an exit ends every wait for its process: ops may have shrunk past i)
+			if (i >= ops.length) continue;
 			var op = ops[i];
 			if (asks(op)) {
 				var c = op.process.poll();
