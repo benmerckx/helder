@@ -9,6 +9,7 @@ import helder.text.Shaping;
 // in visual order; the script and language guessed from the text, the
 // direction given. Each face's hb_font is made once (its bytes copied for
 // the process), the buffer reused.
+@:hxmc.unsafe(gc)
 class HarfBuzz {
 	static var ready = 0;
 
@@ -85,6 +86,7 @@ class HarfBuzz {
 }
 
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class HB {
 	static function hb_blob_create(data:Ptr, length:Int, mode:Int, user:Ptr, destroy:Ptr):Ptr;
 	static function hb_face_create(blob:Ptr, index:Int):Ptr;

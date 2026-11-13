@@ -42,7 +42,7 @@ class Pool {
 // the cores this process may run on (at least one)
 class Cores {
 	public static function count():Int {
-		var n = hxmc.unsafe.Mem.os() == 2 ? CoresWin.GetActiveProcessorCount(0xFFFF) : CoresPosix.sysconf(hxmc.unsafe.Mem.os() == 1 ? 58 : 84).toInt();
+		var n = hxmc.Platform.os() == 2 ? CoresWin.GetActiveProcessorCount(0xFFFF) : CoresPosix.sysconf(hxmc.Platform.os() == 1 ? 58 : 84).toInt();
 		return n > 0 ? n : 1;
 	}
 }

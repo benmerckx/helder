@@ -36,6 +36,7 @@ import hxmc.unsafe.*;
 // indicator Window.immersive hides. Keys
 // and text input come later (a UIKeyInput view, as the macOS text view).
 @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class UIKitWindow {
 	static var current:Null<UIKitWindow> = null;
 	static var viewClass = Ptr.nil();

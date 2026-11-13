@@ -192,6 +192,14 @@ class AsyncTest {
 			c;
 		});
 		ok(killed != 0, 'a killed process: $killed');
+		// (two waits for one exit: the exit ends both at once)
+		var both = Async.run(task -> {
+			var p = new Process("sh", ["-c", "exit 4"]);
+			var codes = Async.all([for (_ in 0...2) task.async(_ -> p.wait())]);
+			p.close();
+			codes;
+		});
+		eq(both.join(","), "4,4", "two waits for one process's exit");
 		// (a working directory and an environment of its own, this process's left alone)
 		var own = Async.run(_ -> {
 			var env = Process.environment();

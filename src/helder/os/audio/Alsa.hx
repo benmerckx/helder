@@ -8,6 +8,7 @@ import hxmc.unsafe.*;
 // (snd_pcm_uframes_t, snd_pcm_sframes_t) are C's long: Int64; negative
 // results are -errno. Calls run in a safe region (writei blocks).
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Alsa {
 	static function snd_pcm_open(pcm:Ptr<Ptr>, name:Ptr, stream:Int, mode:Int):Int;
 	static function snd_pcm_close(pcm:Ptr):Int;

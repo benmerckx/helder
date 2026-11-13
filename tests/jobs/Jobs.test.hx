@@ -4,7 +4,8 @@ import haxe.exceptions.CancellationException;
 import haxe.io.Bytes;
 import helder.async.*;
 import helder.jobs.*;
-import hxmc.unsafe.*;
+import hxmc.Buffer;
+import hxmc.unsafe.UInt8;
 import helder.test.Test;
 
 // helder.jobs: the pool natively, workers under node on wasm32-wasi
@@ -13,12 +14,13 @@ import helder.test.Test;
 function tests() {
 	describe("jobs", () -> {
 		test("a GC-free job: its input moved in, its output back", async(() -> {
-			var b = IoBuffer.alloc(5);
+			var b = new Buffer(5);
 			for (i in 0...5)
 				b.set(i, i * 10);
 			var out = Jobs.job(JobsWork.invert).run(b);
+			equals(b.closed, true);
 			equals([for (i in 0...out.length) out.get(i)], [255, 245, 235, 225, 215]);
-			out.free();
+			out.close();
 		}));
 		test("a GC job: values copied in and out", async(() -> {
 			equals(Jobs.job(JobsWork.words).run("one two three"), 3);
@@ -27,15 +29,17 @@ function tests() {
 			equals(Jobs.job(JobsWork.answer).run(), 42);
 			Jobs.job(JobsWork.nothing).run(1);
 		}));
-		test("Bytes are copied, an IoBuffer moved", async(() -> {
+		test("Bytes are copied, a Buffer moved", async(() -> {
 			var b = Bytes.ofString("abc");
 			var back = Jobs.job(JobsWork.upper).run(b);
 			equals(back.toString(), "ABC");
 			equals(b.toString(), "abc");
-			var io = IoBuffer.ofBytes(Bytes.ofString("xyz"));
+			var io = new Buffer(3);
+			io.blitFromBytes(0, Bytes.ofString("xyz"), 0, 3);
 			var moved = Jobs.job(JobsWork.reverse).run({buffer: io, tag: 7});
+			equals(io.closed, true);
 			equals(moved.getBytes(0, moved.length).toString(), "zyx7");
-			moved.free();
+			moved.close();
 		}));
 		test("a struct crosses as its bytes", async(() -> {
 			approx(Jobs.job(JobsWork.length).run(new JobsVec(3, 4)), 5);
@@ -78,7 +82,7 @@ function tests() {
 			equals(Jobs.job(JobsWork.words).run("a b"), 2);
 		}));
 		test("errors: a GC-free job's code, a GC job's exception", async(() -> {
-			var e:JobError = throwsAsync(() -> Jobs.job(JobsWork.refuse).run(IoBuffer.alloc(1)));
+			var e:JobError = throwsAsync(() -> Jobs.job(JobsWork.refuse).run(new Buffer(1)));
 			equals(e.code, -5);
 			var g:JobError = throwsAsync(() -> Jobs.job(JobsWork.boom).run(3));
 			equals(g.code, -1);
@@ -111,13 +115,12 @@ function tests() {
 			var was = Jobs.workers;
 			Jobs.workers = 0;
 			var r = Jobs.job(JobsWork.where).run(3);
-			var b = IoBuffer.alloc(1);
-			var out = Jobs.job(JobsWork.invert).run(b);
+			var out = Jobs.job(JobsWork.invert).run(new Buffer(1));
 			Jobs.workers = was;
 			equals(r.i, 3);
 			assert(!r.worker, "on the loop");
 			equals(out.get(0), 255);
-			out.free();
+			out.close();
 		}));
 	});
 }
@@ -126,19 +129,19 @@ function tests() {
 class JobsWork {
 	public static var sawCancel = 0;
 
-	@:hxmc.unsafe @:hxmc.callback public static function invert(job:Job):Int {
-		var n = job.input.length, src = job.input.ptr, out = job.output(n);
-		if (out.isNull()) return -1;
-		for (i in 0...n)
-			Mem.setI8(out, i, 255 - Mem.getU8(src, i));
+	@:hxmc.kernel @:hxmc.callback public static function invert(job:Job):Int {
+		var src = job.input(), out = job.output(src.length);
+		if (out.length < src.length) return -1;
+		for (i in 0...src.length)
+			out[i] = 255 - src[i];
 		return 0;
 	}
 
-	@:hxmc.unsafe @:hxmc.callback public static function refuse(job:Job):Int
+	@:hxmc.kernel @:hxmc.callback public static function refuse(job:Job):Int
 		return -5;
 
 	// (until cancelled, a few seconds at most)
-	@:hxmc.unsafe @:hxmc.callback public static function spin(job:Job):Int {
+	@:hxmc.kernel @:hxmc.callback public static function spin(job:Job):Int {
 		var s = 0;
 		for (i in 0...20000) {
 			if (job.cancelled) {
@@ -173,12 +176,12 @@ class JobsWork {
 		return Bytes.ofString(s);
 	}
 
-	public static function reverse(p:{buffer:IoBuffer, tag:Int}):IoBuffer {
-		var n = p.buffer.length, out = IoBuffer.alloc(n + 1);
+	public static function reverse(p:{buffer:Buffer, tag:Int}):Buffer {
+		var n = p.buffer.length, out = new Buffer(n + 1);
 		for (i in 0...n)
 			out.set(i, p.buffer.get(n - 1 - i));
 		out.set(n, "0".code + p.tag);
-		p.buffer.free();
+		p.buffer.close();
 		return out;
 	}
 

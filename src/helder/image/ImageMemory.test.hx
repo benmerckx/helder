@@ -18,7 +18,7 @@ function tests() {
 				var b = mem.take(d.rgba);
 				mem.free();
 				equals(b.getBytes(0, b.length).toHex(), on.toHex());
-				b.free();
+				b.close();
 				#end
 			});
 	});

@@ -32,9 +32,9 @@ class Link {
 	static function norm(p:String):Array<String>
 		return [for (s in p.split("\\").join("/").split("/")) if (s != "" && s != ".") s];
 
-	static function symlink(target:String, path:String):Bool {
+	@:hxmc.unsafe(gc) static function symlink(target:String, path:String):Bool {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 2)
+		if (hxmc.Platform.os() == 2)
 			// (SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE: developer mode, else it fails)
 			return hxmc.unsafe.Arena.scopedValue(a -> Kernel32.CreateSymbolicLinkW(a.wstring(path), a.wstring(target.split("/").join("\\")), 2)) != 0;
 		return hxmc.unsafe.Arena.scopedValue(a -> Posix.symlink(a.cstring(target), a.cstring(path))) == 0;
@@ -43,9 +43,9 @@ class Link {
 		#end
 	}
 
-	static function hardlink(target:String, path:String):Bool {
+	@:hxmc.unsafe(gc) static function hardlink(target:String, path:String):Bool {
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 2)
+		if (hxmc.Platform.os() == 2)
 			return hxmc.unsafe.Arena.scopedValue(a -> Kernel32.CreateHardLinkW(a.wstring(path), a.wstring(target), hxmc.unsafe.Ptr.nil())) != 0;
 		return hxmc.unsafe.Arena.scopedValue(a -> Posix.link(a.cstring(target), a.cstring(path))) == 0;
 		#else

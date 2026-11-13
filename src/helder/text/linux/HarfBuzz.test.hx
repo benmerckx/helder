@@ -13,7 +13,7 @@ import helder.text.Shaping;
 function tests() {
 	describe("HarfBuzz and fontconfig (Linux)", () -> {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		var native = hxmc.unsafe.Mem.os() == 0 && hxmc.unsafe.Mem.target() < 9 && HarfBuzz.available() && Fontconfig.available();
+		var native = hxmc.Platform.os() == 0 && hxmc.Platform.target() < 9 && HarfBuzz.available() && Fontconfig.available();
 		function layout(text:String, f:FontFile, engine:Int):TextLayout {
 			var was = Shaping.engine;
 			Shaping.engine = engine;

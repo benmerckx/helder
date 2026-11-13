@@ -160,7 +160,7 @@ class TextQuality {
 
 	static function reference(dir:String) {
 		#if (hxmc.target == "macos-arm64" || hxmc.target == "macos-x86_64")
-		if (hxmc.unsafe.Mem.os() != 1) throw "TextQuality reference: Core Text is macOS's";
+		if (hxmc.Platform.os() != 1) throw "TextQuality reference: Core Text is macOS's";
 		FileSystem.createDirectory(dir);
 		var cs = cases();
 		for (scale in SCALES) {

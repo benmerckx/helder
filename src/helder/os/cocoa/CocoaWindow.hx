@@ -31,6 +31,7 @@ import hxmc.unsafe.*;
 // close buttons; the app ends when it closes them.
 // Sizes and positions are in pixels (points times the backing scale), y down.
 @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class CocoaWindow {
 	static var app = Ptr.nil();
 	static var delegate = Ptr.nil();

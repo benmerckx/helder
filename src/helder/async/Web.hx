@@ -10,20 +10,21 @@ import hxmc.unsafe.*;
 @:hxmc.c @:hxmc.lib("helder_async") extern class Web {
 	// the loop's turns from now on: turn (a @:hxmc.callback ():Float, the
 	// seconds until it wants the next, -1 for none) run by the page's event loop
-	static function start(turn:Ptr):Void;
+	@:hxmc.safe static function start(turn:Void->Float):Void;
 	// a turn wanted in that many seconds at the latest
 	static function wake(seconds:Float):Void;
 	// a fetch of url (relative to the page) started: its handle; its state (0
 	// loading, 1 done, -1 failed; a turn comes when it changes), its body's
 	// length, the body into p (the handle freed); fetch_free aborts it
-	static function fetch_start(url:CString):Int;
+	@:hxmc.safe static function fetch_start(url:String):Int;
 	static function fetch_state(h:Int):Int;
 	static function fetch_length(h:Int):Int;
 	// the bytes it has received so far, and how many it will (0: not known)
 	static function fetch_loaded(h:Int):Int;
 	static function fetch_total(h:Int):Int;
-	// (fast: a copy, no callback; so that p may be a Bytes's, Fetch.take)
-	@:hxmc.fast static function fetch_take(h:Int, p:Ptr):Void;
+	// (fast: a copy, no callback, so that buf may be a Bytes's, Fetch.bytes;
+	// safe: no more than buf's length, imports.mjs)
+	@:hxmc.fast @:hxmc.safe static function fetch_take(h:Int, buf:hxmc.Span<UInt8>):Void;
 	static function fetch_free(h:Int):Void;
 }
 #end

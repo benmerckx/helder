@@ -1,5 +1,6 @@
 import helder.text.Spell;
 import helder.text.SpellChecker;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // The platform's spellchecker (helder.text.Spell; the window lane, natively
@@ -22,7 +23,7 @@ class SpellTest {
 
 	// (under Wine: ntdll's wine_get_version)
 	static function wine():Bool
-		return Mem.os() == 2 ? Arena.scopedValue(a -> !K32.GetProcAddress(K32.GetModuleHandleW(a.wstring("ntdll.dll")), a.cstring("wine_get_version")).isNull()) : false;
+		return Platform.os() == 2 ? Arena.scopedValue(a -> !K32.GetProcAddress(K32.GetModuleHandleW(a.wstring("ntdll.dll")), a.cstring("wine_get_version")).isNull()) : false;
 
 	static function checks(c:SpellChecker, w:String) {
 		var name = Type.getClassName(Type.getClass(c));
@@ -50,7 +51,7 @@ class SpellTest {
 	static function main() {
 		var dir = Sys.args().length > 0 ? Sys.args()[0] : "bin/text";
 		var conf = "";
-		if (Mem.os() == 0) {
+		if (Platform.os() == 0) {
 			// (the personal dictionary the test's own, a new directory each run)
 			conf = sys.FileSystem.fullPath(dir) + "/spell-config-" + Std.int(haxe.Timer.stamp() * 1000) % 100000000;
 			sys.FileSystem.createDirectory(conf);
@@ -59,13 +60,13 @@ class SpellTest {
 			Sys.putEnv("HOME", conf);
 		}
 		var c:Null<SpellChecker> = Spell.platform("en_US");
-		var required = Mem.os() == 1 || Mem.os() == 2 && !wine();
+		var required = Platform.os() == 1 || Platform.os() == 2 && !wine();
 		if (c == null) {
-			Sys.println("SpellTest: no spellchecker here" + (Mem.os() == 0 ? " (no libenchant-2 nor Hunspell with an English dictionary)" : wine() ? " (Wine has no ISpellCheckerFactory)" : "") + ": spellcheck off");
+			Sys.println("SpellTest: no spellchecker here" + (Platform.os() == 0 ? " (no libenchant-2 nor Hunspell with an English dictionary)" : wine() ? " (Wine has no ISpellCheckerFactory)" : "") + ": spellcheck off");
 			check("a spellchecker on this system", !required);
 		} else checks(c, "xqzvhelderb");
 		// (Linux: Hunspell's own, Enchant's fallback, where it is there)
-		if (Mem.os() == 0 && Mem.target() < 9) {
+		if (Platform.os() == 0 && Platform.target() < 9) {
 			var h:Null<SpellChecker> = helder.text.linux.LinuxSpell.HunspellChecker.make("en_US");
 			if (h == null) Sys.println("SpellTest: no Hunspell with an English dictionary: its fallback not checked") else checks(h, "xqzvhelderc");
 		}

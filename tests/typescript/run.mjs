@@ -107,7 +107,7 @@ for(const file of fs.readdirSync(`${T}/helder`).filter(f=>/\.tsx?$/.test(f)&&!f.
     assert.equal(r.stdout,fs.readFileSync(`${T}/helder/${stem}.out`,'utf8'),`${file} stdout ${target}`);
     console.log(`PASS helder ${file} ${target}`);
 }
-// helder/platform's constants folded as Haxe's Mem.os() is: platform/main.ts
+// helder/platform's constants folded as Haxe's Platform.os() is: platform/main.ts
 // and Main.hx built for Linux (glibc's dynamic mode, where a C function of a
 // shared library is an import) and wasm32-wasi, their Windows branch
 // (kernel32's GetTickCount64) not in the binary; the same TS with a condition

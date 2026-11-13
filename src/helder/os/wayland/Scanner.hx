@@ -118,6 +118,7 @@ class Scanner {
 		for (i in ifaces) {
 			var name = i.get("name"), cls = camel(name);
 			line("");
+			line("@:hxmc.unsafe(gc)");
 			line('abstract $cls(Ptr) from Ptr to Ptr {');
 			line('\tpublic static inline var NAME = "$name";');
 			line('\tpublic static inline var VERSION = ${i.get("version")};');
@@ -145,6 +146,7 @@ class Scanner {
 			// events
 			if (evs.length > 0) {
 				line("");
+				line("@:hxmc.unsafe(gc)");
 				line('class ${cls}Events implements Proxy.Dispatcher {');
 				for (e in evs)
 					line('\tpublic var ${lowerCamel(e.get("name"))}:Null<(${[for (a in elements(e, "arg")) lowerCamel(a.get("name")) + ":" + argType(a, known)].join(", ")}) -> Void> = null;');

@@ -66,6 +66,10 @@ class Activity {
 	public static inline var LOOPER_COMMANDS = 1;
 	public static inline var LOOPER_INPUT = 2;
 
+	// (a program's main calls it so that this class, and so its
+	// ANativeActivity_onCreate, is linked)
+	public static function link() {}
+
 	public static var activity:Ptr;
 	// the native window and input queue the last command handed over
 	// (under the lock; read by the program's thread when it handles it)

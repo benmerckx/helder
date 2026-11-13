@@ -507,7 +507,7 @@ class Headless {
 		if (s.flag("alt") || s.flag("option")) m |= Mods.ALT;
 		if (s.flag("cmd") || s.flag("meta")) m |= Mods.META;
 		// (secondary: Command on a Mac, Control elsewhere, as Keymap's)
-		if (s.flag("secondary")) m |= hxmc.unsafe.Mem.os() == 1 ? Mods.META : Mods.CONTROL;
+		if (s.flag("secondary")) m |= hxmc.Platform.os() == 1 ? Mods.META : Mods.CONTROL;
 		return m;
 	}
 
@@ -889,15 +889,23 @@ class Headless {
 
 	// Math.random's (and Std.random's) sequence from n: hxmc's xoshiro256**
 	// state, splitmix64 of the seed, as hxmc seeds it from the time
-	@:hxmc.unsafe static function seed(n:Int) {
-		var x = hxmc.unsafe.Mem.stack(8);
-		hxmc.unsafe.Mem.setI64(x, 0, (n : hxmc.I64));
+	static function seed(n:Int) {
+		var x:hxmc.I64 = n;
 		@:privateAccess {
-			hxmc.rt.Random.s0 = hxmc.rt.Random.splitmix(x);
-			hxmc.rt.Random.s1 = hxmc.rt.Random.splitmix(x);
-			hxmc.rt.Random.s2 = hxmc.rt.Random.splitmix(x);
-			hxmc.rt.Random.s3 = hxmc.rt.Random.splitmix(x);
+			hxmc.rt.Random.s0 = splitmix(x = x + hxmc.rt.Random.k(0x9E3779B9, 0x7F4A7C15));
+			hxmc.rt.Random.s1 = splitmix(x = x + hxmc.rt.Random.k(0x9E3779B9, 0x7F4A7C15));
+			hxmc.rt.Random.s2 = splitmix(x = x + hxmc.rt.Random.k(0x9E3779B9, 0x7F4A7C15));
+			hxmc.rt.Random.s3 = splitmix(x = x + hxmc.rt.Random.k(0x9E3779B9, 0x7F4A7C15));
 		}
+	}
+
+	// (splitmix64's output for its state z, hxmc.rt.Random's)
+	static function splitmix(z:hxmc.I64):hxmc.I64 {
+		@:privateAccess {
+			z = (z ^ (z >>> 30)) * hxmc.rt.Random.k(0xBF58476D, 0x1CE4E5B9);
+			z = (z ^ (z >>> 27)) * hxmc.rt.Random.k(0x94D049BB, 0x133111EB);
+		}
+		return z ^ (z >>> 31);
 	}
 }
 

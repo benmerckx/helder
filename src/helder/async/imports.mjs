@@ -77,9 +77,10 @@ export default function (host) {
 			fetch_length: (h) => host.handles.get(h).body?.length ?? 0,
 			fetch_loaded: (h) => host.handles.get(h).loaded,
 			fetch_total: (h) => host.handles.get(h).total,
-			fetch_take(h, p) {
+			// (into a span: its address and length; no more than the length)
+			fetch_take(h, p, n) {
 				const f = host.handles.get(h);
-				if (f.body) new Uint8Array(host.memory().buffer, p, f.body.length).set(f.body);
+				if (f.body) new Uint8Array(host.memory().buffer, p, Math.min(n, f.body.length)).set(f.body.subarray(0, n));
 				host.handles.remove(h);
 			},
 			fetch_free(h) {

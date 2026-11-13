@@ -14,10 +14,10 @@ import helder.test.Test;
 // field's text, after the selection then before it; a leave ending the
 // composition); a long text sent as a window around the caret; disabled
 // when text input stops.
-function tests() {
+@:hxmc.unsafe(gc) function tests() {
 	describe("Wayland text-input-v3", () -> {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		if (hxmc.unsafe.Mem.os() == 0 && hxmc.unsafe.Mem.target() < 9) {
+		if (hxmc.Platform.os() == 0 && hxmc.Platform.target() < 9) {
 		// (the requests' opcodes: destroy, enable, disable, set_surrounding_text,
 		// set_text_change_cause, set_content_type, set_cursor_rectangle, commit)
 		final NAMES = ["destroy", "enable", "disable", "surrounding", "cause", "content", "rect", "commit"];

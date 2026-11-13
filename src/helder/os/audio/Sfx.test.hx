@@ -12,7 +12,7 @@ import hxmc.unsafe.*;
 // from Vorbis, faded in, crossfaded, looping, stopped; nothing allocated in
 // a mix, music's decoding included (offline: no output, mixed by hand;
 // natively and as wasm32-wasi).
-function tests() {
+@:hxmc.unsafe(gc) function tests() {
 	describe("Sfx", () -> {
 		var buf:Ptr<Float32> = LibC.malloc(4 * 2 * 4096);
 		function mix(s:Sfx, frames:Int) {

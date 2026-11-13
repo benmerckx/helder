@@ -24,16 +24,19 @@ import hxmc.unsafe.*;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IMMDeviceEnumerator {
 	@:slot(4) static function GetDefaultAudioEndpoint(self:Ptr, flow:Int, role:Int, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IMMDevice {
 	@:slot(3) static function Activate(self:Ptr, iid:Ptr, context:Int, params:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IAudioClient {
 	@:slot(3) static function Initialize(self:Ptr, shareMode:Int, flags:Int, bufferDuration:Int64, periodicity:Int64, format:Ptr, session:Ptr):Int;
 	@:slot(4) static function GetBufferSize(self:Ptr, frames:Ptr<Int32>):Int;
@@ -48,6 +51,7 @@ class IAudioClient {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IAudioRenderClient {
 	@:slot(3) static function GetBuffer(self:Ptr, frames:Int, data:Ptr<Ptr>):Int;
 	@:slot(4) static function ReleaseBuffer(self:Ptr, frames:Int, flags:Int):Int;
@@ -69,6 +73,7 @@ class IAudioRenderClient {
 	var subFormat2:Int64;
 }
 
+@:hxmc.unsafe(gc)
 class WASAPI {
 	public static inline var CLSCTX_ALL = 0x17;
 	public static inline var COINIT_MULTITHREADED = 0;

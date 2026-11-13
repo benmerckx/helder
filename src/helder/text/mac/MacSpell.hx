@@ -11,6 +11,7 @@ import hxmc.unsafe.*;
 // spelling (no result: right), suggestions by
 // guessesForWordRange:inString:language:inSpellDocumentWithTag:, a word
 // learnt by learnWord: (the user's dictionary).
+@:hxmc.unsafe(gc)
 class MacSpell implements SpellChecker {
 	public var language(default, null):String;
 

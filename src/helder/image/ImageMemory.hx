@@ -28,7 +28,7 @@ class ImageMemory {
 		return new ImageMemory(#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi") true #else false #end);
 
 	// n zeroed bytes
-	public function bytes(n:Int):Bytes {
+	@:hxmc.unsafe(gc) public function bytes(n:Int):Bytes {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		if (offHeap) {
 			var b = hxmc.unsafe.IoBuffer.alloc(n), v = b.view();
@@ -41,20 +41,24 @@ class ImageMemory {
 	}
 
 	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-	// bytes as a buffer of the caller's: the one under the view when bytes()
-	// gave it (no longer this memory's, not copied), else a copy
-	public function take(v:Bytes):hxmc.unsafe.IoBuffer {
+	// bytes as a Buffer the caller closes: the memory under the view when
+	// bytes() gave it (no longer this memory's, not copied), else a copy
+	@:hxmc.unsafe(gc) public function take(v:Bytes):hxmc.Buffer {
 		var i = views.indexOf(v);
-		if (i < 0) return hxmc.unsafe.IoBuffer.ofBytes(v);
+		if (i < 0) {
+			var r = new hxmc.Buffer(v.length);
+			r.blitFromBytes(0, v, 0, v.length);
+			return r;
+		}
 		var b = buffers[i];
 		buffers.splice(i, 1);
 		views.splice(i, 1);
-		return b;
+		return hxmc.Buffer.adopt(b);
 	}
 	#end
 
 	// what it gave and was not kept, freed (its views invalid from here)
-	public function free() {
+	@:hxmc.unsafe(gc) public function free() {
 		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		for (b in buffers)
 			b.free();

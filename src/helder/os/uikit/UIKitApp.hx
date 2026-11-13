@@ -21,6 +21,7 @@ import hxmc.unsafe.*;
 // (kept, with its export, for iOS only: @:hxmc.ios leaves a class out of
 // other targets only in hxmc's own packages)
 @:hxmc.ios #if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64") @:keep #end
+@:hxmc.unsafe(gc)
 class UIKitApp {
 	// the program's main runs (its statics are set)
 	public static var running:Bool;

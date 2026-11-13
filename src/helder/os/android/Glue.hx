@@ -16,6 +16,7 @@ import hxmc.unsafe.*;
 // (@:helder.android.dex: an APK with this gets classes.dex,
 // helder.pack.android.Classes)
 @:hxmc.android @:helder.android.dex
+@:hxmc.unsafe(gc)
 class Glue {
 	// the kinds (helder.pack.android.Glue's)
 	public static inline var CLICK = 0;

@@ -11,7 +11,7 @@ import helder.async.Async;
 class Checksum {
 	static function main() {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
-		helder.os.android.Activity.activity;
+		helder.os.android.Activity.link();
 		#end
 		Async.main(_ -> {
 			for (a in [Asset.bytes("files/kept.txt"), Asset.bytes("files/pixels.png")]) {

@@ -54,13 +54,13 @@ class WebJobs {
 	public static inline function inWorker():Bool
 		return JobsHost.worker() == 1;
 
-	static function submit(r:Run):Bool {
+	@:hxmc.unsafe(gc) static function submit(r:Run):Bool {
 		if (workers == -2) workers = JobsHost.start(Callback.addr(arrived), Jobs.workers);
 		if (workers <= 0 || Jobs.workers == 0) return false;
 		runs.set(r.id, r);
 		var input = r.job.input;
 		var p:Ptr = cast input;
-		JobsHost.submit(r.id, r.fn.toI64().toInt(), p.isNull() ? Ptr.nil() : input.ptr, p.isNull() ? -1 : input.length);
+		JobsHost.submit(r.id, r.fn.toInt(), p.isNull() ? Ptr.nil() : input.ptr, p.isNull() ? -1 : input.length);
 		// (moved: the worker has its copy)
 		r.job.dropInput();
 		return true;
@@ -74,7 +74,7 @@ class WebJobs {
 	}
 
 	// (the page: a job's result, a channel's message or close)
-	@:hxmc.callback static function arrived(kind:Int, id:Int, status:Int, n:Int):Int {
+	@:hxmc.unsafe(gc) @:hxmc.callback static function arrived(kind:Int, id:Int, status:Int, n:Int):Int {
 		var b:IoBuffer = cast Ptr.nil();
 		if (n >= 0) {
 			b = IoBuffer.alloc(n);
@@ -95,13 +95,13 @@ class WebJobs {
 	}
 
 	// (a worker's: one job, its input copied in, its output copied out)
-	@:hxmc.callback static function execute(fn:Int, n:Int):Int {
+	@:hxmc.unsafe(gc) @:hxmc.callback static function execute(fn:Int, n:Int):Int {
 		var input:IoBuffer = cast Ptr.nil();
 		if (n >= 0) {
 			input = IoBuffer.alloc(n);
 			JobsHost.input(input.ptr);
 		}
-		var job = Job.make(input);
+		var job = JobRecord.make(input);
 		var s = Run.GcCall.call(Ptr.ofI64(fn), job.ptr());
 		var out = job.takeOutput();
 		var o:Ptr = cast out;

@@ -3,6 +3,7 @@ package helder.os;
 import haxe.io.Bytes;
 import helder.image.ImageError;
 import helder.image.ImageLimits;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // The system's own image decoders, for what helder.image does not read:
@@ -18,16 +19,17 @@ import hxmc.unsafe.*;
 // (helder.os.linux.LinuxImages; none: supports() false for its formats).
 // ImageLimits is checked on the size the system reports, before any pixel
 // is decoded. The rest: none. Pixels: RGBA8, straight alpha, upright.
+@:hxmc.unsafe(gc)
 class SystemImages {
 	// the extensions it may read where there are system decoders
 	public static final EXTENSIONS = ["tif", "tiff", "heic", "heif", "avif", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2"];
 
 	// (Linux's: a constant condition, so that no other target links its libraries' loaders)
 	static inline function linux():Bool
-		return Mem.platform() == 0 && Mem.os() == 0 && Mem.target() < 9;
+		return Platform.apple() == 0 && Platform.os() == 0 && Platform.target() < 9;
 
 	public static function available():Bool
-		return Mem.platform() == 0 && (Mem.os() == 1 || Mem.os() == 2) || linux() && helder.os.linux.LinuxImages.any();
+		return Platform.apple() == 0 && (Platform.os() == 1 || Platform.os() == 2) || linux() && helder.os.linux.LinuxImages.any();
 
 	public static function supports(path:String):Bool {
 		var dot = path.lastIndexOf("."), ext = dot > 0 ? path.substr(dot + 1).toLowerCase() : "";
@@ -38,7 +40,7 @@ class SystemImages {
 	// the file decoded (side > 0: at most that a side, where the system scales
 	// as it decodes); an ImageError when it cannot be
 	public static function decode(path:String, side = 0):{width:Int, height:Int, pixelsWidth:Int, pixelsHeight:Int, rgba:Bytes}
-		return if (Mem.platform() != 0) throw ImageError.unsupported("SystemImages: none here") else if (Mem.os() == 2) wic(path) else if (Mem.os() == 1)
+		return if (Platform.apple() != 0) throw ImageError.unsupported("SystemImages: none here") else if (Platform.os() == 2) wic(path) else if (Platform.os() == 1)
 			imageIO(path, side) else if (linux()) linuxLibraries(path) else throw ImageError.unsupported("SystemImages: none on this system");
 
 	// --- Linux: libtiff, libheif, libavif, libraw where they are (helder.os.linux.LinuxImages)
@@ -240,33 +242,39 @@ class SystemImages {
 
 // (WIC's interfaces: IUnknown 0-2, then each's own, in the headers' order)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICImagingFactory {
 	@:slot(3) static function CreateDecoderFromFilename(self:Ptr, name:Ptr, vendor:Ptr, access:Int, options:Int, out:Ptr<Ptr>):Int;
 	@:slot(10) static function CreateFormatConverter(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICBitmapDecoder {
 	@:slot(13) static function GetFrame(self:Ptr, index:Int, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICBitmapFrameDecode {
 	@:slot(8) static function GetMetadataQueryReader(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICMetadataQueryReader {
 	@:slot(5) static function GetMetadataByName(self:Ptr, name:Ptr, value:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICBitmapSource {
 	@:slot(3) static function GetSize(self:Ptr, w:Ptr, h:Ptr):Int;
 	@:slot(7) static function CopyPixels(self:Ptr, rect:Ptr, stride:Int, size:Int, buffer:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICFormatConverter {
 	@:slot(8) static function Initialize(self:Ptr, source:Ptr, format:Ptr, dither:Int, palette:Ptr, alpha:Float, paletteType:Int):Int;
 }
@@ -278,6 +286,7 @@ class IWICFormatConverter {
 	static function CGImageSourceCreateThumbnailAtIndex(src:Ptr, index:hxmc.I64, options:Ptr):Ptr;
 }
 
+@:hxmc.unsafe(gc)
 @:hxmc.c @:hxmc.lib("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics") extern class CG {
 	static function CGImageGetWidth(img:Ptr):hxmc.I64;
 	static function CGImageGetHeight(img:Ptr):hxmc.I64;

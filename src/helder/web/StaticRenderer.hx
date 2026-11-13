@@ -34,7 +34,7 @@ class StaticRenderer implements helder.view.Renders<HtmlNode> {
 	public static inline function holdsText(el:HtmlNode):Bool
 		return false;
 
-	public static function setProperty(el:HtmlNode, name:String, value:Dynamic) {
+	public static function setProperty(el:HtmlNode, name:String, value:Null<Dynamic>) {
 		switch name {
 			case "innerHTML":
 				el.text = value == null ? "" : Std.string(value);

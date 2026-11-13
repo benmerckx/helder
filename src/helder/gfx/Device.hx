@@ -98,7 +98,7 @@ final class Device {
 	public var decodesImages(get, never):Bool;
 
 	inline function get_decodesImages()
-		return hxmc.unsafe.Mem.os() == 3;
+		return hxmc.Platform.os() == 3;
 
 	// the texture (RGBA8 or RGBA8Srgb, not a render target, the image's
 	// size) filled from a browser image (helder.image.WebImages' handle): at

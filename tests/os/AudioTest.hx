@@ -1,5 +1,6 @@
 import haxe.io.Bytes;
 import helder.os.audio.Audio;
+import hxmc.Platform;
 import hxmc.unsafe.*;
 
 // Audio output through each back end's real API, checked without speakers
@@ -52,12 +53,12 @@ class AudioTest {
 		if (produced >= wanted) {
 			// (then silence, until what was queued has played; once that is done,
 			// a sink that does not pace need not spin until the main thread sees it)
-			if (finished && Mem.os() != 3) Sys.sleep(0.001);
+			if (finished && Platform.os() != 3) Sys.sleep(0.001);
 			silence += frames;
 			if (silence >= out.latency * RATE + 2 * out.frames && !finished) {
 				finished = true;
 				// (the browser: no thread waits for the end, the callback reports)
-				if (Mem.os() == 3) end();
+				if (Platform.os() == 3) end();
 			}
 			return;
 		}
@@ -91,7 +92,7 @@ class AudioTest {
 		Sys.println('AudioTest: ${device == null ? "default" : device}: ${out.sampleRate} Hz, ${out.channels} channels, ${out.frames} frames a callback, latency ${Math.round(out.latency * 1000)} ms');
 		var t0 = Sys.time();
 		out.start();
-		if (Mem.os() == 3) return;
+		if (Platform.os() == 3) return;
 		var limit = wanted / RATE + out.latency + 10;
 		while (!finished && Sys.time() - t0 < limit)
 			Sys.sleep(0.01);

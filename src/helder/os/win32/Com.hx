@@ -13,6 +13,7 @@ class Com {
 #else
 import hxmc.unsafe.*;
 
+@:hxmc.unsafe(gc)
 class Com {
 	// the method at a slot of a COM object's vtable
 	public static inline function method(self:Ptr, slot:Int):Ptr
@@ -47,6 +48,7 @@ class Com {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IUnknown {
 	@:slot(0) static function QueryInterface(self:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(1) static function AddRef(self:Ptr):Int;

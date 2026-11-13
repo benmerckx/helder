@@ -9,6 +9,7 @@ import hxmc.unsafe.*;
 // its data the dispatcher's index here), the slots of an event read back.
 // recorder, when set, takes the requests instead of libwayland (the
 // bindings' unit test: Wayland.test.hx).
+@:hxmc.unsafe(gc)
 class Proxy {
 	public static var recorder:Null<(proxy:Ptr, opcode:Int, iface:Ptr, version:Int, flags:Int, args:Ptr<Int64>, count:Int) -> Ptr> = null;
 	static final dispatchers:Array<Null<Dispatcher>> = [null];

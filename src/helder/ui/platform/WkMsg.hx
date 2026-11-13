@@ -5,6 +5,7 @@ import hxmc.unsafe.*;
 // The message shapes AppleWebView sends beside Msg's (helder.os.objc.Sender):
 // named by the result (id, v: void, b: BOOL), then the arguments.
 @:build(helder.os.objc.Sender.build())
+@:hxmc.unsafe(gc)
 class WkMsg {
 	static function idPtrIntBool(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Bool):Ptr;
 	static function idPtrIntPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Ptr, d:Ptr):Ptr;

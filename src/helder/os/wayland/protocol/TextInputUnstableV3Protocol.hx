@@ -12,6 +12,7 @@ class TextInputUnstableV3Protocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract ZwpTextInputV3(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "zwp_text_input_v3";
 	public static inline var VERSION = 1;
@@ -96,6 +97,7 @@ abstract ZwpTextInputV3(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class ZwpTextInputV3Events implements Proxy.Dispatcher {
 	public var enter:Null<(surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface) -> Void> = null;
 	public var leave:Null<(surface:helder.os.wayland.protocol.WaylandProtocol.WlSurface) -> Void> = null;
@@ -155,6 +157,7 @@ enum abstract ZwpTextInputV3ContentPurpose(Int) from Int to Int {
 	var Terminal = 13;
 }
 
+@:hxmc.unsafe(gc)
 abstract ZwpTextInputManagerV3(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "zwp_text_input_manager_v3";
 	public static inline var VERSION = 1;

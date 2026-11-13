@@ -20,6 +20,7 @@ enum abstract SurfaceKind(Int) {
 	var Wayland;
 }
 
+@:hxmc.unsafe(gc)
 class Surface {
 	public final kind:SurfaceKind;
 	// X11: the Display*; Wayland: the wl_display*; Cocoa: the CAMetalLayer*; Win32: the HINSTANCE (or nil)

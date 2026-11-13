@@ -1,5 +1,7 @@
 package helder.os;
 
+import hxmc.Platform;
+
 import hxmc.unsafe.*;
 
 // The app registered as one that opens files of some types (the system's
@@ -13,10 +15,10 @@ import hxmc.unsafe.*;
 // written here. What it wrote: paths, or registry keys.
 class FileTypes {
 	public static function register(id:String, name:String, exe:String, types:Array<{mime:String, extensions:Array<String>}>):Array<String>
-		return if (Mem.os() == 2) windows(id, name, exe, types) else if (Mem.os() == 0 && Mem.target() < 9) linux(id, name, exe, types) else [];
+		return if (Platform.os() == 2) windows(id, name, exe, types) else if (Platform.os() == 0 && Platform.target() < 9) linux(id, name, exe, types) else [];
 
 	// (the registry's values under HKEY_CURRENT_USER, REG_SZ)
-	static function windows(id:String, name:String, exe:String, types:Array<{mime:String, extensions:Array<String>}>):Array<String> {
+	@:hxmc.unsafe(gc) static function windows(id:String, name:String, exe:String, types:Array<{mime:String, extensions:Array<String>}>):Array<String> {
 		var progId = id + ".file", base = "Software\\Classes\\", done = [];
 		function set(key:String, value:Null<String>, data:String)
 			Arena.scoped(a -> {

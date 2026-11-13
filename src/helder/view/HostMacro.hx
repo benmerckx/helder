@@ -315,7 +315,7 @@ class HostMacro {
 					var meta = l.feature == "" ? [] : [{name: ":ifFeature", params: [macro $v{l.feature}], pos: l.pos}];
 					var f = "m" + StringTools.hex(l.key);
 					own.push({name: f, access: [AStatic], meta: meta, pos: l.pos,
-						kind: FFun({args: [{name: "__h", type: macro :Array<Any>}, {name: "__p", type: n}, {name: "__b", type: macro :Null<$n>}, {name: "__o", type: macro :Null<Array<$n>>}],
+						kind: FFun({args: [{name: "__h", type: macro :Array<Null<Any>>}, {name: "__p", type: n}, {name: "__b", type: macro :Null<$n>}, {name: "__o", type: macro :Null<Array<$n>>}],
 							ret: macro :Void, expr: macro @:pos(l.pos) $b{decls.concat(code)}})});
 					own.push({name: "r" + StringTools.hex(l.key), access: [AStatic], meta: meta, pos: l.pos,
 						kind: FVar(macro :Bool, macro add($v{l.key}, $i{f}))});
@@ -344,33 +344,33 @@ class HostMacro {
 				meta: js ? [{name: ":noCompletion", pos: Context.currentPos()}] : [{name: ":keep", pos: Context.currentPos()}, {name: ":noCompletion", pos: Context.currentPos()}],
 				kind: TDClass(),
 				fields: js ? (macro class {
-					static var prev:Null<(Int, Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
-					static var table:Null<Map<Int, (Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>>;
+					static var prev:Null<(Int, Array<Null<Any>>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
+					static var table:Null<Map<Int, (Array<Null<Any>>, $n, Null<$n>, Null<Array<$n>>) -> Void>>;
 
 					static function __init__() {
 						prev = $p{rt}.late;
 						$p{rt}.late = mount;
 					}
 
-					static function add(k:Int, f:(Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void):Bool {
+					static function add(k:Int, f:(Array<Null<Any>>, $n, Null<$n>, Null<Array<$n>>) -> Void):Bool {
 						if (table == null) table = new Map();
 						table.set(k, f);
 						return true;
 					}
 
-					static function mount(__key:Int, __h:Array<Any>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void {
+					static function mount(__key:Int, __h:Array<Null<Any>>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void {
 						var f = table == null ? null : table.get(__key);
 						if (f != null) f(__h, __p, __b, __o) else if (prev != null) prev(__key, __h, __p, __b, __o) else throw "helder.view: no code for this markup (" + __key + ")";
 					}
 				}).fields.concat(own) : (macro class {
-					static var prev:Null<(Int, Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
+					static var prev:Null<(Int, Array<Null<Any>>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
 
 					static function __init__() {
 						prev = $p{rt}.late;
 						$p{rt}.late = mount;
 					}
 
-					static function mount(__key:Int, __h:Array<Any>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void
+					static function mount(__key:Int, __h:Array<Null<Any>>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void
 						$sw;
 				}).fields
 			}) catch (e:haxe.macro.Expr.Error) if (!StringTools.startsWith(e.message, "Cannot redefine module")) throw e;

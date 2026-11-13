@@ -35,6 +35,7 @@ import hxmc.unsafe.*;
 // it can (the panel has the focus). The inspector:
 // WebView.setWebContentsDebuggingEnabled where asked.
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class AndroidWebView implements PlatformWebView {
 	static final lock = new sys.thread.Mutex();
 	static final byId = new Map<Int, AndroidWebView>();

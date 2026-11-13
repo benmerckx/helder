@@ -44,10 +44,14 @@ class Dl {
 		loads.unshift(macro if (lib.isNull()) return "cannot load " + path);
 		loads.unshift(macro var lib = hxmc.unsafe.Arena.scopedValue(a -> hxmc.unsafe.Posix.dlopen(a.cstring(path), 2))); // (RTLD_NOW)
 		loads.push(macro return null);
+		// (a static Linux executable, musl's, has no dlopen: none loads there, a
+		// constant condition, so dlopen is not linked; its callers' fallbacks)
+		var body = macro if (hxmc.Platform.os() == hxmc.Platform.LINUX && hxmc.Platform.target() < 2)
+			return "cannot load " + path + " (a static executable: -D hxmc.libc=glibc loads shared libraries)" else $b{loads};
 		out.push({
 			name: "load",
 			access: [APublic, AStatic],
-			kind: FFun({args: [{name: "path", type: macro :String}], ret: macro :Null<String>, expr: macro $b{loads}}),
+			kind: FFun({args: [{name: "path", type: macro :String}], ret: macro :Null<String>, expr: body}),
 			pos: Context.currentPos()
 		});
 		return out;

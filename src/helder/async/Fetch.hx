@@ -20,7 +20,7 @@ class Fetch {
 		// (taken straight into the Bytes: no copy in between, no GC point)
 		var n = Web.fetch_length(h);
 		var b = Bytes.alloc(n);
-		take(h, b, n);
+		Web.fetch_take(h, hxmc.Span.ofBytes(b));
 		if (progress != null) progress(n, n);
 		return b;
 		#else
@@ -31,23 +31,20 @@ class Fetch {
 	}
 
 	#if (hxmc.target == "wasm32-wasi")
-	@:hxmc.unsafe static function take(h:Int, b:Bytes, n:Int)
-		Web.fetch_take(h, BytesPtr.of(b, 0, n));
-
-	// the same, in a buffer off the collected heap (the caller frees it): a
+	// the same, in a buffer off the collected heap (the caller closes it): a
 	// large file (an image to decode as a job) never on the collected heap
-	@:coroutine public static function buffer(path:String, ?progress:(loaded:Int, total:Int) -> Void):IoBuffer {
+	@:coroutine public static function buffer(path:String, ?progress:(loaded:Int, total:Int) -> Void):hxmc.Buffer {
 		var h = fetched(path, progress);
 		var n = Web.fetch_length(h);
-		var b = IoBuffer.alloc(n);
-		Web.fetch_take(h, b.ptr);
+		var b = new hxmc.Buffer(n);
+		Web.fetch_take(h, hxmc.Span.ofBuffer(b));
 		if (progress != null) progress(n, n);
 		return b;
 	}
 
 	// (the fetch's handle, its body here: helder.image's WebImages decodes it there)
 	@:noCompletion @:coroutine public static function fetched(path:String, progress:Null<(loaded:Int, total:Int) -> Void>):Int {
-		var h = Arena.scopedValue(a -> Web.fetch_start(a.cstring(path)));
+		var h = Web.fetch_start(path);
 		var told = 0;
 		var ok = Async.suspendCancellable(cont -> {
 			var done = false;

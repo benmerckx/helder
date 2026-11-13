@@ -173,7 +173,7 @@ class QuadBatch {
 	// (whether a and b have the same k bytes at offset o)
 	static inline function equal(a:Bytes, b:Bytes, o:Int, k:Int):Bool {
 		#if (target.name == "hxmc")
-		return hxmc.unsafe.LibC.memcmp(hxmc.unsafe.BytesPtr.of(a, o, k), hxmc.unsafe.BytesPtr.of(b, o, k), k) == 0;
+		return Compare.memcmp(hxmc.ReadOnlySpan.ofBytes(a, o, k), hxmc.ReadOnlySpan.ofBytes(b, o, k), k) == 0;
 		#else
 		return false;
 		#end
@@ -211,3 +211,12 @@ class QuadBatch {
 		capacity = indexQuads = 0;
 	}
 }
+
+#if (target.name == "hxmc")
+// (memcmp over spans: each read within its length, k checked against both)
+@:hxmc.c @:hxmc.fast @:hxmc.safe @:hxmc.header("string.h")
+private extern class Compare {
+	@:hxmc.len(a, n) @:hxmc.len(b, n)
+	static function memcmp(a:hxmc.ReadOnlySpan<hxmc.unsafe.UInt8>, b:hxmc.ReadOnlySpan<hxmc.unsafe.UInt8>, n:hxmc.I64):Int;
+}
+#end

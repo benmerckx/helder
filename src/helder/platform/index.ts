@@ -1,7 +1,7 @@
 // The platform a program is built for, as constants: helder's compiler
 // folds `platform.os`, `platform.target` and `platform.arm` where the
 // program is compiled (helder.typescript.lower.Platform), as Haxe's
-// `Mem.os()` and `Mem.target()` are, and a condition of them (===, !==, !,
+// `Platform.os()` and `Platform.target()` are, and a condition of them (===, !==, !,
 // && and ||) with them: an `if` or a `?:` on one lowers only the branch it
 // takes, so what only another platform's branch calls is not linked (Haxe's
 // `#if`):
@@ -14,7 +14,7 @@
 // platform is read by its fields only (it is no object at run time).
 
 // linux, macos, windows; wasi (WebAssembly, the browser's too), android
-// (os() is Linux's in Haxe: Mem.target() >= 9), ios (and its simulator)
+// (os() is Linux's in Haxe: Platform.target() >= 9), ios (and its simulator)
 export type Os = "linux" | "macos" | "windows" | "wasi" | "android" | "ios";
 
 // hxmc's target names

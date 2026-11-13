@@ -9,8 +9,10 @@ import hxmc.unsafe.*;
 @:hxmc.c @:hxmc.fast @:hxmc.lib("hxmc_text") extern class WebFontsImports {
 	static function font_count():Int;
 	static function font_size(i:Int):Int;
-	static function font_read(i:Int, p:Ptr):Void;
-	static function font_face(family:Ptr, weight:Int, italic:Int, p:Ptr, n:Int):Void;
+	// (safe: no more than buf's length, imports.mjs)
+	@:hxmc.safe static function font_read(i:Int, buf:hxmc.Span<UInt8>):Void;
+	// (the family a string copied for the call, the file a span: imports.mjs)
+	@:hxmc.safe static function font_face(family:String, weight:Int, italic:Int, buf:hxmc.ReadOnlySpan<UInt8>):Void;
 }
 
 class WebFonts {
@@ -20,10 +22,7 @@ class WebFonts {
 		for (i in 0...WebFontsImports.font_count()) {
 			var n = WebFontsImports.font_size(i);
 			var b = haxe.io.Bytes.alloc(n);
-			// (the Bytes cannot move during an import)
-			var p = BytesPtr.of(b, 0, n);
-			WebFontsImports.font_read(i, p);
-			BytesPtr.written(b, 0, p, n);
+			WebFontsImports.font_read(i, hxmc.Span.ofBytes(b));
 			out.push(b);
 		}
 		return out;
@@ -34,12 +33,8 @@ class WebFonts {
 	// the page too, as a FontFace: the page's own text fields
 	// (WebViews' editors) are set in it by its family's name
 	public static function face(f:FontFile) {
-		if (Mem.os() != 3) return;
-		var b = f.data;
-		Arena.scoped(a -> {
-			var p = BytesPtr.of(b, 0, b.length);
-			WebFontsImports.font_face(a.cstring(f.family), f.weight, f.italic ? 1 : 0, p, b.length);
-		});
+		if (hxmc.Platform.os() != hxmc.Platform.WASI) return;
+		WebFontsImports.font_face(f.family, f.weight, f.italic ? 1 : 0, hxmc.ReadOnlySpan.ofBytes(f.data));
 	}
 }
 #end

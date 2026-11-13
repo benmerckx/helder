@@ -28,6 +28,7 @@ import hxmc.unsafe.*;
 // In the browser the output starts at the page's first click or key (the
 // browsers' rule): a sound played before is lost. On phones the app's
 // lifecycle pauses the output (Audio.hold).
+@:hxmc.unsafe(gc)
 class Sfx {
 	public static inline var RATE = 48000;
 	public static inline var VOICES = 12;
