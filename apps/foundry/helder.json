@@ -4,11 +4,15 @@
   "description": "Make a font by drawing it: pen lines and outlines, letters borrowed from each other, open fonts to start from, the real font typed in as you draw.",
   "id": "build.helder.foundry",
   "version": "1.0",
+  "icon": "icon.svg",
   "run": {
     "name": "foundry",
     "listed": true,
     "kind": "tool",
-    "tags": ["fonts", "drawing"],
+    "tags": [
+      "fonts",
+      "drawing"
+    ],
     "source": "https://github.com/helder/helder/tree/main/apps/foundry"
   }
 }
