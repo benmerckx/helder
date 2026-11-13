@@ -171,7 +171,7 @@ class ImageView extends helder.ui.Node {
 	}
 
 	// (the shown decode's frame in the texture, its mip levels made)
-	function upload() {
+	@:hxmc.unsafe(gc) function upload() {
 		var d = viewer.shown;
 		if (d == null) return;
 		if (d == texShown && viewer.frame == texFrame) return;

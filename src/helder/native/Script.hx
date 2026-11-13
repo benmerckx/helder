@@ -6,6 +6,7 @@ package helder.native;
 // (doubles: an address of today's machines fits in their 53 bits), C's
 // memory malloc's. A program calls them through helder/native (native.string,
 // native.free...), the lowering for a call's arguments.
+@:hxmc.unsafe(gc)
 class Script {
 	// s as a NUL-terminated UTF-8 string in C's memory (free it), 0 for null
 	public static function cstring(s:Null<String>):Float {
@@ -228,6 +229,7 @@ class Script {
 // (JNI for Script on the calling thread: helder.os.android.Jni's helpers are
 // the activity's main thread's, the program runs on a thread of its own:
 // attached to the VM, its own JNIEnv; classes by FindClass, the system's)
+@:hxmc.unsafe(gc)
 private class ScriptJni {
 	static final classes = new Map<String, hxmc.unsafe.Ptr>();
 

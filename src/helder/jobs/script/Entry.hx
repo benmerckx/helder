@@ -25,7 +25,7 @@ class Entry {
 		return Interop.toJs(v);
 	}
 
-	@:hxmc.callback static function entry(p:hxmc.unsafe.Ptr):Int {
+	@:hxmc.unsafe(gc) @:hxmc.callback static function entry(p:hxmc.unsafe.Ptr):Int {
 		var job:helder.jobs.JobRecord = cast p;
 		return try {
 			var r = new Reader(job.input);

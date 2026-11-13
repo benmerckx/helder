@@ -16,6 +16,7 @@ import hxmc.unsafe.*;
 // or not (poll: what came, without waiting; callLater: a call whose reply is
 // not waited for), as a service answering in a program's loop does
 // (helder.ui's AT-SPI adapter, LinuxAccess).
+@:hxmc.unsafe(gc)
 class DBus {
 	public static inline var METHOD_CALL = 1;
 	public static inline var METHOD_RETURN = 2;

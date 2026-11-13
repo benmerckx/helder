@@ -18,6 +18,7 @@ import hxmc.unsafe.*;
 // AndroidWindow.pump hands them to. Enabled by a program that takes text
 // (enable: helder.ui's UiWindow does).
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class TextInput {
 	static final lock = new sys.thread.Mutex();
 	static var pending:Array<{kind:EventKind, text:String, caret:Int}> = [];

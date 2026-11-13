@@ -16,6 +16,7 @@ import hxmc.unsafe.*;
 // another. What runs there from the system's looper calls Java in a local
 // reference frame of its own (Jni).
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class MainThread {
 	static final lock = new sys.thread.Mutex();
 	static var tasks:Array<Void->Void> = [];

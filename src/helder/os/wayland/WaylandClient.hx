@@ -7,6 +7,7 @@ import hxmc.unsafe.*;
 // generated bindings make (marshalling by wl_argument arrays, one
 // dispatcher for every proxy). libwayland 1.20's wl_proxy_marshal_array_flags.
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class WaylandClient {
 	static function wl_display_connect(name:Ptr):Ptr;
 	static function wl_display_disconnect(d:Ptr):Void;
@@ -26,6 +27,7 @@ class WaylandClient {
 
 // libwayland-egl.so.1: an EGL window of a surface (EGLNativeWindowType on Wayland)
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class WaylandEgl {
 	static function wl_egl_window_create(surface:Ptr, width:Int, height:Int):Ptr;
 	static function wl_egl_window_resize(w:Ptr, width:Int, height:Int, dx:Int, dy:Int):Void;
@@ -35,6 +37,7 @@ class WaylandEgl {
 // libwayland-cursor.so.0: the cursor theme's images as wl_buffers (where
 // the compositor has no cursor-shape protocol)
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class WaylandCursor {
 	static function wl_cursor_theme_load(name:Ptr, size:Int, shm:Ptr):Ptr;
 	static function wl_cursor_theme_get_cursor(theme:Ptr, name:Ptr):Ptr;
@@ -43,6 +46,7 @@ class WaylandCursor {
 
 // libxkbcommon.so.0: the keymap the compositor sends, a key's KeySym and text
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Xkb {
 	static function xkb_context_new(flags:Int):Ptr;
 	static function xkb_keymap_new_from_string(ctx:Ptr, s:Ptr, format:Int, flags:Int):Ptr;

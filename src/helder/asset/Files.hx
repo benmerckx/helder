@@ -77,7 +77,7 @@ class Files {
 		#end
 	}
 
-	static function bundleBytes(key:String):Bytes {
+	@:hxmc.unsafe(gc) static function bundleBytes(key:String):Bytes {
 		#if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64")
 		var dir = haxe.io.Path.directory(Sys.programPath());
 		return try sys.io.File.getBytes(dir + "/" + AssetPath.bundled(key)) catch (e:Dynamic) throw 'helder.asset: $key not in the app ($dir)';
@@ -96,7 +96,7 @@ class Files {
 	#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
 	// f with the APK's file mapped (AASSET_MODE_BUFFER: the stored entry
 	// mapped in place), closed after
-	static function mapped(key:String, f:(Ptr, Int) -> Void) {
+	@:hxmc.unsafe(gc) static function mapped(key:String, f:(Ptr, Int) -> Void) {
 		var a = helder.os.android.Activity.activity;
 		var m = a.isNull() ? Ptr.nil() : Mem.getPtr(a, 64); // ANativeActivity.assetManager
 		if (m.isNull()) throw 'helder.asset: $key: no activity (Android\'s assets come with it)';
@@ -119,7 +119,7 @@ class Files {
 	// read-only data: hxmc's table, an offset from it and a length per
 	// resource, hxmc.rt.Bytes), after their header (Bundle's: its name, up to
 	// a byte 1)
-	static function mapped(key:String, f:(Ptr, Int) -> Void) {
+	@:hxmc.unsafe(gc) static function mapped(key:String, f:(Ptr, Int) -> Void) {
 		var ix = index;
 		if (ix == null) {
 			ix = new Map();

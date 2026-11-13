@@ -46,6 +46,7 @@ import hxmc.unsafe.*;
 // wait at most 10 ms while I/O or a post may come. While there are no frames
 // (Android and iOS in the background) the loop still turns; in the browser
 // the page turns it between frames too, and while a hidden tab has none.
+@:hxmc.unsafe(gc)
 class App {
 	public static var windows(default, null):Array<Window> = [];
 	static var running = false;

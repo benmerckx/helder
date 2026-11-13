@@ -41,6 +41,7 @@ import hxmc.unsafe.*;
 @:build(helder.dev.HostedMacro.shared(40, 8))
 #end
 @:hxmc.android @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class AndroidWindow {
 	static var current:Null<AndroidWindow> = null;
 	static var queue:Ptr = Ptr.nil();

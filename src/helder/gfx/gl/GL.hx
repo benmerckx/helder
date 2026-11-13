@@ -9,6 +9,7 @@ import hxmc.unsafe.*;
 // glGetString there). GLenum, GLuint, GLint, GLsizei are Int, GLsizeiptr
 // and GLintptr Int64, GLboolean Bool.
 @:build(helder.gfx.gl.Loader.build())
+@:hxmc.unsafe(gc)
 class GL {
 	public static inline var NO_ERROR = 0;
 	public static inline var COLOR_BUFFER_BIT = 0x4000;

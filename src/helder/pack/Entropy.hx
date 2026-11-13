@@ -8,6 +8,7 @@ import haxe.io.Bytes;
 // /dev/urandom (Linux's and macOS's; hxmc's static Linux runtime links no
 // getrandom or getentropy). Never a weaker fallback: without a source it
 // throws.
+@:hxmc.unsafe(gc)
 class Entropy {
 	public static function bytes(n:Int):Bytes {
 		#if (target.name == "hxmc")

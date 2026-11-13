@@ -5,7 +5,7 @@ import helder.test.Test;
 // ImageMemory: a decode's planes and pixels off the heap give the same
 // pixels as on it (JPEG, its EXIF turn too; lossy WebP; PNG), the result
 // taken, the rest freed
-function tests() {
+@:hxmc.unsafe(gc) function tests() {
 	describe("ImageMemory", () -> {
 		for (f in ["jpeg/large-420.jpg", "jpeg/orient6.jpg", "jpeg/progressive-420.jpg", "webp/lossy-alpha.webp", "png/rgb8.png"])
 			test('off the heap: $f as on it', () -> {

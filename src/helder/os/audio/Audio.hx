@@ -50,6 +50,7 @@ typedef AudioFill = (buffer:Ptr<Float32>, frames:Int) -> Void;
 // audio worklet has played a chunk, ahead of the output by `latency`; there
 // it may close the output.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class Audio {
 	public var sampleRate(default, null):Int;
 	public var channels(default, null):Int;

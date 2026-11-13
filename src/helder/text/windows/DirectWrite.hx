@@ -15,6 +15,7 @@ import helder.os.win32.Com;
 // unhinted, natural symmetric). Each face opened once from its file
 // (FontFile.path; a face from bytes stays helder's own). A file is named by
 // its local loader's path (IDWriteLocalFontFileLoader).
+@:hxmc.unsafe(gc)
 class DirectWrite implements TextBackend {
 	public static function create():Null<TextBackend> {
 		var out:Ptr<Ptr> = LibC.malloc(8);
@@ -295,10 +296,10 @@ class DirectWrite implements TextBackend {
 // text, length, locale, direction; sink: vtable, the first script
 // analysis, whether there was one).
 class Analysis {
-	static var sourceTable = Ptr.nil();
-	static var sinkTable = Ptr.nil();
+	@:hxmc.unsafe static var sourceTable = Ptr.nil();
+	@:hxmc.unsafe static var sinkTable = Ptr.nil();
 
-	public static function source(locale:Ptr):Ptr {
+	@:hxmc.unsafe(gc) public static function source(locale:Ptr):Ptr {
 		if (sourceTable.isNull()) {
 			var t:Ptr<Ptr> = LibC.malloc(8 * 8);
 			t[0] = Callback.addr(Analysis.qi);
@@ -320,14 +321,14 @@ class Analysis {
 		return cast o;
 	}
 
-	public static function reset(source:Ptr, text:Ptr, n:Int, rtl:Bool) {
+	@:hxmc.unsafe(gc) public static function reset(source:Ptr, text:Ptr, n:Int, rtl:Bool) {
 		var o:Ptr<Ptr> = cast source;
 		o[1] = text;
 		(cast source.add(16) : Ptr<Int32>).value = n;
 		(cast source.add(32) : Ptr<Int32>).value = rtl ? 1 : 0;
 	}
 
-	public static function sink():Ptr {
+	@:hxmc.unsafe(gc) public static function sink():Ptr {
 		if (sinkTable.isNull()) {
 			var t:Ptr<Ptr> = LibC.malloc(8 * 7);
 			t[0] = Callback.addr(Analysis.qi);
@@ -344,11 +345,11 @@ class Analysis {
 		return cast o;
 	}
 
-	public static function resetSink(sink:Ptr)
+	@:hxmc.unsafe(gc) public static function resetSink(sink:Ptr)
 		(cast sink.add(16) : Ptr<Int32>).value = 0;
 
 	// (the DWRITE_SCRIPT_ANALYSIS the sink was given)
-	public static inline function script(sink:Ptr):Ptr
+	@:hxmc.unsafe public static inline function script(sink:Ptr):Ptr
 		return sink.add(8);
 
 	// The methods: checked kernels over the objects' own memory, a span of
@@ -428,6 +429,7 @@ class Analysis {
 
 // (the interfaces' vtables: IUnknown 0-2, then each base's methods, in the headers' order)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFactory {
 	@:slot(3) static function GetSystemFontCollection(self:Ptr, out:Ptr<Ptr>, check:Int):Int;
 	@:slot(7) static function CreateFontFileReference(self:Ptr, path:Ptr, time:Ptr, out:Ptr<Ptr>):Int;
@@ -440,6 +442,7 @@ class IDWriteFactory {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFontFile {
 	@:slot(3) static function GetReferenceKey(self:Ptr, key:Ptr<Ptr>, size:Ptr):Int;
 	@:slot(4) static function GetLoader(self:Ptr, out:Ptr<Ptr>):Int;
@@ -447,40 +450,47 @@ class IDWriteFontFile {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteLocalFontFileLoader {
 	@:slot(4) static function GetFilePathLengthFromKey(self:Ptr, key:Ptr, size:Int, len:Ptr):Int;
 	@:slot(5) static function GetFilePathFromKey(self:Ptr, key:Ptr, size:Int, path:Ptr, len:Int):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFontFace {
 	@:slot(4) static function GetFiles(self:Ptr, n:Ptr, files:Ptr<Ptr>):Int;
 	@:slot(5) static function GetIndex(self:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFont {
 	@:slot(13) static function CreateFontFace(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFontCollection {
 	@:slot(4) static function GetFontFamily(self:Ptr, index:Int, out:Ptr<Ptr>):Int;
 	@:slot(5) static function FindFamilyName(self:Ptr, name:Ptr, index:Ptr, exists:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFontFamily {
 	@:slot(7) static function GetFirstMatchingFont(self:Ptr, weight:Int, stretch:Int, style:Int, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteFontFallback {
 	@:slot(3) static function MapCharacters(self:Ptr, source:Ptr, pos:Int, len:Int, collection:Ptr, family:Ptr, weight:Int, style:Int, stretch:Int, mapped:Ptr,
 		font:Ptr<Ptr>, scale:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteTextAnalyzer {
 	@:slot(3) static function AnalyzeScript(self:Ptr, source:Ptr, pos:Int, len:Int, sink:Ptr):Int;
 	@:slot(7) static function GetGlyphs(self:Ptr, text:Ptr, len:Int, face:Ptr, sideways:Int, rtl:Int, script:Ptr, locale:Ptr, numbers:Ptr, features:Ptr,
@@ -490,6 +500,7 @@ class IDWriteTextAnalyzer {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IDWriteGlyphRunAnalysis {
 	@:slot(3) static function GetAlphaTextureBounds(self:Ptr, type:Int, rect:Ptr):Int;
 	@:slot(4) static function CreateAlphaTexture(self:Ptr, type:Int, rect:Ptr, buffer:Ptr, size:Int):Int;

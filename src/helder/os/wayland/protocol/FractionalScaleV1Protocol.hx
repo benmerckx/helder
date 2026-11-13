@@ -12,6 +12,7 @@ class FractionalScaleV1Protocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract WpFractionalScaleManagerV1(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wp_fractional_scale_manager_v1";
 	public static inline var VERSION = 1;
@@ -47,6 +48,7 @@ enum abstract WpFractionalScaleManagerV1Error(Int) from Int to Int {
 	var FractionalScaleExists = 0;
 }
 
+@:hxmc.unsafe(gc)
 abstract WpFractionalScaleV1(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "wp_fractional_scale_v1";
 	public static inline var VERSION = 1;
@@ -72,6 +74,7 @@ abstract WpFractionalScaleV1(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class WpFractionalScaleV1Events implements Proxy.Dispatcher {
 	public var preferredScale:Null<(scale:Int) -> Void> = null;
 

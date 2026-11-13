@@ -15,6 +15,7 @@ import hxmc.unsafe.*;
 // ImageLimits is checked on the size each reports before it decodes a
 // pixel (HEIF's and AVIF's from the file's ispe boxes, before libavif
 // reads it). Pixels: RGBA8, straight alpha, upright.
+@:hxmc.unsafe(gc)
 class LinuxImages {
 	static final state = new Map<String, Int>(); // (1: loaded, -1: absent)
 
@@ -239,6 +240,7 @@ class LinuxImages {
 }
 
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Tiff {
 	static function TIFFOpen(path:Ptr, mode:Ptr):Ptr;
 	static function TIFFClose(t:Ptr):Void;
@@ -251,6 +253,7 @@ class Tiff {
 
 // (struct heif_error returns as two words: its code and subcode the first)
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Heif {
 	static function heif_init(params:Ptr):hxmc.I64;
 	static function heif_have_decoder_for_format(format:Int):Int;
@@ -269,6 +272,7 @@ class Heif {
 }
 
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Avif {
 	static function avifDecoderCreate():Ptr;
 	static function avifDecoderDestroy(d:Ptr):Void;
@@ -282,6 +286,7 @@ class Avif {
 }
 
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class Raw {
 	static function libraw_init(flags:Int):Ptr;
 	static function libraw_open_file(lr:Ptr, path:Ptr):Int;

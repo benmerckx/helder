@@ -13,6 +13,7 @@ import hxmc.unsafe.Ptr;
 // loop; done there, it resumes the task, or frees what it made when the task
 // was cancelled meanwhile.
 @:allow(helder.jobs)
+@:hxmc.unsafe(gc)
 class Run implements IDispatchObject {
 	static var nextId = 1;
 

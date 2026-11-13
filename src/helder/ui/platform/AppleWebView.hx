@@ -29,6 +29,7 @@ import hxmc.unsafe.*;
 // setInspectable: (iOS 16.4, macOS 13.3) where asked. Zoom off: the
 // viewport's user-scalable=no and the scroll view's zoom scales at 1. The
 // events wait for poll (the main thread is the program's here).
+@:hxmc.unsafe(gc)
 class AppleWebView implements PlatformWebView {
 	static var delegateClass = Ptr.nil();
 	static var delegate = Ptr.nil();

@@ -15,6 +15,7 @@ import sys.thread.Thread;
 // is given, written to PATH as it is: raw floats); neither paces: writes
 // return at once.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class AlsaOutput {
 	static var loaded:Null<String>;
 

@@ -12,6 +12,7 @@ class XdgDecorationUnstableV1Protocol {
 	];
 }
 
+@:hxmc.unsafe(gc)
 abstract ZxdgDecorationManagerV1(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "zxdg_decoration_manager_v1";
 	public static inline var VERSION = 1;
@@ -43,6 +44,7 @@ abstract ZxdgDecorationManagerV1(Ptr) from Ptr to Ptr {
 	}
 }
 
+@:hxmc.unsafe(gc)
 abstract ZxdgToplevelDecorationV1(Ptr) from Ptr to Ptr {
 	public static inline var NAME = "zxdg_toplevel_decoration_v1";
 	public static inline var VERSION = 1;
@@ -83,6 +85,7 @@ abstract ZxdgToplevelDecorationV1(Ptr) from Ptr to Ptr {
 		return Proxy.listen(this, e);
 }
 
+@:hxmc.unsafe(gc)
 class ZxdgToplevelDecorationV1Events implements Proxy.Dispatcher {
 	public var configure:Null<(mode:Int) -> Void> = null;
 

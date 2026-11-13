@@ -22,6 +22,7 @@ import sys.thread.Thread;
 // it waits for a period in the ring rather than render silence, so the
 // file holds what the callback gave, whatever the machine's load.
 @:allow(helder.os.audio)
+@:hxmc.unsafe(gc)
 class CoreAudioOutput {
 	// the ring's header (native memory, the render callback's refCon)
 	static inline var DATA = 0; // Ptr<Float32>

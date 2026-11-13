@@ -31,6 +31,7 @@ import hxmc.unsafe.*;
 // property changes (name, help text, toggle and expand states, selection,
 // values, enabled), ElementSelected, a text's TextChanged and
 // TextSelectionChanged, a live region's LiveRegionChanged.
+@:hxmc.unsafe(gc)
 class WinAccess {
 	static inline var SLOTS = 16;
 	static inline var BLOCK = 16 * SLOTS + 16;
@@ -1229,6 +1230,7 @@ class WinAccess {
 
 // IAccPropServices (oleacc): an HWND's MSAA property set (the GUID by address: Windows x64 passes it so)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class AccProps {
 	@:slot(7) static function SetHwndPropStr(o:Ptr, hwnd:Ptr, idObject:Int, idChild:Int, prop:Ptr, s:Ptr):Int;
 }

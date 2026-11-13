@@ -173,7 +173,7 @@ class JobsWork {
 		return Bytes.ofString(s);
 	}
 
-	public static function reverse(p:{buffer:IoBuffer, tag:Int}):IoBuffer {
+	@:hxmc.unsafe(gc) public static function reverse(p:{buffer:IoBuffer, tag:Int}):IoBuffer {
 		var n = p.buffer.length, out = IoBuffer.alloc(n + 1);
 		for (i in 0...n)
 			out.set(i, p.buffer.get(n - 1 - i));

@@ -54,7 +54,7 @@ class WebJobs {
 	public static inline function inWorker():Bool
 		return JobsHost.worker() == 1;
 
-	static function submit(r:Run):Bool {
+	@:hxmc.unsafe(gc) static function submit(r:Run):Bool {
 		if (workers == -2) workers = JobsHost.start(Callback.addr(arrived), Jobs.workers);
 		if (workers <= 0 || Jobs.workers == 0) return false;
 		runs.set(r.id, r);
@@ -74,7 +74,7 @@ class WebJobs {
 	}
 
 	// (the page: a job's result, a channel's message or close)
-	@:hxmc.callback static function arrived(kind:Int, id:Int, status:Int, n:Int):Int {
+	@:hxmc.unsafe(gc) @:hxmc.callback static function arrived(kind:Int, id:Int, status:Int, n:Int):Int {
 		var b:IoBuffer = cast Ptr.nil();
 		if (n >= 0) {
 			b = IoBuffer.alloc(n);
@@ -95,7 +95,7 @@ class WebJobs {
 	}
 
 	// (a worker's: one job, its input copied in, its output copied out)
-	@:hxmc.callback static function execute(fn:Int, n:Int):Int {
+	@:hxmc.unsafe(gc) @:hxmc.callback static function execute(fn:Int, n:Int):Int {
 		var input:IoBuffer = cast Ptr.nil();
 		if (n >= 0) {
 			input = IoBuffer.alloc(n);

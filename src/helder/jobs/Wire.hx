@@ -10,6 +10,7 @@ import hxmc.unsafe.Ptr;
 // input and result, a channel's messages): written into an IoBuffer, read
 // from one. Little-endian; a String as UTF-8. An IoBuffer moves: natively
 // its address, in a browser's worker its bytes (the sender's freed).
+@:hxmc.unsafe(gc)
 class Writer {
 	var buf:Ptr;
 	var cap:Int;
@@ -106,6 +107,7 @@ class Writer {
 	}
 }
 
+@:hxmc.unsafe(gc)
 class Reader {
 	final buf:IoBuffer;
 	var pos = 0;

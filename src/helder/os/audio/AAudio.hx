@@ -7,6 +7,7 @@ import hxmc.unsafe.*;
 // needs. Builders and streams are Ptr; results are aaudio_result_t (0 OK,
 // negative an error: AAudio_convertResultToText names it).
 @:build(helder.os.Dl.build())
+@:hxmc.unsafe(gc)
 class AAudio {
 	static function AAudio_createStreamBuilder(builder:Ptr<Ptr>):Int;
 	static function AAudio_convertResultToText(result:Int):CString;

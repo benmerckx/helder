@@ -8,6 +8,7 @@ import hxmc.Platform;
 // dialog: GTK's, KDE's). The path picked; null when cancelled or when the
 // system has none to show (no portal, the browser, phones: the caller's own
 // picker then: available says beforehand where it is known).
+@:hxmc.unsafe(gc)
 class FileDialog {
 	public static function open(window:Window, title:String, filters:Array<{name:String, extensions:Array<String>}>):Null<String>
 		// (a headless run: the script's answer, helder.headless)

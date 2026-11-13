@@ -88,7 +88,7 @@ class ChannelBase {
 	}
 
 	// (a message, from any thread)
-	function push(b:IoBuffer) {
+	@:hxmc.unsafe(gc) function push(b:IoBuffer) {
 		#if (hxmc.target == "wasm32-wasi")
 		if (loop == null) {
 			WebJobs.JobsHost.send(id, b.ptr, b.length);
@@ -149,7 +149,7 @@ class ChannelBase {
 	}
 
 	// (the page: a worker's message, a close)
-	static function deliver(id:Int, b:IoBuffer) {
+	@:hxmc.unsafe(gc) static function deliver(id:Int, b:IoBuffer) {
 		var c = find(id);
 		if (c == null) {
 			if (!(cast b : Ptr).isNull()) b.free();

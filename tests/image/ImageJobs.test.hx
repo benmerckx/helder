@@ -9,7 +9,7 @@ import helder.test.Test;
 // against the pixels tests/image/png-cases.mjs wrote, as ImageTest checks
 // PngDecoder's: natively and on wasm32-wasi (`bun run helder test
 // tests/image --target host,wasm`).
-function tests() {
+@:hxmc.unsafe(gc) function tests() {
 	describe("ImageJobs", () -> {
 		var dir = "tests/image/png";
 		var names = [for (f in sys.FileSystem.readDirectory(dir)) if (StringTools.endsWith(f, ".png")) f.substr(0, f.length - 4)];

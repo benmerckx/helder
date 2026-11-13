@@ -15,6 +15,7 @@ import hxmc.unsafe.*;
 // over (its input method and contexts closed) and taken by the next, at the
 // size the window has.
 @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class X11Window {
 	static var display = Ptr.nil();
 	static var wmDelete:Int64 = 0;

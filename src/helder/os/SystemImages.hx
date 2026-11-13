@@ -19,6 +19,7 @@ import hxmc.unsafe.*;
 // (helder.os.linux.LinuxImages; none: supports() false for its formats).
 // ImageLimits is checked on the size the system reports, before any pixel
 // is decoded. The rest: none. Pixels: RGBA8, straight alpha, upright.
+@:hxmc.unsafe(gc)
 class SystemImages {
 	// the extensions it may read where there are system decoders
 	public static final EXTENSIONS = ["tif", "tiff", "heic", "heif", "avif", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2"];
@@ -241,33 +242,39 @@ class SystemImages {
 
 // (WIC's interfaces: IUnknown 0-2, then each's own, in the headers' order)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICImagingFactory {
 	@:slot(3) static function CreateDecoderFromFilename(self:Ptr, name:Ptr, vendor:Ptr, access:Int, options:Int, out:Ptr<Ptr>):Int;
 	@:slot(10) static function CreateFormatConverter(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICBitmapDecoder {
 	@:slot(13) static function GetFrame(self:Ptr, index:Int, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICBitmapFrameDecode {
 	@:slot(8) static function GetMetadataQueryReader(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICMetadataQueryReader {
 	@:slot(5) static function GetMetadataByName(self:Ptr, name:Ptr, value:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICBitmapSource {
 	@:slot(3) static function GetSize(self:Ptr, w:Ptr, h:Ptr):Int;
 	@:slot(7) static function CopyPixels(self:Ptr, rect:Ptr, stride:Int, size:Int, buffer:Ptr):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IWICFormatConverter {
 	@:slot(8) static function Initialize(self:Ptr, source:Ptr, format:Ptr, dither:Int, palette:Ptr, alpha:Float, paletteType:Int):Int;
 }
@@ -279,6 +286,7 @@ class IWICFormatConverter {
 	static function CGImageSourceCreateThumbnailAtIndex(src:Ptr, index:hxmc.I64, options:Ptr):Ptr;
 }
 
+@:hxmc.unsafe(gc)
 @:hxmc.c @:hxmc.lib("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics") extern class CG {
 	static function CGImageGetWidth(img:Ptr):hxmc.I64;
 	static function CGImageGetHeight(img:Ptr):hxmc.I64;

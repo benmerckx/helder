@@ -220,7 +220,7 @@ class Image {
 	// the collected heap, freed after, so that a large image's upload leaves
 	// no garbage of its size (on WebAssembly the heap's memory, grown for
 	// it, is never given back)
-	public function premultiplied(use:Bytes->Void) {
+	@:hxmc.unsafe(gc) public function premultiplied(use:Bytes->Void) {
 		var px = pixels, n = width * height;
 		#if (target.name == "hxmc")
 		var buf = hxmc.unsafe.IoBuffer.alloc(n * 4), pre = buf.view();

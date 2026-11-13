@@ -68,6 +68,7 @@ typedef SurfaceProps = {
 //
 // In a page's markup (helder.web's DOM or static renderer) a <Surface> is
 // helder.web's: a canvas running a wasm program whose root is this one.
+@:hxmc.unsafe(gc)
 class UiWindow {
 	public final window:helder.os.Window;
 	public final device:Device;
@@ -615,6 +616,7 @@ class SystemClipboard implements ClipboardHost {
 
 // the browser's accessibility mirror (WebAccess), apart: its imports are
 // reached only from the browser's branches
+@:hxmc.unsafe(gc)
 class WebMirror {
 	public static function views(canvas:Int):PlatformViews
 		return new WebViews(canvas);

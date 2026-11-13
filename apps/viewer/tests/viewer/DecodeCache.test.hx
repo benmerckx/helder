@@ -78,7 +78,7 @@ function tests() {
 			var c = new DecodeCache((path, side, done) -> {
 				sides.push(side);
 				var w = side == 0 ? 1000 : side;
-				done({width: 1000, height: 1000, pixelsWidth: w, pixelsHeight: w, frames: [{pixels: hxmc.unsafe.IoBuffer.alloc(16), delay: 0.0}], repetitions: 0, format: "JPEG", fileSize: 1, page: 0, pages: 1, error: null, errorKind: ""});
+				done({width: 1000, height: 1000, pixelsWidth: w, pixelsHeight: w, frames: [{pixels: @:hxmc.unsafe hxmc.unsafe.IoBuffer.alloc(16), delay: 0.0}], repetitions: 0, format: "JPEG", fileSize: 1, page: 0, pages: 1, error: null, errorKind: ""});
 			}, 1000);
 			c.side = 250;
 			c.want(["a"]);
@@ -103,7 +103,7 @@ function tests() {
 	});
 }
 
-private function image(bytes:Int):Decoded
+@:hxmc.unsafe(gc) private function image(bytes:Int):Decoded
 	return {
 		width: 1, height: 1, pixelsWidth: 1, pixelsHeight: 1, frames: [{pixels: hxmc.unsafe.IoBuffer.alloc(bytes), delay: 0.0}], repetitions: 0,
 		format: "PNG", fileSize: bytes, page: 0, pages: 1, error: null, errorKind: ""

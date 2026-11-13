@@ -58,7 +58,7 @@ class Jobs {
 		return #if (hxmc.target == "wasm32-wasi") WebJobs.inWorker() #else hxmc.NativeThread.current() != 1 #end;
 
 	// (a GC-free job's run: by its address)
-	@:coroutine public static function runFree(fn:Ptr, input:IoBuffer):IoBuffer {
+	@:hxmc.unsafe(gc) @:coroutine public static function runFree(fn:Ptr, input:IoBuffer):IoBuffer {
 		var r = Run.await(fn, true, input);
 		var out = r.output;
 		r.output = cast Ptr.nil();
@@ -67,21 +67,21 @@ class Jobs {
 
 	// (a GC job: its input written, its result's bytes, read where it was
 	// run: a closure could not return a struct as a type parameter's value)
-	@:coroutine public static function runGc(fn:Ptr, input:IoBuffer):IoBuffer {
+	@:hxmc.unsafe(gc) @:coroutine public static function runGc(fn:Ptr, input:IoBuffer):IoBuffer {
 		var r = Run.await(fn, false, input);
 		var out = r.output;
 		r.output = cast Ptr.nil();
 		return out;
 	}
 
-	@:coroutine public static function runGcVoid(fn:Ptr, input:IoBuffer):Void {
+	@:hxmc.unsafe(gc) @:coroutine public static function runGcVoid(fn:Ptr, input:IoBuffer):Void {
 		var r = Run.await(fn, false, input);
 		free(r.output);
 		r.output = cast Ptr.nil();
 	}
 
 	// (a GC job's wrapper: an exception as the run's error, its message the output)
-	public static function failed(job:JobRecord, e:Dynamic):Int {
+	@:hxmc.unsafe(gc) public static function failed(job:JobRecord, e:Dynamic):Int {
 		var m = e is haxe.Exception ? (e : haxe.Exception).message : Std.string(e);
 		var w = new Writer();
 		w.string(m);
@@ -89,7 +89,7 @@ class Jobs {
 		return -1;
 	}
 
-	public static inline function free(b:IoBuffer)
+	@:hxmc.unsafe(gc) public static inline function free(b:IoBuffer)
 		if (!(cast b : Ptr).isNull()) b.free();
 
 	// (the size the pool will be: workers, else the cores but one)

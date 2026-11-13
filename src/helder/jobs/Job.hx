@@ -60,6 +60,6 @@ import hxmc.unsafe.UInt8;
 		if (!b.isNull() && n >= 0 && n <= Mem.getI32(b, 12)) Buffers.header(b, n);
 	}
 
-	inline function record():Ptr
+	@:hxmc.unsafe inline function record():Ptr
 		return Ptr.ofI64(this);
 }

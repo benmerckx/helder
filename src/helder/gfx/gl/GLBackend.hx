@@ -29,6 +29,7 @@ import hxmc.unsafe.*;
 // first row is the image's top as elsewhere (u_target, set when a pipeline
 // is; the front faces turn clockwise there). A pass into a texture renders
 // into one framebuffer object, attached anew when the textures change.
+@:hxmc.unsafe(gc)
 class GLBackend {
 	public final backend = Platform.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;

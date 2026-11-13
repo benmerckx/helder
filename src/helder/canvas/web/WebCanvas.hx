@@ -14,6 +14,7 @@ import helder.canvas.Gradient;
 // OffscreenCanvas of the page's (a handle); layers are canvases of their
 // own composited at restore; gradients and patterns are made by the page
 // from the commands (a bitmap uploaded once, a handle).
+@:hxmc.unsafe(gc)
 class WebCanvas implements Painter implements GlyphCache implements HandleImages {
 	public var width(default, null):Int;
 	public var height(default, null):Int;

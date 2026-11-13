@@ -1,13 +1,16 @@
 # hxmc.unsafe in helder.image, reviewed (tests/image/unsafe.mjs checks the code
 # against it in the image lane). Each line: the file, the line's code, then
 # after " # " why it stays (a line without its reason fails).
+src/helder/image/Image.hx: @:hxmc.unsafe(gc) public function premultiplied(use:Bytes->Void) {  # trusted: its copy is an IoBuffer's view (a Bytes for use), which no safe buffer gives
 src/helder/image/Image.hx: var buf = hxmc.unsafe.IoBuffer.alloc(n * 4), pre = buf.view();  # premultiplied's upload copy off the GC heap (no garbage of an image's size), freed on every path, the throw's too
 src/helder/image/ImageJobs.hx: import hxmc.unsafe.IoBuffer;  # the job's input and output buffers
 src/helder/image/ImageJobs.hx: import hxmc.unsafe.UInt8;  # the spans' element type
+src/helder/image/ImageJobs.hx: @:hxmc.unsafe(gc) @:coroutine public static function pixels(file:IoBuffer):{width:Int, height:Int, rgba:IoBuffer} {  # trusted: its input and the pixels it returns are IoBuffers (the jobs' buffers, moved between threads)
 src/helder/image/ImageMemory.hx: final buffers:Array<hxmc.unsafe.IoBuffer> = [];  # a decode's buffers off the heap, each freed by free() or handed to the caller by keep()
+src/helder/image/ImageMemory.hx: @:hxmc.unsafe(gc) public function bytes(n:Int):Bytes {  # trusted: the decoders' Bytes is an IoBuffer's view
 src/helder/image/ImageMemory.hx: var b = hxmc.unsafe.IoBuffer.alloc(n), v = b.view();  # zeroed, its view a Bytes the decoders use as any (its accesses checked); only with offHeapMemory()
-src/helder/image/ImageMemory.hx: public function take(v:Bytes):hxmc.unsafe.IoBuffer {  # the result's buffer moved to the caller, who frees it
+src/helder/image/ImageMemory.hx: @:hxmc.unsafe(gc) public function take(v:Bytes):hxmc.unsafe.IoBuffer {  # the result's buffer moved to the caller, who frees it
 src/helder/image/ImageMemory.hx: if (i < 0) return hxmc.unsafe.IoBuffer.ofBytes(v);  # (a result not of this memory: copied off the heap, the caller's to free)
+src/helder/image/ImageMemory.hx: @:hxmc.unsafe(gc) public function free() {  # trusted: the buffers under its views freed
 src/helder/image/PngCore.hx: import hxmc.unsafe.UInt8;  # the spans' element type
-src/helder/image/PngDecoder.hx: var b = hxmc.unsafe.IoBuffer.alloc(len);  # the rows decoded beside the pixels off the GC heap (PngCore's buffer, as a span), freed after
 src/helder/image/WebImages.hx: import hxmc.unsafe.UInt8;  # the spans' element type (the browser decoder's imports take a file as a span: wasm32 only)

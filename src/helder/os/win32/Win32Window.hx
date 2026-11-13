@@ -28,6 +28,7 @@ import hxmc.unsafe.*;
 // button (HTMAXBUTTON: Windows 11's snap layouts over it, its presses
 // taken here); the app draws the buttons (helder.ui's WindowControls).
 @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class Win32Window {
 	static var instance = Ptr.nil(); // the HINSTANCE
 	static var className = Ptr.nil(); // UTF-16, kept for the process

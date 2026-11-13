@@ -11,6 +11,7 @@ import hxmc.unsafe.*;
 // suggestions by Suggest (an IEnumString), a word added by Add (the user's
 // dictionary, which the checker reads again later) and Ignore (right at once). No factory (Wine, older systems) or no checker for the
 // language nor English: null.
+@:hxmc.unsafe(gc)
 class WinSpell implements SpellChecker {
 	static final CLSID_FACTORY = Com.guid(0x7AB36653, 0x1796, 0x484B, [0xBD, 0xFA, 0xE7, 0x4F, 0x1D, 0xB7, 0xC1, 0xDC]);
 	static final IID_FACTORY = Com.guid(0x8E018A9D, 0x2415, 0x4677, [0xBF, 0x08, 0x79, 0x4E, 0xA6, 0x1F, 0x94, 0xBB]);
@@ -120,6 +121,7 @@ class WinSpell implements SpellChecker {
 
 // (IUnknown's three, then get_SupportedLanguages, IsSupported, CreateSpellChecker)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ISpellCheckerFactory {
 	@:slot(4) static function IsSupported(self:Ptr, tag:Ptr, out:Ptr<Int32>):Int;
 	@:slot(5) static function CreateSpellChecker(self:Ptr, tag:Ptr, out:Ptr<Ptr>):Int;
@@ -127,6 +129,7 @@ class ISpellCheckerFactory {
 
 // (get_LanguageTag 3, Check 4, Suggest 5, Add 6, Ignore 7, AutoCorrect 8, ...)
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class ISpellChecker {
 	@:slot(4) static function Check(self:Ptr, text:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(5) static function Suggest(self:Ptr, word:Ptr, out:Ptr<Ptr>):Int;
@@ -135,11 +138,13 @@ class ISpellChecker {
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IEnumSpellingError {
 	@:slot(3) static function Next(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 @:build(helder.os.win32.Com.build())
+@:hxmc.unsafe(gc)
 class IEnumString {
 	@:slot(3) static function Next(self:Ptr, count:Int, out:Ptr<Ptr>, fetched:Ptr<Int32>):Int;
 }

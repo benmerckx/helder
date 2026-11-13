@@ -15,6 +15,7 @@ import hxmc.unsafe.*;
 // waited for (drain), so that it never calls into a library gone.
 // Statics without initializers, plain stores: nothing allocated a frame.
 @:hxmc.android
+@:hxmc.unsafe(gc)
 class Vsync {
 	static var choreographer:Ptr;
 	// asked for, not come yet; come, its frame not drawn yet (1: yes)

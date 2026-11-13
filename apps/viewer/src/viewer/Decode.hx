@@ -65,7 +65,7 @@ class Decode {
 	}
 
 	// a PDF's page (helder.pdf, PdfPages: the document kept open for its next pages)
-	static function pdf(path:Null<String>, bytes:Null<Bytes>, page:Int, side:Int, size:Int):Decoded {
+	@:hxmc.unsafe(gc) static function pdf(path:Null<String>, bytes:Null<Bytes>, page:Int, side:Int, size:Int):Decoded {
 		return try {
 			var p = PdfPages.render(path, bytes, page, side);
 			var mem = ImageMemory.offHeapMemory();
@@ -100,7 +100,7 @@ class Decode {
 	}
 
 	// (helder.os's SystemImages: WIC, ImageIO; ImageLimits before any pixel; upright, scaled where the system scales)
-	static function system(path:String, side:Int, size:Int):Decoded {
+	@:hxmc.unsafe(gc) static function system(path:String, side:Int, size:Int):Decoded {
 		var ext = path.substr(path.lastIndexOf(".") + 1).toUpperCase();
 		var format = ext == "TIF" ? "TIFF" : ext == "HEIF" ? "HEIC" : ext;
 		return try {
@@ -160,7 +160,7 @@ class Decode {
 		return try helder.jobs.Jobs.job(file).run({path: path, side: side}) catch (e:Dynamic) failed("corrupt", "The decode failed: " + Std.string(e), bytes.length, formatOf(bytes));
 	}
 
-	public static function decode(bytes:Bytes, side = 0):Decoded {
+	@:hxmc.unsafe(gc) public static function decode(bytes:Bytes, side = 0):Decoded {
 		var format = formatOf(bytes);
 		if (bytes.length == 0) return failed("corrupt", "The file is empty", 0, "");
 		if (format == "") return failed("unsupported", "Not an image this viewer reads (PNG, JPEG, GIF, WebP, PDF" + (helder.os.SystemImages.available() ? "; the system's: TIFF, HEIC, AVIF, RAW" : "") + ")", bytes.length, "");
@@ -306,7 +306,7 @@ class Decode {
 		return Resize.half(src, w, h, mem);
 
 	// the bytes a decoded image holds
-	public static function bytesOf(d:Decoded):Float {
+	@:hxmc.unsafe(gc) public static function bytesOf(d:Decoded):Float {
 		var n = 0.0;
 		for (f in d.frames)
 			n += f.pixels.length;
@@ -314,7 +314,7 @@ class Decode {
 	}
 
 	// its pixels freed (the cache let it go)
-	public static function release(d:Decoded) {
+	@:hxmc.unsafe(gc) public static function release(d:Decoded) {
 		for (f in d.frames)
 			f.pixels.free();
 		d.frames = [];

@@ -20,6 +20,7 @@ import helder.os.objc.CGPoint;
 // (anti-aliased, not smoothed: grayscale coverage). Faces are made from
 // their files (CTFontManagerCreateFontDescriptorsFromURL, the face's
 // index), else from their bytes (...FromData), once each.
+@:hxmc.unsafe(gc)
 class CoreText implements TextBackend {
 	public static function create():Null<TextBackend>
 		return new CoreText();

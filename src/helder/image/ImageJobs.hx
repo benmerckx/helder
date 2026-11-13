@@ -51,7 +51,7 @@ class ImageJobs {
 	// bottom, straight alpha, in an IoBuffer the caller frees; its header's
 	// errors and ImageLimits' thrown here (ImageError), the data's as a
 	// JobError (PngCore's code, PngDecoder's message; decode: an ImageError)
-	@:coroutine public static function pixels(file:IoBuffer):{width:Int, height:Int, rgba:IoBuffer} {
+	@:hxmc.unsafe(gc) @:coroutine public static function pixels(file:IoBuffer):{width:Int, height:Int, rgba:IoBuffer} {
 		var info = Bytes.alloc(PngCore.INFO);
 		var e = PngCore.info(ReadOnlySpan.ofIoBuffer(file), Span.ofBytes(info));
 		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);

@@ -11,7 +11,7 @@ import helder.view.*;
 class AndroidAccessCheck {
 	static function main() {
 		#if (hxmc.target == "android-arm64" || hxmc.target == "android-x86_64")
-		helder.os.android.Activity.activity;
+		helder.os.android.Activity.link();
 		#end
 		Sys.println("access: started");
 		var w = new UiWindow("fixture", 400, 640);

@@ -244,7 +244,7 @@ class Sendable {
 		if (free) {
 			fields = (macro class {
 				// (no input: none)
-				@:coroutine public function run(?input:hxmc.unsafe.IoBuffer):hxmc.unsafe.IoBuffer
+				@:hxmc.unsafe(gc) @:coroutine public function run(?input:hxmc.unsafe.IoBuffer):hxmc.unsafe.IoBuffer
 					return helder.jobs.Jobs.runFree(hxmc.unsafe.Callback.addr($fpath), input ?? cast hxmc.unsafe.Ptr.nil());
 			}).fields;
 		} else {
@@ -279,12 +279,12 @@ class Sendable {
 			var runField:Field = {
 				name: "run",
 				access: [APublic],
-				meta: [{name: ":coroutine", pos: f.pos}],
+				meta: [{name: ":hxmc.unsafe", params: [macro gc], pos: f.pos}, {name: ":coroutine", pos: f.pos}],
 				kind: FFun({args: it == null ? [] : [{name: "input", type: it}], ret: rt, expr: run}),
 				pos: f.pos
 			};
 			fields = (macro class {
-				@:hxmc.callback public static function entry(p:hxmc.unsafe.Ptr):Int {
+				@:hxmc.unsafe(gc) @:hxmc.callback public static function entry(p:hxmc.unsafe.Ptr):Int {
 					var job:helder.jobs.JobRecord = cast p;
 					return try {
 						$head;
@@ -343,7 +343,7 @@ class Sendable {
 					super(remote);
 
 				// v to the receiver (from any thread or job; a JobError once closed)
-				public function send(v:$ct):Void {
+				@:hxmc.unsafe(gc) public function send(v:$ct):Void {
 					var w = new helder.jobs.Wire.Writer();
 					${write(t, macro w, macro v)};
 					push(w.done());

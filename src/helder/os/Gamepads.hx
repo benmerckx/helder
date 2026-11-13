@@ -21,6 +21,7 @@ import hxmc.unsafe.*;
 // Android, iOS) none yet:
 // count() is 0. set() feeds a pad from a program (an on-screen stick, a
 // test), which poll then leaves alone.
+@:hxmc.unsafe(gc)
 class Gamepads {
 	public static inline var MAX = 4;
 	public static inline var BUTTONS = 17;

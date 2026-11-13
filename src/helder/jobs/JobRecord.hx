@@ -11,6 +11,7 @@ import hxmc.unsafe.Ptr;
 // into the run, freed after it), its output (the job's to allocate: the
 // awaiting task's to free), the cancel flag, the status. A GC job's entry
 // (Sendable) reads and writes it here.
+@:hxmc.unsafe(gc)
 abstract JobRecord(Ptr) {
 	// (the record: the input and output buffers' slots, the cancel flag, the status)
 	public static inline var INPUT = 0;

@@ -40,6 +40,7 @@ import hxmc.unsafe.*;
 // resizes it (xdg_toplevel.resize).
 // Events come from libwayland's dispatch into a queue, then App's callback.
 @:allow(helder.os)
+@:hxmc.unsafe(gc)
 class WaylandWindow {
 	// the connection and its globals (nil: not connected)
 	static var display = Ptr.nil();

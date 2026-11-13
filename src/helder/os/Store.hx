@@ -29,6 +29,7 @@ import hxmc.unsafe.*;
 // headless run (-D helder.headless) a store without dir starts empty and
 // stays in memory: what an earlier run, or the user's own app, kept does
 // not change what the run shows, and the run keeps nothing.
+@:hxmc.unsafe(gc)
 class Store {
 	public final name:String;
 	// the file (the web: "")
