@@ -42,9 +42,13 @@ hole has a recorded round at or under par (GolfReplay).
 ## Controls
 
 - **Shoot**: put a finger (or the mouse) on the ball, drag back, let go.
-  The dots show where it goes, the bar under the course how hard: the
-  farther you pull, the harder, up to a full pull of 150 points; let go
-  within 14 points of the ball and nothing is played.
+  The dots show where it goes: the ball's own path, played ahead by the
+  simulation, bending off the rails, clear up to the first bounce (a gold
+  dot) and fading soon after, ending in a red dot at a bumper, gate,
+  turnstile or sliding block in the way. The band behind the ball and the
+  readout beside it show how hard: the farther you pull, the harder, up
+  to a full pull of 150 points; let go within 14 points of the ball and
+  nothing is played.
 - **Look around**: drag anywhere else to turn the camera round the ball;
   pinch to zoom, twist with two fingers to turn (the mouse: drag, the
   wheel). While the ball rolls the camera eases round behind it, and when
@@ -81,8 +85,17 @@ hole has a recorded round at or under par (GolfReplay).
   speed and how many steps to wait once the ball rests), replayed on the
   simulation alone, natively and as wasm32-wasi (the examples lane); each
   must hole in its strokes and allocate only while the physics' buffers
-  grow. `GolfReplay search N [shots] [x z]` finds the next shot after the
-  given ones; `trace N shots` follows the ball.
+  grow; before each shot the aim's preview, played to the end, must leave
+  the ball where the shot does, bit for bit, and a fan of previews from
+  each tee must allocate nothing. `GolfReplay search N [shots] [x z]` finds
+  the next shot after the given ones; `trace N shots` follows the ball;
+  `preview N dx dz speed` shows where a shot's preview bounces and ends.
+- `Aim.hx`: the aim's preview: a ghost of the hole's simulation set to
+  the live one's state (`Sim.mirror`: the same step, so the turnstiles,
+  lifts and gates are where they will be) and played on with the shot
+  being aimed, at most 360 steps and only as far as is shown; its buffers
+  made once, worked again only when the aim changes (or, on a hole with
+  moving pieces, the step).
 - `Game.hx`: the scene's nodes made from the pieces (`Kit.hx`'s unit
   meshes, flat shaded, scaled per piece: drawn instanced), each island's
   light, colours and fog, the camera (`<OrbitControls>` driven by the game:
@@ -93,12 +106,17 @@ hole has a recorded round at or under par (GolfReplay).
   along each hit, a shake on hard ones, slow motion. A frame of play
   allocates nothing (`GOLF_DEMO=<hole>` plays the recorded round and prints
   the frames' GcStats and draw count natively; `GOLF_PLAY=<hole>` starts a
-  hole, `GOLF_MENU` opens the scorecard).
+  hole, `GOLF_AIM=<hole>,<dx>,<dz>,<power>` holds an aim on it, the
+  preview shown and the frames' GcStats printed, `GOLF_MENU` opens the
+  scorecard).
 - `Golf.hx`: the window (`<Surface>`, the island's sky), a `<Scene hdr>`
   (bloom, a light vignette: emissive portals, switches and lanterns glow)
   and the title, hole card, HUD, card and scorecard in ui's markup, clear
   of a phone's bars, laid out for a phone upright and a window on its side.
-  Set in Fredoka (fonts/, SIL Open Font License), embedded.
+  Set in Nunito (the numbers, labels, tips, buttons and scorecard), the
+  title and the holes' names in Fredoka at a medium weight (fonts/, both
+  SIL Open Font License), embedded. Nunito is its variable font cut to
+  Latin, its legacy family name set to "Nunito".
 - `Sounds.hx`: a tock, knocks, a thud, a boing, a warp, a click and a
   rumble, a crumble, a splash, a whoosh, the cup's plunk and a chime, all
   made procedurally and mixed by helder.os's `Sfx` (desktop and the web).

@@ -68,6 +68,8 @@ class Kit {
 	public final tee:Mesh;
 	public final dot:Mesh;
 	public final dotMaterial:Material;
+	// the aim's predicted path: white, a little glow, tinted per instance
+	public final pathDot:Mesh;
 	public final ring:Mesh;
 	public final ringMaterial:Material;
 	// the scenery
@@ -166,6 +168,9 @@ class Kit {
 		tee = cylinder(mat(0xfff0a8, 0.7), 20, false);
 		dotMaterial = mat(0xffffff, 0.5, 1, 0.4);
 		dot = Shapes.sphere(device, dotMaterial, 0.5, 8, 4);
+		var pathMat = mat(0xffffff, 0.5, 1, 0.12);
+		pathMat.castShadows = false;
+		pathDot = Shapes.sphere(device, pathMat, 0.5, 8, 4);
 		ringMaterial = mat(0xfff3b0, 0.6, 0.7, 0.8);
 		ringMaterial.castShadows = false;
 		ring = cylinder(ringMaterial, 32, true);

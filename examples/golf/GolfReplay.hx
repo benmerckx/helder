@@ -10,6 +10,7 @@ import Course.Hole;
 //
 //   GolfReplay                        the recorded rounds: a line each, exit 1 on a miss
 //   GolfReplay tune                   how far a shot rolls on a flat green, by speed
+//   GolfReplay preview N dx dz speed  the aim's preview of a shot from hole N's tee (Aim)
 //   GolfReplay search N [shots] [x z] [wide]
 //                                     after the shots given (JSON), the next shots that hole
 //                                     hole N (1-based); else those ending nearest x, z (the cup)
@@ -43,6 +44,7 @@ class GolfReplay {
 		if (args[0] == "tune") return tune();
 		if (args[0] == "search") return search(args.slice(1));
 		if (args[0] == "trace") return follow(Std.parseInt(args[1]) - 1, haxe.Json.parse(args[2]));
+		if (args[0] == "preview") return preview(Std.parseInt(args[1]) - 1, Std.parseFloat(args[2]), Std.parseFloat(args[3]), Std.parseFloat(args[4]));
 		var failed = 0;
 		var seen = [for (_ in Course.holes) false];
 		for (r in rounds) {
@@ -57,6 +59,8 @@ class GolfReplay {
 				failed++;
 			}
 		}
+		for (r in rounds)
+			failed += ghosts(r.hole, r.shots);
 		for (i in 0...seen.length)
 			if (!seen[i]) {
 				Sys.println('FAIL hole ${i + 1} (${Course.holes[i].name}): no recorded round');
@@ -97,6 +101,72 @@ class GolfReplay {
 			run(20 * 120);
 		}
 		return {sim: sim, bytes: bytes, allocating: allocating};
+	}
+
+	// the aim's preview (Aim) against the round: before each shot, its ghost
+	// played to the end must leave the ball where the shot does, bit for bit
+	// (the moving pieces at the same step); then previews as the game makes
+	// them, a fan of shots from the tee, allocating nothing once the ghost's
+	// buffers have grown
+	static function ghosts(index:Int, shots:Array<Array<Float>>):Int {
+		var hole = Course.holes[index];
+		var sim = new Sim(hole), aim = new Aim(sim);
+		var failed = 0, k = 0;
+		for (s in shots) {
+			if (sim.sunk) break;
+			var w = s.length > 3 ? Std.int(s[3]) : WAIT;
+			for (_ in 0...w)
+				sim.step();
+			while (!sim.resting)
+				sim.step();
+			aim.predict(sim, s[0], s[1], s[2], false, 20 * 120);
+			var g = aim.ghost;
+			sim.shoot(s[0], s[1], s[2]);
+			var n = 0;
+			while (!sim.sunk && n < 20 * 120) {
+				sim.step();
+				n++;
+				if (sim.resting) break;
+			}
+			var a = g.ball.position, b = sim.ball.position;
+			if (a.x != b.x || a.y != b.y || a.z != b.z || g.sunk != sim.sunk || g.strokes != sim.strokes) {
+				Sys.println('FAIL hole ${index + 1} shot ${k + 1}: the preview ends at ${fmt(a.x)} ${fmt(a.y)} ${fmt(a.z)}${g.sunk ? " (holed)" : ""}, the shot at ${fmt(b.x)} ${fmt(b.y)} ${fmt(b.z)}${sim.sunk ? " (holed)" : ""}');
+				failed++;
+			}
+			k++;
+		}
+		// (as the game: limited, a fan of directions and powers from the tee)
+		var tee = new Sim(hole);
+		aim.reset(tee);
+		var bytes = 0.0, allocating = 0, steps = 0, most = 0, t0 = haxe.Timer.stamp();
+		for (i in 0...48) {
+			var a = i / 48 * Math.PI * 2, speed = Sim.MIN_SPEED + (Sim.MAX_SPEED - Sim.MIN_SPEED) * ((i % 4) + 1) / 4;
+			var dx = Math.sin(a), dz = -Math.cos(a);
+			var before = hxmc.GcStats.bytesAllocated();
+			aim.predict(tee, dx, dz, speed);
+			var d = hxmc.GcStats.bytesAllocated() - before;
+			steps += aim.ran;
+			if (aim.ran > most) most = aim.ran;
+			if (i < 4) continue;
+			if (d > 0) allocating++;
+			bytes += d;
+		}
+		var ms = Math.round((haxe.Timer.stamp() - t0) / 48 * 10000) / 10;
+		Sys.println('     hole ${index + 1}: the preview true to the round; 48 previews from the tee, ${Std.int(steps / 48)} steps each (at most $most, $ms ms), $bytes bytes allocated in $allocating');
+		if (allocating > 2 || bytes > 4096) {
+			Sys.println('FAIL hole ${index + 1}: the previews allocated');
+			failed++;
+		}
+		return failed;
+	}
+
+	// the aim's preview of a shot from the tee: where it bounces first, where and why it ends
+	static function preview(index:Int, dx:Float, dz:Float, speed:Float) {
+		var sim = new Sim(Course.holes[index]), aim = new Aim(sim);
+		aim.predict(sim, dx, dz, speed);
+		var ends = ["rest", "length", "blocker", "portal", "off", "cup", "steps"];
+		aim.at(aim.length);
+		Sys.println('${aim.ran} steps, ${aim.count} points, first bounce at ${fmt(aim.bounce)} m, fading from ${fmt(aim.fadeFrom)} m, ends at ${fmt(aim.length)} m (${fmt(aim.px)} ${fmt(aim.py)} ${fmt(aim.pz)}): ${ends[aim.ending]}');
 	}
 
 	static function tune() {
