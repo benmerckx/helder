@@ -110,13 +110,10 @@ class StoreShots implements Markup {
 		};
 	}
 
-	static function mkdirs(d:String) {
-		var at = "";
-		for (part in d.split("/")) {
-			at = at == "" ? part : '$at/$part';
-			if (at != "" && !sys.FileSystem.exists(at)) sys.FileSystem.createDirectory(at);
-		}
-	}
+	// (a directory and those above it: an absolute path's too, a drive's on
+	// Windows, /'s elsewhere; createDirectory makes the missing parents)
+	static function mkdirs(d:String)
+		if (!sys.FileSystem.exists(d)) sys.FileSystem.createDirectory(d);
 
 	// (one device, renderer and text engine for every shot, each shot's frames drawn into a target of its size)
 	static var gpu:Null<{device:Device, renderer:Renderer, text:DrawText}>;
