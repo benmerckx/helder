@@ -25,7 +25,8 @@ using StringTools;
 // from package.json's "helder" key: App) are written first, then hxmc links
 // the executable into <name>.app and signs it ad hoc binding them
 // (-D hxmc.codesign-id, -info-plist, -resources, -entitlements; -D
-// hxmc.ios-min-version the plist's MinimumOSVersion), as `codesign -s -`
+// hxmc.ios-min-version the plist's MinimumOSVersion, -D
+// hxmc.ios-sdk-version its DTSDKName's version), as `codesign -s -`
 // signs a bundle: enough for the simulator. An .ipa zips the bundle under
 // Payload/. Outputs: bin/ios/<name>.ipa (and its .app beside it),
 // bin/ios-sim/<name>.app. On a simulator (xcrun simctl): booted when it is
@@ -78,8 +79,13 @@ class Ios {
 		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, !device, o.orientation, o.fullscreen, keys);
 		TestCommand.mkdirs(Path.directory(app) == "" ? "." : Path.directory(app));
 		var full = FileSystem.fullPath(Path.directory(app) == "" ? "." : Path.directory(app)) + "/" + Path.withoutDirectory(app);
-		var words = ["-D", 'hxmc.ios-min-version=${o.minVersion}', "-D", 'hxmc.codesign-id=${o.id}', "-D", 'hxmc.codesign-info-plist=$full/Info.plist', "-D",
+		// (the binary's SDK, LC_BUILD_VERSION's, the one the Info.plist's
+		// DTSDKName names: Xcode's always match)
+		var words = ["-D", 'hxmc.ios-min-version=${o.minVersion}', "-D", 'hxmc.ios-sdk-version=${sdkValues(o).version}', "-D", 'hxmc.codesign-id=${o.id}', "-D", 'hxmc.codesign-info-plist=$full/Info.plist', "-D",
 			'hxmc.codesign-resources=$full/_CodeSignature/CodeResources'].concat(App.defines(e.config));
+		// (a device's: its debug symbols, <exe>.dSYM, which crash reports are
+		// symbolicated with; moved out of the bundle below)
+		if (device) words = words.concat(["-D", "hxmc.dsym"]);
 		if (o.entitlements != null) {
 			var ent = Path.isAbsolute(o.entitlements) || e.root == "." ? o.entitlements : '${e.root}/${o.entitlements}';
 			if (!FileSystem.exists(ent)) throw '$ent: no such file (package.json\'s "helder": {"ios": {"entitlements"}})';
@@ -144,6 +150,13 @@ class Ios {
 					entitlements: entitlements,
 					sdk: MachO.version(sdkValues(o).version)
 				}));
+			}
+			// (the dSYM beside the .ipa or the .app, as an archive's dSYMs/<name>.app.dSYM:
+			// nothing in the bundle that its signature does not bind)
+			if (FileSystem.exists('$exe.dSYM')) {
+				var dsym = (out.endsWith(".ipa") ? Path.withoutExtension(out) + ".app" : app) + ".dSYM";
+				if (FileSystem.exists(dsym)) TestCommand.rmrf(dsym);
+				FileSystem.rename('$exe.dSYM', dsym);
 			}
 			if (out.endsWith(".ipa")) File.saveBytes(out, Bundle.ipa(name, File.getBytes(exe), info, resources, assets));
 			out;

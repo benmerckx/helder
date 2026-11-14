@@ -632,8 +632,9 @@ build time.
   `hxmc-android-debug-key 1` and hxmc's cache were hxmc's), and Windows no
   longer falls back to the time and `Math.random`. An app signed by hxmc's
   key does not update in place: uninstall it once.
-- **iOS**: hxmc links a Mach-O executable (`-D hxmc.ios-min-version`: its
-  `LC_BUILD_VERSION`) into `<name>.app`, whose `Info.plist` and
+- **iOS**: hxmc links a Mach-O executable (`-D hxmc.ios-min-version` and
+  `-D hxmc.ios-sdk-version`: its `LC_BUILD_VERSION`, the `Info.plist`'s
+  `MinimumOSVersion` and `DTSDKName`) into `<name>.app`, whose `Info.plist` and
   `_CodeSignature/CodeResources` helder writes first (`helder.pack.ios`:
   `Bundle`, `Plist`), and signs it ad hoc binding them (`-D
   hxmc.codesign-id`: the bundle id; `-info-plist`, `-resources`,
